@@ -32,6 +32,11 @@ jobs:
           fetch-depth: 0
           submodules: true
 
+      - name: Install host build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends xxd qrencode >/dev/null
+
       - name: Determine release tag and channel
         id: vars
         shell: bash
@@ -103,7 +108,6 @@ jobs:
             git log ${RANGE} --no-merges --pretty='- %s (%h)'
           } > release_notes.md
 
-          apt-get update -qq && apt-get install -y -qq qrencode >/dev/null
           qrencode -s 8 -o "release/QR-${TAG}.png" "${BASE}/NSA-${TAG}.cia"
 
       - name: Upload build artifacts

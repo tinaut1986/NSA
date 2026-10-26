@@ -25,6 +25,11 @@ jobs:
           fetch-depth: 0
           submodules: true
 
+      - name: Install host build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends xxd >/dev/null
+
       - name: Build (.3dsx + .cia)
         shell: bash
         run: |

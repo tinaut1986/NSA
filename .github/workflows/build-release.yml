@@ -1,0 +1,130 @@
+name: Build 3DS Release
+
+# Channels:
+#   - release branch: beta. A vX.Y.Z tag on it publishes a prerelease.
+#   - master branch:  stable. It only moves by merging release.
+# Stable vs beta is decided by whether master can reach the tagged commit.
+# To promote a beta, merge release into master, push master, then re-run this
+# workflow on the tag: the same release page becomes stable and "latest".
+# Only three-component v-tags are ours; upstream FBI's tags (2.6.1...) never
+# trigger a build.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-3ds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      # Same pinned image as build.yml. Bump deliberately, in both files.
+      image: devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Determine release tag and channel
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          case "$GITHUB_REF" in
+            refs/tags/v*) TAG="${GITHUB_REF#refs/tags/}" ;;
+            *) echo "::error::Run this on a vX.Y.Z tag, not a branch"; exit 1 ;;
+          esac
+          VERSION="${TAG#v}"
+
+          # Push master BEFORE re-running on the tag. If the fetch fails we
+          # fall through to Beta: mislabelling stable as beta is recoverable.
+          git fetch --no-tags --quiet origin +refs/heads/master:refs/remotes/origin/master || true
+          if git merge-base --is-ancestor HEAD refs/remotes/origin/master 2>/dev/null; then
+            PRERELEASE=false; CHANNEL=Release
+          else
+            PRERELEASE=true; CHANNEL=Beta
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "prerelease=$PRERELEASE"
+            echo "channel=$CHANNEL"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build (.3dsx + .cia)
+        shell: bash
+        run: |
+          set -euo pipefail
+          make clean
+          make -j"$(nproc)" VERSION="${{ steps.vars.outputs.version }}"
+
+      - name: Package assets, changelog and QR code
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.vars.outputs.tag }}"
+          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+
+          mkdir -p release
+          cp output/3ds-arm/NSA.cia          "release/NSA-${TAG}.cia"
+          cp output/3ds-arm/3ds/NSA/NSA.3dsx "release/NSA-${TAG}.3dsx"
+          (cd release && sha256sum * > SHA256SUMS.txt)
+
+          PREV=$(git tag --merged "HEAD^" --list 'v[0-9]*.[0-9]*.[0-9]*' | \
+            grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+          # First release: the changelog starts at upstream FBI's last tag.
+          RANGE="${PREV:-2.6.1}..HEAD"
+
+          {
+            if [ "${{ steps.vars.outputs.prerelease }}" = "true" ]; then
+              echo "> **Beta build.** This comes off the \`release\` branch and has not"
+              echo "> been merged into \`master\` yet, so it is not a stable version."
+              echo
+            fi
+            echo "![QR code for the ${TAG} CIA](${BASE}/QR-${TAG}.png)"
+            echo
+            echo "## Downloads"
+            echo
+            echo "- [NSA-${TAG}.cia](${BASE}/NSA-${TAG}.cia)"
+            echo "- [NSA-${TAG}.3dsx](${BASE}/NSA-${TAG}.3dsx)"
+            echo
+            echo "Installs as its own title, next to upstream FBI. Based on [Steveice10/FBI](https://github.com/Steveice10/FBI) 2.6.1."
+            echo
+            echo "## Changelog"
+            echo
+            git log ${RANGE} --no-merges --pretty='- %s (%h)'
+          } > release_notes.md
+
+          apt-get update -qq && apt-get install -y -qq qrencode >/dev/null
+          qrencode -s 8 -o "release/QR-${TAG}.png" "${BASE}/NSA-${TAG}.cia"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: NSA-${{ steps.vars.outputs.tag }}
+          if-no-files-found: error
+          path: release/
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: ${{ steps.vars.outputs.channel }} ${{ steps.vars.outputs.tag }}
+          draft: false
+          prerelease: ${{ steps.vars.outputs.prerelease == 'true' }}
+          # /releases/latest must always be the newest stable.
+          make_latest: ${{ steps.vars.outputs.prerelease == 'true' && 'false' || 'true' }}
+          body_path: release_notes.md
+          files: |
+            release/NSA-${{ steps.vars.outputs.tag }}.cia
+            release/NSA-${{ steps.vars.outputs.tag }}.3dsx
+            release/SHA256SUMS.txt
+            release/QR-${{ steps.vars.outputs.tag }}.png

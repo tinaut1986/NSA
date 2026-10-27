@@ -69,7 +69,12 @@ jobs:
         run: |
           set -euo pipefail
           make clean
-          make -j"$(nproc)" VERSION="${{ steps.vars.outputs.version }}"
+          # The channel is baked into the binary: a beta calls itself X.Y.Z-beta,
+          # so its updater offers the stable release of the same number.
+          if [ "${{ steps.vars.outputs.channel }}" = "Release" ]; then CH=release; else CH=beta; fi
+          export VERSION="${{ steps.vars.outputs.version }}" CHANNEL=$CH
+          echo "Building $(make -s print-version | tail -1)"
+          make -j"$(nproc)"
 
       - name: Package assets, changelog and QR code
         shell: bash
@@ -88,6 +93,11 @@ jobs:
           # First release: the changelog starts at upstream FBI's last tag.
           RANGE="${PREV:-2.6.1}..HEAD"
 
+          NOTES="docs/release-notes/${TAG}.md"
+          if [ ! -f "$NOTES" ]; then
+            echo "::warning::$NOTES is missing: the updater will show the commit list for ${TAG}"
+          fi
+
           {
             if [ "${{ steps.vars.outputs.prerelease }}" = "true" ]; then
               echo "> **Beta build.** This comes off the \`release\` branch and has not"
@@ -96,6 +106,17 @@ jobs:
             fi
             echo "![QR code for the ${TAG} CIA](${BASE}/QR-${TAG}.png)"
             echo
+            # The console's updater shows this block (UPDATE_NOTES_OPEN in
+            # source/fbi/update_manifest.h). Keep the markers identical.
+            if [ -f "$NOTES" ]; then
+              echo "<!-- nsa-notes -->"
+              echo "## What's new"
+              echo
+              cat "$NOTES"
+              echo
+              echo "<!-- /nsa-notes -->"
+              echo
+            fi
             echo "## Downloads"
             echo
             echo "- [NSA-${TAG}.cia](${BASE}/NSA-${TAG}.cia)"

@@ -40,12 +40,12 @@ static Result dumpnand_open_dst(void* data, u32 index, void* initialReadBlock, u
 
     FS_Archive sdmcArchive = 0;
     if(R_SUCCEEDED(res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-        if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/fbi/")) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/fbi/nand/"))) {
+        if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR)) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR "nand/"))) {
             time_t t = time(NULL);
             struct tm* timeInfo = localtime(&t);
 
             char path[FILE_PATH_MAX];
-            strftime(path, sizeof(path), "/fbi/nand/NAND_%m-%d-%y_%H-%M-%S.bin", timeInfo);
+            strftime(path, sizeof(path), APP_DATA_DIR "nand/NAND_%m-%d-%y_%H-%M-%S.bin", timeInfo);
 
             FS_Path* fsPath = fs_make_path_utf8(path);
             if(fsPath != NULL) {

@@ -26,9 +26,9 @@ static void action_extract_smdh_update(ui_view* view, void* data, float* progres
             if(R_SUCCEEDED(res = FSFILE_Read(fileHandle, &bytesRead, 0, smdh, sizeof(SMDH))) && bytesRead == sizeof(SMDH)) {
                 FS_Archive sdmcArchive = 0;
                 if(R_SUCCEEDED(res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-                    if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/fbi/")) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/fbi/smdh/"))) {
+                    if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR)) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR "smdh/"))) {
                         char pathBuf[64];
-                        snprintf(pathBuf, 64, "/fbi/smdh/%016llX.smdh", info->titleId);
+                        snprintf(pathBuf, 64, APP_DATA_DIR "smdh/%016llX.smdh", info->titleId);
 
                         FS_Path* fsPath = fs_make_path_utf8(pathBuf);
                         if(fsPath != NULL) {

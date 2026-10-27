@@ -57,12 +57,12 @@ static Result action_export_twl_save_open_dst(void* data, u32 index, void* initi
 
     FS_Archive sdmcArchive = 0;
     if(R_SUCCEEDED(res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-        if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/fbi/")) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/fbi/save/"))) {
+        if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR)) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR "save/"))) {
             char gameName[0x10] = {'\0'};
             string_escape_file_name(gameName, exportData->title->productCode, sizeof(gameName));
 
             char path[FILE_PATH_MAX];
-            snprintf(path, sizeof(path), "/fbi/save/%s.sav", gameName);
+            snprintf(path, sizeof(path), APP_DATA_DIR "save/%s.sav", gameName);
 
             FS_Path* fsPath = fs_make_path_utf8(path);
             if(fsPath != NULL) {

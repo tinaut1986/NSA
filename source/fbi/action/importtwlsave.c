@@ -36,7 +36,7 @@ static Result action_import_twl_save_open_src(void* data, u32 index, u32* handle
     string_escape_file_name(gameName, importData->title->productCode, sizeof(gameName));
 
     char path[FILE_PATH_MAX];
-    snprintf(path, sizeof(path), "/fbi/save/%s.sav", gameName);
+    snprintf(path, sizeof(path), APP_DATA_DIR "save/%s.sav", gameName);
 
     FS_Path* fsPath = fs_make_path_utf8(path);
     if(fsPath != NULL) {

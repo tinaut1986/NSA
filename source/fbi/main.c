@@ -10,6 +10,8 @@
 #include "../core/task/task.h"
 #include "../core/ui/ui.h"
 #include "section.h"
+#include "settings.h"
+#include "update.h"
 #include "task/uitask.h"
 
 #define CURRENT_KPROCESS (*(void**) 0xFFFF9004)
@@ -180,8 +182,14 @@ int main(int argc, const char* argv[]) {
 
     init();
 
+    settings_load();
+
     mainmenu_open();
-    while(aptMainLoop() && ui_update());
+    startup_run();
+
+    while(aptMainLoop() && ui_update()) {
+        update_poll();
+    }
 
     cleanup();
 

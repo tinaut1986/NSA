@@ -5,6 +5,7 @@
 
 #include <3ds.h>
 
+#include "appinfo.h"
 #include "error.h"
 
 extern void cleanup();
@@ -71,7 +72,7 @@ void error_panic(const char* s, ...) {
 
     PrintConsole* console = consoleInit(GFX_TOP, NULL);
 
-    const char* header = "FBI has encountered a fatal error!";
+    const char* header = APP_NAME " has encountered a fatal error!";
     const char* footer = "Press any button to exit.";
 
     printf("\x1b[0;0H");

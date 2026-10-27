@@ -9,7 +9,7 @@
 
 static FILE* resources_open_file(const char* path) {
     char realPath[FILE_PATH_MAX];
-    snprintf(realPath, sizeof(realPath), "sdmc:/fbi/theme/%s", path);
+    snprintf(realPath, sizeof(realPath), "sdmc:" APP_DATA_DIR "theme/%s", path);
 
     FILE* fd = fopen(realPath, "rb");
 

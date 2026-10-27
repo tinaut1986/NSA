@@ -11,7 +11,7 @@ static void action_import_secure_value_update(ui_view* view, void* data, float* 
     title_info* info = (title_info*) data;
 
     char pathBuf[64];
-    snprintf(pathBuf, 64, "/fbi/securevalue/%016llX.dat", info->titleId);
+    snprintf(pathBuf, 64, APP_DATA_DIR "securevalue/%016llX.dat", info->titleId);
 
     Result res = 0;
 

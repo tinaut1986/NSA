@@ -19,9 +19,12 @@ EXTRA_OUTPUT_FILES := servefiles
 
 BUILD_FLAGS := -Wno-format-truncation
 
-# Our tags are vX.Y.Z; upstream's are X.Y.Z. CI passes VERSION explicitly.
-VERSION ?= $(patsubst v%,%,$(shell git describe --tags --abbrev=0))
-VERSION_PARTS := $(subst ., ,$(VERSION))
+# tools/version.sh: X.Y.Z, X.Y.Z-beta or X.Y.Z-dev.N+hash. The release
+# workflow passes VERSION and CHANNEL (beta|release).
+VERSION_STRING := $(shell sh tools/version.sh)
+VERSION_PARTS := $(subst ., ,$(firstword $(subst -, ,$(VERSION_STRING))))
+BUILD_FLAGS += -DVERSION_STRING=\"$(VERSION_STRING)\"
+
 
 VERSION_MAJOR := $(word 1, $(VERSION_PARTS))
 VERSION_MINOR := $(word 2, $(VERSION_PARTS))
@@ -44,3 +47,7 @@ LOGO := meta/logo_3ds.bcma.lz
 # INTERNAL #
 
 include buildtools/make_base
+
+.PHONY: print-version
+print-version:
+	@echo $(VERSION_STRING)

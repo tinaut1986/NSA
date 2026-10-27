@@ -26,9 +26,9 @@ static void action_export_secure_value_update(ui_view* view, void* data, float* 
 
         FS_Archive sdmcArchive = 0;
         if(R_SUCCEEDED(res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-            if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/fbi/")) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/fbi/securevalue/"))) {
+            if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR)) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR "securevalue/"))) {
                 char pathBuf[64];
-                snprintf(pathBuf, 64, "/fbi/securevalue/%016llX.dat", info->titleId);
+                snprintf(pathBuf, 64, APP_DATA_DIR "securevalue/%016llX.dat", info->titleId);
 
                 FS_Path* fsPath = fs_make_path_utf8(pathBuf);
                 if(fsPath != NULL) {

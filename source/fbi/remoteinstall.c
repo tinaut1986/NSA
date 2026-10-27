@@ -11,6 +11,7 @@
 #include "resources.h"
 #include "ftpserver.h"
 #include "section.h"
+#include "transfer.h"
 #include "action/action.h"
 #include "task/uitask.h"
 #include "../core/core.h"
@@ -475,6 +476,7 @@ static void remoteinstall_forget_last_request() {
 }
 
 static list_item receive_urls_network = {"Receive URLs over the network", COLOR_TEXT, remoteinstall_receive_urls_network};
+static list_item receive_from_3ds = {"Receive from another 3DS", COLOR_TEXT, transfer_receive_open};
 static list_item scan_qr_code = {"Scan QR Code", COLOR_TEXT, remoteinstall_scan_qr_code};
 static list_item manually_enter_urls = {"Manually enter URLs", COLOR_TEXT, remoteinstall_manually_enter_urls};
 static list_item repeat_last_request = {"Repeat last request", COLOR_TEXT, remoteinstall_repeat_last_request};
@@ -495,6 +497,7 @@ static void remoteinstall_update(ui_view* view, void* data, linked_list* items, 
 
     if(linked_list_size(items) == 0) {
         linked_list_add(items, &receive_urls_network);
+        linked_list_add(items, &receive_from_3ds);
         linked_list_add(items, &scan_qr_code);
         linked_list_add(items, &manually_enter_urls);
         linked_list_add(items, &repeat_last_request);

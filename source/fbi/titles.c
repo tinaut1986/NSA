@@ -424,6 +424,7 @@ static void titles_delete(void* data) { titles_run(data, action_delete_title); }
 static void titles_delete_ticket(void* data) { titles_run(data, action_delete_title_ticket); }
 static void titles_extract_smdh(void* data) { titles_run(data, action_extract_smdh); }
 static void titles_export_cia(void* data) { titles_run(data, action_export_cia); }
+static void titles_export_cia_send(void* data) { titles_run(data, action_export_cia_send); }
 static void titles_import_seed(void* data) { titles_run(data, action_import_seed); }
 static void titles_browse_save(void* data) { titles_run(data, action_browse_title_save_data); }
 static void titles_import_save(void* data) { titles_run(data, action_import_twl_save); }
@@ -517,6 +518,7 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
 
         if(!card) {
             actions[count++] = (sheet_action) {ICON_PACKAGE, _("Export as CIA"), false, titles_export_cia};
+            actions[count++] = (sheet_action) {ICON_WIFI, _("Send to another 3DS"), false, titles_export_cia_send};
             actions[count++] = (sheet_action) {ICON_KEY, _("Import seed"), false, titles_import_seed};
             actions[count++] = (sheet_action) {ICON_SHIELD_LOCK, _("Import secure value"), false, titles_import_sv};
             actions[count++] = (sheet_action) {ICON_SHIELD_LOCK, _("Export secure value"), false, titles_export_sv};

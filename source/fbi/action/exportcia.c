@@ -8,6 +8,9 @@
 #include "action.h"
 #include "../resources.h"
 #include "../task/uitask.h"
+#include "../transfer.h"
+#include "../udslink.h"
+#include "ciacerts.h"
 #include "../../core/core.h"
 
 // Builds a CIA from an installed CTR title.
@@ -34,7 +37,7 @@
 
 #define ARCHIVE_TITLE_ACCESS ((FS_ArchiveID) 0x2345678A)
 
-typedef struct {
+typedef struct export_cia_data_s {
     title_info* title;
 
     char path[FILE_PATH_MAX];
@@ -63,6 +66,30 @@ typedef struct {
     Thread writer;
     Thread hasher;
     Result writeResult;
+
+    // Known from a title package instead of asked of the system.
+    bool saveSizeKnown;
+    u32 saveSize;
+
+    // Sending a title as it is read (see the title package below).
+    bool streaming;
+    u8* streamHeader;
+    u32 streamHeaderSize;
+    LightLock pxiLock;   // The connections read in turn: the PXI session is one.
+
+    // Receiving one: the package arrives in pieces, in any order.
+    bool sink;
+    bool sinkResume;   // The CIA file is there from an earlier try: keep what it has.
+    title_info sinkTitle;
+    u8* sinkHeader;
+    u32 sinkHeaderSize;
+    u64* sinkStarts;          // Where each content starts in the package.
+    LightLock sinkLock;       // The CIA file is written by one thread at a time.
+    volatile bool sinkReady;  // The header has been read and the CIA file made.
+    volatile bool sinkFailed;
+    bool sinkDone;
+    volatile u64 sinkHashed;
+    u64 sinkHashTotal;
 
     data_op_data exportInfo;
 } export_cia_data;
@@ -93,7 +120,10 @@ static Result action_export_cia_write(export_cia_data* data, u64 offset, const v
     u32 bytesWritten = 0;
     Result res = FSFILE_Write(data->ciaHandle, &bytesWritten, offset, buffer, size, 0);
     if(R_SUCCEEDED(res) && bytesWritten != size) {
+        udslink_log("cia: only %u of %u bytes written at %llu\n", bytesWritten, size, offset);
         res = R_APP_IO_ERROR;
+    } else if(R_FAILED(res)) {
+        udslink_log("cia: write of %u bytes at %llu failed: %08lX\n", size, offset, res);
     }
 
     return res;
@@ -101,67 +131,14 @@ static Result action_export_cia_write(export_cia_data* data, u64 offset, const v
 
 // ---- certificate chain ----
 
-static u32 action_export_cia_sig_size(u32 type) {
-    switch(type) {
-        case 0x10000: case 0x10003: return 0x200;
-        case 0x10001: case 0x10004: return 0x100;
-        default: return 0;
-    }
-}
-
-// Certificates sit whole in certs.db (a save-like container): look for each one
-// by its signature type, issuer and name instead of parsing the container.
-static bool action_export_cia_find_cert(const u8* db, u32 dbSize, const char* issuer, const char* name, u32 certSize, u8* out) {
-    for(u32 off = 0; off + certSize <= dbSize; off += 4) {
-        u32 type = (u32) db[off] << 24 | (u32) db[off + 1] << 16 | (u32) db[off + 2] << 8 | db[off + 3];
-        u32 sigSize = action_export_cia_sig_size(type);
-        if(sigSize == 0 || 4 + sigSize + 0x3C + 0x88 > certSize) {
-            continue;
-        }
-
-        const char* body = (const char*) db + off + 4 + sigSize + 0x3C;
-        if(strncmp(body, issuer, 0x40) == 0 && strncmp(body + 0x44, name, 0x40) == 0) {
-            memcpy(out, db + off, certSize);
-            return true;
-        }
-    }
-
-    return false;
-}
-
+// The chain every CIA carries is the same on every retail console and public, so it
+// is not taken from the console: its certs.db may hold another copy of the root
+// certificate (a 2DS keeps it differently, and on a New 3DS the one found differed
+// from the standard in 490 bytes, which AM refused with "cert signature or hash
+// check failed").
 static Result action_export_cia_read_certs(u8* out) {
-    Result res = 0;
-
-    FS_Archive nandArchive = 0;
-    if(R_SUCCEEDED(res = FSUSER_OpenArchive(&nandArchive, ARCHIVE_NAND_CTR_FS, fsMakePath(PATH_EMPTY, "")))) {
-        Handle fileHandle = 0;
-        if(R_SUCCEEDED(res = FSUSER_OpenFile(&fileHandle, nandArchive, fsMakePath(PATH_ASCII, "/dbs/certs.db"), FS_OPEN_READ, 0))) {
-            u64 size = 0;
-            if(R_SUCCEEDED(res = FSFILE_GetSize(fileHandle, &size))) {
-                u8* db = size > 0 && size <= 0x100000 ? (u8*) malloc((size_t) size) : NULL;
-                if(db != NULL) {
-                    u32 bytesRead = 0;
-                    if(R_SUCCEEDED(res = FSFILE_Read(fileHandle, &bytesRead, 0, db, (u32) size))) {
-                        if(!action_export_cia_find_cert(db, bytesRead, "Root", "CA00000003", 0x400, out)
-                           || !action_export_cia_find_cert(db, bytesRead, "Root-CA00000003", "XS0000000c", 0x300, out + 0x400)
-                           || !action_export_cia_find_cert(db, bytesRead, "Root-CA00000003", "CP0000000b", 0x300, out + 0x700)) {
-                            res = R_APP_BAD_DATA;
-                        }
-                    }
-
-                    free(db);
-                } else {
-                    res = R_APP_OUT_OF_MEMORY;
-                }
-            }
-
-            FSFILE_Close(fileHandle);
-        }
-
-        FSUSER_CloseArchive(nandArchive);
-    }
-
-    return res;
+    memcpy(out, CIA_CERT_CHAIN, CIA_CERT_SIZE);
+    return 0;
 }
 
 // ---- ticket, TMD, meta ----
@@ -229,7 +206,7 @@ static Result action_export_cia_write_tmd(export_cia_data* data) {
     action_export_cia_put64(header + 0x4C, data->title->titleId);
     action_export_cia_put32(header + 0x54, 0x40);
 
-    u32 saveSize = action_export_cia_save_size(data);
+    u32 saveSize = data->saveSizeKnown ? data->saveSize : action_export_cia_save_size(data);
     memcpy(header + 0x5A, &saveSize, sizeof(saveSize)); // little endian
 
     action_export_cia_put16(header + 0x9C, data->title->version);
@@ -258,14 +235,10 @@ static Result action_export_cia_write_tmd(export_cia_data* data) {
     return res;
 }
 
-static Result action_export_cia_write_meta(export_cia_data* data, u64 offset) {
+// The SMDH sits at 0x400 of the meta section; the rest of it stays zero.
+static void action_export_cia_read_meta(export_cia_data* data, u8* meta) {
     static const u32 filePath[5] = {0x00000000, 0x00000000, 0x00000002, 0x6E6F6369, 0x00000000};
     u32 archivePath[4] = {(u32) data->title->titleId, (u32) (data->title->titleId >> 32), data->title->mediaType, 0};
-
-    u8* meta = (u8*) calloc(1, CIA_META_SIZE);
-    if(meta == NULL) {
-        return R_APP_OUT_OF_MEMORY;
-    }
 
     Handle fileHandle = 0;
     if(R_SUCCEEDED(FSUSER_OpenFileDirectly(&fileHandle, ARCHIVE_SAVEDATA_AND_CONTENT, fs_make_path_binary(archivePath, sizeof(archivePath)),
@@ -274,6 +247,15 @@ static Result action_export_cia_write_meta(export_cia_data* data, u64 offset) {
         FSFILE_Read(fileHandle, &bytesRead, 0, meta + 0x400, sizeof(SMDH));
         FSFILE_Close(fileHandle);
     }
+}
+
+static Result action_export_cia_write_meta(export_cia_data* data, u64 offset) {
+    u8* meta = (u8*) calloc(1, CIA_META_SIZE);
+    if(meta == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    action_export_cia_read_meta(data, meta);
 
     Result res = action_export_cia_write(data, offset, meta, CIA_META_SIZE);
     free(meta);
@@ -321,30 +303,12 @@ static void action_export_cia_make_path(export_cia_data* data) {
     snprintf(data->path, sizeof(data->path), APP_DATA_DIR "cias/%s [%016llX] v%u.cia", name, data->title->titleId, data->title->version);
 }
 
-static Result action_export_cia_prepare(export_cia_data* data) {
+// Makes the CIA file with everything but the contents and the TMD: header,
+// certificates, ticket and meta. `meta` is the meta section when it is given
+// (a title package carries it), else it is read from the title. The path is
+// made from the title unless `data->path` is set already.
+static Result action_export_cia_create_file(export_cia_data* data, const u8* meta) {
     Result res = 0;
-
-    // Only Luma3DS has the call (an unknown SVC would kill the app).
-    s64 luma = 0;
-    if(R_FAILED(svcGetSystemInfo(&luma, 0x10000, 0)) || ((luma >> 8) & 0xFFFFFF) == 0) {
-        return R_APP_NOT_IMPLEMENTED;
-    }
-
-    if(R_FAILED(res = action_export_cia_control_service(0, &data->pxiHandle, "PxiFS0"))) {
-        data->pxiHandle = 0;
-        return res;
-    }
-
-    if(R_FAILED(res = action_export_cia_list_contents(data))) {
-        return res;
-    }
-
-    u32 archivePath[4] = {(u32) data->title->titleId, (u32) (data->title->titleId >> 32), data->title->mediaType, 0};
-    if(R_FAILED(res = FSPXI_OpenArchive(data->pxiHandle, &data->pxiArchive, ARCHIVE_TITLE_ACCESS, fs_make_path_binary(archivePath, sizeof(archivePath))))) {
-        return res;
-    }
-
-    data->pxiArchiveOpen = true;
 
     u8* head = (u8*) calloc(1, CIA_HEADER_SIZE);
     u8* certs = (u8*) calloc(1, CIA_CERT_SIZE);
@@ -378,21 +342,27 @@ static Result action_export_cia_prepare(export_cia_data* data) {
         memcpy(head + 0x18, &contentSize, 8);
 
         action_export_cia_make_ticket(data, ticket);
-        action_export_cia_make_path(data);
+        bool ownPath = data->path[0] == '\0';
+        if(ownPath) {
+            action_export_cia_make_path(data);
+        }
 
         FS_Archive sdmcArchive = 0;
         if(R_SUCCEEDED(res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-            if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR)) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR "cias/"))) {
+            if(!ownPath || (R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR)) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR "cias/")))) {
                 FS_Path* fsPath = fs_make_path_utf8(data->path);
                 if(fsPath != NULL) {
-                    FSUSER_DeleteFile(sdmcArchive, *fsPath);
+                    if(!data->sinkResume) {
+                        FSUSER_DeleteFile(sdmcArchive, *fsPath);
+                    }
+
                     if(R_SUCCEEDED(res = FSUSER_OpenFile(&data->ciaHandle, sdmcArchive, *fsPath, FS_OPEN_WRITE | FS_OPEN_CREATE, 0))) {
                         // The whole size first: a full SD card fails here, not at the end.
                         if(R_FAILED(res = FSFILE_SetSize(data->ciaHandle, totalSize))
                            || R_FAILED(res = action_export_cia_write(data, 0, head, CIA_HEADER_SIZE))
                            || R_FAILED(res = action_export_cia_write(data, certOffset, certs, CIA_CERT_SIZE))
                            || R_FAILED(res = action_export_cia_write(data, ticketOffset, ticket, CIA_TICKET_SIZE))
-                           || (hasMeta && R_FAILED(res = action_export_cia_write_meta(data, metaOffset)))) {
+                           || (hasMeta && R_FAILED(res = meta != NULL ? action_export_cia_write(data, metaOffset, meta, CIA_META_SIZE) : action_export_cia_write_meta(data, metaOffset)))) {
                             FSFILE_Close(data->ciaHandle);
                             data->ciaHandle = 0;
                             FSUSER_DeleteFile(sdmcArchive, *fsPath);
@@ -415,6 +385,34 @@ static Result action_export_cia_prepare(export_cia_data* data) {
     return res;
 }
 
+static Result action_export_cia_prepare(export_cia_data* data) {
+    Result res = 0;
+
+    // Only Luma3DS has the call (an unknown SVC would kill the app).
+    s64 luma = 0;
+    if(R_FAILED(svcGetSystemInfo(&luma, 0x10000, 0)) || ((luma >> 8) & 0xFFFFFF) == 0) {
+        return R_APP_NOT_IMPLEMENTED;
+    }
+
+    if(R_FAILED(res = action_export_cia_control_service(0, &data->pxiHandle, "PxiFS0"))) {
+        data->pxiHandle = 0;
+        return res;
+    }
+
+    if(R_FAILED(res = action_export_cia_list_contents(data))) {
+        return res;
+    }
+
+    u32 archivePath[4] = {(u32) data->title->titleId, (u32) (data->title->titleId >> 32), data->title->mediaType, 0};
+    if(R_FAILED(res = FSPXI_OpenArchive(data->pxiHandle, &data->pxiArchive, ARCHIVE_TITLE_ACCESS, fs_make_path_binary(archivePath, sizeof(archivePath))))) {
+        return res;
+    }
+
+    data->pxiArchiveOpen = true;
+
+    return action_export_cia_create_file(data, NULL);
+}
+
 static void action_export_cia_free(export_cia_data* data) {
     if(data->ciaHandle != 0) {
         FSFILE_Close(data->ciaHandle);
@@ -431,6 +429,8 @@ static void action_export_cia_free(export_cia_data* data) {
     free(data->contents);
     free(data->hashes);
     free(data->jobBuffer);
+    free(data->streamHeader);
+    free(data->sinkHeader);
     free(data);
 }
 
@@ -552,6 +552,7 @@ static Result action_export_cia_open_dst(void* data, u32 index, void* initialRea
 
 static Result action_export_cia_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
     export_cia_data* exportData = (export_cia_data*) data;
+
 
     Result res = action_export_cia_wait_job(exportData);
 
@@ -717,4 +718,380 @@ void action_export_cia(linked_list* items, list_item* selected) {
     data->exportInfo.finished = true;
 
     prompt_display_yes_no("Confirmation", "Export the selected title as a CIA?", COLOR_TEXT, data, action_export_cia_draw_top, action_export_cia_onresponse);
+}
+
+// Sends the title to another 3DS as a title package, with no CIA made first.
+void action_export_cia_send(linked_list* items, list_item* selected) {
+    title_info* title = (title_info*) selected->data;
+
+    export_cia_data* stream = NULL;
+    u64 streamSize = 0;
+    char name[FILE_NAME_MAX];
+
+    Result res = action_export_cia_stream_open(title, &stream, &streamSize, name, sizeof(name));
+    if(R_FAILED(res)) {
+        if(res == R_APP_NOT_IMPLEMENTED) {
+            error_display(title, task_draw_title_info, "Exporting a CIA needs Luma3DS.");
+        } else {
+            error_display_res(title, task_draw_title_info, res, "Failed to prepare the CIA.");
+        }
+
+        return;
+    }
+
+    transfer_send_stream(stream, name, streamSize);
+}
+
+// ---- title packages ----
+//
+// To send a title to another console without making a CIA first, the contents
+// go over the network as they are read, and the other console builds the CIA
+// while they arrive (it can go back and write the TMD, which a stream cannot).
+// The stream is:
+//   "NSAP", format 1, title ID (8), version (4), save size (4), has meta (4),
+//   content count n (4)                        all big endian, 32 bytes
+//   n x { content ID (4), index (2), type (2), size (8) }
+//   the meta section (CIA_META_SIZE bytes), if has meta
+//   every content as it is, in that order.
+
+#define PACKAGE_MAGIC "NSAP"
+#define PACKAGE_HEAD_SIZE 32
+#define PACKAGE_ENTRY_SIZE 16
+#define PACKAGE_CONTENTS_MAX 1024
+
+static u32 action_export_cia_get32(const u8* p) {
+    return (u32) p[0] << 24 | (u32) p[1] << 16 | (u32) p[2] << 8 | p[3];
+}
+
+static u16 action_export_cia_get16(const u8* p) {
+    return (u16) ((u16) p[0] << 8 | p[1]);
+}
+
+static u64 action_export_cia_get64(const u8* p) {
+    return (u64) action_export_cia_get32(p) << 32 | action_export_cia_get32(p + 4);
+}
+
+static void action_export_cia_stream_make_header(export_cia_data* data) {
+    u32 count = data->contentCount;
+    bool hasMeta = data->title->hasMeta;
+
+    u8* header = data->streamHeader;
+    memcpy(header, PACKAGE_MAGIC, 4);
+    action_export_cia_put32(header + 4, 1);
+    action_export_cia_put64(header + 8, data->title->titleId);
+    action_export_cia_put32(header + 16, data->title->version);
+    action_export_cia_put32(header + 20, data->saveSize);
+    action_export_cia_put32(header + 24, hasMeta ? 1 : 0);
+    action_export_cia_put32(header + 28, count);
+
+    for(u32 i = 0; i < count; i++) {
+        u8* entry = header + PACKAGE_HEAD_SIZE + i * PACKAGE_ENTRY_SIZE;
+        action_export_cia_put32(entry, data->contents[i].contentId);
+        action_export_cia_put16(entry + 4, data->contents[i].index);
+        action_export_cia_put16(entry + 6, data->contents[i].type);
+        action_export_cia_put64(entry + 8, data->contents[i].size);
+    }
+
+    if(hasMeta) {
+        action_export_cia_read_meta(data, header + PACKAGE_HEAD_SIZE + count * PACKAGE_ENTRY_SIZE);
+    }
+}
+
+// Opens `title` for sending: its size as a package (`streamSize`) and the name
+// its CIA should have. Nothing goes out yet.
+Result action_export_cia_stream_open(title_info* title, export_cia_data** out, u64* streamSize, char* name, size_t nameSize) {
+    // Only Luma3DS has the call (an unknown SVC would kill the app).
+    s64 luma = 0;
+    if(R_FAILED(svcGetSystemInfo(&luma, 0x10000, 0)) || ((luma >> 8) & 0xFFFFFF) == 0) {
+        return R_APP_NOT_IMPLEMENTED;
+    }
+
+    export_cia_data* data = (export_cia_data*) calloc(1, sizeof(export_cia_data));
+    if(data == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    data->title = title;
+    data->streaming = true;
+    LightLock_Init(&data->pxiLock);
+
+    Result res = 0;
+    if(R_FAILED(res = action_export_cia_control_service(0, &data->pxiHandle, "PxiFS0"))) {
+        data->pxiHandle = 0;
+    } else if(R_SUCCEEDED(res = action_export_cia_list_contents(data))) {
+        u32 archivePath[4] = {(u32) title->titleId, (u32) (title->titleId >> 32), title->mediaType, 0};
+        if(R_SUCCEEDED(res = FSPXI_OpenArchive(data->pxiHandle, &data->pxiArchive, ARCHIVE_TITLE_ACCESS, fs_make_path_binary(archivePath, sizeof(archivePath))))) {
+            data->pxiArchiveOpen = true;
+
+            data->saveSize = action_export_cia_save_size(data);
+            data->saveSizeKnown = true;
+
+            data->streamHeaderSize = PACKAGE_HEAD_SIZE + data->contentCount * PACKAGE_ENTRY_SIZE + (title->hasMeta ? CIA_META_SIZE : 0);
+            data->streamHeader = (u8*) calloc(1, data->streamHeaderSize);
+            if(data->streamHeader == NULL) {
+                res = R_APP_OUT_OF_MEMORY;
+            }
+        }
+    }
+
+    if(R_FAILED(res)) {
+        action_export_cia_free(data);
+        return res;
+    }
+
+    action_export_cia_stream_make_header(data);
+
+    u64 total = data->streamHeaderSize;
+    for(u32 i = 0; i < data->contentCount; i++) {
+        total += data->contents[i].size;
+    }
+
+    action_export_cia_make_path(data);
+    const char* base = strrchr(data->path, '/');
+    string_copy(name, base != NULL ? base + 1 : data->path, nameSize);
+
+    *streamSize = total;
+    *out = data;
+    return 0;
+}
+
+// What the sender needs to cut the package in chunks and read them: the header
+// (kept in memory) and each content.
+const u8* action_export_cia_stream_header(export_cia_data* data, u32* size) {
+    *size = data->streamHeaderSize;
+    return data->streamHeader;
+}
+
+u32 action_export_cia_stream_content_count(export_cia_data* data) {
+    return data->contentCount;
+}
+
+u64 action_export_cia_stream_content_size(export_cia_data* data, u32 index) {
+    return data->contents[index].size;
+}
+
+// Reads from content `index` (by its place in the list). Safe from several threads.
+Result action_export_cia_stream_read(export_cia_data* data, u32 index, u64 offset, void* buffer, u32 size) {
+    u32 filePath[5] = {2, data->contents[index].index, 0, 0, 0};
+
+    LightLock_Lock(&data->pxiLock);
+
+    FSPXI_File file = 0;
+    Result res = FSPXI_OpenFile(data->pxiHandle, &file, data->pxiArchive, fs_make_path_binary(filePath, sizeof(filePath)), FS_OPEN_READ, 0);
+    if(R_SUCCEEDED(res)) {
+        u32 bytesRead = 0;
+        res = FSPXI_ReadFile(data->pxiHandle, file, &bytesRead, offset, buffer, size);
+        if(R_SUCCEEDED(res) && bytesRead != size) {
+            res = R_APP_IO_ERROR;
+        }
+
+        FSPXI_CloseFile(data->pxiHandle, file);
+    }
+
+    LightLock_Unlock(&data->pxiLock);
+
+    return res;
+}
+
+void action_export_cia_stream_free(export_cia_data* data) {
+    action_export_cia_free(data);
+}
+
+// Receiving: a CIA is built at `path` from the package that is written to it.
+
+Result action_export_cia_sink_open(const char* path, bool resume, export_cia_data** out) {
+    export_cia_data* data = (export_cia_data*) calloc(1, sizeof(export_cia_data));
+    if(data == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    data->sink = true;
+    data->sinkResume = resume;
+    data->title = &data->sinkTitle;
+    string_copy(data->path, path, sizeof(data->path));
+    LightLock_Init(&data->sinkLock);
+
+    *out = data;
+    return 0;
+}
+
+// The package's header is complete: the title, its contents and the CIA's
+// skeleton on the SD card.
+static Result action_export_cia_sink_start(export_cia_data* data) {
+    const u8* header = data->sinkHeader;
+    u32 count = action_export_cia_get32(header + 28);
+
+    data->sinkTitle.titleId = action_export_cia_get64(header + 8);
+    data->sinkTitle.version = (u16) action_export_cia_get32(header + 16);
+    data->sinkTitle.hasMeta = action_export_cia_get32(header + 24) != 0;
+    data->saveSize = action_export_cia_get32(header + 20);
+    data->saveSizeKnown = true;
+
+    data->contentCount = count;
+    data->contents = (AM_ContentInfo*) calloc(count, sizeof(AM_ContentInfo));
+    data->hashes = calloc(count, 0x20);
+    data->sinkStarts = (u64*) calloc(count, sizeof(u64));
+    if(data->contents == NULL || data->hashes == NULL || data->sinkStarts == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    u64 position = data->sinkHeaderSize;
+    for(u32 i = 0; i < count; i++) {
+        const u8* entry = header + PACKAGE_HEAD_SIZE + i * PACKAGE_ENTRY_SIZE;
+        data->contents[i].contentId = action_export_cia_get32(entry);
+        data->contents[i].index = action_export_cia_get16(entry + 4);
+        data->contents[i].type = action_export_cia_get16(entry + 6);
+        data->contents[i].size = action_export_cia_get64(entry + 8);
+        data->sinkStarts[i] = position;
+        position += data->contents[i].size;
+        data->sinkHashTotal += data->contents[i].size;
+    }
+
+    const u8* meta = data->sinkTitle.hasMeta ? header + PACKAGE_HEAD_SIZE + count * PACKAGE_ENTRY_SIZE : NULL;
+    return action_export_cia_create_file(data, meta);
+}
+
+// Bytes of the package at `offset`, in any order. The first piece is the header
+// (offset 0, whole): everything else waits for it.
+Result action_export_cia_sink_write_at(export_cia_data* data, u64 offset, const void* buffer, u32 size) {
+    if(offset == 0 && !data->sinkReady) {
+        const u8* in = (const u8*) buffer;
+
+        if(size < PACKAGE_HEAD_SIZE || memcmp(in, PACKAGE_MAGIC, 4) != 0 || action_export_cia_get32(in + 4) != 1) {
+            data->sinkFailed = true;
+            return R_APP_BAD_DATA;
+        }
+
+        u32 count = action_export_cia_get32(in + 28);
+        u32 full = PACKAGE_HEAD_SIZE + count * PACKAGE_ENTRY_SIZE + (action_export_cia_get32(in + 24) != 0 ? CIA_META_SIZE : 0);
+        if(count == 0 || count > PACKAGE_CONTENTS_MAX || size != full) {
+            data->sinkFailed = true;
+            return R_APP_BAD_DATA;
+        }
+
+        data->sinkHeader = (u8*) malloc(full);
+        if(data->sinkHeader == NULL) {
+            data->sinkFailed = true;
+            return R_APP_OUT_OF_MEMORY;
+        }
+
+        memcpy(data->sinkHeader, in, full);
+        data->sinkHeaderSize = full;
+
+        Result res = action_export_cia_sink_start(data);
+        if(R_FAILED(res)) {
+            data->sinkFailed = true;
+            return res;
+        }
+
+        data->sinkReady = true;
+        return 0;
+    }
+
+    u64 begin = osGetTime();
+    while(!data->sinkReady) {
+        if(data->sinkFailed || osGetTime() - begin > 60000) {
+            return R_APP_BAD_DATA;
+        }
+
+        svcSleepThread(5000000);
+    }
+
+    // Which content does it belong to? A chunk never spans two.
+    u32 content = 0;
+    while(content + 1 < data->contentCount && data->sinkStarts[content + 1] <= offset) {
+        content++;
+    }
+
+    if(offset < data->sinkStarts[content] || offset + size > data->sinkStarts[content] + data->contents[content].size) {
+        return R_APP_BAD_DATA;
+    }
+
+    LightLock_Lock(&data->sinkLock);
+    Result res = action_export_cia_write(data, data->contentsOffset + (offset - data->sinkHeaderSize), buffer, size);
+    LightLock_Unlock(&data->sinkLock);
+
+    return res;
+}
+
+// How far the check of the written contents has got (it is the last step).
+void action_export_cia_sink_progress(export_cia_data* data, u64* done, u64* total) {
+    *done = data->sinkHashed;
+    *total = data->sinkHashTotal;
+}
+
+// Everything has arrived: hashes the contents as they were written, and puts
+// the TMD in.
+Result action_export_cia_sink_finish(export_cia_data* data) {
+    if(!data->sinkReady) {
+        return R_APP_BAD_DATA;
+    }
+
+    u8* block = (u8*) malloc(256 * 1024);
+    if(block == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Result res = 0;
+    for(u32 i = 0; i < data->contentCount && R_SUCCEEDED(res); i++) {
+        mbedtls_sha256_context sha;
+        mbedtls_sha256_init(&sha);
+        mbedtls_sha256_starts_ret(&sha, 0);
+
+        u64 position = data->contentsOffset + (data->sinkStarts[i] - data->sinkHeaderSize);
+        u64 left = data->contents[i].size;
+        while(left > 0 && R_SUCCEEDED(res)) {
+            u32 want = left < 256 * 1024 ? (u32) left : 256 * 1024;
+            u32 bytesRead = 0;
+            if(R_FAILED(res = FSFILE_Read(data->ciaHandle, &bytesRead, position, block, want)) || bytesRead != want) {
+                if(R_SUCCEEDED(res)) {
+                    res = R_APP_IO_ERROR;
+                }
+
+                break;
+            }
+
+            mbedtls_sha256_update_ret(&sha, block, want);
+            position += want;
+            left -= want;
+            data->sinkHashed += want;
+        }
+
+        mbedtls_sha256_finish_ret(&sha, data->hashes[i]);
+        mbedtls_sha256_free(&sha);
+    }
+
+    free(block);
+
+    if(R_SUCCEEDED(res)) {
+        res = action_export_cia_write_tmd(data);
+    }
+
+    data->sinkDone = R_SUCCEEDED(res);
+    return res;
+}
+
+// Ends the CIA: on success when it is whole, else the file goes.
+Result action_export_cia_sink_close(export_cia_data* data, bool succeeded, bool keepPartial) {
+    Result res = 0;
+    if(succeeded && !data->sinkDone) {
+        res = R_APP_BAD_DATA;
+    }
+
+    if(data->ciaHandle != 0) {
+        Result closeRes = FSFILE_Close(data->ciaHandle);
+        data->ciaHandle = 0;
+        if(R_SUCCEEDED(res)) {
+            res = closeRes;
+        }
+    }
+
+    if((R_FAILED(res) || !succeeded) && !(keepPartial && !succeeded)) {
+        action_export_cia_delete_file(data);
+    }
+
+    free(data->sinkStarts);
+    data->sinkStarts = NULL;
+    action_export_cia_free(data);
+    return res;
 }

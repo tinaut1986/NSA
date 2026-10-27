@@ -60,6 +60,7 @@ typedef struct data_op_data_s {
     bool (*error)(void* data, u32 index, Result res, ui_view** errorView);
 
     // General
+    bool noRetry;   // After an error, stop instead of asking to retry (the caller does).
     volatile bool finished;
     Result result;
     Handle cancelEvent;

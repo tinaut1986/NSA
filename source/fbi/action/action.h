@@ -1,6 +1,8 @@
 #pragma once
 
 typedef struct ticket_info_s ticket_info;
+typedef struct title_info_s title_info;
+typedef struct export_cia_data_s export_cia_data;
 typedef struct linked_list_s linked_list;
 typedef struct list_item_s list_item;
 typedef struct ui_view_s ui_view;
@@ -42,6 +44,21 @@ void action_delete_title_ticket(linked_list* items, list_item* selected);
 void action_launch_title(linked_list* items, list_item* selected);
 void action_extract_smdh(linked_list* items, list_item* selected);
 void action_export_cia(linked_list* items, list_item* selected);
+void action_export_cia_send(linked_list* items, list_item* selected);
+
+// Sending a title without making a CIA first: its contents go over the network as
+// they are read (a "title package"), and the receiver builds the CIA.
+Result action_export_cia_stream_open(title_info* title, export_cia_data** out, u64* streamSize, char* name, size_t nameSize);
+const u8* action_export_cia_stream_header(export_cia_data* data, u32* size);
+u32 action_export_cia_stream_content_count(export_cia_data* data);
+u64 action_export_cia_stream_content_size(export_cia_data* data, u32 index);
+Result action_export_cia_stream_read(export_cia_data* data, u32 index, u64 offset, void* buffer, u32 size);
+void action_export_cia_stream_free(export_cia_data* data);
+Result action_export_cia_sink_open(const char* path, bool resume, export_cia_data** out);
+Result action_export_cia_sink_write_at(export_cia_data* data, u64 offset, const void* buffer, u32 size);
+void action_export_cia_sink_progress(export_cia_data* data, u64* done, u64* total);
+Result action_export_cia_sink_finish(export_cia_data* data);
+Result action_export_cia_sink_close(export_cia_data* data, bool succeeded, bool keepPartial);
 void action_import_seed(linked_list* items, list_item* selected);
 void action_erase_twl_save(linked_list* items, list_item* selected);
 void action_export_twl_save(linked_list* items, list_item* selected);

@@ -41,6 +41,7 @@ void action_delete_title(linked_list* items, list_item* selected);
 void action_delete_title_ticket(linked_list* items, list_item* selected);
 void action_launch_title(linked_list* items, list_item* selected);
 void action_extract_smdh(linked_list* items, list_item* selected);
+void action_export_cia(linked_list* items, list_item* selected);
 void action_import_seed(linked_list* items, list_item* selected);
 void action_erase_twl_save(linked_list* items, list_item* selected);
 void action_export_twl_save(linked_list* items, list_item* selected);

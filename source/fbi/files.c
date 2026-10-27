@@ -925,28 +925,16 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
     list_add_tool(view, ICON_CLIPBOARD, files_clipboard_active, files_clipboard_press);
 }
 
-static void files_open_nand_warning_onresponse(ui_view* view, void* data, u32 response) {
-    FS_ArchiveID archive = (FS_ArchiveID) data;
-
-    if(response == PROMPT_YES) {
-        files_open(archive, fsMakePath(PATH_EMPTY, ""));
-    }
-}
-
-void files_open_nand_warning(FS_ArchiveID archive) {
-    prompt_display_yes_no(_("Confirmation"), _("Modifying the NAND is dangerous and can stop the console from starting. Make sure you know what you are doing.\n\nProceed?"), COLOR_TEXT, (void*) archive, NULL, files_open_nand_warning_onresponse);
-}
-
 void files_open_sd() {
     files_open(ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""));
 }
 
 void files_open_ctr_nand() {
-    files_open_nand_warning(ARCHIVE_NAND_CTR_FS);
+    files_open(ARCHIVE_NAND_CTR_FS, fsMakePath(PATH_EMPTY, ""));
 }
 
 void files_open_twl_nand() {
-    files_open_nand_warning(ARCHIVE_NAND_TWL_FS);
+    files_open(ARCHIVE_NAND_TWL_FS, fsMakePath(PATH_EMPTY, ""));
 }
 
 void files_open_twl_photo() {

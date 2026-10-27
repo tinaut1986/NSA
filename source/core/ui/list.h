@@ -40,6 +40,9 @@ list_mode list_get_mode(ui_view* view);
 // (may be NULL) highlights it; `press` runs on a tap.
 void list_add_tool(ui_view* view, u32 icon, bool (*active)(ui_view* view, void* data), void (*press)(ui_view* view, void* data));
 
+// The title bar with its back arrow (and count) even without tools.
+void list_show_title_bar(ui_view* view);
+
 // Hides items for which `visible` returns false (NULL shows all), on top of the search.
 void list_set_filter(ui_view* view, bool (*visible)(void* data, list_item* item));
 

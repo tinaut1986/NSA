@@ -62,3 +62,4 @@ package
 folder-up
 bolt
 device-nintendo
+stack-2

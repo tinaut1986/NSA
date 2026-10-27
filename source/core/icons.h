@@ -69,5 +69,6 @@ typedef enum {
     ICON_FOLDER_UP,
     ICON_BOLT,
     ICON_DEVICE_NINTENDO,
+    ICON_STACK_2,
     ICON_COUNT
 } icon_id;

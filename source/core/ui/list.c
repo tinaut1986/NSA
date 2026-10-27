@@ -681,3 +681,7 @@ void list_select(ui_view* view, list_item* item) {
     listData->selectedItem = item;
     listData->revealPending = true;
 }
+
+void list_show_title_bar(ui_view* view) {
+    view->drawTitleBar = list_draw_title_bar;
+}

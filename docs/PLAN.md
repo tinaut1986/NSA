@@ -48,6 +48,69 @@ installed over FTP at `192.168.1.133`. Still to confirm there:
   stay unlinked? (If many: read the real ExtData ID from each game's exheader; see Next.)
 - The Wi-Fi SSID and the system version in System (Azahar gives neither).
 
+## Export an installed title as a CIA (`feat/export-cia`, merged)
+
+Titles' sheet has "Export as CIA" (CTR titles on SD or NAND, not cards or DSiWare); the
+file goes to `sdmc:/nsa/cias/<name> [<title ID>] v<version>.cia`
+(`source/fbi/action/exportcia.c`). fs:USER does not give a title's raw contents, so it
+borrows fs's own `PxiFS0` session through Luma3DS's `svcControlService` (0xB0) and reads
+each content with FSPXI on archive `0x2345678A`, path type 2 (raw content by TMD index):
+the NCCH as installed, without the SD and title key layers. Certificates come from
+`nand:/dbs/certs.db` (found by issuer and name); ticket and TMD are made here, unsigned,
+contents marked not encrypted, hashes computed while copying; the SMDH is the meta.
+Installing it needs signature patches; installing it on a console that has the title's
+real ticket replaces that ticket with the made one. The copy reads the next block while
+the last one is written (system core) and hashed (core 2 on a New 3DS, else the app core).
+The owner validated it on the console (export, then NSA and FBI take the CIA). Azahar
+cannot run it: it has no Luma SVCs.
+
+## Console to console (`feat/send-between-3ds`, merged; the consoles run it, 2026-10-28)
+
+Send a file to another 3DS on the same Wi-Fi (`source/fbi/transfer.c`, protocol in
+`transfer.h`): Files' file sheet has "Send to another 3DS", Remote install has "Receive
+from another 3DS". UDP broadcast on 5001 finds the receivers, TCP 5002 carries the file;
+the receiver allows it, then picks: Install now (only for `.cia`; installed from
+`sdmc:/nsa/received/`, then deleted), Save (a folder picker, starting in
+`sdmc:/nsa/received/`) or Reject. Sending works between two consoles (owner, 2026-10-27).
+Protocol 4 sends over **four connections at once** (`transferconn.c`; one is slow on a 3DS,
+as 3dsDL and FBI Reloaded found): chunks of 256 KB go to whichever is free, with 48 KiB
+socket buffers set before connecting; a file is written in place (the space taken first)
+and `<name>.part.pos` says how far it is whole; a title package is hashed after it is all
+there ("Checking the contents"). Receiving and sending verified in Azahar (extra consoles
+are listed in `/nsa/peers.txt`, one address a line, which also helps where broadcasts do
+not pass), including a cut transfer, resuming and the retry prompt. **Not verified on
+consoles**; the owner's 133 (New 3DS) and 139 (2DS) still run the build before this.
+Azahar aborts on a thread for core 2 on an Old 3DS: asked only on a New 3DS. Before it,
+protocol 2 resumed: the receiver writes `<name>.part`, and when the same file comes
+again (CRC-32 of its first 4 KB in the hello, and at least 1 MiB there) it answers the
+byte to go on from, the last MiB discarded. The sender reads the next 256 KB block in a
+thread while it sends one. Resuming verified in Azahar (receiver side, byte for byte);
+the speed gain and the sender's side are not measured. The sender connects blocking: a non-blocking connect did not report its outcome on the
+3DS. Titles' sheet has "Send to another 3DS": no CIA is made first. The sender reads the
+contents through PXI as the export does and streams them as a *title package*
+(`exportcia.c`, "title packages"; hello kind 1, protocol 3); the receiver's sink builds the
+CIA in `<name>.part` (hashes while writing, the TMD last), then renames it and offers Install
+now / Save as for any CIA. A title package does not resume (a stopped one leaves nothing).
+The receiver side is verified in Azahar with a fake package (contents, hashes, title ID,
+version and save size right; `nand:/dbs/certs.db` is missing there, so that check was
+bypassed in a temporary build); the sender needs Luma3DS and two consoles. Not done:
+folders.
+
+### Local wireless (nearby) transfer, 2026-10-27
+
+No router needed, and nothing to set: a console **without a Wi-Fi network** that opens Receive creates its own
+(UDS: `udslink.c`, named after the console); a sender with no Wi-Fi scans for it, and one with Wi-Fi that finds
+nobody on the router for 7 s gets a row "Search nearby (no Wi-Fi)" (a choice: it takes the console off the Wi-Fi). UDS has no IP, so the transfer runs over `relstream.c`, a reliable
+stream (window of 48 frames, selective acks, retransmission; host test `tests/relstream_test.c`, 440 to 530 KiB/s
+simulated at 30 % loss) with one connection instead of four; the hello, chunks, resume, title packages and
+screens are the same (`transfer_link` in `transferconn.c`). Using it drops the console's Wi-Fi: the FTP server is
+paused and comes back by itself (`ftpserver_resume_later`). Measured on the consoles: **4 MiB in 10 s (about
+400 KiB/s), no frame resent, identical file**. A receiver that has Wi-Fi uses the router, so a sender without Wi-Fi
+will not find it (switch the receiver's Wi-Fi off). Not tried: a title package over it, and the fallback from
+Wi-Fi to nearby.
+Developer flag: `sdmc:/nsa/nearby.flag` makes the console behave as if it had no Wi-Fi; with `auto` inside, the
+sender picks the first console found and the receiver accepts, and `/nsa/nearby-log.txt` gets the results.
+
 ## What the owner asked for (the direction)
 
 The look is right, but navigation still feels like FBI: lists, Select for options,
@@ -60,6 +123,13 @@ another list for actions. Every screen should move to the Titles pattern:
 - Modal buttons with centred labels; one tap opens; D-Pad and touch everywhere.
 
 ## Next
+
+0. **Still open from console to console**: a title package over the local wireless (only a
+   file was tried), the fallback "Search nearby" row (tried with a file), the *Super Mario
+   Land 2* CIA received before the certificate fix (its root certificate is wrong: replace
+   the first 0xA00 bytes after the header and the cert alignment with the standard chain), and
+   a release (`v0.3.0` beta) with its notes. The CIAs it makes install only on a console with
+   signature patches (Luma3DS); it logs every send and receive in `/nsa/transfer-log.txt`.
 
 1. ~~Publish v0.2.0 beta~~ done. Promoting to stable needs the owner's OK (`master` must contain the tag first).
 2. **Remote install**, the owner agreed it needs the same treatment. Proposal, to show as

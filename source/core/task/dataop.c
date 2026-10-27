@@ -277,6 +277,10 @@ static void task_data_op_thread(void* arg) {
                     svcWaitSynchronization(errorView->active, U64_MAX);
                 }
 
+                if(data->noRetry) {
+                    break;
+                }
+
                 ui_view* retryView = prompt_display_yes_no("Confirmation", "Retry?", COLOR_TEXT, data, NULL, task_data_op_retry_onresponse);
                 if(retryView != NULL) {
                     svcWaitSynchronization(retryView->active, U64_MAX);

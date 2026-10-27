@@ -35,6 +35,9 @@ bool ftpserver_running();
 // if it was running when paused.
 void ftpserver_pause();
 void ftpserver_resume();
+// As resume, but the network may not be back yet: tries again every couple of
+// seconds (from ftpserver_poll_main) for two minutes.
+void ftpserver_resume_later();
 
 // Main thread, once per frame after drawing: serves screenshot requests.
 void ftpserver_poll_main();

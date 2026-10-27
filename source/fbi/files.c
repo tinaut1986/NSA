@@ -11,6 +11,7 @@
 #include "../core/core.h"
 #include "../core/data/smdh.h"
 #include "settings.h"
+#include "transfer.h"
 
 // Files: rows with an icon by kind (a CIA shows its title's icon), the path in
 // the title bar and tools for the clipboard, filter and sort, search and the
@@ -437,6 +438,11 @@ static void files_install_tickets(void* data) { files_run_filtered(data, action_
 static void files_install_tickets_delete(void* data) { files_run_filtered(data, action_install_tickets_delete); }
 static void files_copy(void* data) { files_copy_item(data, false); }
 static void files_copy_contents(void* data) { files_copy_item(data, true); }
+static void files_send(void* data) {
+    file_info* info = (file_info*) ((files_data*) data)->actionSelected->data;
+    transfer_send_file(info->archive, info->path, info->name, info->size);
+}
+
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
 
 static void files_file_actions_open(files_data* data, linked_list* items, list_item* selected) {
@@ -457,6 +463,7 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
         actions[count++] = (sheet_action) {ICON_TICKET, _("Install and delete ticket"), false, files_install_ticket_delete};
     }
 
+    actions[count++] = (sheet_action) {ICON_WIFI, _("Send to another 3DS"), false, files_send};
     actions[count++] = (sheet_action) {ICON_COPY, _("Copy"), false, files_copy};
     actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename"), false, files_rename};
     actions[count++] = (sheet_action) {ICON_TRASH, _("Delete"), true, files_delete_file};

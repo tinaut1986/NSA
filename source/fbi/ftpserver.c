@@ -946,7 +946,28 @@ void ftpserver_resume() {
     }
 }
 
+static bool ftp_retry = false;
+static u64 ftp_retry_next = 0;
+static u64 ftp_retry_end = 0;
+
+void ftpserver_resume_later() {
+    if(ftp_paused) {
+        ftp_paused = false;
+        ftp_retry = true;
+        ftp_retry_next = osGetTime() + 3000;
+        ftp_retry_end = osGetTime() + 120000;
+    }
+}
+
 void ftpserver_poll_main() {
+    if(ftp_retry && osGetTime() >= ftp_retry_next) {
+        if(ftpserver_start() || osGetTime() > ftp_retry_end) {
+            ftp_retry = false;
+        } else {
+            ftp_retry_next = osGetTime() + 2000;
+        }
+    }
+
     if(!shot_requested || shot_done) {
         return;
     }

@@ -171,7 +171,7 @@ static void action_install_tickets_update(ui_view* view, void* data, float* prog
     }
 
     *progress = installData->installInfo.currTotal != 0 ? (float) ((double) installData->installInfo.currProcessed / (double) installData->installInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s", installData->installInfo.processed, installData->installInfo.total,
+    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), installData->installInfo.processed, installData->installInfo.total,
              ui_get_display_size(installData->installInfo.currProcessed),
              ui_get_display_size_units(installData->installInfo.currProcessed),
              ui_get_display_size(installData->installInfo.currTotal),
@@ -237,7 +237,7 @@ static void action_install_tickets_loading_update(ui_view* view, void* data, flo
         svcSignalEvent(loadingData->popData.cancelEvent);
     }
 
-    snprintf(text, PROGRESS_TEXT_MAX, "Fetching ticket list...");
+    snprintf(text, PROGRESS_TEXT_MAX, _("Fetching ticket list..."));
 }
 
 static void action_install_tickets_internal(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData, const char* message, bool delete) {

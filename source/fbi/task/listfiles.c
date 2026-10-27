@@ -313,6 +313,10 @@ void task_free_file(list_item* item) {
             screen_unload_texture(fileInfo->ciaInfo.meta.texture);
         }
 
+        if(fileInfo->isTicket && fileInfo->ticketInfo.hasMeta) {
+            screen_unload_texture(fileInfo->ticketInfo.meta.texture);
+        }
+
         free(item->data);
     }
 

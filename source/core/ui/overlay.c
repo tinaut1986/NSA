@@ -456,6 +456,14 @@ static void sheet_close(ui_view* view, sheet_data* s) {
 static void sheet_run(ui_view* view, sheet_data* s, u32 index) {
     void (*run)(void*) = s->actions[index].run;
     void* data = s->data;
+    if(s->actions[index].stay) {
+        if(run != NULL) {
+            run(data);
+        }
+
+        return;
+    }
+
     sheet_close(view, s);
     if(run != NULL) {
         run(data);

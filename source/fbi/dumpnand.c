@@ -105,7 +105,7 @@ static void dumpnand_update(ui_view* view, void* data, float* progress, char* te
     }
 
     *progress = dumpData->currTotal != 0 ? (float) ((double) dumpData->currProcessed / (double) dumpData->currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%.2f %s / %.2f %s\n%.2f %s/s, ETA %s",
+    snprintf(text, PROGRESS_TEXT_MAX, _("%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"),
              ui_get_display_size(dumpData->currProcessed), ui_get_display_size_units(dumpData->currProcessed),
              ui_get_display_size(dumpData->currTotal), ui_get_display_size_units(dumpData->currTotal),
              ui_get_display_size(dumpData->bytesPerSecond), ui_get_display_size_units(dumpData->bytesPerSecond),

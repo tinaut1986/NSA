@@ -97,7 +97,7 @@ static void action_delete_pending_titles_update(ui_view* view, void* data, float
     }
 
     *progress = deleteData->deleteInfo.total > 0 ? (float) deleteData->deleteInfo.processed / (float) deleteData->deleteInfo.total : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%lu / %lu", deleteData->deleteInfo.processed, deleteData->deleteInfo.total);
+    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu"), deleteData->deleteInfo.processed, deleteData->deleteInfo.total);
 }
 
 static void action_delete_pending_titles_onresponse(ui_view* view, void* data, u32 response) {
@@ -155,7 +155,7 @@ static void action_delete_pending_titles_loading_update(ui_view* view, void* dat
         svcSignalEvent(loadingData->popData.cancelEvent);
     }
 
-    snprintf(text, PROGRESS_TEXT_MAX, "Fetching pending title list...");
+    snprintf(text, PROGRESS_TEXT_MAX, _("Fetching pending title list..."));
 }
 
 void action_delete_pending_titles(linked_list* items, list_item* selected, const char* message, bool all) {

@@ -42,6 +42,13 @@ static void systemsavedata_action_update(ui_view* view, void* data, linked_list*
     if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
         void(*action)(linked_list*, list_item*) = (void(*)(linked_list*, list_item*)) selected->data;
 
+        // Browsing opens on top of this menu, so B comes back to it; the
+        // other actions close it first.
+        if(selected == &browse_save_data) {
+            action(actionData->items, actionData->selected);
+            return;
+        }
+
         ui_pop();
         list_destroy(view);
 

@@ -9,6 +9,7 @@
 #include "../error.h"
 #include "../screen.h"
 #include "../appinfo.h"
+#include "../i18n.h"
 #include "../data/smdh.h"
 #include "../icons.h"
 #include "../theme.h"
@@ -249,13 +250,14 @@ static void ui_draw_bottom(ui_view* ui) {
     screen_fill_rect(0, contentBottom, BOTTOM_SCREEN_WIDTH, WIDGET_HINT_BAR_HEIGHT, t->palette->surface);
     screen_fill_rect(0, contentBottom, BOTTOM_SCREEN_WIDTH, 1, t->palette->border);
     if(ui->info != NULL) {
+        const char* hint = i18n_translate_text(ui->info);
         float scale = WIDGET_SMALL_SCALE;
-        float width = widget_text_width(ui->info, scale);
+        float width = widget_text_width(hint, scale);
         if(width > BOTTOM_SCREEN_WIDTH - 12) {
             scale *= (BOTTOM_SCREEN_WIDTH - 12) / width;
         }
 
-        widget_text_centered(ui->info, 0, BOTTOM_SCREEN_WIDTH, contentBottom + (WIDGET_HINT_BAR_HEIGHT - widget_text_height(scale)) / 2, scale, t->palette->textMuted);
+        widget_text_centered(hint, 0, BOTTOM_SCREEN_WIDTH, contentBottom + (WIDGET_HINT_BAR_HEIGHT - widget_text_height(scale)) / 2, scale, t->palette->textMuted);
     }
 
     char notice[128];

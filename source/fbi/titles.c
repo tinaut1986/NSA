@@ -432,6 +432,68 @@ static void titles_import_sv(void* data) { titles_run(data, action_import_secure
 static void titles_export_sv(void* data) { titles_run(data, action_export_secure_value); }
 static void titles_delete_sv(void* data) { titles_run(data, action_delete_secure_value); }
 
+// The ID of the ext save data a game has on the SD card, if it has any: under
+// its own ID, or under it without the last byte (Mario Kart 7, 00030700, keeps
+// its data as 307).
+static bool titles_ext_find(title_info* info, u32* extId) {
+    title_kind kind = title_kind_of(info->titleId);
+    if(info->twl || (kind != TITLE_KIND_GAME && kind != TITLE_KIND_DEMO)) {
+        return false;
+    }
+
+    u32 candidates[2] = {(u32) info->titleId, (u32) info->titleId >> 8};
+    for(u32 i = 0; i < 2; i++) {
+        u32 path[3] = {MEDIATYPE_SD, candidates[i], 0};
+        FS_Archive archive = 0;
+        if(R_SUCCEEDED(fs_open_archive(&archive, ARCHIVE_EXTDATA, fs_make_path_binary(path, sizeof(path))))) {
+            fs_close_archive(archive);
+            *extId = candidates[i];
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// A list item for the game's ext save data, for the actions of that screen.
+static list_item* titles_ext_item(titles_data* data) {
+    list_item* item = (list_item*) calloc(1, sizeof(list_item));
+    ext_save_data_info* info = (ext_save_data_info*) calloc(1, sizeof(ext_save_data_info));
+    if(item == NULL || info == NULL) {
+        free(item);
+        free(info);
+        return NULL;
+    }
+
+    u32 extId = 0;
+    titles_ext_find((title_info*) data->actionSelected->data, &extId);
+    info->mediaType = MEDIATYPE_SD;
+    info->extSaveDataId = extId;
+    info->shared = false;
+    snprintf(item->name, LIST_ITEM_NAME_MAX, "%s", data->actionSelected->name);
+    item->data = info;
+
+    // Its own name and icon, so the dialogs show what is really being touched.
+    task_ext_save_data_load(item);
+    return item;
+}
+
+static void titles_browse_ext(void* data) {
+    list_item* item = titles_ext_item((titles_data*) data);
+    if(item != NULL) {
+        action_browse_user_ext_save_data(((titles_data*) data)->actionItems, item);
+        task_free_ext_save_data(item);
+    }
+}
+
+static void titles_delete_ext(void* data) {
+    list_item* item = titles_ext_item((titles_data*) data);
+    if(item != NULL) {
+        // No list to take it from: the action frees the copy.
+        action_delete_ext_save_data(NULL, item);
+    }
+}
+
 static void titles_actions_open(titles_data* data, linked_list* items, list_item* selected) {
     title_info* info = (title_info*) selected->data;
     data->actionItems = items;
@@ -440,11 +502,18 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
     sheet_action actions[SHEET_ACTIONS_MAX];
     u32 count = 0;
     bool card = info->mediaType == MEDIATYPE_GAME_CARD;
+    u32 extId = 0;
+    bool hasExt = titles_ext_find(info, &extId);
 
     actions[count++] = (sheet_action) {ICON_PLAYER_PLAY, _("Launch"), false, titles_launch};
     if(!info->twl) {
         actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save data"), false, titles_browse_save};
         actions[count++] = (sheet_action) {ICON_PHOTO, _("Extract icon"), false, titles_extract_smdh};
+        if(hasExt) {
+            // Browsing leaves the sheet open under it: B comes back to the sheet.
+            actions[count++] = (sheet_action) {ICON_DATABASE, _("Browse extra data"), false, titles_browse_ext, true};
+        }
+
         if(!card) {
             actions[count++] = (sheet_action) {ICON_KEY, _("Import seed"), false, titles_import_seed};
             actions[count++] = (sheet_action) {ICON_SHIELD_LOCK, _("Import secure value"), false, titles_import_sv};
@@ -458,6 +527,10 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
     }
 
     if(!card) {
+        if(hasExt) {
+            actions[count++] = (sheet_action) {ICON_TRASH, _("Delete extra data"), true, titles_delete_ext, false};
+        }
+
         actions[count++] = (sheet_action) {ICON_TRASH, _("Delete"), true, titles_delete};
         actions[count++] = (sheet_action) {ICON_TRASH_X, _("Delete with ticket"), true, titles_delete_ticket};
     }

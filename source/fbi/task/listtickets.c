@@ -4,6 +4,7 @@
 
 #include <3ds.h>
 
+#include "uitask.h"
 #include "listtickets.h"
 #include "../resources.h"
 #include "../../core/core.h"
@@ -13,6 +14,24 @@ static int task_populate_tickets_compare_ids(const void* e1, const void* e2) {
     u64 id2 = *(u64*) e2;
 
     return id1 > id2 ? 1 : id1 < id2 ? -1 : 0;
+}
+
+void task_ticket_lookup(ticket_info* info) {
+    if(info->looked) {
+        return;
+    }
+
+    info->looked = true;
+
+    AM_TitleEntry entry;
+    for(FS_MediaType mediaType = MEDIATYPE_NAND; mediaType != MEDIATYPE_GAME_CARD; mediaType++) {
+        if(R_SUCCEEDED(AM_GetTitleInfo(mediaType, 1, &info->titleId, &entry))) {
+            info->inUse = true;
+            info->mediaType = mediaType;
+            info->hasMeta = task_title_load_meta(mediaType, info->titleId, &info->meta);
+            break;
+        }
+    }
 }
 
 void task_populate_tickets_update_use(list_item* item) {
@@ -63,7 +82,13 @@ static void task_populate_tickets_thread(void* arg) {
                             snprintf(item->name, LIST_ITEM_NAME_MAX, "%016llX", ticketIds[i]);
                             item->data = ticketInfo;
 
-                            task_populate_tickets_update_use(item);
+                            if(data->withTitles) {
+                                // Its row first; the title is found afterwards, in place.
+                                item->color = COLOR_TICKET_NOT_IN_USE;
+                            } else {
+                                task_populate_tickets_update_use(item);
+                                ticketInfo->ready = true;
+                            }
 
                             linked_list_add(data->items, item);
                         } else {
@@ -83,6 +108,37 @@ static void task_populate_tickets_thread(void* arg) {
         }
     }
 
+    // Then each ticket's title. The screen sorts the list as they come, which
+    // moves rows between passes: go over it again until none is missing.
+    bool missing = data->withTitles;
+    bool quit = false;
+    while(R_SUCCEEDED(res) && missing && !quit) {
+        missing = false;
+        for(u32 i = 0; i < linked_list_size(data->items); i++) {
+            svcWaitSynchronization(task_get_pause_event(), U64_MAX);
+            if(task_is_quit_all() || svcWaitSynchronization(data->cancelEvent, 0) == 0) {
+                quit = true;
+                break;
+            }
+
+            list_item* item = (list_item*) linked_list_get(data->items, i);
+            if(item == NULL || ((ticket_info*) item->data)->ready) {
+                continue;
+            }
+
+            missing = true;
+            ticket_info* info = (ticket_info*) item->data;
+            task_populate_tickets_update_use(item);
+            task_ticket_lookup(info);
+            if(info->hasMeta && !string_is_empty(info->meta.shortDescription)) {
+                string_copy(item->name, info->meta.shortDescription, LIST_ITEM_NAME_MAX);
+            }
+
+            info->readyTime = osGetTime();
+            info->ready = true;
+        }
+    }
+
     svcCloseHandle(data->cancelEvent);
 
     data->result = res;
@@ -95,6 +151,11 @@ void task_free_ticket(list_item* item) {
     }
 
     if(item->data != NULL) {
+        ticket_info* info = (ticket_info*) item->data;
+        if(info->hasMeta) {
+            screen_unload_texture(info->meta.texture);
+        }
+
         free(item->data);
     }
 

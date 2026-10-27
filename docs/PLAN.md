@@ -10,6 +10,7 @@ things are the way they are. Keep it current in the same change that alters it.
 | `release` | v0.1.0 beta (published), the self-update restart fix and the whole UI redesign (`feat/ui-themes`, merged with the owner's OK). No new beta tagged yet. |
 | `feat/system-status`, `feat/grouped-menu`, `fix/icon-sizes`, `fix/list-loading` | Merged into `release` with the owner's OK: top bar status and System entry; the grouped main menu (big tiles, Cleanup and data, Advanced with one warning per session); icons from 16/32 px atlases; whole-pixel 3D; Titles loading into placeholders, presses that follow their item, a selection that keeps its row. |
 | `feat/remember-filters` | Merged into `release` with the owner's OK: Titles, Files and Ext save data remember their filters, sort and view (`settings.json`); Titles sorts live while loading with the selected row kept still; battery digits 8 px tall and centred (measured on the console's font), clean 2 px terminal. |
+| `feat/action-dialogs` | Merged into `release` with the owner's OK: dialogs and progress redone (icon header, percentage, cards with cells on the top screen) and translated; Tickets and Ext Save Data rebuilt on the Titles pattern (placeholders, live sort, loaded/total, filters, search, red delete sheet); tickets show their title; ext data linked to titles by ID or ID without the last byte; B returns to the sheet after browsing. v0.2.0 beta tagged from it. |
 | `master` | v0.1.0 has not been promoted to stable yet. |
 
 The UI redesign on `release` holds:
@@ -47,8 +48,8 @@ another list for actions. Every screen should move to the Titles pattern:
 ## Next
 
 1. **Apply the Titles pattern to the other screens**, one branch or commit each:
-   Tickets, Pending titles, Extra save data, System save data, Remote install,
-   Dump NAND (Files is done). Translate each screen as it
+   Pending titles, System save data, Remote install, Dump NAND (Files, Tickets and
+   Extra save data are done). Translate each screen as it
    moves (`_()`, `source/core/i18n_es.c`); many of FBI's strings are still English.
 2. **Themes "Pixel" and "HOME"** (mockups were shown and liked):
    - HOME: a main menu of big icon tiles in pages, modals as a sheet from the

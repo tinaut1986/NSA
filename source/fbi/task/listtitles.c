@@ -40,6 +40,42 @@ static void task_populate_titles_loaded(title_info* titleInfo) {
     titleInfo->loaded = true;
 }
 
+// A CTR title's banner (name, publisher, region, icon) from its SMDH; the icon
+// texture is allocated here and belongs to the caller.
+bool task_title_load_meta(FS_MediaType mediaType, u64 titleId, meta_info* meta) {
+    static const u32 filePath[5] = {0x00000000, 0x00000000, 0x00000002, 0x6E6F6369, 0x00000000};
+    u32 archivePath[4] = {(u32) (titleId & 0xFFFFFFFF), (u32) ((titleId >> 32) & 0xFFFFFFFF), mediaType, 0x00000000};
+
+    bool loaded = false;
+    Handle fileHandle;
+    if(R_SUCCEEDED(FSUSER_OpenFileDirectly(&fileHandle, ARCHIVE_SAVEDATA_AND_CONTENT,
+                                           fs_make_path_binary(archivePath, sizeof(archivePath)),
+                                           fs_make_path_binary(filePath, sizeof(filePath)), FS_OPEN_READ, 0))) {
+        SMDH* smdh = (SMDH*) calloc(1, sizeof(SMDH));
+        if(smdh != NULL) {
+            u32 bytesRead = 0;
+            if(R_SUCCEEDED(FSFILE_Read(fileHandle, &bytesRead, 0, smdh, sizeof(SMDH))) && bytesRead == sizeof(SMDH)
+               && smdh->magic[0] == 'S' && smdh->magic[1] == 'M' && smdh->magic[2] == 'D' && smdh->magic[3] == 'H') {
+                SMDH_title* smdhTitle = smdh_select_title(smdh);
+
+                utf16_to_utf8((uint8_t*) meta->shortDescription, smdhTitle->shortDescription, sizeof(meta->shortDescription) - 1);
+                utf16_to_utf8((uint8_t*) meta->longDescription, smdhTitle->longDescription, sizeof(meta->longDescription) - 1);
+                utf16_to_utf8((uint8_t*) meta->publisher, smdhTitle->publisher, sizeof(meta->publisher) - 1);
+                meta->region = smdh->region;
+                meta->texture = screen_allocate_free_texture();
+                screen_load_texture_tiled(meta->texture, smdh->largeIcon, sizeof(smdh->largeIcon), 48, 48, GPU_RGB565, false);
+                loaded = true;
+            }
+
+            free(smdh);
+        }
+
+        FSFILE_Close(fileHandle);
+    }
+
+    return loaded;
+}
+
 static void task_populate_titles_load_ctr(list_item* item) {
     title_info* titleInfo = (title_info*) item->data;
     FS_MediaType mediaType = titleInfo->mediaType;
@@ -52,37 +88,11 @@ static void task_populate_titles_load_ctr(list_item* item) {
         titleInfo->installedSize = entry.size;
     }
 
-    static const u32 filePath[5] = {0x00000000, 0x00000000, 0x00000002, 0x6E6F6369, 0x00000000};
-    u32 archivePath[4] = {(u32) (titleId & 0xFFFFFFFF), (u32) ((titleId >> 32) & 0xFFFFFFFF), mediaType, 0x00000000};
-
-    Handle fileHandle;
-    if(R_SUCCEEDED(FSUSER_OpenFileDirectly(&fileHandle, ARCHIVE_SAVEDATA_AND_CONTENT,
-                                           fs_make_path_binary(archivePath, sizeof(archivePath)),
-                                           fs_make_path_binary(filePath, sizeof(filePath)), FS_OPEN_READ, 0))) {
-        SMDH* smdh = (SMDH*) calloc(1, sizeof(SMDH));
-        if(smdh != NULL) {
-            u32 bytesRead = 0;
-            if(R_SUCCEEDED(FSFILE_Read(fileHandle, &bytesRead, 0, smdh, sizeof(SMDH))) && bytesRead == sizeof(SMDH)
-               && smdh->magic[0] == 'S' && smdh->magic[1] == 'M' && smdh->magic[2] == 'D' && smdh->magic[3] == 'H') {
-                SMDH_title* smdhTitle = smdh_select_title(smdh);
-
-                utf16_to_utf8((uint8_t*) titleInfo->meta.shortDescription, smdhTitle->shortDescription, sizeof(titleInfo->meta.shortDescription) - 1);
-                utf16_to_utf8((uint8_t*) titleInfo->meta.longDescription, smdhTitle->longDescription, sizeof(titleInfo->meta.longDescription) - 1);
-                utf16_to_utf8((uint8_t*) titleInfo->meta.publisher, smdhTitle->publisher, sizeof(titleInfo->meta.publisher) - 1);
-                titleInfo->meta.region = smdh->region;
-                titleInfo->meta.texture = screen_allocate_free_texture();
-                screen_load_texture_tiled(titleInfo->meta.texture, smdh->largeIcon, sizeof(smdh->largeIcon), 48, 48, GPU_RGB565, false);
-                titleInfo->hasMeta = true;
-
-                if(!string_is_empty(titleInfo->meta.shortDescription)) {
-                    string_copy(item->name, titleInfo->meta.shortDescription, LIST_ITEM_NAME_MAX);
-                }
-            }
-
-            free(smdh);
+    if(task_title_load_meta(mediaType, titleId, &titleInfo->meta)) {
+        titleInfo->hasMeta = true;
+        if(!string_is_empty(titleInfo->meta.shortDescription)) {
+            string_copy(item->name, titleInfo->meta.shortDescription, LIST_ITEM_NAME_MAX);
         }
-
-        FSFILE_Close(fileHandle);
     }
 
     task_populate_titles_loaded(titleInfo);

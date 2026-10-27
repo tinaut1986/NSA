@@ -180,7 +180,7 @@ static void startup_import_update(ui_view* view, void* data, float* progress, ch
     }
 
     *progress = importData->total > 0 ? (float) ((double) importData->copied / (double) importData->total) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%.2f %s / %.2f %s",
+    snprintf(text, PROGRESS_TEXT_MAX, _("%.2f %s / %.2f %s"),
              ui_get_display_size(importData->copied), ui_get_display_size_units(importData->copied),
              ui_get_display_size(importData->total), ui_get_display_size_units(importData->total));
 }

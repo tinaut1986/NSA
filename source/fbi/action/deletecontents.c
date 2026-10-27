@@ -118,7 +118,7 @@ static void action_delete_update(ui_view* view, void* data, float* progress, cha
     }
 
     *progress = deleteData->deleteInfo.total > 0 ? (float) deleteData->deleteInfo.processed / (float) deleteData->deleteInfo.total : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%lu / %lu", deleteData->deleteInfo.processed, deleteData->deleteInfo.total);
+    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu"), deleteData->deleteInfo.processed, deleteData->deleteInfo.total);
 }
 
 static void action_delete_onresponse(ui_view* view, void* data, u32 response) {
@@ -176,7 +176,7 @@ static void action_delete_loading_update(ui_view* view, void* data, float* progr
         svcSignalEvent(loadingData->popData.cancelEvent);
     }
 
-    snprintf(text, PROGRESS_TEXT_MAX, "Fetching content list...");
+    snprintf(text, PROGRESS_TEXT_MAX, _("Fetching content list..."));
 }
 
 static void action_delete_internal(linked_list* items, list_item* selected, const char* message, bool recursive, bool includeBase, bool ciasOnly, bool ticketsOnly) {

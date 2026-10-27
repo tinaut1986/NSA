@@ -35,6 +35,7 @@ typedef struct {
     const char* label;      // Translated by the caller.
     bool danger;            // Drawn in red; the action must still confirm.
     void (*run)(void* data);
+    bool stay;              // Runs with the sheet still open: B in what it opens comes back to it.
 } sheet_action;
 
 // `title` (or NULL for none, when the top screen already shows the item) and

@@ -18,8 +18,9 @@ static settings_data settings = {
         .night = THEME_NIGHT_OFF,
         .language = LANGUAGE_SYSTEM,
         .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false},
+        .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false},
         .files = {.directories = true, .files = true, .cias = true, .tickets = true, .hidden = false, .sort = 0},
-        .extsave = {.sd = true, .nand = true, .byId = false}
+        .extsave = {.sd = true, .nand = true, .byId = false, .grid = false}
 };
 
 static const char* night_ids[] = {"off", "on", "auto"};
@@ -103,6 +104,16 @@ void settings_load() {
         settings.titles.grid = settings_get_bool(titles, "grid", settings.titles.grid);
     }
 
+    json_t* tickets = json_object_get(json, "tickets");
+    if(json_is_object(tickets)) {
+        settings.tickets.states = settings_get_uint(tickets, "states", settings.tickets.states, 3);
+        settings.tickets.kinds = settings_get_uint(tickets, "kinds", settings.tickets.kinds, 0x3F);
+        settings.tickets.media = settings_get_uint(tickets, "media", settings.tickets.media, 3);
+        settings.tickets.group = settings_get_bool(tickets, "group", settings.tickets.group);
+        settings.tickets.sort = settings_get_uint(tickets, "sort", settings.tickets.sort, 1);
+        settings.tickets.grid = settings_get_bool(tickets, "grid", settings.tickets.grid);
+    }
+
     json_t* files = json_object_get(json, "files");
     if(json_is_object(files)) {
         settings.files.directories = settings_get_bool(files, "directories", settings.files.directories);
@@ -118,6 +129,7 @@ void settings_load() {
         settings.extsave.sd = settings_get_bool(extsave, "sd", settings.extsave.sd);
         settings.extsave.nand = settings_get_bool(extsave, "nand", settings.extsave.nand);
         settings.extsave.byId = settings_get_bool(extsave, "by_id", settings.extsave.byId);
+        settings.extsave.grid = settings_get_bool(extsave, "grid", settings.extsave.grid);
     }
 
     json_decref(json);
@@ -141,7 +153,7 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
@@ -156,6 +168,13 @@ Result settings_save() {
                              "group", settings.titles.group,
                              "sort", (int) settings.titles.sort,
                              "grid", settings.titles.grid,
+                             "tickets",
+                             "states", (int) settings.tickets.states,
+                             "kinds", (int) settings.tickets.kinds,
+                             "media", (int) settings.tickets.media,
+                             "group", settings.tickets.group,
+                             "sort", (int) settings.tickets.sort,
+                             "grid", settings.tickets.grid,
                              "files",
                              "directories", settings.files.directories,
                              "files", settings.files.files,
@@ -166,7 +185,8 @@ Result settings_save() {
                              "extsave",
                              "sd", settings.extsave.sd,
                              "nand", settings.extsave.nand,
-                             "by_id", settings.extsave.byId);
+                             "by_id", settings.extsave.byId,
+                             "grid", settings.extsave.grid);
     if(json == NULL) {
         return R_APP_OUT_OF_MEMORY;
     }

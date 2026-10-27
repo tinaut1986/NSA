@@ -614,7 +614,7 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
         } else if(listData->style.drawRow != NULL) {
             listData->style.drawRow(listData->data, item, x, y, l.itemW, l.itemH, selected);
         } else {
-            widget_row(x, y, l.itemW, l.itemH, -1, item->name, screen_get_color(item->color), NULL, selected);
+            widget_row(x, y, l.itemW, l.itemH, -1, i18n_translate_text(item->name), screen_get_color(item->color), NULL, selected);
         }
 
         widget_press_draw(&listData->press, (int) i, x, y, l.itemW, l.itemH, list_grid(listData) ? t->def->radius : t->def->radiusSmall,
@@ -644,8 +644,8 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
     listData->drawTop = drawTop;
 
     ui_view* view = ui_create();
-    view->name = name;
-    view->info = info;
+    view->name = i18n_translate_text(name);
+    view->info = i18n_translate_text(info);
     view->data = listData;
     view->update = list_update;
     view->drawTop = list_draw_top;

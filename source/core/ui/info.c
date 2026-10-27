@@ -45,7 +45,7 @@ static void info_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
     float textHeight = 0;
     screen_get_string_size_wrap(&textWidth, &textHeight, infoData->text, WIDGET_TEXT_SCALE, WIDGET_TEXT_SCALE, width - 24);
 
-    float barHeight = infoData->bar ? 8 + 12 : 0;
+    float barHeight = infoData->bar ? 10 + 12 : 18 + 6;
     float height = 14 + barHeight + textHeight + 14;
     float x = x1 + 12;
     float y = y1 + (y2 - y1 - height) / 2;
@@ -53,7 +53,20 @@ static void info_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
 
     float cy = y + 14;
     if(infoData->bar) {
-        widget_progress(x + 12, cy, width - 24, 8, infoData->progress);
+        // The bar with its percentage on the right.
+        char percent[8];
+        snprintf(percent, sizeof(percent), "%d %%", (int) (infoData->progress * 100 + 0.5f));
+        float percentW = widget_text_width(percent, WIDGET_SMALL_SCALE);
+        widget_progress(x + 12, cy, width - 24 - percentW - 8, 10, infoData->progress);
+        screen_draw_text(percent, x + width - 12 - percentW, cy + 5 - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
+        cy += barHeight;
+    } else {
+        // No measure: three dots, one lit at a time.
+        u32 lit = (u32) (osGetTime() / 250) % 3;
+        for(u32 i = 0; i < 3; i++) {
+            screen_fill_circle(x + width / 2 + (i - 1) * 14, cy + 6, 4, i == lit ? t->accent : t->palette->border);
+        }
+
         cy += barHeight;
     }
 
@@ -93,8 +106,8 @@ ui_view* info_display(const char* name, const char* info, bool bar, void* data, 
     infoData->drawTop = drawTop;
 
     ui_view* view = ui_create();
-    view->name = name;
-    view->info = info;
+    view->name = i18n_translate_text(name);
+    view->info = i18n_translate_text(info);
     view->data = infoData;
     view->update = info_update;
     view->drawTop = info_draw_top;

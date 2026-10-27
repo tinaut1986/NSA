@@ -8,7 +8,7 @@
 #include "../../core/core.h"
 
 typedef struct {
-    linked_list* items;
+    linked_list* items;   // NULL: `selected` is a copy made for this action, which frees it.
     list_item* selected;
 } delete_ext_save_data_data;
 
@@ -29,7 +29,10 @@ static void action_delete_ext_save_data_update(ui_view* view, void* data, float*
     if(R_FAILED(res)) {
         error_display_res(info, task_draw_ext_save_data_info, res, "Failed to delete ext save data.");
     } else {
-        linked_list_remove(deleteData->items, deleteData->selected);
+        if(deleteData->items != NULL) {
+            linked_list_remove(deleteData->items, deleteData->selected);
+        }
+
         task_free_ext_save_data(deleteData->selected);
 
         prompt_display_notify("Success", "Ext save data deleted.", COLOR_TEXT, NULL, NULL, NULL);
@@ -42,6 +45,10 @@ static void action_delete_ext_save_data_onresponse(ui_view* view, void* data, u3
     if(response == PROMPT_YES) {
         info_display("Deleting Ext Save Data", "", false, data, action_delete_ext_save_data_update, action_delete_ext_save_data_draw_top);
     } else {
+        if(((delete_ext_save_data_data*) data)->items == NULL) {
+            task_free_ext_save_data(((delete_ext_save_data_data*) data)->selected);
+        }
+
         free(data);
     }
 }

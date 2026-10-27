@@ -4,6 +4,10 @@
 manager. It installs as its own app (product code `CTR-P-CNSA`, unique ID `0xFB1A0`)
 next to FBI, keeps its data in `sdmc:/nsa/` and numbers its own releases from `v0.1.0`.
 
+**Start every session by reading [`docs/PLAN.md`](docs/PLAN.md)**: open branches, what
+is on the console, what comes next and the decisions taken. Work in progress lives on
+`feat/ui-themes` until the owner validates it: check it out first.
+
 ## Language
 
 - Chat with the owner in **Spanish (castellano)**.
@@ -83,3 +87,8 @@ Ask before installing while the owner is using the console.
   URL). The owner confirms on the console. Do not probe the port with an empty
   connection: FBI shows "Failed to read payload length".
 - The owner's console was at `192.168.1.133` (2026-10-27).
+- A helper loop used in sessions: upload with `ALLO` and `SITE INSTALL` in one curl
+  call, then `DELE` the uploaded file:
+  `curl -Q "+ALLO $(stat -c %s output/3ds-arm/NSA.cia)" -Q "-SITE INSTALL /nsa/update.cia" -Q "-DELE /nsa/update.cia" -T output/3ds-arm/NSA.cia ftp://IP:5000/nsa/update.cia`
+- Screenshots: `curl -Q "SITE SCREENSHOT" ftp://IP:5000/` (allow 20 s), then fetch
+  `/nsa/screenshots/top.bmp` and `bottom.bmp`.

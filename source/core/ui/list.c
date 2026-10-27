@@ -53,6 +53,7 @@ typedef struct {
     list_tool tools[LIST_TOOLS_MAX];
     u32 toolCount;
     char search[LIST_SEARCH_MAX];
+    bool (*visibleFilter)(void* data, list_item* item);
 
     void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched);
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected);
@@ -131,7 +132,8 @@ static void list_rebuild_visible(list_data* listData) {
     linked_list_iterate(&listData->items, &iter);
     while(linked_list_iter_has_next(&iter)) {
         list_item* item = (list_item*) linked_list_iter_next(&iter);
-        if(listData->search[0] == '\0' || strcasestr(item->name, listData->search) != NULL) {
+        if((listData->search[0] == '\0' || strcasestr(item->name, listData->search) != NULL)
+           && (listData->visibleFilter == NULL || listData->visibleFilter(listData->data, item))) {
             listData->visible[listData->visibleCount++] = item;
         }
     }
@@ -480,6 +482,10 @@ void list_add_tool(ui_view* view, u32 icon, bool (*active)(ui_view* view, void* 
     }
 
     view->drawTitleBar = list_draw_title_bar;
+}
+
+void list_set_filter(ui_view* view, bool (*visible)(void* data, list_item* item)) {
+    ((list_data*) view->data)->visibleFilter = visible;
 }
 
 void list_set_search(ui_view* view, const char* text) {

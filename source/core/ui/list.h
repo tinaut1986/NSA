@@ -40,6 +40,9 @@ list_mode list_get_mode(ui_view* view);
 // (may be NULL) highlights it; `press` runs on a tap.
 void list_add_tool(ui_view* view, u32 icon, bool (*active)(ui_view* view, void* data), void (*press)(ui_view* view, void* data));
 
+// Hides items for which `visible` returns false (NULL shows all), on top of the search.
+void list_set_filter(ui_view* view, bool (*visible)(void* data, list_item* item));
+
 // Shows only items whose name contains `text` (case-insensitive); "" for all.
 void list_set_search(ui_view* view, const char* text);
 const char* list_get_search(ui_view* view);

@@ -357,3 +357,14 @@ Result task_populate_titles(populate_titles_data* data) {
 
     return res;
 }
+
+title_kind title_kind_of(u64 titleId) {
+    u32 high = (u32) (titleId >> 32);
+    switch(high) {
+        case 0x00040000: return TITLE_KIND_GAME;
+        case 0x0004000E: return TITLE_KIND_UPDATE;
+        case 0x0004008C: return TITLE_KIND_DLC;
+        case 0x00040002: return TITLE_KIND_DEMO;
+        default: return (high & 0x00008000) != 0 ? TITLE_KIND_DSIWARE : TITLE_KIND_SYSTEM;
+    }
+}

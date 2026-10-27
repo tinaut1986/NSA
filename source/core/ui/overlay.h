@@ -6,8 +6,8 @@ typedef struct ui_view_s ui_view;
 
 // ---- Popover: groups of options under the title bar's tools ----
 
-#define POPOVER_GROUPS_MAX 4
-#define POPOVER_OPTIONS_MAX 6
+#define POPOVER_GROUPS_MAX 6
+#define POPOVER_OPTIONS_MAX 8
 
 typedef struct {
     const char* label;      // Translated by the caller.

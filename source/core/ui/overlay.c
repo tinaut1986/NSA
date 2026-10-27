@@ -35,9 +35,11 @@ static void overlay_draw_parent_title(ui_view* parent, float x1, float y1, float
 
 // ---- popover ----
 
-#define POPOVER_WIDTH 230
+#define POPOVER_WIDTH 236
 #define POPOVER_PAD 10
 #define POPOVER_OPTION_HEIGHT 24
+#define POPOVER_CHIP_GAP 5
+#define POPOVER_GROUP_GAP 8
 
 typedef struct {
     ui_view* parent;
@@ -45,28 +47,103 @@ typedef struct {
     void* data;
     u32 group;
     u32 option;
+
+    // Layout, relative to the card's content top (before scrolling).
+    float optionX[POPOVER_GROUPS_MAX][POPOVER_OPTIONS_MAX];
+    float optionY[POPOVER_GROUPS_MAX][POPOVER_OPTIONS_MAX];
+    float optionW[POPOVER_GROUPS_MAX][POPOVER_OPTIONS_MAX];
+    float labelY[POPOVER_GROUPS_MAX];
+    float contentHeight;
+
+    float scroll;
+    bool touching;
+    bool dragged;
+    u16 touchStartY;
+    u16 lastTouchY;
 } popover_data;
 
-// Where option `o` of group `g` is; the same for drawing and touch.
-static void popover_option_rect(popover_data* p, u32 g, u32 o, float cardX, float cardY, float* x, float* y, float* w) {
-    float labelH = widget_text_height(WIDGET_SMALL_SCALE) + 4;
-    float groupH = labelH + POPOVER_OPTION_HEIGHT + 8;
-    float inner = POPOVER_WIDTH - 2 * POPOVER_PAD;
-    popover_group* group = &p->def.groups[g];
-    float gap = group->multiple ? 5 : 0;
-    *w = (inner - gap * (group->count - 1)) / group->count;
-    *x = cardX + POPOVER_PAD + o * (*w + gap);
-    *y = cardY + POPOVER_PAD + g * groupH + labelH;
+static float popover_chip_width(popover_group* group, u32 o) {
+    return widget_text_width(group->options[o], WIDGET_SMALL_SCALE) + (group->icons[o] >= 0 ? 14 : 0) + 20;
 }
 
-static float popover_height(popover_data* p) {
+// Chips flow onto more lines when a group has many; a segmented choice
+// shares one line.
+static void popover_layout(popover_data* p) {
+    float inner = POPOVER_WIDTH - 2 * POPOVER_PAD - WIDGET_SCROLLBAR_WIDTH - 2;
     float labelH = widget_text_height(WIDGET_SMALL_SCALE) + 4;
-    return 2 * POPOVER_PAD + p->def.groupCount * (labelH + POPOVER_OPTION_HEIGHT + 8) - 8;
+    float y = 0;
+
+    for(u32 g = 0; g < p->def.groupCount; g++) {
+        popover_group* group = &p->def.groups[g];
+        p->labelY[g] = y;
+        y += labelH;
+
+        if(group->multiple) {
+            float x = 0;
+            for(u32 o = 0; o < group->count; o++) {
+                float w = popover_chip_width(group, o);
+                if(w > inner) {
+                    w = inner;
+                }
+
+                if(x > 0 && x + w > inner) {
+                    x = 0;
+                    y += POPOVER_OPTION_HEIGHT + POPOVER_CHIP_GAP;
+                }
+
+                p->optionX[g][o] = x;
+                p->optionY[g][o] = y;
+                p->optionW[g][o] = w;
+                x += w + POPOVER_CHIP_GAP;
+            }
+        } else {
+            float w = inner / group->count;
+            for(u32 o = 0; o < group->count; o++) {
+                p->optionX[g][o] = o * w;
+                p->optionY[g][o] = y;
+                p->optionW[g][o] = w;
+            }
+        }
+
+        y += POPOVER_OPTION_HEIGHT + POPOVER_GROUP_GAP;
+    }
+
+    p->contentHeight = y - POPOVER_GROUP_GAP;
 }
 
-static void popover_card_origin(float x1, float y1, float x2, float* cardX, float* cardY) {
+static void popover_card(popover_data* p, float x1, float y1, float x2, float y2, float* cardX, float* cardY, float* cardH) {
     *cardX = x2 - 8 - POPOVER_WIDTH;
     *cardY = y1 + 4;
+    float max = y2 - y1 - 8;
+    *cardH = p->contentHeight + 2 * POPOVER_PAD;
+    if(*cardH > max) {
+        *cardH = max;
+    }
+}
+
+static void popover_clamp_scroll(popover_data* p, float cardH) {
+    float max = p->contentHeight - (cardH - 2 * POPOVER_PAD);
+    if(p->scroll > max) {
+        p->scroll = max;
+    }
+
+    if(p->scroll < 0) {
+        p->scroll = 0;
+    }
+}
+
+// Scrolls so the focused option, and its group's label, are in view.
+static void popover_reveal(popover_data* p, float cardH) {
+    float view = cardH - 2 * POPOVER_PAD;
+    float top = p->option == 0 ? p->labelY[p->group] : p->optionY[p->group][p->option];
+    float bottom = p->optionY[p->group][p->option] + POPOVER_OPTION_HEIGHT;
+    if(top < p->scroll) {
+        p->scroll = top;
+    } else if(bottom > p->scroll + view) {
+        p->scroll = bottom - view;
+    }
+
+    popover_clamp_scroll(p, cardH);
 }
 
 static void popover_close(ui_view* view, popover_data* p) {
@@ -81,50 +158,75 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
     view->name = p->parent->name;
     view->info = _(" choose    close");
 
+    float cardX, cardY, cardH;
+    popover_card(p, bx1, by1, bx2, by2, &cardX, &cardY, &cardH);
+
     u32 down = hidKeysDown();
     if(down & KEY_B) {
         popover_close(view, p);
         return;
     }
 
+    bool moved = true;
     if(down & KEY_DOWN) {
         p->group = (p->group + 1) % p->def.groupCount;
+        p->option = 0;
     } else if(down & KEY_UP) {
         p->group = (p->group + p->def.groupCount - 1) % p->def.groupCount;
-    }
-
-    u32 count = p->def.groups[p->group].count;
-    if(p->option >= count) {
-        p->option = count - 1;
-    }
-
-    if(down & KEY_RIGHT) {
-        p->option = (p->option + 1) % count;
+        p->option = 0;
+    } else if(down & KEY_RIGHT) {
+        p->option = (p->option + 1) % p->def.groups[p->group].count;
     } else if(down & KEY_LEFT) {
+        u32 count = p->def.groups[p->group].count;
         p->option = (p->option + count - 1) % count;
-    } else if(down & KEY_A) {
+    } else {
+        moved = false;
+    }
+
+    if(moved) {
+        popover_reveal(p, cardH);
+    }
+
+    if(down & KEY_A) {
         p->def.select(p->data, p->group, p->option);
     }
 
+    // Touch: a tap toggles an option, a drag scrolls, outside the card closes it.
+    touchPosition pos;
+    hidTouchRead(&pos);
+    float contentTop = cardY + POPOVER_PAD - p->scroll;
     if(down & KEY_TOUCH) {
-        touchPosition pos;
-        hidTouchRead(&pos);
-
-        float cardX, cardY;
-        popover_card_origin(bx1, by1, bx2, &cardX, &cardY);
-        if(!widget_touched(&pos, cardX, cardY, POPOVER_WIDTH, popover_height(p))) {
+        if(!widget_touched(&pos, cardX, cardY, POPOVER_WIDTH, cardH)) {
             popover_close(view, p);
             return;
         }
 
-        for(u32 g = 0; g < p->def.groupCount; g++) {
-            for(u32 o = 0; o < p->def.groups[g].count; o++) {
-                float x, y, w;
-                popover_option_rect(p, g, o, cardX, cardY, &x, &y, &w);
-                if(widget_touched(&pos, x, y, w, POPOVER_OPTION_HEIGHT)) {
-                    p->group = g;
-                    p->option = o;
-                    p->def.select(p->data, g, o);
+        p->touching = true;
+        p->dragged = false;
+        p->touchStartY = p->lastTouchY = pos.py;
+    } else if(p->touching && (hidKeysHeld() & KEY_TOUCH)) {
+        if(abs((int) pos.py - (int) p->touchStartY) > 6) {
+            p->dragged = true;
+        }
+
+        if(p->dragged) {
+            p->scroll -= (int) pos.py - (int) p->lastTouchY;
+            popover_clamp_scroll(p, cardH);
+        }
+
+        p->lastTouchY = pos.py;
+    } else if(p->touching && (hidKeysUp() & KEY_TOUCH)) {
+        p->touching = false;
+        if(!p->dragged) {
+            for(u32 g = 0; g < p->def.groupCount; g++) {
+                for(u32 o = 0; o < p->def.groups[g].count; o++) {
+                    float x = cardX + POPOVER_PAD + p->optionX[g][o];
+                    float y = contentTop + p->optionY[g][o];
+                    if(widget_touched(&pos, x, y, p->optionW[g][o], POPOVER_OPTION_HEIGHT)) {
+                        p->group = g;
+                        p->option = o;
+                        p->def.select(p->data, g, o);
+                    }
                 }
             }
         }
@@ -146,43 +248,46 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
     overlay_draw_parent_bottom(p->parent, x1, y1, x2, y2);
     screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->background, 0xA0));
 
-    float cardX, cardY;
-    popover_card_origin(x1, y1, x2, &cardX, &cardY);
-    float cardH = popover_height(p);
+    float cardX, cardY, cardH;
+    popover_card(p, x1, y1, x2, y2, &cardX, &cardY, &cardH);
+    popover_clamp_scroll(p, cardH);
+
     screen_fill_round_rect(cardX + 1, cardY + 3, POPOVER_WIDTH, cardH, t->def->radius, THEME_ALPHA(0, 0x30));
     screen_frame_round_rect(cardX, cardY, POPOVER_WIDTH, cardH, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
 
+    float contentTop = cardY + POPOVER_PAD - p->scroll;
+    screen_set_clip(cardX, cardY + 3, POPOVER_WIDTH, cardH - 6);
+
     for(u32 g = 0; g < p->def.groupCount; g++) {
         popover_group* group = &p->def.groups[g];
-        float x, y, w;
-        popover_option_rect(p, g, 0, cardX, cardY, &x, &y, &w);
-        screen_draw_text(group->label, cardX + POPOVER_PAD, y - widget_text_height(WIDGET_SMALL_SCALE) - 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
+        float baseX = cardX + POPOVER_PAD;
+        screen_draw_text(group->label, baseX, contentTop + p->labelY[g], WIDGET_SMALL_SCALE, t->palette->textMuted);
 
         if(!group->multiple) {
             // A segmented control: one frame around all the options.
-            screen_frame_round_rect(x, y, POPOVER_WIDTH - 2 * POPOVER_PAD, POPOVER_OPTION_HEIGHT, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
+            float width = p->optionX[g][group->count - 1] + p->optionW[g][group->count - 1];
+            screen_frame_round_rect(baseX, contentTop + p->optionY[g][0], width, POPOVER_OPTION_HEIGHT, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
         }
 
         for(u32 o = 0; o < group->count; o++) {
-            popover_option_rect(p, g, o, cardX, cardY, &x, &y, &w);
+            float x = baseX + p->optionX[g][o];
+            float y = contentTop + p->optionY[g][o];
+            float w = p->optionW[g][o];
+            float radius = group->multiple ? POPOVER_OPTION_HEIGHT / 2 : t->def->radiusSmall;
             bool on = p->def.isOn(p->data, g, o);
             bool focused = g == p->group && o == p->option;
             u32 ink = on ? t->onAccent : t->palette->text;
 
-            if(on) {
-                screen_fill_round_rect(x, y, w, POPOVER_OPTION_HEIGHT, group->multiple ? POPOVER_OPTION_HEIGHT / 2 : t->def->radiusSmall, t->accent);
-            } else if(group->multiple) {
-                screen_frame_round_rect(x, y, w, POPOVER_OPTION_HEIGHT, POPOVER_OPTION_HEIGHT / 2, t->def->border, t->palette->border, t->palette->surface);
-            }
-
             if(focused) {
                 // The D-Pad cursor: a ring around the option.
-                screen_frame_round_rect(x - 2, y - 2, w + 4, POPOVER_OPTION_HEIGHT + 4, POPOVER_OPTION_HEIGHT / 2 + 2, 2, t->palette->text, 0);
-                if(on) {
-                    screen_fill_round_rect(x, y, w, POPOVER_OPTION_HEIGHT, group->multiple ? POPOVER_OPTION_HEIGHT / 2 : t->def->radiusSmall, t->accent);
-                } else {
-                    screen_fill_round_rect(x, y, w, POPOVER_OPTION_HEIGHT, group->multiple ? POPOVER_OPTION_HEIGHT / 2 : t->def->radiusSmall, t->palette->surface);
-                }
+                screen_fill_round_rect(x - 2, y - 2, w + 4, POPOVER_OPTION_HEIGHT + 4, radius + 2, t->palette->text);
+                screen_fill_round_rect(x, y, w, POPOVER_OPTION_HEIGHT, radius, t->palette->surface);
+            }
+
+            if(on) {
+                screen_fill_round_rect(x, y, w, POPOVER_OPTION_HEIGHT, radius, t->accent);
+            } else if(group->multiple && !focused) {
+                screen_frame_round_rect(x, y, w, POPOVER_OPTION_HEIGHT, radius, t->def->border, t->palette->border, t->palette->surface);
             }
 
             float textW = widget_text_width(group->options[o], WIDGET_SMALL_SCALE);
@@ -193,9 +298,14 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
                 screen_draw_icon((u32) group->icons[o], cx - 2, y + (POPOVER_OPTION_HEIGHT - 12) / 2, 12, ink);
             }
 
-            screen_draw_text(group->options[o], cx + iconW, ty, WIDGET_SMALL_SCALE, ink);
+            widget_text_fit(group->options[o], cx + iconW, ty, WIDGET_SMALL_SCALE, ink, w - iconW - 8);
         }
     }
+
+    screen_clear_clip();
+
+    float visible = cardH - 2 * POPOVER_PAD;
+    widget_scrollbar(cardX + POPOVER_WIDTH - POPOVER_PAD / 2 - WIDGET_SCROLLBAR_WIDTH, cardY + POPOVER_PAD, visible, p->scroll, visible, p->contentHeight);
 }
 
 void popover_display(const popover_def* def, void* data) {
@@ -208,6 +318,7 @@ void popover_display(const popover_def* def, void* data) {
     p->parent = ui_top();
     p->def = *def;
     p->data = data;
+    popover_layout(p);
 
     ui_view* view = ui_create();
     view->name = p->parent != NULL ? p->parent->name : "";

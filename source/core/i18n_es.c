@@ -152,6 +152,22 @@ const i18n_entry i18n_es[] = {
         // Overlays
         {"\uE000 choose   \uE001 close", "\uE000 elegir   \uE001 cerrar"},
         {"\uE000 run   \uE001 close", "\uE000 ejecutar   \uE001 cerrar"},
+        // Title kinds and grouping
+        {"Game", "Juego"},
+        {"Update", "Actualización"},
+        {"Demo", "Demo"},
+        {"Linked:", "Vinculado:"},
+        {"Nothing linked", "Nada vinculado"},
+        {"Group updates and DLC", "Agrupar actualizaciones y DLC"},
+        {"\uE000 actions   \uE001 back", "\uE000 acciones   \uE001 volver"},
+        // Title filters
+        {"Games", "Juegos"},
+        {"Demos", "Demos"},
+        {"Region free", "Libre"},
+        {"Europe", "Europa"},
+        {"America", "América"},
+        {"Japan", "Japón"},
+        {"Other", "Otras"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

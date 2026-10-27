@@ -10,6 +10,7 @@
 #include "task/uitask.h"
 #include "../core/core.h"
 #include "../core/data/smdh.h"
+#include "settings.h"
 
 // Titles: rows with each title's icon, or a grid of icons. The title bar's
 // tools switch the view, filter and sort, and search; A or a tap opens a
@@ -41,8 +42,9 @@ typedef struct {
     u32 groupedCount;
     bool groupedFinished;
 
-    // Sorted once all the titles are loaded.
+    // Sorted as titles load (and once more when all have).
     bool sorted;
+    u32 sortedLoaded;
 
     // The list's items, for the top screen's linked titles.
     linked_list* items;
@@ -474,12 +476,16 @@ static bool titles_is_grid(ui_view* view, void* data) {
     return list_get_mode(view) == LIST_MODE_GRID;
 }
 
+static void titles_store(titles_data* data);
+
 static void titles_show_rows(ui_view* view, void* data) {
     list_set_mode(view, LIST_MODE_ROWS);
+    titles_store((titles_data*) data);
 }
 
 static void titles_show_grid(ui_view* view, void* data) {
     list_set_mode(view, LIST_MODE_GRID);
+    titles_store((titles_data*) data);
 }
 
 static bool titles_filter_active(ui_view* view, void* data) {
@@ -508,30 +514,74 @@ static bool titles_popover_is_on(void* data, u32 group, u32 option) {
     }
 }
 
+// What the screen shows is kept in the settings, for the next time.
+static void titles_store(titles_data* data) {
+    titles_settings* saved = &settings_get()->titles;
+    saved->media = (data->showSD ? 1 : 0) | (data->showNAND ? 2 : 0) | (data->showGameCard ? 4 : 0);
+    saved->kinds = 0;
+    for(u32 i = 0; i < 6; i++) {
+        saved->kinds |= data->showKind[i] ? 1u << i : 0;
+    }
+
+    saved->regions = 0;
+    for(u32 i = 0; i < 5; i++) {
+        saved->regions |= data->showRegion[i] ? 1u << i : 0;
+    }
+
+    saved->group = data->group;
+    saved->sort = (u32) data->sort;
+    saved->grid = data->view != NULL && list_get_mode(data->view) == LIST_MODE_GRID;
+    settings_save();
+}
+
+static void titles_restore(titles_data* data) {
+    titles_settings* saved = &settings_get()->titles;
+    data->showSD = (saved->media & 1) != 0;
+    data->showNAND = (saved->media & 2) != 0;
+    data->showGameCard = (saved->media & 4) != 0;
+    for(u32 i = 0; i < 6; i++) {
+        data->showKind[i] = (saved->kinds >> i) & 1;
+    }
+
+    for(u32 i = 0; i < 5; i++) {
+        data->showRegion[i] = (saved->regions >> i) & 1;
+    }
+
+    data->group = saved->group;
+    data->sort = saved->sort <= SORT_SIZE ? (titles_sort) saved->sort : SORT_NAME;
+}
+
 static void titles_popover_select(void* data, u32 group, u32 option) {
     titles_data* listData = (titles_data*) data;
+    bool relist = false;
     switch(group) {
         case 0: {
             bool* flag = option == 0 ? &listData->showSD : option == 1 ? &listData->showNAND : &listData->showGameCard;
             *flag = !*flag;
+            relist = true;
             break;
         }
         // Kind, region and grouping only hide items: no need to list the titles again.
         case 1:
             listData->showKind[option] = !listData->showKind[option];
-            return;
+            break;
         case 2:
             listData->showRegion[option] = !listData->showRegion[option];
-            return;
+            break;
         case 3:
             listData->group = option == 0;
-            return;
+            break;
         default:
             listData->sort = (titles_sort) option;
+            relist = true;
             break;
     }
 
-    listData->populated = false;
+    if(relist) {
+        listData->populated = false;
+    }
+
+    titles_store(listData);
 }
 
 static void titles_filter_open(ui_view* view, void* data) {
@@ -739,6 +789,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
 
     if(hidKeysDown() & KEY_Y) {
         list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
+        titles_store(listData);
     }
 
     if(hidKeysDown() & (KEY_L | KEY_SELECT)) {
@@ -761,6 +812,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
 
         listData->populateData.items = items;
         listData->sorted = false;
+        listData->sortedLoaded = 0;
         Result res = task_populate_titles(&listData->populateData);
         if(R_FAILED(res)) {
             error_display_res(NULL, NULL, res, "Failed to initiate title list population.");
@@ -769,8 +821,12 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         listData->populated = true;
     }
 
-    // All loaded: sort once (the selected title keeps its place on screen).
-    if(listData->populateData.finished && !listData->sorted) {
+    // Sorted as titles load: loaded ones in order at the top, the rest
+    // after; the selected title keeps its place on screen meanwhile.
+    if(!listData->populateData.finished && loaded != listData->sortedLoaded) {
+        linked_list_sort(items, listData, titles_compare);
+        listData->sortedLoaded = loaded;
+    } else if(listData->populateData.finished && !listData->sorted) {
         linked_list_sort(items, listData, titles_compare);
         listData->sorted = true;
     }
@@ -822,6 +878,13 @@ static int titles_compare(void* data, const void* p1, const void* p2) {
     title_info* title1 = (title_info*) info1->data;
     title_info* title2 = (title_info*) info2->data;
 
+    // While loading: loaded titles first, the rest by ID until they load.
+    if(title1->loaded != title2->loaded) {
+        return title1->loaded ? -1 : 1;
+    } else if(!title1->loaded) {
+        return title1->titleId > title2->titleId ? 1 : title1->titleId < title2->titleId ? -1 : 0;
+    }
+
     if(title1->mediaType > title2->mediaType) {
         return -1;
     } else if(title1->mediaType < title2->mediaType) {
@@ -868,18 +931,7 @@ void titles_open() {
 
     data->populateData.finished = true;
 
-    data->showGameCard = true;
-    data->showSD = true;
-    data->showNAND = true;
-    data->sort = SORT_NAME;
-    data->group = true;
-    for(u32 i = 0; i < 6; i++) {
-        data->showKind[i] = true;
-    }
-
-    for(u32 i = 0; i < 5; i++) {
-        data->showRegion[i] = true;
-    }
+    titles_restore(data);
 
     ui_view* view = list_display(_("Titles"), "", data, titles_update, titles_draw_top);
     if(view == NULL) {
@@ -888,6 +940,9 @@ void titles_open() {
     }
 
     data->view = view;
+    if(settings_get()->titles.grid) {
+        list_set_mode(view, LIST_MODE_GRID);
+    }
 
     list_style style = {
             .rowHeight = ROW_HEIGHT,

@@ -9,6 +9,7 @@ things are the way they are. Keep it current in the same change that alters it.
 |---|---|
 | `release` | v0.1.0 beta (published), the self-update restart fix and the whole UI redesign (`feat/ui-themes`, merged with the owner's OK). No new beta tagged yet. |
 | `feat/system-status`, `feat/grouped-menu`, `fix/icon-sizes`, `fix/list-loading` | Merged into `release` with the owner's OK: top bar status and System entry; the grouped main menu (big tiles, Cleanup and data, Advanced with one warning per session); icons from 16/32 px atlases; whole-pixel 3D; Titles loading into placeholders, presses that follow their item, a selection that keeps its row. |
+| `feat/remember-filters` | Merged into `release` with the owner's OK: Titles, Files and Ext save data remember their filters, sort and view (`settings.json`); Titles sorts live while loading with the selected row kept still; battery digits 8 px tall and centred (measured on the console's font), clean 2 px terminal. |
 | `master` | v0.1.0 has not been promoted to stable yet. |
 
 The UI redesign on `release` holds:

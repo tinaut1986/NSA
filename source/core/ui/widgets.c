@@ -404,6 +404,30 @@ void widget_crossfade(float progress, void (*draw)(void* context, bool leaving),
 
 // ---- status ----
 
+// Digits centred between x1 and x2 with the 1 narrower: the font's digits all
+// advance the same, so "100" would show a wide gap after the 1. Each glyph is
+// centred in its cell and placed on whole pixels.
+static void widget_text_packed(const char* text, float x1, float x2, float y, float scale, u32 color) {
+    float cells[16];
+    float advances[16];
+    u32 count = 0;
+    float total = 0;
+    for(const char* c = text; *c != '\0' && count < 16; c++, count++) {
+        charWidthInfo_s* info = fontGetCharWidthInfo(NULL, fontGlyphIndexFromCodePoint(NULL, (u8) *c));
+        advances[count] = info->charWidth * scale;
+        cells[count] = *c == '1' ? advances[count] * 0.6f : advances[count];
+        total += cells[count];
+    }
+
+    float cursor = x1 + (x2 - x1 - total) / 2;
+    for(u32 i = 0; i < count; i++) {
+        char glyph[2] = {text[i], '\0'};
+        float gx = cursor + (cells[i] - advances[i]) / 2;
+        screen_draw_text(glyph, (float) (int) (gx + 0.5f), (float) (int) (y + 0.5f), scale, color);
+        cursor += cells[i];
+    }
+}
+
 void widget_battery_state(int* percent, u8* level, bool* charging) {
     static bool known = false;
     static bool hwcTried = false;
@@ -451,7 +475,9 @@ float widget_battery(float right, float y, float height) {
     float nub = 2;
     float w = 28;
     float x = right - nub - w;
-    screen_fill_round_rect(x + w, y + height / 2 - 2.5f, nub + 1, 5, 1, color);
+    // The terminal: 2 px wide and 4 tall on whole pixels (a fractional edge
+    // left a stray pixel under it).
+    screen_fill_rect(x + w, y + (float) (int) ((height - 4) / 2), nub, 4, color);
     screen_frame_round_rect(x, y, w, height, 3, 1, color, t->palette->surface);
 
     float inner = w - 4;
@@ -462,7 +488,12 @@ float widget_battery(float right, float y, float height) {
     if(percent >= 0) {
         char text[8];
         snprintf(text, sizeof(text), "%d", percent);
-        widget_text_centered(text, x, x + w, y + (height - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, t->palette->text);
+        // Digits 8 px tall, one pixel of battery above and below them: the
+        // baseline goes on the second-last inner row. (The console's system
+        // font; Azahar's stand-in sits differently.)
+        float scale = 0.41f;
+        float baseline = fontGetGlyphInfo(NULL)->baselinePos * scale;
+        widget_text_packed(text, x, x + w, y + height - 2 - baseline, scale, t->palette->text);
     }
 
     float used = w + nub;

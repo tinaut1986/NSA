@@ -10,6 +10,7 @@
 #include "task/uitask.h"
 #include "../core/core.h"
 #include "../core/data/smdh.h"
+#include "settings.h"
 
 // Files: rows with an icon by kind (a CIA shows its title's icon), the path in
 // the title bar and tools for the clipboard, filter and sort, search and the
@@ -587,6 +588,18 @@ static bool files_popover_is_on(void* data, u32 group, u32 option) {
     return listData->sort == (files_sort) option;
 }
 
+// What the screen shows is kept in the settings, for the next time.
+static void files_store(files_data* data) {
+    files_settings* saved = &settings_get()->files;
+    saved->directories = data->showDirectories;
+    saved->files = data->showFiles;
+    saved->cias = data->showCias;
+    saved->tickets = data->showTickets;
+    saved->hidden = data->showHidden;
+    saved->sort = (u32) data->sort;
+    settings_save();
+}
+
 static void files_popover_select(void* data, u32 group, u32 option) {
     files_data* listData = (files_data*) data;
     if(group == 0) {
@@ -599,6 +612,8 @@ static void files_popover_select(void* data, u32 group, u32 option) {
         listData->sortedCount = 0;
         listData->sortedFinished = false;
     }
+
+    files_store(listData);
 }
 
 static void files_filter_open(ui_view* view, void* data) {
@@ -867,12 +882,13 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
 
     data->populated = false;
 
-    data->showHidden = false;
-    data->showDirectories = true;
-    data->showFiles = true;
-    data->showCias = true;
-    data->showTickets = true;
-    data->sort = SORT_NAME;
+    files_settings* saved = &settings_get()->files;
+    data->showHidden = saved->hidden;
+    data->showDirectories = saved->directories;
+    data->showFiles = saved->files;
+    data->showCias = saved->cias;
+    data->showTickets = saved->tickets;
+    data->sort = saved->sort <= SORT_KIND ? (files_sort) saved->sort : SORT_NAME;
 
     data->archiveId = archiveId;
     data->archivePath.type = archivePath.type;

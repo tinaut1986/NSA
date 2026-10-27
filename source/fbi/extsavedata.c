@@ -9,6 +9,7 @@
 #include "action/action.h"
 #include "task/uitask.h"
 #include "../core/core.h"
+#include "settings.h"
 
 static list_item browse_user_save_data = {"Browse User Save Data", COLOR_TEXT, action_browse_user_ext_save_data};
 static list_item browse_spotpass_save_data = {"Browse SpotPass Save Data", COLOR_TEXT, action_browse_boss_ext_save_data};
@@ -132,6 +133,12 @@ static void extsavedata_options_update(ui_view* view, void* data, linked_list* i
         }
 
         listData->populated = false;
+
+        extsave_settings* saved = &settings_get()->extsave;
+        saved->sd = listData->showSD;
+        saved->nand = listData->showNAND;
+        saved->byId = listData->sortById;
+        settings_save();
     }
 
     if(linked_list_size(items) == 0) {
@@ -266,10 +273,11 @@ void extsavedata_open() {
 
     data->populateData.finished = true;
 
-    data->showSD = true;
-    data->showNAND = true;
-    data->sortById = false;
-    data->sortByName = true;
+    extsave_settings* saved = &settings_get()->extsave;
+    data->showSD = saved->sd;
+    data->showNAND = saved->nand;
+    data->sortById = saved->byId;
+    data->sortByName = !saved->byId;
 
     list_display("Ext Save Data", "A: Select, B: Return, X: Refresh, Select: Options", data, extsavedata_update, extsavedata_draw_top);
 }

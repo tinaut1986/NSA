@@ -10,6 +10,32 @@ typedef enum {
     UPDATE_CHANNEL_BETA
 } update_channel;
 
+// What each screen showed last time (filters, sort, view), restored when it
+// opens again.
+typedef struct {
+    u32 media;       // Bits: 1 SD, 2 NAND, 4 game card.
+    u32 kinds;       // One bit per title_kind.
+    u32 regions;     // One bit per region.
+    bool group;
+    u32 sort;
+    bool grid;
+} titles_settings;
+
+typedef struct {
+    bool directories;
+    bool files;
+    bool cias;
+    bool tickets;
+    bool hidden;
+    u32 sort;
+} files_settings;
+
+typedef struct {
+    bool sd;
+    bool nand;
+    bool byId;
+} extsave_settings;
+
 typedef struct {
     update_channel channel;
     bool autoUpdate;
@@ -20,6 +46,10 @@ typedef struct {
     u32 accent;
     theme_night_mode night;
     language_id language;
+
+    titles_settings titles;
+    files_settings files;
+    extsave_settings extsave;
 } settings_data;
 
 // Pushes the appearance settings to the theme and the translation layer.

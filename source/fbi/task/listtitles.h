@@ -13,6 +13,10 @@ typedef struct title_info_s {
     bool hasMeta;
     meta_info meta;
 
+    // Details are filled in after the title is listed (listtitles.c).
+    bool loaded;
+    u64 loadedTime;
+
     // Grouping (titles.c): a game counts the updates and DLC that share its
     // unique ID; those are `linked` when their game is in the list.
     u32 linkedCount;

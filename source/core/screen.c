@@ -1,3 +1,4 @@
+#include <math.h>
 #include <errno.h>
 #include <malloc.h>
 #include <stdio.h>
@@ -525,7 +526,9 @@ float screen_get_depth() {
 }
 
 static void screen_draw_quad(float x1, float y1, float x2, float y2, float left, float bottom, float right, float top) {
-    float dx = offset_x + depth * stereo_shift;
+    // Whole pixels per eye: a fractional shift blends edges differently in
+    // each eye, and thin lines show in one and fade in the other.
+    float dx = offset_x + roundf(depth * stereo_shift);
     x1 += dx;
     x2 += dx;
     y1 += offset_y;

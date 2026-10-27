@@ -41,6 +41,9 @@ typedef struct {
     u32 groupedCount;
     bool groupedFinished;
 
+    // Sorted once all the titles are loaded.
+    bool sorted;
+
     // The list's items, for the top screen's linked titles.
     linked_list* items;
 
@@ -174,6 +177,24 @@ static void titles_draw_icon(title_info* info, float x, float y, float size) {
     }
 }
 
+// While a title loads: grey blocks where its icon and text will be.
+static void titles_draw_skeleton(float x, float y, float w, float h, float icon, bool selected) {
+    const theme_current* t = theme();
+    u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;
+    screen_fill_round_rect(x, y, icon, icon, icon / 6, block);
+    if(w > icon + 30) {
+        float tx = x + icon + 8;
+        screen_fill_round_rect(tx, y + 4, (w - icon - 8) * 0.55f, 8, 4, block);
+        screen_fill_round_rect(tx, y + h - 12, (w - icon - 8) * 0.35f, 6, 3, block);
+    }
+}
+
+// A title's contents fade in once it has loaded.
+static void titles_fade_in(title_info* info) {
+    float e = widget_ease(info->loadedTime, 250);
+    screen_set_content_motion(0, 0, (u8) (e * 0xFF));
+}
+
 static void titles_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     const theme_current* t = theme();
     title_info* info = (title_info*) item->data;
@@ -183,6 +204,13 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
     u32 ink = selected ? t->onAccent : t->palette->text;
     u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
     screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+
+    if(!info->loaded) {
+        titles_draw_skeleton(x + 5, y + 5, width - 18, height - 10, height - 10, selected);
+        return;
+    }
+
+    titles_fade_in(info);
 
     float icon = height - 10;
     titles_draw_icon(info, x + 5, y + 5, icon);
@@ -219,6 +247,7 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
 
     widget_text_fit(publisher, right - publisherWidth, lineY, WIDGET_SMALL_SCALE, muted, publisherWidth);
     widget_text_fit(description, tx, lineY, WIDGET_SMALL_SCALE, muted, right - publisherWidth - 8 - tx);
+    screen_set_content_motion(0, 0, 0xFF);
 }
 
 static void titles_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
@@ -233,7 +262,14 @@ static void titles_draw_tile(void* data, list_item* item, float x, float y, floa
     }
 
     float icon = size - 8;
+    if(!info->loaded) {
+        titles_draw_skeleton(x + 4, y + 4, icon, icon, icon, selected);
+        return;
+    }
+
+    titles_fade_in(info);
     titles_draw_icon(info, x + 4, y + 4, icon);
+    screen_set_content_motion(0, 0, 0xFF);
 
     titles_data* listData = (titles_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
@@ -304,6 +340,14 @@ static void titles_draw_details(linked_list* items, list_item* selected, float x
 
     const theme_current* t = theme();
     title_info* info = (title_info*) selected->data;
+
+    // Not loaded yet: the card's place, with a word on why it is empty.
+    if(!info->loaded) {
+        widget_card(x1 + 10, y1 + 10, x2 - x1 - 20, 76);
+        titles_draw_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
+        widget_text_centered(_("Loading..."), x1, x2, y1 + 110, WIDGET_TEXT_SCALE, t->palette->textMuted);
+        return;
+    }
 
     float cardX = x1 + 10;
     float cardY = y1 + 10;
@@ -646,12 +690,28 @@ static void titles_chain_open(titles_data* data, linked_list* items, list_item* 
 
 // ---- the list ----
 
+static int titles_compare(void* data, const void* p1, const void* p2);
+
 static void titles_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     titles_data* listData = (titles_data*) data;
 
     view->name = _("Titles");
     listData->items = items;
     titles_group(listData, items);
+
+    // How many have loaded, for the title bar.
+    u32 loaded = 0;
+    u32 total = 0;
+    if(!listData->populateData.finished) {
+        linked_list_iter iter;
+        linked_list_iterate(items, &iter);
+        while(linked_list_iter_has_next(&iter)) {
+            total++;
+            loaded += ((title_info*) ((list_item*) linked_list_iter_next(&iter))->data)->loaded ? 1 : 0;
+        }
+    }
+
+    list_set_progress(view, loaded, total);
     view->info = _(" actions    view    filter    search    back");
 
     if(hidKeysDown() & KEY_B) {
@@ -700,6 +760,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         }
 
         listData->populateData.items = items;
+        listData->sorted = false;
         Result res = task_populate_titles(&listData->populateData);
         if(R_FAILED(res)) {
             error_display_res(NULL, NULL, res, "Failed to initiate title list population.");
@@ -708,13 +769,20 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         listData->populated = true;
     }
 
+    // All loaded: sort once (the selected title keeps its place on screen).
+    if(listData->populateData.finished && !listData->sorted) {
+        linked_list_sort(items, listData, titles_compare);
+        listData->sorted = true;
+    }
+
     if(listData->populateData.finished && R_FAILED(listData->populateData.result)) {
         error_display_res(NULL, NULL, listData->populateData.result, "Failed to populate title list.");
 
         listData->populateData.result = 0;
     }
 
-    if(selected != NULL && selected->data != NULL && selectedTouched) {
+    // A title still loading has nothing to act on yet.
+    if(selected != NULL && selected->data != NULL && selectedTouched && ((title_info*) selected->data)->loaded) {
         // Grouped, a game with an update or DLC opens its chain to pick one.
         if(listData->group && ((title_info*) selected->data)->linkedCount > 0) {
             titles_chain_open(listData, items, selected);
@@ -728,7 +796,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
 
 // A long hold: the title's own actions, even for a game with its chain.
 static void titles_long_press(ui_view* view, void* data, linked_list* items, list_item* item) {
-    if(item->data != NULL) {
+    if(item->data != NULL && ((title_info*) item->data)->loaded) {
         titles_actions_open((titles_data*) data, items, item);
     }
 }

@@ -209,6 +209,7 @@ const i18n_entry i18n_es[] = {
         {"Delete folder", "Borrar carpeta"},
         {"Search files", "Buscar archivos"},
         {"Open", "Abrir"},
+        {"Loading...", "Cargando..."},
         {"%s free of %s", "%s libres de %s"},
         // Main menu groups
         {"Cleanup and data", "Limpieza y datos"},

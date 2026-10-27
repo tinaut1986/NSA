@@ -11,9 +11,9 @@ merged are kept on the remote and can be deleted.
 
 | Branch / tag | State |
 |---|---|
-| `release` | v0.1.0 (beta, published) plus everything below. **No tag after v0.1.0 yet: the v0.2.0 beta is the first thing to do** (steps in Next). |
+| `release` | v0.1.0 (beta, published) plus everything below. v0.2.0 (beta) published 2026-10-27. |
 | `master` | v0.1.0 has not been promoted to stable. |
-| tag `v0.2.0` | **Not created.** The owner interrupted the tagging to hand the session over; the release notes file does not exist either. |
+| tag `v0.2.0` | Beta published (CIA, 3DSX, QR). Not promoted to stable. |
 
 What `release` holds, in the order it was built:
 
@@ -61,20 +61,7 @@ another list for actions. Every screen should move to the Titles pattern:
 
 ## Next
 
-1. **Publish the v0.2.0 beta** (the owner asked for it, then paused it):
-   - `git checkout -b chore/release-v0.2.0 release`, write `docs/release-notes/v0.2.0.md`
-     (3 to 6 lines, English, only what is new since v0.1.0; format in
-     `docs/release-notes/README.md`). Draft:
-     - New look: themes, accent colours, night mode, English and Spanish, icons, and 3D on the top screen.
-     - Titles, Files, Tickets and Extra data redone: pictures, filters, search, sorting and grouping, remembered next time.
-     - Grouped main menu, a System page with the console's details, and a status bar with battery, Wi-Fi and the FTP address.
-     - Touch feedback: buttons look pressed, a long press opens an item's actions; smooth scrolling and animations.
-     - Confirmations and progress screens redone and translated; deletes are shown in red.
-     - Extra data is linked to its game, and shows its size.
-   - Merge it `--no-ff` into `release`, `git tag -a v0.2.0 -m "NSA v0.2.0 (beta)"` on
-     `release`, push `release` and the tag, and watch the workflow
-     (`gh run list --repo tinaut1986/NSA`). Ask the owner before promoting to stable
-     (`master` must contain the tag first; see CLAUDE.md).
+1. ~~Publish v0.2.0 beta~~ done. Promoting to stable needs the owner's OK (`master` must contain the tag first).
 2. **Remote install**, the owner agreed it needs the same treatment. Proposal, to show as
    a mockup first: three big cards (QR code, enter URLs, receive from a computer), the
    receive screen with the console's IP and port large and what has arrived, the last

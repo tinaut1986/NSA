@@ -21,8 +21,6 @@ static int ui_stack_top = -1;
 
 static Handle ui_stack_mutex = 0;
 
-static u64 ui_free_space_last_update = 0;
-static char ui_free_space_buffer[128];
 
 static void (*ui_status_corner)(char* out, size_t size) = NULL;
 static bool (*ui_status_notice)(char* out, size_t size, float* progress) = NULL;
@@ -128,50 +126,36 @@ static void ui_draw_top_bar() {
     float left = 8 + widget_text_width(version, WIDGET_SMALL_SCALE);
     screen_draw_text(version, 8, textY, WIDGET_SMALL_SCALE, t->palette->text);
 
-    // Right, from the edge: battery, Wi-Fi, FTP, SD free space.
+    // Right, from the edge: battery, Wi-Fi and, when it runs, the FTP server
+    // with the end of the console's address (the rest is the network's).
     float x = TOP_SCREEN_WIDTH - 8;
-    float iconSize = 16;
-    float iconY = (height - iconSize) / 2;
+    x -= widget_battery(x, 5, height - 10);
 
-    u32 batteryIcon = ICON_BATTERY;
-    u8 charging = 0;
-    u8 level = 0;
-    if(R_SUCCEEDED(PTMU_GetBatteryChargeState(&charging)) && charging) {
-        batteryIcon = ICON_BATTERY_CHARGING;
-    } else if(R_SUCCEEDED(PTMU_GetBatteryLevel(&level)) && level >= 2) {
-        batteryIcon = ICON_BATTERY_1 + (level > 5 ? 3 : level - 2);
-    }
-
-    x -= iconSize;
-    screen_draw_icon(batteryIcon, x, iconY, iconSize, level == 1 && !charging ? t->palette->danger : t->palette->text);
-
-    u32 wifi = 0;
-    bool online = R_SUCCEEDED(ACU_GetWifiStatus(&wifi)) && wifi;
-    x -= iconSize + 4;
-    screen_draw_icon(online ? ICON_WIFI : ICON_WIFI_OFF, x, iconY, iconSize, online ? t->palette->text : t->palette->textMuted);
+    x -= 8 + 13;
+    widget_wifi(x, 6, height - 12);
 
     if(ui_status_corner != NULL) {
         char corner[64] = "";
         ui_status_corner(corner, sizeof(corner));
         if(corner[0] != '\0') {
-            x -= iconSize + 4;
-            screen_draw_icon(ICON_SERVER, x, iconY, iconSize, t->accent);
+            // "FTP 192.168.1.133:5000" -> ".133"
+            char tail[16] = "";
+            char* dot = strrchr(corner, '.');
+            if(dot != NULL) {
+                snprintf(tail, sizeof(tail), "%s", dot);
+                char* colon = strchr(tail, ':');
+                if(colon != NULL) {
+                    *colon = '\0';
+                }
+            }
+
+            float tailW = widget_text_width(tail, WIDGET_SMALL_SCALE);
+            x -= 8 + tailW;
+            screen_draw_text(tail, x, textY, WIDGET_SMALL_SCALE, t->accent);
+            x -= 15;
+            screen_draw_icon(ICON_SERVER, x, (height - 14) / 2, 14, t->accent);
         }
     }
-
-    if(osGetTime() >= ui_free_space_last_update + 1000) {
-        FS_ArchiveResource resource = {0};
-        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_SD))) {
-            u64 size = (u64) resource.freeClusters * (u64) resource.clusterSize;
-            snprintf(ui_free_space_buffer, sizeof(ui_free_space_buffer), "SD %.1f %s", ui_get_display_size(size), ui_get_display_size_units(size));
-        }
-
-        ui_free_space_last_update = osGetTime();
-    }
-
-    float freeWidth = widget_text_width(ui_free_space_buffer, WIDGET_SMALL_SCALE);
-    x -= 6 + freeWidth;
-    screen_draw_text(ui_free_space_buffer, x, textY, WIDGET_SMALL_SCALE, t->palette->textMuted);
 
     // Centre: date and time, or only the time when the date does not fit.
     time_t now = time(NULL);

@@ -17,3 +17,4 @@ void tickets_open();
 void titles_open();
 void startup_run();
 void settingsmenu_open();
+void systeminfo_draw_top(float x1, float y1, float x2, float y2);

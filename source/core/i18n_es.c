@@ -210,6 +210,22 @@ const i18n_entry i18n_es[] = {
         {"Search files", "Buscar archivos"},
         {"Open", "Abrir"},
         {"%s free of %s", "%s libres de %s"},
+        // Main menu groups
+        {"Cleanup and data", "Limpieza y datos"},
+        {"Licences, half-finished installs and the games' extra data.", "Licencias, instalaciones a medias y datos extra de los juegos."},
+        {"Advanced", "Avanzado"},
+        {"The console's own memories and system data. Handle with care.", "Las memorias internas y los datos del sistema. Con cuidado."},
+        {"Here you change the console's own memory and system data. A wrong change can stop it from starting.\n\nGo in?", "Aquí se toca la memoria interna y los datos del sistema. Un cambio equivocado puede impedir que la consola arranque.\n\n¿Entrar?"},
+        {"\uE000 open   \uE001 back", "\uE000 abrir   \uE001 volver"},
+        {"Licences of titles", "Licencias de los títulos"},
+        {"Half-finished installs", "Instalaciones a medias"},
+        {"Games' extra data", "Datos extra de juegos"},
+        {"System memory (3DS mode)", "Memoria (modo 3DS)"},
+        {"System memory (DSi mode)", "Memoria (modo DSi)"},
+        {"DSi camera photos", "Fotos de la cámara DSi"},
+        {"DSi sound recordings", "Grabaciones DSi"},
+        {"System saves", "Partidas del sistema"},
+        {"Backup to the SD card", "Copia en la SD"},
         // System
         {"START exit", "START salir"},
         {"The console at a glance: model, versions, network, battery and space.", "La consola de un vistazo: modelo, versiones, red, batería y espacio."},
@@ -235,7 +251,6 @@ const i18n_entry i18n_es[] = {
         {"Russian", "Ruso"},
         {"Chinese (traditional)", "Chino (tradicional)"},
         {"Confirmation", "Confirmación"},
-        {"Modifying the NAND is dangerous and can stop the console from starting. Make sure you know what you are doing.\n\nProceed?", "Modificar la NAND es peligroso y puede impedir que la consola arranque. Asegúrate de saber lo que haces.\n\n¿Continuar?"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

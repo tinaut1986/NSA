@@ -9,6 +9,7 @@
 #include "ui.h"
 #include "../screen.h"
 #include "../i18n.h"
+#include "../input.h"
 #include "../theme.h"
 
 typedef struct {
@@ -18,10 +19,68 @@ typedef struct {
     char text[PROGRESS_TEXT_MAX];
     void (*update)(ui_view* view, void* data, float* progress, char* text);
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2);
+
+    // The button under the card, if there is one.
+    char buttonLabel[64];
+    void (*onButton)(ui_view* view, void* data);
+    widget_press press;
 } info_data;
+
+#define INFO_BUTTON_HEIGHT 28
+#define INFO_BUTTON_GAP 10
+
+// Where the card and the button go on the bottom screen.
+static void info_layout(info_data* infoData, float x1, float y1, float x2, float y2, float* cardX, float* cardY, float* cardW, float* cardH,
+                        float* btnX, float* btnY, float* btnW) {
+    float width = x2 - x1 - 24;
+    float textWidth = 0;
+    float textHeight = 0;
+    screen_get_string_size_wrap(&textWidth, &textHeight, infoData->text, WIDGET_TEXT_SCALE, WIDGET_TEXT_SCALE, width - 24);
+
+    float barHeight = infoData->bar ? 10 + 12 : 18 + 6;
+    float height = 14 + barHeight + textHeight + 14;
+    float total = height + (infoData->onButton != NULL ? INFO_BUTTON_GAP + INFO_BUTTON_HEIGHT : 0);
+
+    *cardX = x1 + 12;
+    *cardY = y1 + (y2 - y1 - total) / 2;
+    *cardW = width;
+    *cardH = height;
+    *btnW = width > 240 ? 240 : width;
+    *btnX = x1 + (x2 - x1 - *btnW) / 2;
+    *btnY = *cardY + height + INFO_BUTTON_GAP;
+}
 
 static void info_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     info_data* infoData = (info_data*) data;
+
+    if(infoData->onButton != NULL) {
+        float cx, cy, cw, ch, bx, by, bw;
+        info_layout(infoData, 0, WIDGET_TITLE_BAR_HEIGHT, 320, 240 - WIDGET_HINT_BAR_HEIGHT, &cx, &cy, &cw, &ch, &bx, &by, &bw);
+
+        touchPosition pos;
+        hidTouchRead(&pos);
+        if(hidKeysDown() & KEY_TOUCH) {
+            if(widget_touched(&pos, bx, by, bw, INFO_BUTTON_HEIGHT)) {
+                widget_press_begin(&infoData->press, 0, true, pos.px, pos.py);
+            }
+        } else if(infoData->press.index >= 0 && (hidKeysHeld() & KEY_TOUCH)) {
+            if(!widget_touched(&pos, bx, by, bw, INFO_BUTTON_HEIGHT)) {
+                infoData->press.cancelled = true;
+            }
+        } else if(infoData->press.index >= 0 && (hidKeysUp() & KEY_TOUCH)) {
+            bool fire = widget_press_on(&infoData->press, 0);
+            widget_press_end(&infoData->press);
+            if(fire) {
+                infoData->onButton(view, infoData->data);
+                return;
+            }
+        }
+
+        if(hidKeysDown() & KEY_X) {
+            infoData->onButton(view, infoData->data);
+            return;
+        }
+    }
 
     if(infoData->update != NULL) {
         infoData->update(view, infoData->data, &infoData->progress, infoData->text);
@@ -40,16 +99,15 @@ static void info_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
     info_data* infoData = (info_data*) data;
     const theme_current* t = theme();
 
-    float width = x2 - x1 - 24;
-    float textWidth = 0;
-    float textHeight = 0;
-    screen_get_string_size_wrap(&textWidth, &textHeight, infoData->text, WIDGET_TEXT_SCALE, WIDGET_TEXT_SCALE, width - 24);
-
+    float x, y, width, height, btnX, btnY, btnW;
+    info_layout(infoData, x1, y1, x2, y2, &x, &y, &width, &height, &btnX, &btnY, &btnW);
     float barHeight = infoData->bar ? 10 + 12 : 18 + 6;
-    float height = 14 + barHeight + textHeight + 14;
-    float x = x1 + 12;
-    float y = y1 + (y2 - y1 - height) / 2;
     widget_card(x, y, width, height);
+
+    if(infoData->onButton != NULL) {
+        widget_button_centered(btnX, btnY, btnW, INFO_BUTTON_HEIGHT, infoData->buttonLabel, false);
+        widget_press_draw(&infoData->press, 0, btnX, btnY, btnW, INFO_BUTTON_HEIGHT, t->def->radiusSmall, t->palette->text, false);
+    }
 
     float cy = y + 14;
     if(infoData->bar) {
@@ -104,6 +162,7 @@ ui_view* info_display(const char* name, const char* info, bool bar, void* data, 
     snprintf(infoData->text, PROGRESS_TEXT_MAX, "%s", _("Please wait..."));
     infoData->update = update;
     infoData->drawTop = drawTop;
+    infoData->press.index = -1;
 
     ui_view* view = ui_create();
     view->name = i18n_translate_text(name);
@@ -122,4 +181,17 @@ void info_destroy(ui_view* view) {
         free(view->data);
         ui_destroy(view);
     }
+}
+
+void info_set_button(ui_view* view, const char* label, void (*onPress)(ui_view* view, void* data)) {
+    info_data* infoData = (info_data*) view->data;
+
+    if(label == NULL || onPress == NULL) {
+        infoData->onButton = NULL;
+        infoData->buttonLabel[0] = '\0';
+        return;
+    }
+
+    snprintf(infoData->buttonLabel, sizeof(infoData->buttonLabel), "\uE002  %s", i18n_translate_text(label));
+    infoData->onButton = onPress;
 }

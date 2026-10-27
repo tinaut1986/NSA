@@ -46,6 +46,9 @@ Result transfer_link_io(transfer_link* link, bool write, void* buf, size_t len, 
 // Non blocking: bytes, 0 when closed, -1 when there are none yet, -2 on an error.
 int transfer_link_recv_some(transfer_link* link, void* buf, size_t len);
 void transfer_link_close(transfer_link* link);
+// Reads and drops what comes until the other side closes, for at most `ms`. A close right after
+// a last message could cut it short on the 3DS.
+void transfer_link_wait_closed(transfer_link* link, u32 ms);
 
 // A bigger window than the stack's default, set before connecting.
 void transfer_conn_set_buffers(int sock);

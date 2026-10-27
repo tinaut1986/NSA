@@ -273,7 +273,12 @@ static void action_install_cias_loading_update(ui_view* view, void* data, float*
             loadingData->installData->installInfo.total = linked_list_size(&loadingData->installData->contents);
             loadingData->installData->installInfo.processed = loadingData->installData->installInfo.total;
 
-            prompt_display_yes_no("Confirmation", loadingData->message, COLOR_TEXT, loadingData->installData, action_install_cias_draw_top, action_install_cias_onresponse);
+            if(loadingData->message == NULL) {
+                // Already asked (the receiver chose to install): no second question.
+                action_install_cias_onresponse(NULL, loadingData->installData, PROMPT_YES);
+            } else {
+                prompt_display_yes_no("Confirmation", loadingData->message, COLOR_TEXT, loadingData->installData, action_install_cias_draw_top, action_install_cias_onresponse);
+            }
         } else {
             error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate CIA list.");
 
@@ -381,6 +386,11 @@ static void action_install_cias_internal(linked_list* items, list_item* selected
 
 void action_install_cia(linked_list* items, list_item* selected) {
     action_install_cias_internal(items, selected, NULL, NULL, "Install the selected CIA?", false);
+}
+
+// Installs and deletes with no question: the caller has asked already.
+void action_install_cia_delete_now(linked_list* items, list_item* selected) {
+    action_install_cias_internal(items, selected, NULL, NULL, NULL, true);
 }
 
 void action_install_cia_delete(linked_list* items, list_item* selected) {

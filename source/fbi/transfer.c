@@ -49,6 +49,13 @@
 // How long the Receive screen waits on the Wi-Fi before it suggests the other way.
 #define TRANSFER_RECEIVE_HINT_AFTER 15000
 
+// Changing between the Wi-Fi and the local wireless takes the radio over, and the console
+// does not answer for some seconds. So the change is asked for first, the screen says
+// "Switching..." and the change is made a couple of frames later.
+#define TRANSFER_MODE_NONE 0
+#define TRANSFER_MODE_NEARBY 1
+#define TRANSFER_MODE_WIFI 2
+
 #define TRANSFER_PROBE_INTERVAL 2000
 #define TRANSFER_HELLO_TIMEOUT 5000
 
@@ -208,6 +215,8 @@ typedef struct {
     bool hintShown;           // The "look nearby" row is in the list.
     bool toggleRequested;     // The tool (or X) asked to change between the Wi-Fi and nearby.
     bool waitingWifi;         // Left the local wireless: the Wi-Fi is coming back.
+    u32 pendingMode;          // A change that has been asked for and is about to be made (see below).
+    u32 pendingFrames;
     char udsNames[UDSLINK_PEERS_MAX][UDSLINK_NAME_MAX + 1];
     u32 udsCount;
     struct in_addr known[8];   // Consoles listed in /nsa/peers.txt, asked directly.
@@ -323,13 +332,32 @@ static void transfer_send_retry_onresponse(ui_view* view, void* data, u32 respon
 }
 
 // The send failed: the error is shown, and then the question of trying again,
-// with the same console and the same file.
+// with the same console and the same file. Unless the user of the other console
+// cancelled: then it is said, and that is all (sending again is a new request).
 static void transfer_send_failed(ui_view* view, transfer_send_session* session, Result res) {
     ui_pop();
     info_destroy(view);
 
     transfer_sender_free(session->engine);
     session->engine = NULL;
+
+    u8 status = 0;
+    int got = -1;
+    for(u64 begin = osGetTime(); osGetTime() - begin < 1500; svcSleepThread(20000000)) {
+        got = transfer_link_recv_some(&session->link, &status, 1);
+        if(got != -1) {
+            break;
+        }
+    }
+
+    if(got == 1 && status == 2) {
+        transfer_log("send: the other console cancelled\n");
+        transfer_send_free(session);
+
+        prompt_display_notify("Failure", "The other console cancelled the transfer.", COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
     transfer_link_close(&session->link);
 
     // The second one pushed is the one on top.
@@ -440,6 +468,14 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
         int n = transfer_link_recv_some(&session->link, &ack, 1);
         if(n == 1 || n == 0 || n == -2) {
             bool ok = n == 1 && ack == 1;
+            if(n == 1 && ack == 2) {
+                transfer_log("send: the other console cancelled\n");
+                transfer_send_finish(view, session);
+
+                prompt_display_notify("Failure", "The other console cancelled the transfer.", COLOR_TEXT, NULL, NULL, NULL);
+                return;
+            }
+
             transfer_log("send: final answer %s (n=%d)\n", ok ? "whole" : "NOT whole", n);
 
             if(ok) {
@@ -753,7 +789,11 @@ static void transfer_send_list_draw_top(ui_view* view, void* data, float x1, flo
 
     char line[FILE_NAME_MAX + 48];
     snprintf(line, sizeof(line), "%s  (%s)", sendData->name, size);
-    if(sendData->waitingWifi) {
+    if(sendData->pendingMode == TRANSFER_MODE_NEARBY) {
+        snprintf(line, sizeof(line), "%s", _("Switching to nearby mode..."));
+    } else if(sendData->pendingMode == TRANSFER_MODE_WIFI) {
+        snprintf(line, sizeof(line), "%s", _("Switching to the Wi-Fi..."));
+    } else if(sendData->waitingWifi) {
         snprintf(line, sizeof(line), "%s", _("Waiting for the Wi-Fi..."));
     }
 
@@ -894,29 +934,39 @@ static void transfer_send_list_update(ui_view* view, void* data, linked_list* it
         sendData->toggleRequested = true;
     }
 
-    if(sendData->toggleRequested && !sendData->waitingWifi) {
+    if(sendData->toggleRequested && !sendData->waitingWifi && sendData->pendingMode == TRANSFER_MODE_NONE) {
         sendData->toggleRequested = false;
         transfer_send_remove_hint(sendData, items);
         transfer_send_clear_items(sendData, items);
         sendData->udsCount = 0;
-
-        if(sendData->udsMode) {
-            // Back to the Wi-Fi: the sockets wait until it is there.
-            udslink_scan_stop();
-            udslink_leave();
-            sendData->udsMode = false;
-            sendData->waitingWifi = true;
-        } else if(udslink_enter()) {
-            transfer_close(&sendData->udp);
-            sendData->udsMode = true;
-            udslink_scan_start();
-        }
-
-        sendData->openedAt = osGetTime();
+        sendData->pendingMode = sendData->udsMode ? TRANSFER_MODE_WIFI : TRANSFER_MODE_NEARBY;
+        sendData->pendingFrames = 0;
         return;
     }
 
     sendData->toggleRequested = false;
+
+    if(sendData->pendingMode != TRANSFER_MODE_NONE) {
+        // The screen has said "Switching...": now the change, which takes a while.
+        if(++sendData->pendingFrames >= 2) {
+            if(sendData->pendingMode == TRANSFER_MODE_WIFI) {
+                // Back to the Wi-Fi: the sockets wait until it is there.
+                udslink_scan_stop();
+                udslink_leave();
+                sendData->udsMode = false;
+                sendData->waitingWifi = true;
+            } else if(udslink_enter()) {
+                transfer_close(&sendData->udp);
+                sendData->udsMode = true;
+                udslink_scan_start();
+            }
+
+            sendData->pendingMode = TRANSFER_MODE_NONE;
+            sendData->openedAt = osGetTime();
+        }
+
+        return;
+    }
 
     if(sendData->waitingWifi) {
         if(udslink_wifi_connected() && transfer_send_open_udp(sendData)) {
@@ -957,14 +1007,10 @@ static void transfer_send_list_update(ui_view* view, void* data, linked_list* it
             // The other console is waiting without a Wi-Fi network (it makes its
             // own): look for it over the local wireless.
             transfer_log("send list: looking nearby (the row was chosen)\n");
-            if(udslink_enter()) {
-                transfer_send_remove_hint(sendData, items);
-                transfer_close(&sendData->udp);
-                sendData->udsMode = true;
-                sendData->udsCount = 0;
-                udslink_scan_start();
-            }
-
+            transfer_send_remove_hint(sendData, items);
+            sendData->udsCount = 0;
+            sendData->pendingMode = TRANSFER_MODE_NEARBY;
+            sendData->pendingFrames = 0;
             return;
         }
 
@@ -1024,10 +1070,9 @@ static void transfer_send_begin(FS_Archive archive, const char* path, const char
 
     bool wifi = udslink_wifi_connected();
     transfer_log("send list opened: wifi=%d\n", wifi ? 1 : 0);
-    if(!wifi && udslink_enter()) {
-        // No Wi-Fi: the consoles nearby that are waiting.
-        data->udsMode = true;
-        udslink_scan_start();
+    if(!wifi) {
+        // No Wi-Fi: the consoles nearby that are waiting (once the screen is up, so it can say so).
+        data->pendingMode = TRANSFER_MODE_NEARBY;
     } else {
         if(!transfer_send_open_udp(data)) {
             if(stream != NULL) {
@@ -1086,6 +1131,8 @@ typedef struct {
     transfer_link client;
     bool uds;                // Waiting over the local wireless (the Wi-Fi is off).
     bool waitingWifi;        // Left the local wireless: the Wi-Fi is coming back.
+    u32 pendingMode;         // A change asked for, about to be made (see TRANSFER_MODE_*).
+    u32 pendingFrames;
     u64 modeSince;           // When the mode (or the wait) began.
     u64 ignoreUntil;         // A link has just ended: the console that left may not have yet.
     u64 lastAccept;
@@ -1436,7 +1483,7 @@ static void transfer_receive_install(const char* path, const char* name, u64 siz
     string_copy(item.name, name, sizeof(item.name));
     item.data = &info;
 
-    action_install_cia_delete(&noItems, &item);
+    action_install_cia_delete_now(&noItems, &item);
 }
 
 // Takes everything the transfer holds apart. `succeeded`: the file is whole;
@@ -1572,9 +1619,12 @@ static void transfer_receive_progress_update(ui_view* view, void* data, float* p
         }
     }
 
-    // The sender is waiting to hear that it is whole.
-    u8 ack = ok ? 1 : 0;
+    // The sender is waiting to hear that it is whole: 1, 0 when it failed, 2 when the user
+    // here cancelled (the sender then does not offer to try again). A last wait so the
+    // answer is not cut short by closing at once.
+    u8 ack = ok ? 1 : res == R_APP_CANCELLED ? 2 : 0;
     transfer_link_io(&receive->client, true, &ack, 1, 0, NULL);
+    transfer_link_wait_closed(&receive->client, 1500);
 
     transfer_receive_reset(receive);
 
@@ -2008,6 +2058,7 @@ static void transfer_receive_free(transfer_receive_data* data) {
 }
 
 static bool transfer_receive_start_wifi(transfer_receive_data* data);
+static bool transfer_receive_start_nearby(transfer_receive_data* data);
 static void transfer_receive_set_button(ui_view* view, transfer_receive_data* data);
 
 static void transfer_receive_update(ui_view* view, void* data, float* progress, char* text) {
@@ -2021,6 +2072,42 @@ static void transfer_receive_update(ui_view* view, void* data, float* progress, 
             transfer_receive_free(receive);
             return;
         }
+    }
+
+    if(receive->pendingMode != TRANSFER_MODE_NONE) {
+        // The screen says "Switching...", and a couple of frames later the change is made.
+        snprintf(text, PROGRESS_TEXT_MAX, "%s", receive->pendingMode == TRANSFER_MODE_NEARBY ? _("Switching to nearby mode...") : _("Switching to the Wi-Fi..."));
+
+        if(++receive->pendingFrames >= 2) {
+            u32 mode = receive->pendingMode;
+            receive->pendingMode = TRANSFER_MODE_NONE;
+
+            if(mode == TRANSFER_MODE_WIFI) {
+                udslink_host_stop();
+                udslink_leave();
+                receive->uds = false;
+                receive->waitingWifi = true;
+                receive->modeSince = osGetTime();
+            } else {
+                transfer_close(&receive->tcp);
+                transfer_close(&receive->udp);
+
+                if(transfer_receive_start_nearby(receive)) {
+                    receive->modeSince = osGetTime();
+                } else {
+                    // Back to what it was (or to waiting for the Wi-Fi, if that had not started).
+                    if(udslink_wifi_connected()) {
+                        transfer_receive_start_wifi(receive);
+                    } else {
+                        receive->waitingWifi = true;
+                    }
+                }
+            }
+
+            transfer_receive_set_button(view, receive);
+        }
+
+        return;
     }
 
     if(receive->waitingWifi) {
@@ -2197,31 +2284,18 @@ static void transfer_receive_set_button(ui_view* view, transfer_receive_data* da
 // The button: from the Wi-Fi to a network of its own, or back. Only while waiting.
 static void transfer_receive_switch(ui_view* view, void* data) {
     transfer_receive_data* receive = (transfer_receive_data*) data;
-    if(receive->state != RECEIVE_IDLE || receive->waitingWifi) {
+    if(receive->state != RECEIVE_IDLE || receive->waitingWifi || receive->pendingMode != TRANSFER_MODE_NONE) {
         return;
     }
 
-    if(receive->uds) {
-        udslink_host_stop();
-        udslink_leave();
-        receive->uds = false;
-        receive->waitingWifi = true;
-        receive->modeSince = osGetTime();
-        info_set_button(view, NULL, NULL);
+    if(receive->pendingMode != TRANSFER_MODE_NONE) {
         return;
     }
 
-    transfer_close(&receive->tcp);
-    transfer_close(&receive->udp);
-
-    if(transfer_receive_start_nearby(receive)) {
-        receive->modeSince = osGetTime();
-    } else {
-        // Back to what it was.
-        transfer_receive_start_wifi(receive);
-    }
-
-    transfer_receive_set_button(view, receive);
+    // Only asked for: the change is made once the screen has said "Switching...".
+    receive->pendingMode = receive->uds ? TRANSFER_MODE_WIFI : TRANSFER_MODE_NEARBY;
+    receive->pendingFrames = 0;
+    info_set_button(view, NULL, NULL);
 }
 
 void transfer_receive_open() {
@@ -2240,10 +2314,15 @@ void transfer_receive_open() {
 
     // On a Wi-Fi network the usual way; without one, a network of its own that the
     // sender will find. The button on the screen changes it either way.
-    bool ok = udslink_wifi_connected() ? transfer_receive_start_wifi(data) : transfer_receive_start_nearby(data);
-    if(!ok) {
-        free(data);
-        return;
+    bool wifi = udslink_wifi_connected();
+    if(wifi) {
+        if(!transfer_receive_start_wifi(data)) {
+            free(data);
+            return;
+        }
+    } else {
+        // The network of its own takes a while: once the screen is up, so it can say so.
+        data->pendingMode = TRANSFER_MODE_NEARBY;
     }
 
     ui_view* view = info_display("Receive", "\uE001 return   \uE002 other way", false, data, transfer_receive_update, transfer_receive_draw_waiting_top);
@@ -2252,5 +2331,7 @@ void transfer_receive_open() {
         return;
     }
 
-    transfer_receive_set_button(view, data);
+    if(wifi) {
+        transfer_receive_set_button(view, data);
+    }
 }

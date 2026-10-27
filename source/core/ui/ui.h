@@ -22,6 +22,12 @@ bool ui_push(ui_view* view);
 void ui_pop();
 bool ui_update();
 
+// Background status drawn over every view, set by the app (the FTP server):
+// `corner` fills a short line for the top screen's bottom bar (empty: none);
+// `notice` fills a toast for the bottom screen and its progress (0..1, < 0
+// when unknown), returning false when there is nothing to say.
+void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* out, size_t size, float* progress));
+
 const char* ui_get_display_eta(u32 seconds);
 double ui_get_display_size(u64 size);
 const char* ui_get_display_size_units(u64 size);

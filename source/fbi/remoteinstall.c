@@ -9,6 +9,7 @@
 #include <3ds.h>
 
 #include "resources.h"
+#include "ftpserver.h"
 #include "section.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -121,6 +122,8 @@ static void remoteinstall_network_free_data(remoteinstall_network_data* data) {
     }
 
     free(data);
+
+    ftpserver_resume();
 }
 
 static void remoteinstall_network_update(ui_view* view, void* data, float* progress, char* text) {
@@ -198,10 +201,14 @@ static void remoteinstall_network_update(ui_view* view, void* data, float* progr
 }
 
 static void remoteinstall_receive_urls_network() {
+    // Port 5000 is the FTP server's too: it pauses until this screen closes.
+    ftpserver_pause();
+
     remoteinstall_network_data* data = (remoteinstall_network_data*) calloc(1, sizeof(remoteinstall_network_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate network install data.");
 
+        ftpserver_resume();
         return;
     }
 

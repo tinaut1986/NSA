@@ -10,6 +10,7 @@
 #include "../core/task/task.h"
 #include "../core/ui/ui.h"
 #include "section.h"
+#include "ftpserver.h"
 #include "settings.h"
 #include "update.h"
 #include "task/uitask.h"
@@ -183,13 +184,21 @@ int main(int argc, const char* argv[]) {
     init();
 
     settings_load();
+    ui_set_status(ftpserver_corner, ftpserver_notice);
 
     mainmenu_open();
     startup_run();
 
     while(aptMainLoop() && ui_update()) {
         update_poll();
+
+        // SITE INSTALL put a new NSA in place: exit so libctru relaunches it.
+        if(ftpserver_poll_relaunch()) {
+            break;
+        }
     }
+
+    ftpserver_stop();
 
     cleanup();
 

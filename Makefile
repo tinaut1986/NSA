@@ -25,6 +25,10 @@ VERSION_STRING := $(shell sh tools/version.sh)
 VERSION_PARTS := $(subst ., ,$(firstword $(subst -, ,$(VERSION_STRING))))
 BUILD_FLAGS += -DVERSION_STRING=\"$(VERSION_STRING)\"
 
+# DEBUG=1: development build. The FTP server starts with NSA.
+DEBUG ?= 0
+BUILD_FLAGS += -DNSA_DEBUG=$(DEBUG)
+
 
 VERSION_MAJOR := $(word 1, $(VERSION_PARTS))
 VERSION_MINOR := $(word 2, $(VERSION_PARTS))
@@ -36,6 +40,7 @@ AUTHOR := Steveice10
 # Separate title from upstream FBI (CTR-P-CFBI / 0xF8001) so both can be installed.
 PRODUCT_CODE := CTR-P-CNSA
 UNIQUE_ID := 0xFB1A0
+BUILD_FLAGS += -DAPP_UNIQUE_ID=$(UNIQUE_ID)
 
 ICON_FLAGS := --flags visible,ratingrequired,recordusage --cero 153 --esrb 153 --usk 153 --pegigen 153 --pegiptr 153 --pegibbfc 153 --cob 153 --grb 153 --cgsrr 153
 

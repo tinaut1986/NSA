@@ -11,7 +11,8 @@
 
 static settings_data settings = {
         .channel = UPDATE_CHANNEL_STABLE,
-        .autoUpdate = true
+        .autoUpdate = true,
+        .ftpServer = NSA_DEBUG
 };
 
 void settings_load() {
@@ -32,6 +33,11 @@ void settings_load() {
         settings.autoUpdate = json_is_true(autoUpdate);
     }
 
+    json_t* ftpServer = json_object_get(json, "ftp_server");
+    if(json_is_boolean(ftpServer)) {
+        settings.ftpServer = json_is_true(ftpServer);
+    }
+
     json_decref(json);
 }
 
@@ -48,9 +54,10 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b}",
+    json_t* json = json_pack("{s:s,s:b,s:b}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
-                             "auto_update", settings.autoUpdate);
+                             "auto_update", settings.autoUpdate,
+                             "ftp_server", settings.ftpServer);
     if(json == NULL) {
         return R_APP_OUT_OF_MEMORY;
     }

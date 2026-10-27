@@ -21,6 +21,9 @@ static Handle ui_stack_mutex = 0;
 static u64 ui_free_space_last_update = 0;
 static char ui_free_space_buffer[128];
 
+static void (*ui_status_corner)(char* out, size_t size) = NULL;
+static bool (*ui_status_notice)(char* out, size_t size, float* progress) = NULL;
+
 static u64 ui_fade_begin_time = 0;
 static u8 ui_fade_alpha = 0;
 
@@ -150,7 +153,7 @@ static void ui_draw_top(ui_view* ui) {
     screen_set_base_alpha(ui_fade_alpha);
 
     char verText[64];
-    snprintf(verText, 64, "Ver. %s", VERSION_STRING);
+    snprintf(verText, 64, "Ver. %s%s", VERSION_STRING, NSA_DEBUG ? " DEBUG" : "");
 
     float verWidth;
     float verHeight;
@@ -261,7 +264,52 @@ static void ui_draw_top(ui_view* ui) {
 
     screen_draw_string(ui_free_space_buffer, topScreenBottomBarX + 2, topScreenBottomBarY + (topScreenBottomBarHeight - freeSpaceHeight) / 2, 0.35f, 0.35f, COLOR_TEXT, true);
 
+    if(ui_status_corner != NULL) {
+        char corner[64] = "";
+        ui_status_corner(corner, sizeof(corner));
+        if(corner[0] != '\0') {
+            float cornerWidth;
+            float cornerHeight;
+            screen_get_string_size(&cornerWidth, &cornerHeight, corner, 0.35f, 0.35f);
+            screen_draw_string(corner, topScreenBottomBarX + topScreenBottomBarWidth - 2 - cornerWidth, topScreenBottomBarY + (topScreenBottomBarHeight - cornerHeight) / 2, 0.35f, 0.35f, COLOR_TEXT, true);
+        }
+    }
+
     screen_set_base_alpha(0xFF);
+}
+
+// A toast just above the bottom bar: the line, and a bar when the progress is known.
+static void ui_draw_notice(const char* text, float progress, float bottom) {
+    u32 boxWidth;
+    u32 boxHeight;
+    screen_get_texture_size(&boxWidth, &boxHeight, TEXTURE_META_INFO_BOX);
+
+    float textWidth;
+    float textHeight;
+    screen_get_string_size(&textWidth, &textHeight, text, 0.45f, 0.45f);
+
+    float width = BOTTOM_SCREEN_WIDTH - 16;
+    float height = textHeight + (progress >= 0 ? 16 : 8);
+    float x = 8;
+    float y = bottom - 4 - height;
+    screen_draw_texture(TEXTURE_META_INFO_BOX, x, y, width, height);
+    screen_draw_string(text, x + (width - textWidth) / 2, y + 4, 0.45f, 0.45f, COLOR_TEXT, true);
+
+    if(progress >= 0) {
+        if(progress > 1) {
+            progress = 1;
+        }
+
+        u32 barWidth;
+        u32 barHeight;
+        screen_get_texture_size(&barWidth, &barHeight, TEXTURE_PROGRESS_BAR_CONTENT);
+        screen_draw_texture_crop(TEXTURE_PROGRESS_BAR_CONTENT, x + 6, y + height - 8, (width - 12) * progress, 4);
+    }
+}
+
+void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* out, size_t size, float* progress)) {
+    ui_status_corner = corner;
+    ui_status_notice = notice;
 }
 
 static void ui_draw_bottom(ui_view* ui) {
@@ -314,6 +362,12 @@ static void ui_draw_bottom(ui_view* ui) {
         float nameHeight;
         screen_get_string_size(&nameWidth, &nameHeight, ui->name, 0.5f, 0.5f);
         screen_draw_string(ui->name, (BOTTOM_SCREEN_WIDTH - nameWidth) / 2, (bottomScreenTopBarHeight - nameHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
+    }
+
+    char notice[128];
+    float progress = -1;
+    if(ui_status_notice != NULL && ui_status_notice(notice, sizeof(notice), &progress)) {
+        ui_draw_notice(notice, progress, bottomScreenBottomBarY - bottomScreenBottomBarShadowHeight);
     }
 
     if(ui->info != NULL) {

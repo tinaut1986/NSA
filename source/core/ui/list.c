@@ -58,6 +58,7 @@ typedef struct {
     // The item held (by touch, or by A when there is a long press), and the
     // title bar target held: -1 back, else a tool's index.
     widget_press press;
+    list_item* pressItem;       // What is held: its index changes if the list does.
     list_item* pressPrevious;
     bool revealPending;   // Scroll the selection into view on the next update.   // Selected before the touch, back when it turns into a drag.
     bool barTouching;
@@ -69,6 +70,9 @@ typedef struct {
     list_tool tools[LIST_TOOLS_MAX];
     u32 toolCount;
     char search[LIST_SEARCH_MAX];
+    // While items load: how many are ready of how many (0 total: the count).
+    u32 progressDone;
+    u32 progressTotal;
     bool (*visibleFilter)(void* data, list_item* item);
 
     void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched);
@@ -144,9 +148,11 @@ static void list_rebuild_visible(list_data* listData) {
 
     listData->visibleCount = 0;
 
+    // A populate task may add items while this runs: never past the room
+    // counted above (the rest show on the next frame).
     linked_list_iter iter;
     linked_list_iterate(&listData->items, &iter);
-    while(linked_list_iter_has_next(&iter)) {
+    while(listData->visibleCount < listData->visibleCapacity && linked_list_iter_has_next(&iter)) {
         list_item* item = (list_item*) linked_list_iter_next(&iter);
         if((listData->search[0] == '\0' || strcasestr(item->name, listData->search) != NULL)
            && (listData->visibleFilter == NULL || listData->visibleFilter(listData->data, item))) {
@@ -220,10 +226,35 @@ static void list_validate(list_data* listData, list_layout* l, bool reveal) {
     if(listData->selectedItem != NULL) {
         for(u32 i = 0; i < listData->visibleCount; i++) {
             if(listData->visible[i] == listData->selectedItem) {
+                // Items came or went above it (loading, sorting, deleting):
+                // scroll with it so it stays where it was on screen.
+                if(i != listData->selectedIndex && !reveal) {
+                    float moved = ((float) (i / l->columns) - (float) (listData->selectedIndex / l->columns)) * l->pitchY;
+                    listData->scrollPos += moved;
+                    listData->scrollTarget += moved;
+                }
+
                 listData->selectedIndex = i;
                 found = true;
                 break;
             }
+        }
+    }
+
+    // The item held follows the same way.
+    if(listData->press.index >= 0 && listData->pressItem != NULL) {
+        int index = -1;
+        for(u32 i = 0; i < listData->visibleCount; i++) {
+            if(listData->visible[i] == listData->pressItem) {
+                index = (int) i;
+                break;
+            }
+        }
+
+        if(index < 0) {
+            listData->press.cancelled = true;
+        } else {
+            listData->press.index = index;
         }
     }
 
@@ -291,8 +322,12 @@ static void list_draw_title_bar(ui_view* view, void* data, float x1, float y1, f
     float titleX = x1 + 28;
     float right = listData->toolCount > 0 ? list_tool_x(listData->toolCount - 1) - 6 : x2 - 6;
 
-    char count[16];
-    snprintf(count, sizeof(count), "%lu", listData->visibleCount);
+    char count[24];
+    if(listData->progressTotal > 0 && listData->progressDone < listData->progressTotal) {
+        snprintf(count, sizeof(count), "%lu/%lu", listData->progressDone, listData->progressTotal);
+    } else {
+        snprintf(count, sizeof(count), "%lu", listData->visibleCount);
+    }
     float countWidth = widget_text_width(count, WIDGET_SMALL_SCALE);
     float titleRoom = right - titleX - countWidth - 6;
     widget_text_fit(view->name, titleX, textY, WIDGET_TEXT_SCALE, t->palette->text, titleRoom);
@@ -410,6 +445,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
             float x, y;
             list_item_position(listData, &l, listData->selectedIndex, &x, &y);
             widget_press_begin(&listData->press, (int) listData->selectedIndex, false, x + l.itemW / 2, y + l.itemH / 2);
+            listData->pressItem = listData->selectedItem;
         } else if(listData->press.index >= 0 && !listData->press.touch) {
             if(listData->selectedIndex != last) {
                 listData->press.cancelled = true;
@@ -452,6 +488,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
                 list_item_position(listData, &l, i, &x, &y);
                 if(widget_touched(&pos, x, y, l.itemW, l.itemH)) {
                     widget_press_begin(&listData->press, (int) i, true, pos.px, pos.py);
+                    listData->pressItem = listData->visible[i];
                     listData->pressPrevious = listData->selectedItem;
                     listData->selectedIndex = i;
                     listData->selectedItem = listData->visible[i];
@@ -684,4 +721,10 @@ void list_select(ui_view* view, list_item* item) {
 
 void list_show_title_bar(ui_view* view) {
     view->drawTitleBar = list_draw_title_bar;
+}
+
+void list_set_progress(ui_view* view, u32 done, u32 total) {
+    list_data* listData = (list_data*) view->data;
+    listData->progressDone = done;
+    listData->progressTotal = total;
 }

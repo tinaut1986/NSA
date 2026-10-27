@@ -9,6 +9,7 @@
 #include "ui.h"
 #include "../screen.h"
 #include "../i18n.h"
+#include "../icons.h"
 #include "../stringutil.h"
 #include "../theme.h"
 
@@ -17,6 +18,9 @@
 typedef struct {
     const char* text;
     u32 color;
+    u32 icon;          // The header's icon and its colour, by kind of dialog.
+    u32 iconColor;
+    char title[64];
     char options[PROMPT_OPTIONS_MAX][PROMPT_OPTION_TEXT_MAX];
     u32 optionButtons[PROMPT_OPTIONS_MAX];
     u32 numOptions;
@@ -31,12 +35,13 @@ typedef struct {
 #define PROMPT_PAD 12
 #define PROMPT_BUTTON_HEIGHT 30
 #define PROMPT_TEXT_SCALE 0.5f
+#define PROMPT_HEADER 24
 
 // Where the modal's buttons are; the same for drawing and touch.
 static void prompt_layout(prompt_data* promptData, float bx1, float by1, float bx2, float by2, float* cardX, float* cardY, float* cardH, float* textH) {
     float textWidth = 0;
     screen_get_string_size_wrap(&textWidth, textH, promptData->text, PROMPT_TEXT_SCALE, PROMPT_TEXT_SCALE, PROMPT_WIDTH - 2 * PROMPT_PAD);
-    *cardH = PROMPT_PAD + *textH + PROMPT_PAD + PROMPT_BUTTON_HEIGHT + PROMPT_PAD;
+    *cardH = PROMPT_PAD + PROMPT_HEADER + *textH + PROMPT_PAD + PROMPT_BUTTON_HEIGHT + PROMPT_PAD;
     float maxH = by2 - by1 - 8;
     if(*cardH > maxH) {
         *cardH = maxH;
@@ -184,8 +189,12 @@ static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, fl
 
     screen_frame_round_rect(cardX, cardY, PROMPT_WIDTH, cardH, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
 
+    // Header: what kind of dialog it is, by icon and colour.
+    screen_draw_icon(promptData->icon, cardX + PROMPT_PAD, cardY + PROMPT_PAD - 1, 16, promptData->iconColor);
+    widget_text_fit(promptData->title, cardX + PROMPT_PAD + 22, cardY + PROMPT_PAD, WIDGET_TEXT_SCALE, t->palette->text, PROMPT_WIDTH - 2 * PROMPT_PAD - 22);
+
     u32 textColor = promptData->color == COLOR_TEXT ? t->palette->text : screen_get_color(promptData->color);
-    screen_draw_text_wrap(promptData->text, cardX + PROMPT_PAD, cardY + PROMPT_PAD, PROMPT_TEXT_SCALE, textColor, cardX + PROMPT_WIDTH - PROMPT_PAD);
+    screen_draw_text_wrap(promptData->text, cardX + PROMPT_PAD, cardY + PROMPT_PAD + PROMPT_HEADER, PROMPT_TEXT_SCALE, textColor, cardX + PROMPT_WIDTH - PROMPT_PAD);
 
     char button[64];
     char label[PROMPT_OPTION_TEXT_MAX + 65];
@@ -217,8 +226,23 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
     promptData->press.index = -1;
     promptData->opened = osGetTime();
 
-    promptData->text = text;
+    // Messages are mostly literals, some built at run time: looked up by content.
+    promptData->text = i18n_translate_text(text);
     promptData->color = color;
+
+    const theme_current* t = theme();
+    if(name != NULL && (strcmp(name, "Success") == 0)) {
+        promptData->icon = ICON_CHECK;
+        promptData->iconColor = t->palette->success;
+    } else if(name != NULL && (strcmp(name, "Error") == 0 || strcmp(name, "Failure") == 0)) {
+        promptData->icon = ICON_ALERT_TRIANGLE;
+        promptData->iconColor = t->palette->danger;
+    } else {
+        promptData->icon = ICON_INFO_CIRCLE;
+        promptData->iconColor = t->accent;
+    }
+
+    string_copy(promptData->title, i18n_translate_text(name != NULL ? name : ""), sizeof(promptData->title));
 
     for(u32 i = 0; i < numOptions && i < PROMPT_OPTIONS_MAX; i++) {
         // Options are literals: translated here, as they are copied.
@@ -232,7 +256,7 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
     promptData->onResponse = onResponse;
 
     ui_view* view = ui_create();
-    view->name = name;
+    view->name = i18n_translate_text(name);
     view->info = "";
     view->data = promptData;
     view->update = prompt_update;

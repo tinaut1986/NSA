@@ -100,7 +100,7 @@ static void action_erase_twl_save_update(ui_view* view, void* data, float* progr
     }
 
     *progress = eraseData->eraseInfo.currTotal != 0 ? (float) ((double) eraseData->eraseInfo.currProcessed / (double) eraseData->eraseInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%.2f %s / %.2f %s\n%.2f %s/s, ETA %s",
+    snprintf(text, PROGRESS_TEXT_MAX, _("%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"),
              ui_get_display_size(eraseData->eraseInfo.currProcessed),
              ui_get_display_size_units(eraseData->eraseInfo.currProcessed),
              ui_get_display_size(eraseData->eraseInfo.currTotal),

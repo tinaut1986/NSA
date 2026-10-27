@@ -108,7 +108,7 @@ static void action_import_twl_save_update(ui_view* view, void* data, float* prog
     }
 
     *progress = importData->importInfo.currTotal != 0 ? (float) ((double) importData->importInfo.currProcessed / (double) importData->importInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%.2f %s / %.2f %s\n%.2f %s/s, ETA %s",
+    snprintf(text, PROGRESS_TEXT_MAX, _("%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"),
              ui_get_display_size(importData->importInfo.currProcessed),
              ui_get_display_size_units(importData->importInfo.currProcessed),
              ui_get_display_size(importData->importInfo.currTotal),

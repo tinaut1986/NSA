@@ -10,6 +10,7 @@
 #include "prompt.h"
 #include "../error.h"
 #include "../screen.h"
+#include "../i18n.h"
 #include "../../fbi/resources.h"
 
 static const char* level_to_string(Result res) {
@@ -727,7 +728,7 @@ ui_view* error_display(void* data, void (*drawTop)(ui_view* view, void* data, fl
 
     va_list list;
     va_start(list, text);
-    vsnprintf(errorData->fullText, 4096, text, list);
+    vsnprintf(errorData->fullText, 4096, i18n_translate_text(text), list);
     va_end(list);
 
     return prompt_display_notify("Error", errorData->fullText, COLOR_TEXT, errorData, error_draw_top, error_onresponse);
@@ -746,7 +747,7 @@ ui_view* error_display_res(void* data, void (*drawTop)(ui_view* view, void* data
     char textBuf[1024];
     va_list list;
     va_start(list, text);
-    vsnprintf(textBuf, 1024, text, list);
+    vsnprintf(textBuf, 1024, i18n_translate_text(text), list);
     va_end(list);
 
     int level = R_LEVEL(result);
@@ -772,7 +773,7 @@ ui_view* error_display_errno(void* data, void (*drawTop)(ui_view* view, void* da
     char textBuf[1024];
     va_list list;
     va_start(list, text);
-    vsnprintf(textBuf, 1024, text, list);
+    vsnprintf(textBuf, 1024, i18n_translate_text(text), list);
     va_end(list);
 
     if(err < 0) {

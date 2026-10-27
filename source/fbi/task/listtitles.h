@@ -36,6 +36,10 @@ typedef enum {
 // update and its DLC.
 title_kind title_kind_of(u64 titleId);
 
+// A CTR title's banner from its SMDH; false when it has none. The icon texture
+// is allocated and belongs to the caller.
+bool task_title_load_meta(FS_MediaType mediaType, u64 titleId, meta_info* meta);
+
 typedef struct populate_titles_data_s {
     linked_list* items;
 

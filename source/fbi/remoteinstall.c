@@ -197,7 +197,7 @@ static void remoteinstall_network_update(ui_view* view, void* data, float* progr
     }
 
     struct in_addr addr = {(in_addr_t) gethostid()};
-    snprintf(text, PROGRESS_TEXT_MAX, "Waiting for connection...\nIP: %s\nPort: 5000", inet_ntoa(addr));
+    snprintf(text, PROGRESS_TEXT_MAX, _("Waiting for connection...\nIP: %s\nPort: 5000"), inet_ntoa(addr));
 }
 
 static void remoteinstall_receive_urls_network() {
@@ -388,7 +388,7 @@ static void remoteinstall_qr_update(ui_view* view, void* data, float* progress, 
         }
     }
 
-    snprintf(text, PROGRESS_TEXT_MAX, "Waiting for QR code...");
+    snprintf(text, PROGRESS_TEXT_MAX, _("Waiting for QR code..."));
 }
 
 static void remoteinstall_scan_qr_code() {

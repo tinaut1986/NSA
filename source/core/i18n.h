@@ -19,6 +19,10 @@ const char* i18n_language_name(language_id language);
 // Only for string literals: lookups are cached by address.
 const char* i18n_translate(const char* english);
 
+// For text that may not be a literal (a dialog's message, a hint): looked up
+// by content every time, never cached. Not found: the same text.
+const char* i18n_translate_text(const char* english);
+
 typedef struct {
     const char* english;
     const char* translated;

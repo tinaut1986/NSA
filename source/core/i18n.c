@@ -97,3 +97,17 @@ const char* i18n_translate(const char* english) {
 
     return english;
 }
+
+const char* i18n_translate_text(const char* english) {
+    if(english == NULL || table == NULL) {
+        return english;
+    }
+
+    for(u32 e = 0; e < table_count; e++) {
+        if(strcmp(table[e].english, english) == 0) {
+            return table[e].translated;
+        }
+    }
+
+    return english;
+}

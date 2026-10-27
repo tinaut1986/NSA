@@ -4,6 +4,7 @@
 
 #include "error.h"
 #include "kbd.h"
+#include "../i18n.h"
 #include "ui.h"
 
 typedef struct {
@@ -50,7 +51,7 @@ ui_view* kbd_display(const char* hint, const char* initialText, SwkbdType type, 
         return NULL;
     }
 
-    kbdData->hint = hint;
+    kbdData->hint = i18n_translate_text(hint);
     kbdData->initialText = initialText;
     kbdData->type = type;
     kbdData->features = features;

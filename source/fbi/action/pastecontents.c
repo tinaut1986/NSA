@@ -253,7 +253,7 @@ static void action_paste_contents_update(ui_view* view, void* data, float* progr
     }
 
     *progress = pasteData->pasteInfo.currTotal != 0 ? (float) ((double) pasteData->pasteInfo.currProcessed / (double) pasteData->pasteInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s", pasteData->pasteInfo.processed, pasteData->pasteInfo.total,
+    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), pasteData->pasteInfo.processed, pasteData->pasteInfo.total,
              ui_get_display_size(pasteData->pasteInfo.currProcessed),
              ui_get_display_size_units(pasteData->pasteInfo.currProcessed),
              ui_get_display_size(pasteData->pasteInfo.currTotal),
@@ -315,7 +315,7 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
         svcSignalEvent(loadingData->popData.cancelEvent);
     }
 
-    snprintf(text, PROGRESS_TEXT_MAX, "Fetching clipboard content list...");
+    snprintf(text, PROGRESS_TEXT_MAX, _("Fetching clipboard content list..."));
 }
 
 void action_paste_contents(linked_list* items, list_item* selected) {

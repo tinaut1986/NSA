@@ -122,7 +122,7 @@ static void action_export_twl_save_update(ui_view* view, void* data, float* prog
     }
 
     *progress = exportData->exportInfo.currTotal != 0 ? (float) ((double) exportData->exportInfo.currProcessed / (double) exportData->exportInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%.2f %s / %.2f %s\n%.2f %s/s, ETA %s",
+    snprintf(text, PROGRESS_TEXT_MAX, _("%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"),
              ui_get_display_size(exportData->exportInfo.currProcessed),
              ui_get_display_size_units(exportData->exportInfo.currProcessed),
              ui_get_display_size(exportData->exportInfo.currTotal),

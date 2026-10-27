@@ -19,6 +19,42 @@ static int task_populate_ext_save_data_compare_ids(const void* e1, const void* e
     return id1 > id2 ? 1 : id1 < id2 ? -1 : 0;
 }
 
+// An ext save data's name and icon, from the icon file it keeps.
+void task_ext_save_data_load(list_item* item) {
+    ext_save_data_info* info = (ext_save_data_info*) item->data;
+    FS_ExtSaveDataInfo saveInfo = {.mediaType = info->mediaType, .saveId = info->extSaveDataId};
+
+    SMDH* smdh = (SMDH*) calloc(1, sizeof(SMDH));
+    if(smdh != NULL) {
+        u32 smdhBytesRead = 0;
+        if(R_SUCCEEDED(FSUSER_ReadExtSaveDataIcon(&smdhBytesRead, saveInfo, sizeof(SMDH), (u8*) smdh)) && smdhBytesRead == sizeof(SMDH)
+           && smdh->magic[0] == 'S' && smdh->magic[1] == 'M' && smdh->magic[2] == 'D' && smdh->magic[3] == 'H') {
+            SMDH_title* smdhTitle = smdh_select_title(smdh);
+
+            utf16_to_utf8((uint8_t*) info->meta.shortDescription, smdhTitle->shortDescription, sizeof(info->meta.shortDescription) - 1);
+            utf16_to_utf8((uint8_t*) info->meta.longDescription, smdhTitle->longDescription, sizeof(info->meta.longDescription) - 1);
+            utf16_to_utf8((uint8_t*) info->meta.publisher, smdhTitle->publisher, sizeof(info->meta.publisher) - 1);
+            info->meta.region = smdh->region;
+            info->meta.texture = screen_allocate_free_texture();
+            screen_load_texture_tiled(info->meta.texture, smdh->largeIcon, sizeof(smdh->largeIcon), 48, 48, GPU_RGB565, false);
+            info->hasMeta = true;
+
+            if(!string_is_empty(info->meta.shortDescription)) {
+                string_copy(item->name, info->meta.shortDescription, LIST_ITEM_NAME_MAX);
+            }
+        }
+
+        free(smdh);
+    }
+
+    info->readyTime = osGetTime();
+    info->ready = true;
+}
+
+// Ext save data is listed in two passes: first a placeholder for every one
+// (its ID is all that is known), then each one's name and icon, filled in
+// place. The screen sorts the list as they come.
+
 static Result task_populate_ext_save_data_from(populate_ext_save_data_data* data, FS_MediaType mediaType) {
     Result res = 0;
 
@@ -35,58 +71,29 @@ static Result task_populate_ext_save_data_from(populate_ext_save_data_data* data
 
             if(data->filter == NULL || data->filter(data->userData, extSaveDataIds[i], mediaType)) {
                 list_item* item = (list_item*) calloc(1, sizeof(list_item));
-                if(item != NULL) {
-                    ext_save_data_info* extSaveDataInfo = (ext_save_data_info*) calloc(1, sizeof(ext_save_data_info));
-                    if(extSaveDataInfo != NULL) {
-                        extSaveDataInfo->mediaType = mediaType;
-                        extSaveDataInfo->extSaveDataId = extSaveDataIds[i];
-                        extSaveDataInfo->shared = mediaType == MEDIATYPE_NAND;
-                        extSaveDataInfo->hasMeta = false;
-
-                        FS_ExtSaveDataInfo info = {.mediaType = mediaType, .saveId = extSaveDataIds[i]};
-
-                        SMDH* smdh = (SMDH*) calloc(1, sizeof(SMDH));
-                        if(smdh != NULL) {
-                            u32 smdhBytesRead = 0;
-                            if(R_SUCCEEDED(FSUSER_ReadExtSaveDataIcon(&smdhBytesRead, info, sizeof(SMDH), (u8*) smdh)) && smdhBytesRead == sizeof(SMDH)) {
-                                if(smdh->magic[0] == 'S' && smdh->magic[1] == 'M' && smdh->magic[2] == 'D' && smdh->magic[3] == 'H') {
-                                    SMDH_title* smdhTitle = smdh_select_title(smdh);
-
-                                    utf16_to_utf8((uint8_t*) item->name, smdhTitle->shortDescription, LIST_ITEM_NAME_MAX - 1);
-
-                                    extSaveDataInfo->hasMeta = true;
-                                    utf16_to_utf8((uint8_t*) extSaveDataInfo->meta.shortDescription, smdhTitle->shortDescription, sizeof(extSaveDataInfo->meta.shortDescription) - 1);
-                                    utf16_to_utf8((uint8_t*) extSaveDataInfo->meta.longDescription, smdhTitle->longDescription, sizeof(extSaveDataInfo->meta.longDescription) - 1);
-                                    utf16_to_utf8((uint8_t*) extSaveDataInfo->meta.publisher, smdhTitle->publisher, sizeof(extSaveDataInfo->meta.publisher) - 1);
-                                    extSaveDataInfo->meta.region = smdh->region;
-                                    extSaveDataInfo->meta.texture = screen_allocate_free_texture();
-                                    screen_load_texture_tiled(extSaveDataInfo->meta.texture, smdh->largeIcon, sizeof(smdh->largeIcon), 48, 48, GPU_RGB565, false);
-                                }
-                            }
-
-                            free(smdh);
-                        }
-
-                        if(string_is_empty(item->name)) {
-                            snprintf(item->name, LIST_ITEM_NAME_MAX, "%016llX", extSaveDataIds[i]);
-                        }
-
-                        if(mediaType == MEDIATYPE_NAND) {
-                            item->color = COLOR_NAND;
-                        } else if(mediaType == MEDIATYPE_SD) {
-                            item->color = COLOR_SD;
-                        }
-
-                        item->data = extSaveDataInfo;
-
-                        linked_list_add_sorted(data->items, item, data->userData, data->compare);
-                    } else {
-                        free(item);
-
-                        res = R_APP_OUT_OF_MEMORY;
-                    }
-                } else {
+                ext_save_data_info* extSaveDataInfo = (ext_save_data_info*) calloc(1, sizeof(ext_save_data_info));
+                if(item == NULL || extSaveDataInfo == NULL) {
+                    free(item);
+                    free(extSaveDataInfo);
                     res = R_APP_OUT_OF_MEMORY;
+                    break;
+                }
+
+                extSaveDataInfo->mediaType = mediaType;
+                extSaveDataInfo->extSaveDataId = extSaveDataIds[i];
+                extSaveDataInfo->shared = mediaType == MEDIATYPE_NAND;
+                extSaveDataInfo->hasMeta = false;
+                extSaveDataInfo->ready = !data->placeholders;
+
+                snprintf(item->name, LIST_ITEM_NAME_MAX, "%016llX", extSaveDataIds[i]);
+                item->color = mediaType == MEDIATYPE_NAND ? COLOR_NAND : COLOR_SD;
+                item->data = extSaveDataInfo;
+
+                if(data->placeholders) {
+                    linked_list_add(data->items, item);
+                } else {
+                    task_ext_save_data_load(item);
+                    linked_list_add_sorted(data->items, item, data->userData, data->compare);
                 }
             }
         }
@@ -104,6 +111,29 @@ static void task_populate_ext_save_data_thread(void* arg) {
         res = task_populate_ext_save_data_from(data, MEDIATYPE_NAND);
     }
 
+    // Then each one's name and icon. The screen sorts the list as they come,
+    // which moves rows between passes: go over it again until none is missing.
+    bool missing = data->placeholders;
+    bool quit = false;
+    while(R_SUCCEEDED(res) && missing && !quit) {
+        missing = false;
+        for(u32 i = 0; i < linked_list_size(data->items); i++) {
+            svcWaitSynchronization(task_get_pause_event(), U64_MAX);
+            if(task_is_quit_all() || svcWaitSynchronization(data->cancelEvent, 0) == 0) {
+                quit = true;
+                break;
+            }
+
+            list_item* item = (list_item*) linked_list_get(data->items, i);
+            if(item == NULL || ((ext_save_data_info*) item->data)->ready) {
+                continue;
+            }
+
+            missing = true;
+            task_ext_save_data_load(item);
+        }
+    }
+
     svcCloseHandle(data->cancelEvent);
 
     data->result = res;
@@ -119,6 +149,10 @@ void task_free_ext_save_data(list_item* item) {
         ext_save_data_info* extSaveDataInfo = (ext_save_data_info*) item->data;
         if(extSaveDataInfo->hasMeta) {
             screen_unload_texture(extSaveDataInfo->meta.texture);
+        }
+
+        if(extSaveDataInfo->hasTitleMeta) {
+            screen_unload_texture(extSaveDataInfo->titleMeta.texture);
         }
 
         free(item->data);

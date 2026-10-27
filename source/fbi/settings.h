@@ -22,6 +22,15 @@ typedef struct {
 } titles_settings;
 
 typedef struct {
+    u32 states;      // Bits: 1 in use, 2 not in use.
+    u32 kinds;       // One bit per title_kind.
+    u32 media;       // Bits: 1 SD, 2 NAND.
+    bool group;
+    u32 sort;
+    bool grid;
+} tickets_settings;
+
+typedef struct {
     bool directories;
     bool files;
     bool cias;
@@ -34,6 +43,7 @@ typedef struct {
     bool sd;
     bool nand;
     bool byId;
+    bool grid;
 } extsave_settings;
 
 typedef struct {
@@ -48,6 +58,7 @@ typedef struct {
     language_id language;
 
     titles_settings titles;
+    tickets_settings tickets;
     files_settings files;
     extsave_settings extsave;
 } settings_data;

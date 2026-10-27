@@ -12,7 +12,7 @@
 //
 // SITE INSTALL <path>: installs that CIA from the SD card. Only titles that
 // install to the SD card; when it is NSA itself (CIA build), NSA restarts
-// into it 10 s later. With curl, upload then install:
+// into it 10 s later (relaunch.h). With curl, upload then install:
 //   curl -T NSA.cia ftp://IP:5000/nsa/update.cia -Q "-SITE INSTALL /nsa/update.cia"
 //
 // Port 5000, shared with Remote Install's "Receive URLs": that screen pauses
@@ -36,10 +36,7 @@ void ftpserver_address(char* out, size_t size);
 // "FTP 192.168.1.50:5000" while serving, else empty: for ui_set_status.
 void ftpserver_corner(char* out, size_t size);
 
-// While a CIA arrives, installs or NSA counts down to its restart: the line to
-// show and how far along it is (0..1, or < 0 when unknown). False otherwise.
+// While a CIA arrives or installs: the line to show and how far along it is
+// (0..1, or < 0 when unknown). False otherwise. The restart that follows an
+// install of NSA itself is relaunch.h's.
 bool ftpserver_notice(char* out, size_t size, float* progress);
-
-// Called once per frame on the main thread: true when NSA must exit now to be
-// relaunched into the build SITE INSTALL just put in place.
-bool ftpserver_poll_relaunch();

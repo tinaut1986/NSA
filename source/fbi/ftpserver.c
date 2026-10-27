@@ -16,6 +16,7 @@
 #include <3ds.h>
 
 #include "ftpserver.h"
+#include "relaunch.h"
 #include "../core/core.h"
 
 #define FTP_PATH_MAX 512
@@ -28,17 +29,12 @@
 #define FTP_PASV_FIRST (FTP_SERVER_PORT + 1)
 #define FTP_PASV_COUNT 64
 
-// Jumping into the new build at once crashed the system loader in the ports
-// (zelda-tmc-3ds issue #4): wait, then exit through libctru's chainloader.
-#define FTP_RELAUNCH_DELAY_MS 10000
-
 #define NSA_TITLE_ID (0x0004000000000000ULL | ((u64) APP_UNIQUE_ID << 8))
 
 typedef enum {
     PHASE_NONE,
     PHASE_RECEIVING,
-    PHASE_INSTALLING,
-    PHASE_RESTARTING
+    PHASE_INSTALLING
 } ftp_phase;
 
 static Thread ftp_thread = NULL;
@@ -57,7 +53,6 @@ static char ftp_phase_file[64];
 static volatile u64 ftp_allo = 0;
 static volatile u64 ftp_done = 0;
 static volatile u64 ftp_total = 0;
-static volatile u64 ftp_relaunch_at = 0;
 
 typedef struct {
     int ctrl;
@@ -375,9 +370,8 @@ static bool ftp_install_cia(const char* vpath, char* error, size_t errorSize) {
     ok = true;
 
     // NSA itself (CIA build only: a 3DSX is not replaced by a CIA install).
-    if(info.titleID == NSA_TITLE_ID && fs_get_3dsx_path() == NULL) {
-        ftp_relaunch_at = osGetTime() + FTP_RELAUNCH_DELAY_MS;
-        ftp_set_phase(PHASE_RESTARTING, NULL);
+    if(info.titleID == NSA_TITLE_ID) {
+        relaunch_request();
     }
 
 done:
@@ -594,7 +588,7 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
-    if(ftp_current_phase == PHASE_RESTARTING) {
+    if(relaunch_pending()) {
         ftp_reply(s, "450 " APP_NAME " is restarting into the build just installed.");
         return;
     }
@@ -605,10 +599,10 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
     char error[128] = "";
     ftp_set_phase(PHASE_INSTALLING, vpath);
     if(ftp_install_cia(vpath, error, sizeof(error))) {
-        if(ftp_current_phase == PHASE_RESTARTING) {
-            ftp_reply(s, "200 Installed %s; " APP_NAME " restarts in %d s.", vpath, FTP_RELAUNCH_DELAY_MS / 1000);
+        ftp_set_phase(PHASE_NONE, NULL);
+        if(relaunch_pending()) {
+            ftp_reply(s, "200 Installed %s; " APP_NAME " restarts in %d s.", vpath, RELAUNCH_DELAY_MS / 1000);
         } else {
-            ftp_set_phase(PHASE_NONE, NULL);
             ftp_reply(s, "200 Installed %s.", vpath);
         }
     } else {
@@ -903,25 +897,8 @@ bool ftpserver_notice(char* out, size_t size, float* progress) {
         case PHASE_INSTALLING:
             snprintf(out, size, "FTP: installing %s", ftp_phase_file);
             return true;
-        case PHASE_RESTARTING: {
-            u64 now = osGetTime();
-            u64 at = ftp_relaunch_at;
-            u32 left = now >= at ? 0 : (u32) ((at - now + 999) / 1000);
-            snprintf(out, size, APP_NAME " restarts into the new build in %lu s", left);
-            *progress = 1.0f - (float) (at > now ? at - now : 0) / FTP_RELAUNCH_DELAY_MS;
-            return true;
-        }
         default:
             return false;
     }
 }
 
-bool ftpserver_poll_relaunch() {
-    if(ftp_current_phase != PHASE_RESTARTING || osGetTime() < ftp_relaunch_at) {
-        return false;
-    }
-
-    // libctru starts this title again once NSA has exited normally.
-    aptSetChainloaderToSelf();
-    return true;
-}

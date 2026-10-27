@@ -17,6 +17,8 @@ typedef struct {
     void (*open)();
     int storage;   // The media it manages (FS_SystemMediaType), or -1.
     int storage2;
+    // Draws the top screen instead of the card (System); NULL for the card.
+    void (*drawTop)(float x1, float y1, float x2, float y2);
 } mainmenu_entry;
 
 static const mainmenu_entry entries[] = {
@@ -32,6 +34,7 @@ static const mainmenu_entry entries[] = {
         {ICON_PHOTO, "TWL Photo", "The DSi camera's photo storage.", files_open_twl_photo, SYSTEM_MEDIATYPE_TWL_PHOTO, -1},
         {ICON_MUSIC, "TWL Sound", "The DSi sound recorder's storage.", files_open_twl_sound, SYSTEM_MEDIATYPE_TWL_NAND, -1},
         {ICON_DOWNLOAD, "Dump NAND", "Copy the whole system memory to the SD card as a backup.", dumpnand_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
+        {ICON_DEVICE_NINTENDO, "System", "The console at a glance: model, versions, network, battery and space.", NULL, -1, -1, systeminfo_draw_top},
         {ICON_SETTINGS, "Settings", "Theme, colours, language, updates and the FTP server.", settingsmenu_open, -1, -1},
 };
 
@@ -115,7 +118,8 @@ static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, flo
 
     // Set every frame: the language can change in Settings.
     view->name = _("Main menu");
-    view->info = _("\uE000 open   START exit");
+    // System only shows: nothing to open.
+    view->info = entries[menu->selected].open != NULL ? _("\uE000 open   START exit") : _("START exit");
 
     if(hidKeysDown() & KEY_START) {
         ui_pop();
@@ -187,13 +191,17 @@ static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, flo
         bool open = widget_press_on(&menu->press, index);
         widget_press_end(&menu->press);
         if(open) {
-            entries[index].open();
+            if(entries[index].open != NULL) {
+                entries[index].open();
+            }
             return;
         }
     }
 
     if(hidKeysDown() & KEY_A) {
-        entries[menu->selected].open();
+        if(entries[menu->selected].open != NULL) {
+            entries[menu->selected].open();
+        }
     }
 }
 
@@ -207,6 +215,10 @@ static void mainmenu_draw_card(void* data, bool leaving) {
     mainmenu_top_context* c = (mainmenu_top_context*) data;
     const theme_current* t = theme();
     const mainmenu_entry* entry = &entries[leaving ? c->menu->leaving : c->menu->selected];
+    if(entry->drawTop != NULL) {
+        entry->drawTop(c->x1, c->y1, c->x2, c->y2);
+        return;
+    }
 
     float cardX = c->x1 + 12;
     float cardY = c->y1 + 14;
@@ -255,7 +267,11 @@ static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, flo
         }
     }
 
-    // Under it, what the app is.
+    // Under it, what the app is (System fills the screen).
+    if(entry->drawTop != NULL) {
+        return;
+    }
+
     char about[128];
     snprintf(about, sizeof(about), "%s, %s %s", APP_NAME, _("based on"), APP_UPSTREAM_VERSION);
     widget_text_centered(about, x1, x2, y2 - 22, WIDGET_SMALL_SCALE, t->palette->textMuted);

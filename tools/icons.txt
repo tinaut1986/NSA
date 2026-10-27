@@ -60,3 +60,5 @@ copy
 pencil
 package
 folder-up
+bolt
+device-nintendo

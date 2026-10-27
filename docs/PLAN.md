@@ -8,6 +8,7 @@ things are the way they are. Keep it current in the same change that alters it.
 | Branch | State |
 |---|---|
 | `release` | v0.1.0 beta (published), the self-update restart fix and the whole UI redesign (`feat/ui-themes`, merged with the owner's OK). No new beta tagged yet. |
+| `feat/system-status` | **Open, committed, not merged.** Top bar (battery with percentage and charging bolt, Wi-Fi bars, FTP address end, no SD text), compact storage text, the main menu's System entry. Merge into `release` when the owner says so. |
 | `master` | v0.1.0 has not been promoted to stable yet. |
 
 The UI redesign on `release` holds:
@@ -26,7 +27,9 @@ The UI redesign on `release` holds:
 5. Storage bars (`widget_storage`): Files, Titles and the main menu per entry.
 6. Stereoscopic 3D on the top screen: background, bar and cards on three depths.
 
-**On the console now:** that build (DEBUG), installed over FTP. Console at
+**On the console now:** the `feat/system-status` build (DEBUG), installed over FTP.
+Still to confirm there: the battery percentage (needs `mcu::HWC`), the Wi-Fi SSID and
+the system version in System (Azahar gives none of them). Console at
 `192.168.1.133`.
 
 ## What the owner asked for (the direction)

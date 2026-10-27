@@ -350,10 +350,20 @@ void widget_storage(FS_SystemMediaType media, float x, float y, float width) {
     screen_get_content_motion(&motionX, &motionY, &alpha);
     screen_set_content_motion(0, 0, 0xFF);
 
-    // Narrow: "X / Y", or only what is free.
+    // Narrow: "X/Y GiB" (each with its unit when they differ: "X MiB/Y GiB"),
+    // or only what is free.
     float room = width - 17 - widget_text_width(name, WIDGET_SMALL_SCALE) - 8;
     if(widget_text_width(text, WIDGET_SMALL_SCALE) > room) {
-        snprintf(text, sizeof(text), "%s / %s", freeText, totalText);
+        u64 freeBytes = storage_cache[media].free;
+        u64 totalBytes = storage_cache[media].total;
+        const char* freeUnits = ui_get_display_size_units(freeBytes);
+        const char* totalUnits = ui_get_display_size_units(totalBytes);
+        if(strcmp(freeUnits, totalUnits) == 0) {
+            snprintf(text, sizeof(text), "%.1f/%.1f %s", ui_get_display_size(freeBytes), ui_get_display_size(totalBytes), totalUnits);
+        } else {
+            snprintf(text, sizeof(text), "%s/%s", freeText, totalText);
+        }
+
         if(widget_text_width(text, WIDGET_SMALL_SCALE) > room) {
             snprintf(text, sizeof(text), "%s", freeText);
         }
@@ -390,4 +400,93 @@ void widget_crossfade(float progress, void (*draw)(void* context, bool leaving),
     }
 
     screen_set_content_motion(0, 0, 0xFF);
+}
+
+// ---- status ----
+
+void widget_battery_state(int* percent, u8* level, bool* charging) {
+    static bool known = false;
+    static bool hwcTried = false;
+    static bool hwc = false;
+    static int lastPercent = -1;
+    static u8 lastLevel = 0;
+    static bool lastCharging = false;
+    static u64 lastTime = 0;
+
+    if(!known || osGetTime() >= lastTime + 2000) {
+        // The exact percentage needs mcu::HWC; without it, PTM's 0..5 levels.
+        if(!hwcTried) {
+            hwc = R_SUCCEEDED(mcuHwcInit());
+            hwcTried = true;
+        }
+
+        u8 value = 0;
+        lastPercent = hwc && R_SUCCEEDED(MCUHWC_GetBatteryLevel(&value)) ? (value > 100 ? 100 : value) : -1;
+
+        if(R_FAILED(PTMU_GetBatteryLevel(&lastLevel))) {
+            lastLevel = 0;
+        }
+
+        u8 state = 0;
+        lastCharging = R_SUCCEEDED(PTMU_GetBatteryChargeState(&state)) && state;
+        lastTime = osGetTime();
+        known = true;
+    }
+
+    *percent = lastPercent;
+    *level = lastLevel;
+    *charging = lastCharging;
+}
+
+float widget_battery(float right, float y, float height) {
+    const theme_current* t = theme();
+    int percent;
+    u8 level;
+    bool charging;
+    widget_battery_state(&percent, &level, &charging);
+
+    float fraction = percent >= 0 ? percent / 100.0f : level / 5.0f;
+    u32 color = fraction > 0.3f ? t->palette->success : fraction > 0.15f ? t->palette->warning : t->palette->danger;
+
+    float nub = 2;
+    float w = 28;
+    float x = right - nub - w;
+    screen_fill_round_rect(x + w, y + height / 2 - 2.5f, nub + 1, 5, 1, color);
+    screen_frame_round_rect(x, y, w, height, 3, 1, color, t->palette->surface);
+
+    float inner = w - 4;
+    if(fraction > 0) {
+        screen_fill_round_rect(x + 2, y + 2, inner * fraction < 3 ? 3 : inner * fraction, height - 4, 2, theme_mix(t->palette->surface, color, 0x70));
+    }
+
+    if(percent >= 0) {
+        char text[8];
+        snprintf(text, sizeof(text), "%d", percent);
+        widget_text_centered(text, x, x + w, y + (height - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, t->palette->text);
+    }
+
+    float used = w + nub;
+    if(charging) {
+        screen_draw_icon(ICON_BOLT, x - height - 1, y, height, color);
+        used += height + 1;
+    }
+
+    return used;
+}
+
+float widget_wifi(float x, float y, float height) {
+    const theme_current* t = theme();
+    u32 status = 0;
+    bool online = R_SUCCEEDED(ACU_GetWifiStatus(&status)) && status;
+    u8 strength = online ? osGetWifiStrength() : 0;
+
+    float barW = 3;
+    float gap = 2;
+    for(u32 i = 0; i < 3; i++) {
+        float h = height * (i + 2) / 4;
+        bool on = online && i < strength;
+        screen_fill_round_rect(x + i * (barW + gap), y + height - h, barW, h, 1, on ? t->palette->text : t->palette->border);
+    }
+
+    return 3 * barW + 2 * gap;
 }

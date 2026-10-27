@@ -94,3 +94,15 @@ void widget_crossfade(float progress, void (*draw)(void* context, bool leaving),
 // is, `width` wide (about 22 px tall). The space is looked up every couple of
 // seconds. Not drawn when it cannot be read.
 void widget_storage(FS_SystemMediaType media, float x, float y, float width);
+
+// ---- status ----
+
+// The battery as the system reports it, looked up every couple of seconds:
+// `percent` is -1 when only the 0..5 `level` is known.
+void widget_battery_state(int* percent, u8* level, bool* charging);
+// A battery drawn with its percentage inside, coloured by how much is left,
+// and a bolt on its left while charging. Right-aligned at `right`; returns
+// the width used.
+float widget_battery(float right, float y, float height);
+// Wi-Fi strength as three bars rising left to right. Returns the width used.
+float widget_wifi(float x, float y, float height);

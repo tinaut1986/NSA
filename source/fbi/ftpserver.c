@@ -601,6 +601,19 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    if(strcmp(sub, "DRAG") == 0) {
+        char* args = path != NULL ? path : "";
+        unsigned x = 0, y1 = 0, y2 = 0, frames = 20;
+        if(sscanf(args, "%u %u %u %u", &x, &y1, &y2, &frames) < 3 || x >= 320 || y1 >= 240 || y2 >= 240) {
+            ftp_reply(s, "501 SITE DRAG <x> <y1> <y2> [frames]");
+            return;
+        }
+
+        input_inject_drag((u16) x, (u16) y1, (u16) y2, frames);
+        ftp_reply(s, "200 Dragged %u,%u to %u.", x, y1, y2);
+        return;
+    }
+
     if(strcmp(sub, "PRESS") == 0 || strcmp(sub, "TAP") == 0) {
         static const struct {
             const char* name;

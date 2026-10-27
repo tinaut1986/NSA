@@ -65,7 +65,7 @@ static void test_format() {
         assert(strlen(lines[i]) <= 50);
     }
 
-    count = update_format_notes("one two three four", lines, 512, 9);
+    count = update_format_notes("one two three four", lines, 512, 10);
     assert(count == 2 && !strcmp(lines[0], "one two") && !strcmp(lines[1], "three four"));
 }
 

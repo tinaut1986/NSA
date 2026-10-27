@@ -53,11 +53,17 @@ version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in 
 - `source/core/theme.c`: themes (palettes for day and night, radii, borders, menu layout),
   accent colours and night mode. Widgets (`source/core/ui/widgets.c`) draw everything
   through the theme; never hard-code a colour in a screen.
-- `source/core/i18n.c`: every user-facing string goes through `_("English")`, string
-  literals only (lookups are cached by address). Spanish is `source/core/i18n_es.c`; a
-  missing entry shows the English.
+- `source/core/i18n.c`: every user-facing string goes through `_("English")` (literals
+  only: lookups are cached by address) or, for text that may be built at run time,
+  `i18n_translate_text` (by content, never cached; the dialogs and lists already do it).
+  Spanish is `source/core/i18n_es.c`; a missing entry shows the English.
 - Icons: Tabler (MIT), listed in `tools/icons.txt`; `python3 tools/make_icons.py` rebuilds
-  `romfs/icons.png` and `source/core/icons.h` (needs Chrome and Pillow).
+  `romfs/icons16.png`, `romfs/icons32.png` and `source/core/icons.h` (needs Chrome and
+  Pillow). Draw at 16 or 32 px so they land on whole pixels.
+- Screens: lists are `source/core/ui/list.c` (rows or grid, tools, filter, long press),
+  floating layers `overlay.c` (popover, action sheet), dialogs `prompt.c`/`info.c`/`error.c`.
+  Titles, Tickets and Ext Save Data are the model for a screen (placeholders, live sort,
+  remembered filters in `settings.json`): see `docs/PLAN.md`, Decisions.
 - The system font has the 3DS button glyphs (`\uE000` A, `\uE001` B, `\uE002` X,
   `\uE003` Y, `\uE004` L, `\uE005` R) but not "·": use the glyphs in hints.
 
@@ -68,6 +74,10 @@ With the FTP server on (always in DEBUG builds), port 5000:
 `SITE PRESS <A|B|X|Y|L|R|ZL|ZR|START|SELECT|UP|DOWN|LEFT|RIGHT>[+...] [frames]`,
 `SITE TAP <x> <y> [frames]` (bottom screen). For example:
 `curl -Q "SITE PRESS DOWN" ftp://IP:5000/`.
+
+To look at the real console, wait a few seconds after `SITE SCREENSHOT` (it answers
+"not taken in time" but the files appear) and measure on that image: Azahar's font and
+data differ (see `docs/PLAN.md`, Known issues).
 
 **Azahar** (flatpak `org.azahar_emu.Azahar`) runs the 3DSX for UI work without the
 console: `flatpak run org.azahar_emu.Azahar "$PWD/output/3ds-arm/3ds/NSA/NSA.3dsx"`, then the

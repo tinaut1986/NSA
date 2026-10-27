@@ -59,7 +59,10 @@ static struct {
 #define SHAPE_CIRCLE_SIZE 128
 static u32 shape_white = 0;
 static u32 shape_circle = 0;
-static u32 shape_icons = 0;
+// Icon atlases, one per cell size: an icon is drawn from the one closest to
+// its size, at whole pixels when the sizes match.
+static u32 shape_icons16 = 0;
+static u32 shape_icons32 = 0;
 
 static void screen_set_blend(u32 color, bool rgb, bool alpha) {
     C3D_TexEnv* env = C3D_GetTexEnv(0);
@@ -309,7 +312,9 @@ static void screen_prepare_texture(u32* pow2WidthOut, u32* pow2HeightOut, u32 id
         return;
     }
 
-    C3D_TexSetFilter(&textures[id].tex, linearFilter ? GPU_LINEAR : GPU_NEAREST, GPU_NEAREST);
+    // Linear both ways: shrinking with nearest drops whole rows of texels
+    // (thin lines in icons and title icons vanish).
+    C3D_TexSetFilter(&textures[id].tex, linearFilter ? GPU_LINEAR : GPU_NEAREST, linearFilter ? GPU_LINEAR : GPU_NEAREST);
 
     textures[id].allocated = true;
     textures[id].width = width;
@@ -961,8 +966,10 @@ static void screen_init_shapes() {
     free(white);
     free(circle);
 
-    shape_icons = screen_allocate_free_texture();
-    screen_load_texture_path(shape_icons, "romfs:/icons.png", true);
+    shape_icons16 = screen_allocate_free_texture();
+    screen_load_texture_path(shape_icons16, "romfs:/icons16.png", true);
+    shape_icons32 = screen_allocate_free_texture();
+    screen_load_texture_path(shape_icons32, "romfs:/icons32.png", true);
 }
 
 static u32 screen_apply_base_alpha(u32 color) {
@@ -1039,12 +1046,15 @@ void screen_fill_circle(float cx, float cy, float radius, u32 color) {
 }
 
 void screen_draw_icon(u32 icon, float x, float y, float size, u32 color) {
-    if(icon >= ICON_COUNT || textures[shape_icons].width == 0) {
+    bool small = size <= 22;
+    u32 atlas = small ? shape_icons16 : shape_icons32;
+    float cell = small ? 16 : 32;
+    if(icon >= ICON_COUNT || textures[atlas].width == 0) {
         return;
     }
 
-    float cellW = (float) ICON_CELL / textures[shape_icons].width;
-    float cellH = (float) ICON_CELL / textures[shape_icons].height;
+    float cellW = cell / textures[atlas].width;
+    float cellH = cell / textures[atlas].height;
     float fx = (icon % ICON_COLUMNS) * cellW;
     float fy = (icon / ICON_COLUMNS) * cellH;
     x += content_dx;
@@ -1053,7 +1063,13 @@ void screen_draw_icon(u32 icon, float x, float y, float size, u32 color) {
         color = ((((color >> 24) & 0xFF) * content_alpha / 0xFF) << 24) | (color & 0x00FFFFFF);
     }
 
-    screen_draw_mask_any(shape_icons, x, y, x + size, y + size, fx, fy, fx + cellW, fy + cellH, color);
+    // At its own size, on whole pixels: every line one texel, one pixel.
+    if(size == cell) {
+        x = (float) (int) (x + 0.5f);
+        y = (float) (int) (y + 0.5f);
+    }
+
+    screen_draw_mask_any(atlas, x, y, x + size, y + size, fx, fy, fx + cellW, fy + cellH, color);
 }
 
 bool screen_capture(gfxScreen_t screen, const char* path) {

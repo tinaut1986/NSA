@@ -15,4 +15,5 @@ void remoteinstall_open();
 void systemsavedata_open();
 void tickets_open();
 void titles_open();
-void update_open();
+void startup_run();
+void updates_open();

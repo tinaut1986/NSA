@@ -19,7 +19,7 @@ static list_item tickets = {"Tickets", COLOR_TEXT, tickets_open};
 static list_item ext_save_data = {"Ext Save Data", COLOR_TEXT, extsavedata_open};
 static list_item system_save_data = {"System Save Data", COLOR_TEXT, systemsavedata_open};
 static list_item remote_install = {"Remote Install", COLOR_TEXT, remoteinstall_open};
-static list_item update = {"Update", COLOR_TEXT, update_open};
+static list_item update = {"Updates", COLOR_TEXT, updates_open};
 
 static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     u32 logoWidth;

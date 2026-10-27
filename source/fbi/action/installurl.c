@@ -399,5 +399,11 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
 
     data->installInfo.finished = true;
 
+    // No message: the caller already asked (the updater shows its own prompt).
+    if(confirmMessage == NULL) {
+        action_install_url_confirm_onresponse(NULL, data, PROMPT_YES);
+        return;
+    }
+
     prompt_display_yes_no("Confirmation", confirmMessage, COLOR_TEXT, data, action_install_url_draw_top, action_install_url_confirm_onresponse);
 }

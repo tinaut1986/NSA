@@ -15,22 +15,24 @@ typedef struct {
     const char* name;
     const char* description;
     void (*open)();
+    int storage;   // The media it manages (FS_SystemMediaType), or -1.
+    int storage2;
 } mainmenu_entry;
 
 static const mainmenu_entry entries[] = {
-        {ICON_DEVICE_SD_CARD, "SD card", "Browse the SD card: install CIAs and tickets, copy, rename and delete files.", files_open_sd},
-        {ICON_APPS, "Titles", "Installed titles: launch them, delete them, back up their saves or extract their icons.", titles_open},
-        {ICON_WORLD_DOWNLOAD, "Remote install", "Install from the network: scan a QR code, type a URL or receive URLs from a computer.", remoteinstall_open},
-        {ICON_TICKET, "Tickets", "Installed tickets: see which are in use and delete the ones you no longer need.", tickets_open},
-        {ICON_CLOCK, "Pending titles", "Titles left half installed. Deleting them frees their space.", pendingtitles_open},
-        {ICON_DATABASE, "Extra save data", "Extra save data of titles: browse, back up or delete it.", extsavedata_open},
-        {ICON_DEVICE_FLOPPY, "System save data", "System save data: browse or delete it. Handle with care.", systemsavedata_open},
-        {ICON_CPU, "CTR NAND", "The console's system memory. Changes here can stop it from starting.", files_open_ctr_nand},
-        {ICON_CPU, "TWL NAND", "The DSi-mode system memory. Changes here can break DSi games and software.", files_open_twl_nand},
-        {ICON_PHOTO, "TWL Photo", "The DSi camera's photo storage.", files_open_twl_photo},
-        {ICON_MUSIC, "TWL Sound", "The DSi sound recorder's storage.", files_open_twl_sound},
-        {ICON_DOWNLOAD, "Dump NAND", "Copy the whole system memory to the SD card as a backup.", dumpnand_open},
-        {ICON_SETTINGS, "Settings", "Theme, colours, language, updates and the FTP server.", settingsmenu_open},
+        {ICON_DEVICE_SD_CARD, "SD card", "Browse the SD card: install CIAs and tickets, copy, rename and delete files.", files_open_sd, SYSTEM_MEDIATYPE_SD, -1},
+        {ICON_APPS, "Titles", "Installed titles: launch them, delete them, back up their saves or extract their icons.", titles_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
+        {ICON_WORLD_DOWNLOAD, "Remote install", "Install from the network: scan a QR code, type a URL or receive URLs from a computer.", remoteinstall_open, SYSTEM_MEDIATYPE_SD, -1},
+        {ICON_TICKET, "Tickets", "Installed tickets: see which are in use and delete the ones you no longer need.", tickets_open, SYSTEM_MEDIATYPE_CTR_NAND, -1},
+        {ICON_CLOCK, "Pending titles", "Titles left half installed. Deleting them frees their space.", pendingtitles_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
+        {ICON_DATABASE, "Extra save data", "Extra save data of titles: browse, back up or delete it.", extsavedata_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
+        {ICON_DEVICE_FLOPPY, "System save data", "System save data: browse or delete it. Handle with care.", systemsavedata_open, SYSTEM_MEDIATYPE_CTR_NAND, -1},
+        {ICON_CPU, "CTR NAND", "The console's system memory. Changes here can stop it from starting.", files_open_ctr_nand, SYSTEM_MEDIATYPE_CTR_NAND, -1},
+        {ICON_CPU, "TWL NAND", "The DSi-mode system memory. Changes here can break DSi games and software.", files_open_twl_nand, SYSTEM_MEDIATYPE_TWL_NAND, -1},
+        {ICON_PHOTO, "TWL Photo", "The DSi camera's photo storage.", files_open_twl_photo, SYSTEM_MEDIATYPE_TWL_PHOTO, -1},
+        {ICON_MUSIC, "TWL Sound", "The DSi sound recorder's storage.", files_open_twl_sound, SYSTEM_MEDIATYPE_TWL_NAND, -1},
+        {ICON_DOWNLOAD, "Dump NAND", "Copy the whole system memory to the SD card as a backup.", dumpnand_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
+        {ICON_SETTINGS, "Settings", "Theme, colours, language, updates and the FTP server.", settingsmenu_open, -1, -1},
 };
 
 #define ENTRY_COUNT (sizeof(entries) / sizeof(*entries))
@@ -47,9 +49,14 @@ typedef struct {
 
     bool touching;
     bool dragged;
-    int touchIndex;
+    widget_press press;
     u16 touchStartY;
     u16 lastTouchY;
+
+    // The top card's contents cross-fade when the selection changes.
+    u32 shown;
+    u32 leaving;
+    u64 shownTime;
 } mainmenu_data;
 
 static float mainmenu_total_height() {
@@ -144,18 +151,28 @@ static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, flo
         menu->touching = true;
         menu->dragged = false;
         menu->touchStartY = menu->lastTouchY = pos.py;
-        menu->touchIndex = -1;
+        widget_press_end(&menu->press);
         for(u32 i = 0; i < ENTRY_COUNT; i++) {
             float x, y, w;
             mainmenu_button_rect(i, bx1, by1, bx2, menu->scroll, &x, &y, &w);
             if(widget_touched(&pos, x, y, w, BUTTON_HEIGHT) && pos.py >= by1 && pos.py < by2) {
-                menu->touchIndex = (int) i;
+                widget_press_begin(&menu->press, (int) i, true, pos.px, pos.py);
                 menu->selected = i;
             }
         }
     } else if(menu->touching && (hidKeysHeld() & KEY_TOUCH)) {
         if(abs((int) pos.py - (int) menu->touchStartY) > 6) {
             menu->dragged = true;
+            menu->press.cancelled = true;
+        }
+
+        // Off the button: no longer pressed.
+        if(menu->press.index >= 0) {
+            float x, y, w;
+            mainmenu_button_rect((u32) menu->press.index, bx1, by1, bx2, menu->scroll, &x, &y, &w);
+            if(!widget_touched(&pos, x, y, w, BUTTON_HEIGHT)) {
+                menu->press.cancelled = true;
+            }
         }
 
         if(menu->dragged) {
@@ -166,8 +183,11 @@ static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, flo
         menu->lastTouchY = pos.py;
     } else if(menu->touching && (hidKeysUp() & KEY_TOUCH)) {
         menu->touching = false;
-        if(!menu->dragged && menu->touchIndex >= 0) {
-            entries[menu->touchIndex].open();
+        int index = menu->press.index;
+        bool open = widget_press_on(&menu->press, index);
+        widget_press_end(&menu->press);
+        if(open) {
+            entries[index].open();
             return;
         }
     }
@@ -177,27 +197,63 @@ static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, flo
     }
 }
 
-static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
-    mainmenu_data* menu = (mainmenu_data*) data;
-    const theme_current* t = theme();
-    const mainmenu_entry* entry = &entries[menu->selected];
+typedef struct {
+    mainmenu_data* menu;
+    float x1, y1, x2, y2;
+} mainmenu_top_context;
 
-    float cardX = x1 + 12;
-    float cardY = y1 + 14;
-    float cardW = x2 - x1 - 24;
+// The selected entry's card; `leaving`, the one selected before.
+static void mainmenu_draw_card(void* data, bool leaving) {
+    mainmenu_top_context* c = (mainmenu_top_context*) data;
+    const theme_current* t = theme();
+    const mainmenu_entry* entry = &entries[leaving ? c->menu->leaving : c->menu->selected];
+
+    float cardX = c->x1 + 12;
+    float cardY = c->y1 + 14;
+    float cardW = c->x2 - c->x1 - 24;
     float cardH = 96;
     widget_card(cardX, cardY, cardW, cardH);
 
     float tile = 64;
     float tileX = cardX + 16;
     float tileY = cardY + (cardH - tile) / 2;
+    float cardDepth = screen_get_depth();
+    screen_set_depth(cardDepth + 1);
     screen_fill_round_rect(tileX, tileY, tile, tile, t->def->radius, t->accentSoft);
     screen_draw_icon(entry->icon, tileX + 14, tileY + 14, 36, t->accent);
+    screen_set_depth(cardDepth);
 
     float textX = tileX + tile + 14;
     float wrap = cardX + cardW - 14;
     screen_draw_text(_(entry->name), textX, cardY + 16, WIDGET_TITLE_SCALE, t->palette->text);
     screen_draw_text_wrap(_(entry->description), textX, cardY + 16 + widget_text_height(WIDGET_TITLE_SCALE) + 4, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap);
+}
+
+static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    mainmenu_data* menu = (mainmenu_data*) data;
+    const theme_current* t = theme();
+    const mainmenu_entry* entry = &entries[menu->selected];
+
+    if(menu->shown != menu->selected) {
+        menu->leaving = menu->shown;
+        menu->shown = menu->selected;
+        menu->shownTime = osGetTime();
+    }
+
+    mainmenu_top_context context = {menu, x1, y1, x2, y2};
+    widget_crossfade(widget_ease(menu->shownTime, WIDGET_CROSSFADE_TIME), mainmenu_draw_card, &context, menu->leaving != menu->shown);
+
+    float cardX = x1 + 12;
+    float cardW = x2 - x1 - 24;
+
+    // The space left where it installs or works, for entries that manage one.
+    if(entry->storage >= 0) {
+        bool two = entry->storage2 >= 0;
+        widget_storage((FS_SystemMediaType) entry->storage, cardX + 4, y2 - (two ? 78 : 52), cardW - 8);
+        if(two) {
+            widget_storage((FS_SystemMediaType) entry->storage2, cardX + 4, y2 - 52, cardW - 8);
+        }
+    }
 
     // Under it, what the app is.
     char about[128];
@@ -220,6 +276,7 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
         }
 
         widget_button(x, y, w, BUTTON_HEIGHT, entries[i].icon, _(entries[i].name), i == menu->selected);
+        widget_press_draw(&menu->press, (int) i, x, y, w, BUTTON_HEIGHT, theme()->def->radiusSmall, i == menu->selected ? theme()->onAccent : theme()->palette->text, false);
     }
 
     screen_clear_clip();
@@ -233,6 +290,8 @@ void mainmenu_open() {
         error_panic("Failed to allocate main menu data.");
         return;
     }
+
+    data->press.index = -1;
 
     ui_view* view = ui_create();
     view->name = _("Main menu");

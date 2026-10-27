@@ -40,13 +40,29 @@ typedef struct {
     u32 selectedIndex;       // Into `visible`.
     list_item* selectedItem;
     float scrollPos;
+    float scrollTarget;      // Where a D-Pad move glides to.
+    bool scrollGliding;
+    float scrollVelocity;    // Left by a flick, slowing down.
+
+    // The top screen's card slides in when the selection changes.
+    list_item* shownItem;
+    list_item* leavingItem;
+    u64 shownTime;
     u64 nextActionTime;
 
     bool touching;
     bool dragged;
-    int touchIndex;
     u16 touchStartY;
     u16 lastTouchY;
+
+    // The item held (by touch, or by A when there is a long press), and the
+    // title bar target held: -1 back, else a tool's index.
+    widget_press press;
+    list_item* pressPrevious;
+    bool revealPending;   // Scroll the selection into view on the next update.   // Selected before the touch, back when it turns into a drag.
+    bool barTouching;
+    int barTarget;
+    void (*longPress)(ui_view* view, void* data, linked_list* items, list_item* item);
 
     list_mode mode;
     list_style style;
@@ -141,13 +157,52 @@ static void list_rebuild_visible(list_data* listData) {
 
 static void list_clamp_scroll(list_data* listData, list_layout* l) {
     float max = list_total_height(listData, l) - (l->y2 - l->y1);
+    if(max < 0) {
+        max = 0;
+    }
+
     if(listData->scrollPos > max) {
         listData->scrollPos = max;
+        listData->scrollVelocity = 0;
     }
 
     if(listData->scrollPos < 0) {
         listData->scrollPos = 0;
+        listData->scrollVelocity = 0;
     }
+
+    if(listData->scrollTarget > max) {
+        listData->scrollTarget = max;
+    }
+
+    if(listData->scrollTarget < 0) {
+        listData->scrollTarget = 0;
+    }
+}
+
+// Glides towards the D-Pad's target, or coasts after a flick.
+static void list_animate_scroll(list_data* listData, list_layout* l) {
+    if(listData->touching && listData->dragged) {
+        return;
+    }
+
+    if(listData->scrollVelocity != 0) {
+        listData->scrollPos -= listData->scrollVelocity;
+        listData->scrollVelocity *= 0.92f;
+        if(listData->scrollVelocity > -0.3f && listData->scrollVelocity < 0.3f) {
+            listData->scrollVelocity = 0;
+        }
+    } else if(listData->scrollGliding) {
+        float diff = listData->scrollTarget - listData->scrollPos;
+        if(diff > -0.5f && diff < 0.5f) {
+            listData->scrollPos = listData->scrollTarget;
+            listData->scrollGliding = false;
+        } else {
+            listData->scrollPos += diff * 0.3f;
+        }
+    }
+
+    list_clamp_scroll(listData, l);
 }
 
 // Keeps the selection on the same item when the list changes, and in view.
@@ -183,10 +238,18 @@ static void list_validate(list_data* listData, list_layout* l, bool reveal) {
     if(reveal) {
         float top = (listData->selectedIndex / l->columns) * l->pitchY;
         float view = l->y2 - l->y1;
-        if(top < listData->scrollPos) {
-            listData->scrollPos = top;
-        } else if(top + l->itemH > listData->scrollPos + view) {
-            listData->scrollPos = top + l->itemH - view;
+        float from = listData->scrollGliding ? listData->scrollTarget : listData->scrollPos;
+        float to = from;
+        if(top < from) {
+            to = top;
+        } else if(top + l->itemH > from + view) {
+            to = top + l->itemH - view;
+        }
+
+        if(to != from) {
+            listData->scrollTarget = to;
+            listData->scrollGliding = true;
+            listData->scrollVelocity = 0;
         }
     }
 
@@ -218,6 +281,10 @@ static void list_draw_title_bar(ui_view* view, void* data, float x1, float y1, f
     const theme_current* t = theme();
 
     float cy = y1 + (y2 - y1 - LIST_TOOL_SIZE) / 2;
+    if(listData->barTouching && listData->barTarget == -1) {
+        screen_fill_round_rect(x1 + 3, cy, LIST_TOOL_SIZE, LIST_TOOL_SIZE, 6, THEME_ALPHA(t->palette->text, 0x22));
+    }
+
     screen_draw_icon(ICON_ARROW_LEFT, x1 + 6, cy + 3, 16, t->palette->text);
 
     float textY = y1 + (y2 - y1 - widget_text_height(WIDGET_TEXT_SCALE)) / 2;
@@ -241,37 +308,41 @@ static void list_draw_title_bar(ui_view* view, void* data, float x1, float y1, f
             screen_fill_round_rect(tx, cy, LIST_TOOL_SIZE, LIST_TOOL_SIZE, 6, t->accentSoft);
         }
 
+        if(listData->barTouching && listData->barTarget == (int) i) {
+            screen_fill_round_rect(tx, cy, LIST_TOOL_SIZE, LIST_TOOL_SIZE, 6, THEME_ALPHA(t->palette->text, 0x22));
+        }
+
         screen_draw_icon(tool->icon, tx + 3, cy + 3, 16, active ? t->accent : t->palette->textMuted);
     }
 }
 
-// A tap on the title bar: back arrow (as B) or a tool. True when it was there.
-static bool list_title_bar_touch(ui_view* view, list_data* listData, touchPosition* pos) {
+// The title bar target under a touch: -1 back, a tool's index, or -2 none.
+static int list_title_bar_target(list_data* listData, touchPosition* pos) {
     if(pos->py >= WIDGET_TITLE_BAR_HEIGHT) {
-        return false;
+        return -2;
     }
 
-    if(view->drawTitleBar == NULL) {
-        return true;
-    }
-
-    if(pos->px < 26) {
-        input_inject_keys(KEY_B, 1);
-        return true;
+    if(pos->px < 28) {
+        return -1;
     }
 
     for(u32 i = 0; i < listData->toolCount; i++) {
         float tx = list_tool_x(i);
         if(pos->px >= tx - 1 && pos->px < tx + LIST_TOOL_SIZE + 1) {
-            if(listData->tools[i].press != NULL) {
-                listData->tools[i].press(view, listData->data);
-            }
-
-            return true;
+            return (int) i;
         }
     }
 
-    return true;
+    return -2;
+}
+
+// Runs a title bar target when the finger is lifted on it.
+static void list_title_bar_release(ui_view* view, list_data* listData) {
+    if(listData->barTarget == -1) {
+        input_inject_keys(KEY_B, 1);
+    } else if(listData->barTarget >= 0 && listData->tools[listData->barTarget].press != NULL) {
+        listData->tools[listData->barTarget].press(view, listData->data);
+    }
 }
 
 // ---- update and draw ----
@@ -280,7 +351,9 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
     list_data* listData = (list_data*) data;
     list_layout l = list_get_layout(listData, bx1, by1, bx2, by2);
 
-    list_validate(listData, &l, false);
+    list_validate(listData, &l, listData->revealPending);
+    listData->revealPending = false;
+    list_animate_scroll(listData, &l);
 
     bool selectedTouched = false;
     u32 last = listData->selectedIndex;
@@ -329,43 +402,112 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
         }
     }
 
-    // Touch: a tap on an item opens it, a drag scrolls, the title bar has its own targets.
+    // A on an item, when it has a long press: acts on release, a long hold
+    // runs the long press. D-Pad moves cancel it.
+    list_item* longPressed = NULL;
+    if(listData->longPress != NULL && count > 0) {
+        if(hidKeysDown() & KEY_A) {
+            float x, y;
+            list_item_position(listData, &l, listData->selectedIndex, &x, &y);
+            widget_press_begin(&listData->press, (int) listData->selectedIndex, false, x + l.itemW / 2, y + l.itemH / 2);
+        } else if(listData->press.index >= 0 && !listData->press.touch) {
+            if(listData->selectedIndex != last) {
+                listData->press.cancelled = true;
+            }
+
+            if(hidKeysUp() & KEY_A) {
+                if(widget_press_on(&listData->press, (int) listData->selectedIndex)) {
+                    selectedTouched = true;
+                }
+
+                widget_press_end(&listData->press);
+            } else if(widget_press_long_due(&listData->press)) {
+                longPressed = listData->selectedItem;
+                widget_press_end(&listData->press);
+            }
+        }
+    }
+
+    // Touch: an item looks pressed while held and opens on release over it; a
+    // drag scrolls; a long hold runs the long press. The title bar's targets
+    // act on release too.
     touchPosition pos;
     hidTouchRead(&pos);
     if(hidKeysDown() & KEY_TOUCH) {
         listData->touching = false;
-        if(!list_title_bar_touch(view, listData, &pos)) {
+        listData->barTouching = false;
+        int target = list_title_bar_target(listData, &pos);
+        if(pos.py < WIDGET_TITLE_BAR_HEIGHT) {
+            listData->barTouching = view->drawTitleBar != NULL && target != -2;
+            listData->barTarget = target;
+        } else {
             listData->touching = true;
             listData->dragged = false;
             listData->touchStartY = listData->lastTouchY = pos.py;
-            listData->touchIndex = -1;
+            listData->scrollVelocity = 0;
+            listData->scrollGliding = false;
+            widget_press_end(&listData->press);
             for(u32 i = 0; i < count && pos.py >= l.y1 && pos.py < l.y2; i++) {
                 float x, y;
                 list_item_position(listData, &l, i, &x, &y);
                 if(widget_touched(&pos, x, y, l.itemW, l.itemH)) {
-                    listData->touchIndex = (int) i;
+                    widget_press_begin(&listData->press, (int) i, true, pos.px, pos.py);
+                    listData->pressPrevious = listData->selectedItem;
+                    listData->selectedIndex = i;
+                    listData->selectedItem = listData->visible[i];
                     break;
                 }
             }
         }
+    } else if(listData->barTouching && (hidKeysHeld() & KEY_TOUCH)) {
+        if(list_title_bar_target(listData, &pos) != listData->barTarget) {
+            listData->barTarget = -2;
+        }
+    } else if(listData->barTouching && (hidKeysUp() & KEY_TOUCH)) {
+        listData->barTouching = false;
+        list_title_bar_release(view, listData);
     } else if(listData->touching && (hidKeysHeld() & KEY_TOUCH)) {
-        if(abs((int) pos.py - (int) listData->touchStartY) > 6) {
+        if(!listData->dragged && abs((int) pos.py - (int) listData->touchStartY) > 6) {
             listData->dragged = true;
+            if(listData->press.index >= 0 && listData->pressPrevious != NULL) {
+                listData->selectedItem = listData->pressPrevious;
+            }
+
+            listData->press.cancelled = true;
         }
 
         if(listData->dragged) {
-            listData->scrollPos -= (int) pos.py - (int) listData->lastTouchY;
+            int dy = (int) pos.py - (int) listData->lastTouchY;
+            listData->scrollPos -= dy;
+            // Remembered for the flick when the finger lifts.
+            listData->scrollVelocity = listData->scrollVelocity * 0.5f + dy * 0.5f;
             list_clamp_scroll(listData, &l);
         }
 
         listData->lastTouchY = pos.py;
+
+        if(listData->longPress != NULL && listData->press.touch && widget_press_long_due(&listData->press)
+           && (u32) listData->press.index < count) {
+            longPressed = listData->visible[listData->press.index];
+        }
     } else if(listData->touching && (hidKeysUp() & KEY_TOUCH)) {
         listData->touching = false;
-        if(!listData->dragged && listData->touchIndex >= 0 && (u32) listData->touchIndex < count) {
-            listData->selectedIndex = (u32) listData->touchIndex;
+        if(!listData->dragged) {
+            listData->scrollVelocity = 0;
+        }
+
+        if(listData->press.touch && widget_press_on(&listData->press, listData->press.index) && (u32) listData->press.index < count) {
+            listData->selectedIndex = (u32) listData->press.index;
             listData->selectedItem = listData->visible[listData->selectedIndex];
             selectedTouched = true;
         }
+
+        widget_press_end(&listData->press);
+    }
+
+    if(longPressed != NULL) {
+        listData->longPress(view, listData->data, &listData->items, longPressed);
+        return;
     }
 
     if(listData->update != NULL) {
@@ -373,11 +515,32 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
     }
 }
 
+typedef struct {
+    ui_view* view;
+    list_data* listData;
+    float x1, y1, x2, y2;
+} list_top_context;
+
+static void list_draw_top_item(void* data, bool leaving) {
+    list_top_context* c = (list_top_context*) data;
+    list_item* item = leaving ? c->listData->leavingItem : c->listData->selectedItem;
+    c->listData->drawTop(c->view, c->listData->data, c->x1, c->y1, c->x2, c->y2, item);
+}
+
 static void list_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     list_data* listData = (list_data*) data;
 
     if(listData->drawTop != NULL) {
-        listData->drawTop(view, listData->data, x1, y1, x2, y2, listData->selectedItem);
+        if(listData->selectedItem != listData->shownItem) {
+            listData->leavingItem = listData->shownItem;
+            listData->shownItem = listData->selectedItem;
+            listData->shownTime = osGetTime();
+        }
+
+        list_top_context context = {view, listData, x1, y1, x2, y2};
+        // The item left may have been deleted meanwhile.
+        bool leaving = listData->leavingItem != NULL && linked_list_index_of(&listData->items, listData->leavingItem) >= 0;
+        widget_crossfade(widget_ease(listData->shownTime, WIDGET_CROSSFADE_TIME), list_draw_top_item, &context, leaving);
     }
 }
 
@@ -416,6 +579,9 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
         } else {
             widget_row(x, y, l.itemW, l.itemH, -1, item->name, screen_get_color(item->color), NULL, selected);
         }
+
+        widget_press_draw(&listData->press, (int) i, x, y, l.itemW, l.itemH, list_grid(listData) ? t->def->radius : t->def->radiusSmall,
+                          selected ? t->onAccent : t->palette->text, listData->longPress != NULL);
     }
 
     screen_clear_clip();
@@ -435,6 +601,8 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
     listData->data = data;
     linked_list_init(&listData->items);
     listData->mode = LIST_MODE_ROWS;
+    listData->press.index = -1;
+    listData->barTarget = -2;
     listData->update = update;
     listData->drawTop = drawTop;
 
@@ -468,7 +636,8 @@ void list_set_style(ui_view* view, const list_style* style) {
 void list_set_mode(ui_view* view, list_mode mode) {
     list_data* listData = (list_data*) view->data;
     listData->mode = mode;
-    listData->scrollPos = 0;
+    listData->scrollPos = listData->scrollTarget = listData->scrollVelocity = 0;
+    listData->scrollGliding = false;
 }
 
 list_mode list_get_mode(ui_view* view) {
@@ -491,7 +660,8 @@ void list_set_filter(ui_view* view, bool (*visible)(void* data, list_item* item)
 void list_set_search(ui_view* view, const char* text) {
     list_data* listData = (list_data*) view->data;
     snprintf(listData->search, sizeof(listData->search), "%s", text != NULL ? text : "");
-    listData->scrollPos = 0;
+    listData->scrollPos = listData->scrollTarget = listData->scrollVelocity = 0;
+    listData->scrollGliding = false;
 }
 
 const char* list_get_search(ui_view* view) {
@@ -500,4 +670,14 @@ const char* list_get_search(ui_view* view) {
 
 u32 list_visible_count(ui_view* view) {
     return ((list_data*) view->data)->visibleCount;
+}
+
+void list_set_long_press(ui_view* view, void (*longPress)(ui_view* view, void* data, linked_list* items, list_item* item)) {
+    ((list_data*) view->data)->longPress = longPress;
+}
+
+void list_select(ui_view* view, list_item* item) {
+    list_data* listData = (list_data*) view->data;
+    listData->selectedItem = item;
+    listData->revealPending = true;
 }

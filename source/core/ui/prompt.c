@@ -23,6 +23,8 @@ typedef struct {
     void* data;
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2);
     void (*onResponse)(ui_view* view, void* data, u32 response);
+    widget_press press;   // Touched button, answered on release over it.
+    u64 opened;           // For the card's entrance.
 } prompt_data;
 
 #define PROMPT_WIDTH 288
@@ -73,20 +75,34 @@ static void prompt_update(ui_view* view, void* data, float bx1, float by1, float
         }
     }
 
+    touchPosition pos;
+    hidTouchRead(&pos);
+
+    float cardX, cardY, cardH, textH;
+    prompt_layout(promptData, bx1, by1, bx2, by2, &cardX, &cardY, &cardH, &textH);
+
     if(hidKeysDown() & KEY_TOUCH) {
-        touchPosition pos;
-        hidTouchRead(&pos);
-
-        float cardX, cardY, cardH, textH;
-        prompt_layout(promptData, bx1, by1, bx2, by2, &cardX, &cardY, &cardH, &textH);
-
+        widget_press_end(&promptData->press);
         for(u32 i = 0; i < promptData->numOptions; i++) {
             float x, y, w;
             prompt_button_rect(promptData, i, cardX, cardY, cardH, &x, &y, &w);
             if(widget_touched(&pos, x, y, w, PROMPT_BUTTON_HEIGHT)) {
-                prompt_notify_response(view, promptData, i);
-                return;
+                widget_press_begin(&promptData->press, (int) i, true, pos.px, pos.py);
             }
+        }
+    } else if((hidKeysHeld() & KEY_TOUCH) && promptData->press.index >= 0) {
+        float x, y, w;
+        prompt_button_rect(promptData, (u32) promptData->press.index, cardX, cardY, cardH, &x, &y, &w);
+        if(!widget_touched(&pos, x, y, w, PROMPT_BUTTON_HEIGHT)) {
+            promptData->press.cancelled = true;
+        }
+    } else if(hidKeysUp() & KEY_TOUCH) {
+        int index = promptData->press.index;
+        bool answer = widget_press_on(&promptData->press, index);
+        widget_press_end(&promptData->press);
+        if(answer) {
+            prompt_notify_response(view, promptData, (u32) index);
+            return;
         }
     }
 }
@@ -160,7 +176,12 @@ static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, fl
     float cardX, cardY, cardH, textH;
     prompt_layout(promptData, x1, y1, x2, y2, &cardX, &cardY, &cardH, &textH);
 
-    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, t->palette->scrim);
+    // The scrim darkens in while the card rises into place.
+    float e = widget_ease(promptData->opened, 180);
+    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->scrim, (u32) (((t->palette->scrim >> 24) & 0xFF) * e)));
+    screen_set_offset(0, (1 - e) * 14);
+    screen_set_base_alpha((u8) (0x40 + e * 0xBF));
+
     screen_frame_round_rect(cardX, cardY, PROMPT_WIDTH, cardH, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
 
     u32 textColor = promptData->color == COLOR_TEXT ? t->palette->text : screen_get_color(promptData->color);
@@ -177,7 +198,11 @@ static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, fl
 
         // The first option (Yes, OK) is the one that goes ahead.
         widget_button_centered(x, y, w, PROMPT_BUTTON_HEIGHT, label, i == 0);
+        widget_press_draw(&promptData->press, (int) i, x, y, w, PROMPT_BUTTON_HEIGHT, t->def->radiusSmall, i == 0 ? t->onAccent : t->palette->text, false);
     }
+
+    screen_set_offset(0, 0);
+    screen_set_base_alpha(0xFF);
 }
 
 ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 color, const char** options, u32* optionButtons, u32 numOptions, void* data, void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2),
@@ -188,6 +213,9 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
 
         return NULL;
     }
+
+    promptData->press.index = -1;
+    promptData->opened = osGetTime();
 
     promptData->text = text;
     promptData->color = color;

@@ -20,7 +20,22 @@ static DVLB_s* dvlb;
 static shaderProgram_s program;
 
 static C3D_RenderTarget* target_top;
+static C3D_RenderTarget* target_top_right;
 static C3D_RenderTarget* target_bottom;
+
+// Added to every quad: a translation (animations) and, on the top screen in
+// 3D, the eye's shift for the current depth.
+static float offset_x = 0;
+static float offset_y = 0;
+static float stereo_shift = 0;   // Pixels per unit of depth for this eye.
+static float depth = 0;
+
+// Moves and fades only text, icons and images (not shapes): a card's
+// contents change while the card stays put.
+static float content_dx = 0;
+static float content_dy = 0;
+static u8 content_alpha = 0xFF;
+static bool shapes_hidden = false;   // Only the contents are drawn.
 static C3D_Mtx projection_top;
 static C3D_Mtx projection_bottom;
 static u32 current_width = TOP_SCREEN_WIDTH;
@@ -93,6 +108,14 @@ void screen_init() {
     }
 
     C3D_RenderTargetSetOutput(target_top, GFX_TOP, GFX_LEFT, displayFlags);
+
+    target_top_right = C3D_RenderTargetCreate(TOP_SCREEN_HEIGHT, TOP_SCREEN_WIDTH, GPU_RB_RGB8, 0);
+    if(target_top_right == NULL) {
+        error_panic("Failed to initialize the top screen's right eye target.");
+        return;
+    }
+
+    C3D_RenderTargetSetOutput(target_top_right, GFX_TOP, GFX_RIGHT, displayFlags);
 
     target_bottom = C3D_RenderTargetCreate(BOTTOM_SCREEN_HEIGHT, BOTTOM_SCREEN_WIDTH, GPU_RB_RGB8, 0);
     if(target_bottom == NULL) {
@@ -193,6 +216,11 @@ void screen_exit() {
 
     if(target_top != NULL) {
         C3D_RenderTargetDelete(target_top);
+        if(target_top_right != NULL) {
+            C3D_RenderTargetDelete(target_top_right);
+            target_top_right = NULL;
+        }
+
         target_top = NULL;
     }
 
@@ -433,8 +461,20 @@ void screen_end_frame() {
 }
 
 void screen_select(gfxScreen_t screen) {
-    C3D_RenderTarget* target = screen == GFX_TOP ? target_top : target_bottom;
+    screen_select_eye(screen, GFX_LEFT, 0);
+}
+
+void screen_select_eye(gfxScreen_t screen, gfx3dSide_t side, float shift) {
+    C3D_RenderTarget* target = screen == GFX_TOP ? (side == GFX_RIGHT ? target_top_right : target_top) : target_bottom;
     current_width = screen == GFX_TOP ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
+    stereo_shift = screen == GFX_TOP ? shift : 0;
+    depth = 0;
+    offset_x = 0;
+    offset_y = 0;
+    content_dx = 0;
+    content_dy = 0;
+    content_alpha = 0xFF;
+    shapes_hidden = false;
     screen_clear_clip();
 
     C3D_RenderTargetClear(target, C3D_CLEAR_ALL, 0, 0);
@@ -446,7 +486,46 @@ void screen_select(gfxScreen_t screen) {
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), screen == GFX_TOP ? &projection_top : &projection_bottom);
 }
 
+void screen_set_offset(float x, float y) {
+    offset_x = x;
+    offset_y = y;
+}
+
+void screen_set_content_motion(float dx, float dy, u8 alpha) {
+    content_dx = dx;
+    content_dy = dy;
+    content_alpha = alpha;
+}
+
+void screen_get_content_motion(float* dx, float* dy, u8* alpha) {
+    *dx = content_dx;
+    *dy = content_dy;
+    *alpha = content_alpha;
+}
+
+void screen_set_shapes_hidden(bool hidden) {
+    shapes_hidden = hidden;
+}
+
+bool screen_get_shapes_hidden() {
+    return shapes_hidden;
+}
+
+void screen_set_depth(float value) {
+    depth = value;
+}
+
+float screen_get_depth() {
+    return depth;
+}
+
 static void screen_draw_quad(float x1, float y1, float x2, float y2, float left, float bottom, float right, float top) {
+    float dx = offset_x + depth * stereo_shift;
+    x1 += dx;
+    x2 += dx;
+    y1 += offset_y;
+    y2 += offset_y;
+
     C3D_ImmDrawBegin(GPU_TRIANGLE_STRIP);
 
     C3D_ImmSendAttrib(x1, y2, 0.5f, 0.0f);
@@ -465,12 +544,19 @@ static void screen_draw_quad(float x1, float y1, float x2, float y2, float left,
 }
 
 void screen_draw_texture(u32 id, float x, float y, float width, float height) {
+    x += content_dx;
+    y += content_dy;
+    u8 savedAlpha = base_alpha;
+    base_alpha = (u8) (base_alpha * content_alpha / 0xFF);
+
     if(id >= MAX_TEXTURES) {
         error_panic("Attempted to draw invalid texture ID \"%lu\".", id);
+        base_alpha = savedAlpha;
         return;
     }
 
     if(textures[id].tex.data == NULL) {
+        base_alpha = savedAlpha;
         return;
     }
 
@@ -484,15 +570,24 @@ void screen_draw_texture(u32 id, float x, float y, float width, float height) {
     if(base_alpha != 0xFF) {
         screen_set_blend(0, false, false);
     }
+
+    base_alpha = savedAlpha;
 }
 
 void screen_draw_texture_crop(u32 id, float x, float y, float width, float height) {
+    x += content_dx;
+    y += content_dy;
+    u8 savedAlpha = base_alpha;
+    base_alpha = (u8) (base_alpha * content_alpha / 0xFF);
+
     if(id >= MAX_TEXTURES) {
         error_panic("Attempted to draw invalid texture ID \"%lu\".", id);
+        base_alpha = savedAlpha;
         return;
     }
 
     if(textures[id].tex.data == NULL) {
+        base_alpha = savedAlpha;
         return;
     }
 
@@ -506,6 +601,8 @@ void screen_draw_texture_crop(u32 id, float x, float y, float width, float heigh
     if(base_alpha != 0xFF) {
         screen_set_blend(0, false, false);
     }
+
+    base_alpha = savedAlpha;
 }
 
 float screen_get_font_height(float scaleY) {
@@ -656,7 +753,10 @@ static void screen_draw_string_internal(const char* text, float x, float y, floa
         return;
     }
 
-    u32 blendColor = color;
+    x += content_dx;
+    y += content_dy;
+    wrapX += content_dx;
+    u32 blendColor = content_alpha == 0xFF ? color : (((((color >> 24) & 0xFF) * content_alpha / 0xFF) << 24) | (color & 0x00FFFFFF));
     if(base_alpha != 0xFF) {
         float alpha1 = ((blendColor >> 24) & 0xFF) / 255.0f;
         float alpha2 = base_alpha / 255.0f;
@@ -764,7 +864,10 @@ void screen_draw_text_wrap(const char* text, float x, float y, float scale, u32 
 
 // The framebuffers are portrait (240 wide): the scissor box is in their
 // rotated coordinates.
-void screen_set_clip(float x, float y, float width, float height) {
+static bool clip_on = false;
+static float clip_rect[4];
+
+static void screen_apply_clip(float x, float y, float width, float height) {
     int left = (int) x;
     int top = (int) y;
     int right = (int) (x + width);
@@ -781,8 +884,39 @@ void screen_set_clip(float x, float y, float width, float height) {
     C3D_SetScissor(GPU_SCISSOR_NORMAL, 240 - bottom, current_width - right, 240 - top, current_width - left);
 }
 
+void screen_set_clip(float x, float y, float width, float height) {
+    clip_on = true;
+    clip_rect[0] = x;
+    clip_rect[1] = y;
+    clip_rect[2] = width;
+    clip_rect[3] = height;
+    screen_apply_clip(x, y, width, height);
+}
+
 void screen_clear_clip() {
+    clip_on = false;
     C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+}
+
+void screen_clip_within(float x, float y, float width, float height) {
+    float x2 = x + width;
+    float y2 = y + height;
+    if(clip_on) {
+        if(x < clip_rect[0]) x = clip_rect[0];
+        if(y < clip_rect[1]) y = clip_rect[1];
+        if(x2 > clip_rect[0] + clip_rect[2]) x2 = clip_rect[0] + clip_rect[2];
+        if(y2 > clip_rect[1] + clip_rect[3]) y2 = clip_rect[1] + clip_rect[3];
+    }
+
+    screen_apply_clip(x, y, x2 - x, y2 - y);
+}
+
+void screen_restore_clip() {
+    if(clip_on) {
+        screen_apply_clip(clip_rect[0], clip_rect[1], clip_rect[2], clip_rect[3]);
+    } else {
+        C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+    }
 }
 
 static void screen_init_shapes() {
@@ -842,7 +976,7 @@ static u32 screen_apply_base_alpha(u32 color) {
 
 // Draws a region of a mask texture, tinted. fx/fy are fractions of the image,
 // from its top left corner.
-static void screen_draw_mask(u32 id, float x1, float y1, float x2, float y2, float fx1, float fy1, float fx2, float fy2, u32 color) {
+static void screen_draw_mask_any(u32 id, float x1, float y1, float x2, float y2, float fx1, float fy1, float fx2, float fy2, u32 color) {
     C3D_Tex* tex = &textures[id].tex;
     if(tex->data == NULL || x2 <= x1 || y2 <= y1) {
         return;
@@ -855,6 +989,13 @@ static void screen_draw_mask(u32 id, float x1, float y1, float x2, float y2, flo
     C3D_TexBind(0, tex);
     screen_draw_quad(x1, y1, x2, y2, fx1 * uScale, 1.0f - fy2 * vScale, fx2 * uScale, 1.0f - fy1 * vScale);
     screen_set_blend(0, false, false);
+}
+
+// A shape (not an icon): left out while only contents are drawn.
+static void screen_draw_mask(u32 id, float x1, float y1, float x2, float y2, float fx1, float fy1, float fx2, float fy2, u32 color) {
+    if(!shapes_hidden) {
+        screen_draw_mask_any(id, x1, y1, x2, y2, fx1, fy1, fx2, fy2, color);
+    }
 }
 
 void screen_fill_rect(float x, float y, float width, float height, u32 color) {
@@ -906,7 +1047,13 @@ void screen_draw_icon(u32 icon, float x, float y, float size, u32 color) {
     float cellH = (float) ICON_CELL / textures[shape_icons].height;
     float fx = (icon % ICON_COLUMNS) * cellW;
     float fy = (icon / ICON_COLUMNS) * cellH;
-    screen_draw_mask(shape_icons, x, y, x + size, y + size, fx, fy, fx + cellW, fy + cellH, color);
+    x += content_dx;
+    y += content_dy;
+    if(content_alpha != 0xFF) {
+        color = ((((color >> 24) & 0xFF) * content_alpha / 0xFF) << 24) | (color & 0x00FFFFFF);
+    }
+
+    screen_draw_mask_any(shape_icons, x, y, x + size, y + size, fx, fy, fx + cellW, fy + cellH, color);
 }
 
 bool screen_capture(gfxScreen_t screen, const char* path) {

@@ -53,3 +53,10 @@ key
 shield-lock
 trash-x
 building
+dots
+clipboard
+folder-plus
+copy
+pencil
+package
+folder-up

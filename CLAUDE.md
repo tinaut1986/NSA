@@ -5,8 +5,8 @@ manager. It installs as its own app (product code `CTR-P-CNSA`, unique ID `0xFB1
 next to FBI, keeps its data in `sdmc:/nsa/` and numbers its own releases from `v0.1.0`.
 
 **Start every session by reading [`docs/PLAN.md`](docs/PLAN.md)**: open branches, what
-is on the console, what comes next and the decisions taken. Work in progress lives on
-`feat/ui-themes` until the owner validates it: check it out first.
+is on the console, what comes next and the decisions taken. Work in progress lives on a
+topic branch until the owner validates it; PLAN says which.
 
 ## Language
 

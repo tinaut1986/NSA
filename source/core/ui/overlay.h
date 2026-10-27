@@ -28,7 +28,7 @@ void popover_display(const popover_def* def, void* data);
 
 // ---- Sheet: actions for one item, rising from the bottom ----
 
-#define SHEET_ACTIONS_MAX 12
+#define SHEET_ACTIONS_MAX 16
 
 typedef struct {
     u32 icon;

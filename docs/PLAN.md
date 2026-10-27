@@ -7,22 +7,27 @@ things are the way they are. Keep it current in the same change that alters it.
 
 | Branch | State |
 |---|---|
-| `release` | v0.1.0 beta (published) plus the self-update restart fix. |
-| `feat/ui-themes` | **Open, not merged.** The owner tests it on the console. Merge into `release` with `--no-ff` only when they say so. |
+| `release` | v0.1.0 beta (published), the self-update restart fix and the whole UI redesign (`feat/ui-themes`, merged with the owner's OK). No new beta tagged yet. |
 | `master` | v0.1.0 has not been promoted to stable yet. |
 
-`feat/ui-themes` holds, in order:
+The UI redesign on `release` holds:
 
 1. Themed interface: drawing primitives, Tabler icons, the "Cards" theme (day and
    night), 8 accent colours, night mode, Spanish, the new main menu and Settings,
    FTP remote control (`SITE SCREENSHOT`, `PRESS`, `TAP`).
-2. Titles redesign: rows with icons, icon grid, filter and sort popover, search,
-   actions as a list.
-3. Titles grouping and filters: updates and DLC grouped under their game (count
-   badge, "chain" list to pick one), kind and region filters, scrolling popover.
+2. Titles: rows with icons, icon grid, filter and sort popover, search, actions as
+   a list; updates and DLC grouped under their game, kind and region filters.
+3. Files: path in the title bar, tools (clipboard, filter and sort, search, folder
+   actions), icon by kind (a CIA shows its title's icon), CIA details on top, the
+   folder left selected when going up.
+4. Touch and motion for every screen: pressed look, act on release, long press with
+   a radial fill (opens an item's actions in Files and Titles), flick scrolling,
+   sheets/popovers/prompts animate in, the top card's contents cross-fade.
+5. Storage bars (`widget_storage`): Files, Titles and the main menu per entry.
+6. Stereoscopic 3D on the top screen: background, bar and cards on three depths.
 
-**On the console now:** the newest build of `feat/ui-themes` (DEBUG), installed over
-FTP. Console at `192.168.1.133`.
+**On the console now:** that build (DEBUG), installed over FTP. Console at
+`192.168.1.133`.
 
 ## What the owner asked for (the direction)
 
@@ -38,8 +43,8 @@ another list for actions. Every screen should move to the Titles pattern:
 ## Next
 
 1. **Apply the Titles pattern to the other screens**, one branch or commit each:
-   Files (SD, CTR NAND, TWL NAND/Photo/Sound), Tickets, Pending titles, Extra save
-   data, System save data, Remote install, Dump NAND. Translate each screen as it
+   Tickets, Pending titles, Extra save data, System save data, Remote install,
+   Dump NAND (Files is done). Translate each screen as it
    moves (`_()`, `source/core/i18n_es.c`); many of FBI's strings are still English.
 2. **Themes "Pixel" and "HOME"** (mockups were shown and liked):
    - HOME: a main menu of big icon tiles in pages, modals as a sheet from the

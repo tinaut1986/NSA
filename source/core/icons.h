@@ -60,5 +60,12 @@ typedef enum {
     ICON_SHIELD_LOCK,
     ICON_TRASH_X,
     ICON_BUILDING,
+    ICON_DOTS,
+    ICON_CLIPBOARD,
+    ICON_FOLDER_PLUS,
+    ICON_COPY,
+    ICON_PENCIL,
+    ICON_PACKAGE,
+    ICON_FOLDER_UP,
     ICON_COUNT
 } icon_id;

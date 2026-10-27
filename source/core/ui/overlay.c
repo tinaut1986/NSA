@@ -60,6 +60,8 @@ typedef struct {
     bool dragged;
     u16 touchStartY;
     u16 lastTouchY;
+    widget_press press;   // Index: group * POPOVER_OPTIONS_MAX + option.
+    u64 opened;           // For the card's entrance.
 } popover_data;
 
 static float popover_chip_width(popover_group* group, u32 o) {
@@ -204,9 +206,28 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
         p->touching = true;
         p->dragged = false;
         p->touchStartY = p->lastTouchY = pos.py;
+        widget_press_end(&p->press);
+        for(u32 g = 0; g < p->def.groupCount; g++) {
+            for(u32 o = 0; o < p->def.groups[g].count; o++) {
+                float x = cardX + POPOVER_PAD + p->optionX[g][o];
+                float y = contentTop + p->optionY[g][o];
+                if(widget_touched(&pos, x, y, p->optionW[g][o], POPOVER_OPTION_HEIGHT)) {
+                    widget_press_begin(&p->press, (int) (g * POPOVER_OPTIONS_MAX + o), true, pos.px, pos.py);
+                }
+            }
+        }
     } else if(p->touching && (hidKeysHeld() & KEY_TOUCH)) {
         if(abs((int) pos.py - (int) p->touchStartY) > 6) {
             p->dragged = true;
+            p->press.cancelled = true;
+        }
+
+        if(p->press.index >= 0) {
+            u32 g = (u32) p->press.index / POPOVER_OPTIONS_MAX;
+            u32 o = (u32) p->press.index % POPOVER_OPTIONS_MAX;
+            if(!widget_touched(&pos, cardX + POPOVER_PAD + p->optionX[g][o], contentTop + p->optionY[g][o], p->optionW[g][o], POPOVER_OPTION_HEIGHT)) {
+                p->press.cancelled = true;
+            }
         }
 
         if(p->dragged) {
@@ -217,19 +238,15 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
         p->lastTouchY = pos.py;
     } else if(p->touching && (hidKeysUp() & KEY_TOUCH)) {
         p->touching = false;
-        if(!p->dragged) {
-            for(u32 g = 0; g < p->def.groupCount; g++) {
-                for(u32 o = 0; o < p->def.groups[g].count; o++) {
-                    float x = cardX + POPOVER_PAD + p->optionX[g][o];
-                    float y = contentTop + p->optionY[g][o];
-                    if(widget_touched(&pos, x, y, p->optionW[g][o], POPOVER_OPTION_HEIGHT)) {
-                        p->group = g;
-                        p->option = o;
-                        p->def.select(p->data, g, o);
-                    }
-                }
-            }
+        if(widget_press_on(&p->press, p->press.index)) {
+            u32 g = (u32) p->press.index / POPOVER_OPTIONS_MAX;
+            u32 o = (u32) p->press.index % POPOVER_OPTIONS_MAX;
+            p->group = g;
+            p->option = o;
+            p->def.select(p->data, g, o);
         }
+
+        widget_press_end(&p->press);
     }
 }
 
@@ -246,11 +263,17 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
     const theme_current* t = theme();
 
     overlay_draw_parent_bottom(p->parent, x1, y1, x2, y2);
-    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->background, 0xA0));
+
+    // The card drops a little from the title bar and fades in.
+    float e = widget_ease(p->opened, 160);
+    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->background, (u32) (0xA0 * e)));
 
     float cardX, cardY, cardH;
     popover_card(p, x1, y1, x2, y2, &cardX, &cardY, &cardH);
     popover_clamp_scroll(p, cardH);
+
+    screen_set_offset(0, (e - 1) * 10);
+    screen_set_base_alpha((u8) (0x30 + e * 0xCF));
 
     screen_fill_round_rect(cardX + 1, cardY + 3, POPOVER_WIDTH, cardH, t->def->radius, THEME_ALPHA(0, 0x30));
     screen_frame_round_rect(cardX, cardY, POPOVER_WIDTH, cardH, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
@@ -299,6 +322,7 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
             }
 
             widget_text_fit(group->options[o], cx + iconW, ty, WIDGET_SMALL_SCALE, ink, w - iconW - 8);
+            widget_press_draw(&p->press, (int) (g * POPOVER_OPTIONS_MAX + o), x, y, w, POPOVER_OPTION_HEIGHT, radius, ink, false);
         }
     }
 
@@ -306,6 +330,9 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
 
     float visible = cardH - 2 * POPOVER_PAD;
     widget_scrollbar(cardX + POPOVER_WIDTH - POPOVER_PAD / 2 - WIDGET_SCROLLBAR_WIDTH, cardY + POPOVER_PAD, visible, p->scroll, visible, p->contentHeight);
+
+    screen_set_offset(0, 0);
+    screen_set_base_alpha(0xFF);
 }
 
 void popover_display(const popover_def* def, void* data) {
@@ -316,6 +343,8 @@ void popover_display(const popover_def* def, void* data) {
     }
 
     p->parent = ui_top();
+    p->press.index = -1;
+    p->opened = osGetTime();
     p->def = *def;
     p->data = data;
     popover_layout(p);
@@ -350,7 +379,11 @@ typedef struct {
     u32 count;
     void* data;
     u32 selected;
-    int pressed;   // Touched action, run on release.
+    widget_press press;   // Touched action, run on release over it.
+    bool dragged;         // The touch turned into a scroll (list).
+    u16 touchStartY;
+    u16 lastTouchY;
+    u64 opened;           // For the slide up.
     bool list;     // One row per action instead of a grid of buttons.
     float scroll;  // List only, when the rows do not all fit.
 } sheet_data;
@@ -439,6 +472,7 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
     }
 
     u32 cols = sheet_columns(s);
+    u32 last = s->selected;
     if((down & KEY_RIGHT) && cols > 1) {
         s->selected = (s->selected + 1) % s->count;
     } else if((down & KEY_LEFT) && cols > 1) {
@@ -457,14 +491,18 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
         return;
     }
 
-    sheet_reveal(s);
+    if(s->selected != last) {
+        sheet_reveal(s);
+    }
 
     touchPosition pos;
     hidTouchRead(&pos);
     float top = by2 - sheet_height(s);
     float listTop = top + SHEET_PAD + SHEET_HEADER_OF(s);
     if(down & KEY_TOUCH) {
-        s->pressed = -1;
+        widget_press_end(&s->press);
+        s->dragged = false;
+        s->lastTouchY = pos.py;
         if(pos.py < top) {
             sheet_close(view, s);
             return;
@@ -475,11 +513,39 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
             sheet_button_rect(s, i, bx1, bx2, top, &x, &y, &w);
             if(pos.py >= listTop && widget_touched(&pos, x, y, w, sheet_button_height(s))) {
                 s->selected = i;
-                s->pressed = (int) i;
+                widget_press_begin(&s->press, (int) i, true, pos.px, pos.py);
             }
         }
-    } else if((hidKeysUp() & KEY_TOUCH) && s->pressed >= 0) {
-        sheet_run(view, s, (u32) s->pressed);
+
+        s->touchStartY = pos.py;
+    } else if(hidKeysHeld() & KEY_TOUCH) {
+        // A list scrolls under the finger; moving off an action cancels it.
+        if(s->list && sheet_content_height(s) > sheet_room(s) && (s->dragged || abs((int) pos.py - (int) s->touchStartY) > 6)) {
+            s->dragged = true;
+            s->press.cancelled = true;
+            s->scroll -= (int) pos.py - (int) s->lastTouchY;
+            float max = sheet_content_height(s) - sheet_visible_height(s);
+            if(s->scroll > max) s->scroll = max;
+            if(s->scroll < 0) s->scroll = 0;
+        }
+
+        if(s->press.index >= 0) {
+            float x, y, w;
+            sheet_button_rect(s, (u32) s->press.index, bx1, bx2, top, &x, &y, &w);
+            if(!widget_touched(&pos, x, y, w, sheet_button_height(s))) {
+                s->press.cancelled = true;
+            }
+        }
+
+        s->lastTouchY = pos.py;
+    } else if(hidKeysUp() & KEY_TOUCH) {
+        int index = s->press.index;
+        bool run = widget_press_on(&s->press, index);
+        widget_press_end(&s->press);
+        if(run) {
+            sheet_run(view, s, (u32) index);
+            return;
+        }
     }
 }
 
@@ -496,7 +562,12 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
     const theme_current* t = theme();
 
     overlay_draw_parent_bottom(s->parent, x1, y1, x2, y2);
-    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, t->palette->scrim);
+
+    // The scrim darkens in while the sheet slides up from the bottom.
+    float e = widget_ease(s->opened, 200);
+    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->scrim, (u32) (((t->palette->scrim >> 24) & 0xFF) * e)));
+    float slide = (1 - e) * (sheet_height(s) + WIDGET_HINT_BAR_HEIGHT);
+    screen_set_offset(0, slide);
 
     // The sheet runs into the hint bar: only its top corners are round.
     float top = y2 - sheet_height(s);
@@ -518,7 +589,7 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
 
     float listTop = top + SHEET_PAD + SHEET_HEADER_OF(s);
     if(s->list) {
-        screen_set_clip(x1, listTop - 2, x2 - x1, sheet_visible_height(s) + 4);
+        screen_set_clip(x1, listTop - 2 + slide, x2 - x1, sheet_visible_height(s) + 4);
     }
 
     for(u32 i = 0; i < s->count; i++) {
@@ -542,6 +613,7 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
             screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
             screen_draw_icon(a->icon, x + 9, y + (h - 16) / 2, 16, ink);
             widget_text_fit(a->label, x + 31, y + (h - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, ink, w - 40);
+            widget_press_draw(&s->press, (int) i, x, y, w, h, t->def->radiusSmall, ink, false);
             continue;
         }
 
@@ -551,6 +623,7 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
         u32 edge = focused ? t->accent : a->danger ? t->palette->danger : t->palette->border;
 
         screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, focused ? 2 : t->def->border, edge, fill);
+        widget_press_draw(&s->press, (int) i, x, y, w, h, t->def->radiusSmall, ink, false);
 
         // A label too wide for the button goes on two lines, split at the
         // space closest to its middle.
@@ -590,6 +663,8 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
         screen_clear_clip();
         widget_scrollbar(x2 - SHEET_PAD - WIDGET_SCROLLBAR_WIDTH, listTop, sheet_visible_height(s), s->scroll, sheet_visible_height(s), sheet_content_height(s));
     }
+
+    screen_set_offset(0, 0);
 }
 
 static void sheet_open(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data, bool list) {
@@ -609,7 +684,8 @@ static void sheet_open(const char* title, u32 texture, const sheet_action* actio
     s->count = count < SHEET_ACTIONS_MAX ? count : SHEET_ACTIONS_MAX;
     memcpy(s->actions, actions, s->count * sizeof(sheet_action));
     s->data = data;
-    s->pressed = -1;
+    s->press.index = -1;
+    s->opened = osGetTime();
     s->list = list;
 
     ui_view* view = ui_create();

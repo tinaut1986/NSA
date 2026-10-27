@@ -191,19 +191,45 @@ static void ui_draw_top_bar() {
     }
 }
 
-static void ui_draw_top(ui_view* ui) {
-    screen_select(GFX_TOP);
+// Pixels each eye moves per unit of depth with the 3D slider all the way up.
+#define UI_STEREO_SHIFT 1.6f
+
+// The top screen's layers in 3D: the background on the screen's plane, the
+// bar a little in front and the view's content (cards) in front of it.
+#define UI_DEPTH_BAR 1.0f
+#define UI_DEPTH_CONTENT 2.0f
+
+static void ui_draw_top_eye(ui_view* ui, gfx3dSide_t side, float shift) {
+    screen_select_eye(GFX_TOP, side, shift);
     widget_background(TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT);
 
     screen_set_base_alpha(ui_fade_alpha);
 
     if(ui->drawTop != NULL) {
+        screen_set_depth(UI_DEPTH_CONTENT);
         ui->drawTop(ui, ui->data, 0, WIDGET_TOP_BAR_HEIGHT, TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT);
     }
 
+    screen_set_offset(0, 0);
+    screen_set_depth(UI_DEPTH_BAR);
     ui_draw_top_bar();
+    screen_set_depth(0);
 
     screen_set_base_alpha(0xFF);
+}
+
+static void ui_draw_top(ui_view* ui) {
+    // In front of the screen: the left eye sees things moved right.
+    float slider = osGet3DSliderState();
+    bool stereo = slider > 0.01f;
+    if(stereo != gfxIs3D()) {
+        gfxSet3D(stereo);
+    }
+
+    ui_draw_top_eye(ui, GFX_LEFT, stereo ? slider * UI_STEREO_SHIFT : 0);
+    if(stereo) {
+        ui_draw_top_eye(ui, GFX_RIGHT, -slider * UI_STEREO_SHIFT);
+    }
 }
 
 void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* out, size_t size, float* progress)) {

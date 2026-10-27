@@ -46,5 +46,13 @@ void list_set_filter(ui_view* view, bool (*visible)(void* data, list_item* item)
 // Shows only items whose name contains `text` (case-insensitive); "" for all.
 void list_set_search(ui_view* view, const char* text);
 const char* list_get_search(ui_view* view);
+// Selects an item and scrolls it into view.
+void list_select(ui_view* view, list_item* item);
 // Items shown after the search filter.
 u32 list_visible_count(ui_view* view);
+
+// A long hold on an item (touch, or A) runs `longPress` with it, after a fill
+// that grows from where it was pressed. With it set, A acts on release: the
+// update callback gets selectedTouched for a short A as for a tap, and should
+// not read KEY_A itself.
+void list_set_long_press(ui_view* view, void (*longPress)(ui_view* view, void* data, linked_list* items, list_item* item));

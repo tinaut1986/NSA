@@ -46,3 +46,51 @@ void widget_toast(const char* text, float progress, float bottom);
 void widget_modal(float screenWidth, float screenHeight, float width, float height, float* x, float* y);
 
 bool widget_touched(const touchPosition* pos, float x, float y, float width, float height);
+
+// ---- presses ----
+
+// A finger (or a button) held on a target: it looks pressed while held, acts
+// on release over it, and a long hold fills it in a circle from where it was
+// pressed until the long press is due.
+#define WIDGET_LONG_PRESS_DELAY 150   // ms before the fill shows (a tap never sees it).
+#define WIDGET_LONG_PRESS_TIME 650    // ms until the long press.
+
+typedef struct {
+    int index;         // The target held, or -1.
+    bool touch;        // By touch; else by a button.
+    bool cancelled;    // Moved off or dragged: nothing on release.
+    bool fired;        // The long press has run.
+    float x, y;        // Where the fill grows from.
+    u64 start;
+} widget_press;
+
+void widget_press_begin(widget_press* p, int index, bool touch, float x, float y);
+void widget_press_end(widget_press* p);
+// True for the target held and not cancelled.
+bool widget_press_on(const widget_press* p, int index);
+// 0..1 towards the long press.
+float widget_press_progress(const widget_press* p);
+// True once, when a long press becomes due.
+bool widget_press_long_due(widget_press* p);
+// The pressed look over a target drawn at x, y, w, h with corner `radius`;
+// `ink` is the colour of what is on it (text). `fill` draws the long press fill.
+void widget_press_draw(const widget_press* p, int index, float x, float y, float width, float height, float radius, u32 ink, bool fill);
+
+// ---- motion ----
+
+// 0..1 from `start` over `duration` ms, easing out (fast, then settling).
+float widget_ease(u64 start, u32 duration);
+
+#define WIDGET_CROSSFADE_TIME 220
+#define WIDGET_CROSSFADE_DISTANCE 8
+
+// A card's contents changing (`progress` 0..1): `draw` runs for what arrives
+// (leaving false) and, while `hasLeaving`, for what leaves (true).
+void widget_crossfade(float progress, void (*draw)(void* context, bool leaving), void* context, bool hasLeaving);
+
+// ---- storage ----
+
+// One line with the medium's name and "X free of Y" over a bar of how full it
+// is, `width` wide (about 22 px tall). The space is looked up every couple of
+// seconds. Not drawn when it cannot be read.
+void widget_storage(FS_SystemMediaType media, float x, float y, float width);

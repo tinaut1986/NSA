@@ -1,9 +1,12 @@
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
 #include <3ds.h>
 
+#include "ui.h"
 #include "widgets.h"
+#include "../i18n.h"
 #include "../icons.h"
 #include "../screen.h"
 #include "../theme.h"
@@ -211,4 +214,180 @@ void widget_modal(float screenWidth, float screenHeight, float width, float heig
 
 bool widget_touched(const touchPosition* pos, float x, float y, float width, float height) {
     return pos->px >= x && pos->px < x + width && pos->py >= y && pos->py < y + height;
+}
+
+// ---- presses ----
+
+void widget_press_begin(widget_press* p, int index, bool touch, float x, float y) {
+    p->index = index;
+    p->touch = touch;
+    p->cancelled = false;
+    p->fired = false;
+    p->x = x;
+    p->y = y;
+    p->start = osGetTime();
+}
+
+void widget_press_end(widget_press* p) {
+    p->index = -1;
+    p->cancelled = false;
+    p->fired = false;
+}
+
+bool widget_press_on(const widget_press* p, int index) {
+    return p->index >= 0 && p->index == index && !p->cancelled && !p->fired;
+}
+
+float widget_press_progress(const widget_press* p) {
+    if(p->index < 0 || p->cancelled) {
+        return 0;
+    }
+
+    u64 held = osGetTime() - p->start;
+    if(held <= WIDGET_LONG_PRESS_DELAY) {
+        return 0;
+    }
+
+    float progress = (float) (held - WIDGET_LONG_PRESS_DELAY) / (WIDGET_LONG_PRESS_TIME - WIDGET_LONG_PRESS_DELAY);
+    return progress > 1 ? 1 : progress;
+}
+
+bool widget_press_long_due(widget_press* p) {
+    if(p->index < 0 || p->cancelled || p->fired || widget_press_progress(p) < 1) {
+        return false;
+    }
+
+    p->fired = true;
+    return true;
+}
+
+void widget_press_draw(const widget_press* p, int index, float x, float y, float width, float height, float radius, u32 ink, bool fill) {
+    if(!widget_press_on(p, index)) {
+        return;
+    }
+
+    screen_fill_round_rect(x, y, width, height, radius, THEME_ALPHA(ink, 0x22));
+
+    float progress = fill ? widget_press_progress(p) : 0;
+    if(progress <= 0) {
+        return;
+    }
+
+    // Out to the farthest corner, easing out.
+    float dx = p->x - x > x + width - p->x ? p->x - x : x + width - p->x;
+    float dy = p->y - y > y + height - p->y ? p->y - y : y + height - p->y;
+    float reach = sqrtf(dx * dx + dy * dy);
+    float eased = 1 - (1 - progress) * (1 - progress);
+
+    screen_clip_within(x, y, width, height);
+    screen_fill_circle(p->x, p->y, reach * eased, THEME_ALPHA(ink, 0x38));
+    screen_restore_clip();
+}
+
+// ---- motion ----
+
+float widget_ease(u64 start, u32 duration) {
+    u64 now = osGetTime();
+    if(now >= start + duration) {
+        return 1;
+    }
+
+    float t = (float) (now - start) / duration;
+    return 1 - (1 - t) * (1 - t) * (1 - t);
+}
+
+// ---- storage ----
+
+#define STORAGE_MEDIA 4
+
+static struct {
+    bool known;
+    u64 free;
+    u64 total;
+    u64 time;
+} storage_cache[STORAGE_MEDIA];
+
+static void widget_size_text(char* out, size_t size, u64 bytes) {
+    snprintf(out, size, "%.1f %s", ui_get_display_size(bytes), ui_get_display_size_units(bytes));
+}
+
+void widget_storage(FS_SystemMediaType media, float x, float y, float width) {
+    // Drawn once, not again with a card's leaving contents.
+    if((u32) media >= STORAGE_MEDIA || screen_get_shapes_hidden()) {
+        return;
+    }
+
+    // Installs and deletes change it: look again every couple of seconds.
+    if(!storage_cache[media].known || osGetTime() >= storage_cache[media].time + 2000) {
+        FS_ArchiveResource resource = {0};
+        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, media))) {
+            storage_cache[media].free = (u64) resource.freeClusters * resource.clusterSize;
+            storage_cache[media].total = (u64) resource.totalClusters * resource.clusterSize;
+            storage_cache[media].known = true;
+        }
+
+        storage_cache[media].time = osGetTime();
+    }
+
+    if(!storage_cache[media].known || storage_cache[media].total == 0) {
+        return;
+    }
+
+    const char* name = media == SYSTEM_MEDIATYPE_SD ? _("SD card") : media == SYSTEM_MEDIATYPE_CTR_NAND ? "CTR NAND" : media == SYSTEM_MEDIATYPE_TWL_NAND ? "TWL NAND" : "TWL Photo";
+    u32 icon = media == SYSTEM_MEDIATYPE_SD ? ICON_DEVICE_SD_CARD : media == SYSTEM_MEDIATYPE_TWL_PHOTO ? ICON_PHOTO : ICON_CPU;
+
+    char freeText[32];
+    char totalText[32];
+    char text[96];
+    widget_size_text(freeText, sizeof(freeText), storage_cache[media].free);
+    widget_size_text(totalText, sizeof(totalText), storage_cache[media].total);
+    snprintf(text, sizeof(text), _("%s free of %s"), freeText, totalText);
+
+    // Not part of what changes with a selection: it stays still.
+    float motionX;
+    float motionY;
+    u8 alpha;
+    screen_get_content_motion(&motionX, &motionY, &alpha);
+    screen_set_content_motion(0, 0, 0xFF);
+
+    // Narrow: "X / Y", or only what is free.
+    float room = width - 17 - widget_text_width(name, WIDGET_SMALL_SCALE) - 8;
+    if(widget_text_width(text, WIDGET_SMALL_SCALE) > room) {
+        snprintf(text, sizeof(text), "%s / %s", freeText, totalText);
+        if(widget_text_width(text, WIDGET_SMALL_SCALE) > room) {
+            snprintf(text, sizeof(text), "%s", freeText);
+        }
+    }
+
+    const theme_current* t = theme();
+    screen_draw_icon(icon, x, y - 1, 13, t->palette->textMuted);
+    screen_draw_text(name, x + 17, y, WIDGET_SMALL_SCALE, t->palette->text);
+    float textW = widget_text_width(text, WIDGET_SMALL_SCALE);
+    screen_draw_text(text, x + width - textW, y, WIDGET_SMALL_SCALE, t->palette->textMuted);
+
+    float used = 1 - (float) storage_cache[media].free / storage_cache[media].total;
+    widget_progress(x, y + widget_text_height(WIDGET_SMALL_SCALE) + 3, width, 5, used);
+
+    screen_set_content_motion(motionX, motionY, alpha);
+}
+
+void widget_crossfade(float progress, void (*draw)(void* context, bool leaving), void* context, bool hasLeaving) {
+    if(progress >= 1) {
+        draw(context, false);
+        return;
+    }
+
+    // What arrives drops in from a little above; what leaves sinks a little
+    // and fades, without its boxes (they are the same ones).
+    screen_set_content_motion(0, -(1 - progress) * WIDGET_CROSSFADE_DISTANCE, (u8) (progress * 0xFF));
+    draw(context, false);
+
+    if(hasLeaving) {
+        screen_set_shapes_hidden(true);
+        screen_set_content_motion(0, progress * WIDGET_CROSSFADE_DISTANCE, (u8) ((1 - progress) * 0xFF));
+        draw(context, true);
+        screen_set_shapes_hidden(false);
+    }
+
+    screen_set_content_motion(0, 0, 0xFF);
 }

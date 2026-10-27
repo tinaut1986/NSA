@@ -36,7 +36,7 @@ typedef struct {
 
     bool touching;
     bool dragged;
-    int touchIndex;
+    widget_press press;
     u16 touchStartY;
     u16 lastTouchY;
 } settingsmenu_data;
@@ -227,16 +227,18 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         menu->touching = true;
         menu->dragged = false;
         menu->touchStartY = menu->lastTouchY = pos.py;
-        menu->touchIndex = -1;
+        widget_press_end(&menu->press);
         if(pos.py >= by1 + PAD && pos.py < by2 - PAD) {
-            u32 index = (u32) ((pos.py - by1 - PAD + menu->scroll) / ROW_PITCH);
-            if(index < OPTION_COUNT) {
-                menu->touchIndex = (int) index;
+            float offset = pos.py - by1 - PAD + menu->scroll;
+            u32 index = (u32) (offset / ROW_PITCH);
+            if(index < OPTION_COUNT && offset - index * ROW_PITCH < WIDGET_ROW_HEIGHT) {
+                widget_press_begin(&menu->press, (int) index, true, pos.px, pos.py);
             }
         }
     } else if(menu->touching && (hidKeysHeld() & KEY_TOUCH)) {
         if(abs((int) pos.py - (int) menu->touchStartY) > 6) {
             menu->dragged = true;
+            menu->press.cancelled = true;
         }
 
         if(menu->dragged) {
@@ -247,11 +249,14 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         menu->lastTouchY = pos.py;
     } else if(menu->touching && (hidKeysUp() & KEY_TOUCH)) {
         menu->touching = false;
-        if(!menu->dragged && menu->touchIndex >= 0) {
-            if((u32) menu->touchIndex == menu->selected) {
+        int index = menu->press.index;
+        bool released = widget_press_on(&menu->press, index);
+        widget_press_end(&menu->press);
+        if(released) {
+            if((u32) index == menu->selected) {
                 settingsmenu_change((settings_option) menu->selected, 0);
             } else {
-                menu->selected = (u32) menu->touchIndex;
+                menu->selected = (u32) index;
             }
         }
     }
@@ -363,6 +368,7 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
 
         settings_option option = (settings_option) i;
         widget_row(rowX, y, rowW, WIDGET_ROW_HEIGHT, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, settingsmenu_value(option), i == menu->selected);
+        widget_press_draw(&menu->press, (int) i, rowX, y, rowW, WIDGET_ROW_HEIGHT, theme()->def->radiusSmall, i == menu->selected ? theme()->onAccent : theme()->palette->text, false);
     }
     screen_clear_clip();
 
@@ -375,6 +381,8 @@ void settingsmenu_open() {
         error_display(NULL, NULL, "Failed to allocate settings data.");
         return;
     }
+
+    data->press.index = -1;
 
     ui_view* view = ui_create();
     view->name = _("Settings");

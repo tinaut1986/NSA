@@ -311,8 +311,12 @@ static void titles_draw_details(linked_list* items, list_item* selected, float x
     float cardH = 76;
     widget_card(cardX, cardY, cardW, cardH);
 
+    // In 3D the icon stands a little in front of its card.
     float icon = 56;
+    float cardDepth = screen_get_depth();
+    screen_set_depth(cardDepth + 1);
     titles_draw_icon(info, cardX + 10, cardY + (cardH - icon) / 2, icon);
+    screen_set_depth(cardDepth);
 
     const char* media = titles_media_name(info->mediaType);
     float badgeW = widget_text_width(media, WIDGET_SMALL_SCALE) + 12;
@@ -356,7 +360,11 @@ static void titles_draw_details(linked_list* items, list_item* selected, float x
     titles_draw_cell(cardX + cellW + gap, row2, cellW, _("Region"), region);
     titles_draw_cell(cardX + 2 * (cellW + gap), row2, cellW, _("Type"), titles_kind_name(title_kind_of(info->titleId)));
 
-    titles_draw_linked(items, info, cardX + 2, row2 + 34 + 10, cardX + cardW);
+    // Left: what hangs from the game; right: the space left on each medium.
+    float half = cardW / 2;
+    titles_draw_linked(items, info, cardX + 2, row2 + 34 + 10, cardX + half - 6);
+    widget_storage(SYSTEM_MEDIATYPE_SD, cardX + half + 6, row2 + 34 + 5, half - 6);
+    widget_storage(SYSTEM_MEDIATYPE_CTR_NAND, cardX + half + 6, row2 + 34 + 29, half - 6);
 }
 
 // ---- actions ----
@@ -706,7 +714,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         listData->populateData.result = 0;
     }
 
-    if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+    if(selected != NULL && selected->data != NULL && selectedTouched) {
         // Grouped, a game with an update or DLC opens its chain to pick one.
         if(listData->group && ((title_info*) selected->data)->linkedCount > 0) {
             titles_chain_open(listData, items, selected);
@@ -715,6 +723,13 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         }
 
         return;
+    }
+}
+
+// A long hold: the title's own actions, even for a game with its chain.
+static void titles_long_press(ui_view* view, void* data, linked_list* items, list_item* item) {
+    if(item->data != NULL) {
+        titles_actions_open((titles_data*) data, items, item);
     }
 }
 
@@ -814,6 +829,7 @@ void titles_open() {
     };
     list_set_style(view, &style);
     list_set_filter(view, titles_visible);
+    list_set_long_press(view, titles_long_press);
 
     // Right to left.
     list_add_tool(view, ICON_SEARCH, titles_search_active, titles_search_open);

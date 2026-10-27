@@ -114,6 +114,19 @@ int transfer_link_recv_some(transfer_link* link, void* buf, size_t len) {
     return errno == EAGAIN || errno == EWOULDBLOCK ? -1 : -2;
 }
 
+void transfer_link_wait_closed(transfer_link* link, u32 ms) {
+    u64 begin = osGetTime();
+    while(osGetTime() - begin < ms) {
+        u8 byte;
+        int n = transfer_link_recv_some(link, &byte, 1);
+        if(n == 0 || n == -2) {
+            return;
+        }
+
+        svcSleepThread(20000000);
+    }
+}
+
 void transfer_link_close(transfer_link* link) {
     if(link->uds != NULL) {
         udslink_close(link->uds);

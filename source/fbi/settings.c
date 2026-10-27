@@ -16,7 +16,10 @@ static settings_data settings = {
         .theme = 0,
         .accent = 0,
         .night = THEME_NIGHT_OFF,
-        .language = LANGUAGE_SYSTEM
+        .language = LANGUAGE_SYSTEM,
+        .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false},
+        .files = {.directories = true, .files = true, .cias = true, .tickets = true, .hidden = false, .sort = 0},
+        .extsave = {.sd = true, .nand = true, .byId = false}
 };
 
 static const char* night_ids[] = {"off", "on", "auto"};
@@ -30,6 +33,21 @@ static u32 settings_find(const char** ids, u32 count, const char* id) {
     }
 
     return 0;
+}
+
+static bool settings_get_bool(json_t* object, const char* key, bool fallback) {
+    json_t* value = json_object_get(object, key);
+    return json_is_boolean(value) ? json_is_true(value) : fallback;
+}
+
+static u32 settings_get_uint(json_t* object, const char* key, u32 fallback, u32 max) {
+    json_t* value = json_object_get(object, key);
+    if(!json_is_integer(value)) {
+        return fallback;
+    }
+
+    json_int_t number = json_integer_value(value);
+    return number >= 0 && number <= (json_int_t) max ? (u32) number : fallback;
 }
 
 void settings_load() {
@@ -75,6 +93,33 @@ void settings_load() {
         settings.language = (language_id) settings_find(language_ids, LANGUAGE_COUNT, json_string_value(language));
     }
 
+    json_t* titles = json_object_get(json, "titles");
+    if(json_is_object(titles)) {
+        settings.titles.media = settings_get_uint(titles, "media", settings.titles.media, 7);
+        settings.titles.kinds = settings_get_uint(titles, "kinds", settings.titles.kinds, 0x3F);
+        settings.titles.regions = settings_get_uint(titles, "regions", settings.titles.regions, 0x1F);
+        settings.titles.group = settings_get_bool(titles, "group", settings.titles.group);
+        settings.titles.sort = settings_get_uint(titles, "sort", settings.titles.sort, 2);
+        settings.titles.grid = settings_get_bool(titles, "grid", settings.titles.grid);
+    }
+
+    json_t* files = json_object_get(json, "files");
+    if(json_is_object(files)) {
+        settings.files.directories = settings_get_bool(files, "directories", settings.files.directories);
+        settings.files.files = settings_get_bool(files, "files", settings.files.files);
+        settings.files.cias = settings_get_bool(files, "cias", settings.files.cias);
+        settings.files.tickets = settings_get_bool(files, "tickets", settings.files.tickets);
+        settings.files.hidden = settings_get_bool(files, "hidden", settings.files.hidden);
+        settings.files.sort = settings_get_uint(files, "sort", settings.files.sort, 2);
+    }
+
+    json_t* extsave = json_object_get(json, "extsave");
+    if(json_is_object(extsave)) {
+        settings.extsave.sd = settings_get_bool(extsave, "sd", settings.extsave.sd);
+        settings.extsave.nand = settings_get_bool(extsave, "nand", settings.extsave.nand);
+        settings.extsave.byId = settings_get_bool(extsave, "by_id", settings.extsave.byId);
+    }
+
     json_decref(json);
 }
 
@@ -96,14 +141,32 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
                              "theme", theme_get(settings.theme)->id,
                              "accent", theme_accent_get(settings.accent)->id,
                              "night_mode", night_ids[settings.night < 3 ? settings.night : 0],
-                             "language", language_ids[settings.language < LANGUAGE_COUNT ? settings.language : 0]);
+                             "language", language_ids[settings.language < LANGUAGE_COUNT ? settings.language : 0],
+                             "titles",
+                             "media", (int) settings.titles.media,
+                             "kinds", (int) settings.titles.kinds,
+                             "regions", (int) settings.titles.regions,
+                             "group", settings.titles.group,
+                             "sort", (int) settings.titles.sort,
+                             "grid", settings.titles.grid,
+                             "files",
+                             "directories", settings.files.directories,
+                             "files", settings.files.files,
+                             "cias", settings.files.cias,
+                             "tickets", settings.files.tickets,
+                             "hidden", settings.files.hidden,
+                             "sort", (int) settings.files.sort,
+                             "extsave",
+                             "sd", settings.extsave.sd,
+                             "nand", settings.extsave.nand,
+                             "by_id", settings.extsave.byId);
     if(json == NULL) {
         return R_APP_OUT_OF_MEMORY;
     }

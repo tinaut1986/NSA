@@ -284,22 +284,30 @@ static void task_populate_titles_thread(void* arg) {
         }
     }
 
-    // Then each title's details, in list order.
-    for(u32 i = 0; R_SUCCEEDED(res) && i < linked_list_size(data->items); i++) {
-        svcWaitSynchronization(task_get_pause_event(), U64_MAX);
-        if(task_is_quit_all() || svcWaitSynchronization(data->cancelEvent, 0) == 0) {
-            break;
-        }
+    // Then each title's details. The UI sorts the list as they come, which
+    // moves items between passes: go over it again until none is missing.
+    bool missing = true;
+    bool quit = false;
+    while(R_SUCCEEDED(res) && missing && !quit) {
+        missing = false;
+        for(u32 i = 0; i < linked_list_size(data->items); i++) {
+            svcWaitSynchronization(task_get_pause_event(), U64_MAX);
+            if(task_is_quit_all() || svcWaitSynchronization(data->cancelEvent, 0) == 0) {
+                quit = true;
+                break;
+            }
 
-        list_item* item = (list_item*) linked_list_get(data->items, i);
-        if(item == NULL || ((title_info*) item->data)->loaded) {
-            continue;
-        }
+            list_item* item = (list_item*) linked_list_get(data->items, i);
+            if(item == NULL || ((title_info*) item->data)->loaded) {
+                continue;
+            }
 
-        if(((title_info*) item->data)->twl) {
-            task_populate_titles_load_twl(item);
-        } else {
-            task_populate_titles_load_ctr(item);
+            missing = true;
+            if(((title_info*) item->data)->twl) {
+                task_populate_titles_load_twl(item);
+            } else {
+                task_populate_titles_load_ctr(item);
+            }
         }
     }
 

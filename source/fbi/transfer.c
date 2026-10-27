@@ -46,6 +46,9 @@
 // How long a search on the Wi-Fi may find nobody before looking nearby.
 #define TRANSFER_NEARBY_AFTER 7000
 
+// How long the Receive screen waits on the Wi-Fi before it suggests the other way.
+#define TRANSFER_RECEIVE_HINT_AFTER 15000
+
 #define TRANSFER_PROBE_INTERVAL 2000
 #define TRANSFER_HELLO_TIMEOUT 5000
 
@@ -203,6 +206,8 @@ typedef struct {
     bool udsMode;             // Looking over the local wireless instead of the Wi-Fi.
     bool autoDone;            // Tests: the first console found has been sent to.
     bool hintShown;           // The "look nearby" row is in the list.
+    bool toggleRequested;     // The tool (or X) asked to change between the Wi-Fi and nearby.
+    bool waitingWifi;         // Left the local wireless: the Wi-Fi is coming back.
     char udsNames[UDSLINK_PEERS_MAX][UDSLINK_NAME_MAX + 1];
     u32 udsCount;
     struct in_addr known[8];   // Consoles listed in /nsa/peers.txt, asked directly.
@@ -748,6 +753,10 @@ static void transfer_send_list_draw_top(ui_view* view, void* data, float x1, flo
 
     char line[FILE_NAME_MAX + 48];
     snprintf(line, sizeof(line), "%s  (%s)", sendData->name, size);
+    if(sendData->waitingWifi) {
+        snprintf(line, sizeof(line), "%s", _("Waiting for the Wi-Fi..."));
+    }
+
     transfer_draw_card(x1, y1, x2, y2, ICON_WIFI, _("Send to another 3DS"), line);
 }
 
@@ -822,6 +831,19 @@ static void transfer_send_sync_nearby(transfer_send_data* data, linked_list* ite
     }
 }
 
+static bool transfer_send_open_udp(transfer_send_data* data);
+
+static void transfer_send_clear_items(transfer_send_data* data, linked_list* items) {
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        free(item->data);
+        free(item);
+        linked_list_iter_remove(&iter);
+    }
+}
+
 static void transfer_send_remove_hint(transfer_send_data* data, linked_list* items) {
     if(!data->hintShown) {
         return;
@@ -865,6 +887,43 @@ static void transfer_send_list_update(ui_view* view, void* data, linked_list* it
 
     if(hidKeysDown() & KEY_B) {
         transfer_send_list_exit(view, sendData, items);
+        return;
+    }
+
+    if(hidKeysDown() & KEY_X) {
+        sendData->toggleRequested = true;
+    }
+
+    if(sendData->toggleRequested && !sendData->waitingWifi) {
+        sendData->toggleRequested = false;
+        transfer_send_remove_hint(sendData, items);
+        transfer_send_clear_items(sendData, items);
+        sendData->udsCount = 0;
+
+        if(sendData->udsMode) {
+            // Back to the Wi-Fi: the sockets wait until it is there.
+            udslink_scan_stop();
+            udslink_leave();
+            sendData->udsMode = false;
+            sendData->waitingWifi = true;
+        } else if(udslink_enter()) {
+            transfer_close(&sendData->udp);
+            sendData->udsMode = true;
+            udslink_scan_start();
+        }
+
+        sendData->openedAt = osGetTime();
+        return;
+    }
+
+    sendData->toggleRequested = false;
+
+    if(sendData->waitingWifi) {
+        if(udslink_wifi_connected() && transfer_send_open_udp(sendData)) {
+            sendData->waitingWifi = false;
+            sendData->openedAt = osGetTime();
+        }
+
         return;
     }
 
@@ -913,6 +972,29 @@ static void transfer_send_list_update(ui_view* view, void* data, linked_list* it
     }
 }
 
+// The socket that asks the Wi-Fi who is receiving. False (the reason shown) when it can not.
+static bool transfer_send_open_udp(transfer_send_data* data) {
+    data->udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if(data->udp < 0) {
+        error_display_errno(NULL, NULL, errno, "Failed to open socket.");
+        return false;
+    }
+
+    int yes = 1;
+    setsockopt(data->udp, SOL_SOCKET, SO_BROADCAST, &yes, sizeof(yes));
+    transfer_set_nonblocking(data->udp);
+    transfer_send_load_known(data);
+    return true;
+}
+
+static bool transfer_send_tool_active(ui_view* view, void* data) {
+    return ((transfer_send_data*) data)->udsMode;
+}
+
+static void transfer_send_tool_press(ui_view* view, void* data) {
+    ((transfer_send_data*) data)->toggleRequested = true;
+}
+
 static void transfer_send_begin(FS_Archive archive, const char* path, const char* name, u64 size, export_cia_data* stream) {
     if(size == 0) {
         prompt_display_notify("Failure", "The file is empty.", COLOR_TEXT, NULL, NULL, NULL);
@@ -947,10 +1029,7 @@ static void transfer_send_begin(FS_Archive archive, const char* path, const char
         data->udsMode = true;
         udslink_scan_start();
     } else {
-        data->udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-        if(data->udp < 0) {
-            error_display_errno(NULL, NULL, errno, "Failed to open socket.");
-
+        if(!transfer_send_open_udp(data)) {
             if(stream != NULL) {
                 action_export_cia_stream_free(stream);
             }
@@ -958,14 +1037,9 @@ static void transfer_send_begin(FS_Archive archive, const char* path, const char
             free(data);
             return;
         }
-
-        int yes = 1;
-        setsockopt(data->udp, SOL_SOCKET, SO_BROADCAST, &yes, sizeof(yes));
-        transfer_set_nonblocking(data->udp);
-        transfer_send_load_known(data);
     }
 
-    ui_view* view = list_display("Send to...", " send    back", data, transfer_send_list_update, transfer_send_list_draw_top);
+    ui_view* view = list_display("Send to...", "\uE000 send   \uE002 nearby / Wi-Fi   \uE001 back", data, transfer_send_list_update, transfer_send_list_draw_top);
     if(view == NULL) {
         transfer_close(&data->udp);
         if(data->udsMode) {
@@ -986,6 +1060,7 @@ static void transfer_send_begin(FS_Archive archive, const char* path, const char
     };
     list_set_style(view, &style);
     list_show_title_bar(view);
+    list_add_tool(view, ICON_WIFI_OFF, transfer_send_tool_active, transfer_send_tool_press);
 }
 
 void transfer_send_file(FS_Archive archive, const char* path, const char* name, u64 size) {
@@ -1010,6 +1085,8 @@ typedef struct {
     int tcp;
     transfer_link client;
     bool uds;                // Waiting over the local wireless (the Wi-Fi is off).
+    bool waitingWifi;        // Left the local wireless: the Wi-Fi is coming back.
+    u64 modeSince;           // When the mode (or the wait) began.
     u64 ignoreUntil;         // A link has just ended: the console that left may not have yet.
     u64 lastAccept;
 
@@ -1930,6 +2007,9 @@ static void transfer_receive_free(transfer_receive_data* data) {
     free(data);
 }
 
+static bool transfer_receive_start_wifi(transfer_receive_data* data);
+static void transfer_receive_set_button(ui_view* view, transfer_receive_data* data);
+
 static void transfer_receive_update(ui_view* view, void* data, float* progress, char* text) {
     transfer_receive_data* receive = (transfer_receive_data*) data;
 
@@ -1941,6 +2021,22 @@ static void transfer_receive_update(ui_view* view, void* data, float* progress, 
             transfer_receive_free(receive);
             return;
         }
+    }
+
+    if(receive->waitingWifi) {
+        // Back from the local wireless: the sockets can be made once the Wi-Fi is up.
+        if(udslink_wifi_connected()) {
+            receive->waitingWifi = false;
+            if(transfer_receive_start_wifi(receive)) {
+                receive->modeSince = osGetTime();
+            }
+
+            transfer_receive_set_button(view, receive);
+        } else {
+            snprintf(text, PROGRESS_TEXT_MAX, "%s", _("Waiting for the Wi-Fi..."));
+        }
+
+        return;
     }
 
     if(!receive->uds) {
@@ -1998,6 +2094,13 @@ static void transfer_receive_update(ui_view* view, void* data, float* progress, 
     char ip[24];
     transfer_ip_text(ip, sizeof(ip));
     snprintf(text, PROGRESS_TEXT_MAX, _("Waiting for a sender...\n%s\nIP: %s"), receive->localName, ip);
+
+    // Nobody yet: the other console may be without Wi-Fi, which this one can only
+    // meet by making a network of its own.
+    if(osGetTime() - receive->modeSince > TRANSFER_RECEIVE_HINT_AFTER) {
+        size_t used = strlen(text);
+        snprintf(text + used, PROGRESS_TEXT_MAX - used, "\n%s", _("Nobody yet? If the other 3DS has no Wi-Fi,\nuse the button."));
+    }
 }
 
 static void transfer_receive_draw_waiting_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -2013,42 +2116,11 @@ static void transfer_receive_draw_waiting_top(ui_view* view, void* data, float x
     transfer_draw_card(x1, y1, x2, y2, ICON_WIFI, receive->localName, ip);
 }
 
-void transfer_receive_open() {
-    transfer_receive_data* data = (transfer_receive_data*) calloc(1, sizeof(transfer_receive_data));
-    if(data == NULL) {
-        error_display(NULL, NULL, "Failed to allocate transfer data.");
-        return;
-    }
+static void transfer_receive_switch(ui_view* view, void* data);
+static void transfer_receive_set_button(ui_view* view, transfer_receive_data* data);
 
-    data->udp = -1;
-    data->tcp = -1;
-    data->client.fd = -1;
-
-    transfer_local_name(data->localName, sizeof(data->localName));
-
-    // On a Wi-Fi network the usual way; without one, a network of its own that
-    // the sender will find, with no setting to make.
-    if(!udslink_wifi_connected()) {
-        Result res = 0;
-        if(!udslink_enter()) {
-            error_display(NULL, NULL, "Failed to open socket.");
-
-            free(data);
-            return;
-        }
-
-        data->uds = true;
-        if(R_FAILED(res = udslink_host_start(data->localName))) {
-            error_display_res(NULL, NULL, res, "Failed to open server socket.");
-
-            transfer_receive_free(data);
-            return;
-        }
-
-        info_display("Receive", "\uE001 return", false, data, transfer_receive_update, transfer_receive_draw_waiting_top);
-        return;
-    }
-
+// Opens the sockets for receiving over the Wi-Fi. False (the reason shown) when it can not.
+static bool transfer_receive_start_wifi(transfer_receive_data* data) {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -2059,8 +2131,9 @@ void transfer_receive_open() {
     if(data->udp < 0 || bind(data->udp, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
         error_display_errno(NULL, NULL, errno, "Failed to bind UDP socket.");
 
-        transfer_receive_free(data);
-        return;
+        transfer_close(&data->tcp);
+        transfer_close(&data->udp);
+        return false;
     }
 
     transfer_set_nonblocking(data->udp);
@@ -2069,8 +2142,9 @@ void transfer_receive_open() {
     if(data->tcp < 0) {
         error_display_errno(NULL, NULL, errno, "Failed to open server socket.");
 
-        transfer_receive_free(data);
-        return;
+        transfer_close(&data->tcp);
+        transfer_close(&data->udp);
+        return false;
     }
 
     int reuse = 1;
@@ -2080,18 +2154,103 @@ void transfer_receive_open() {
     if(bind(data->tcp, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
         error_display_errno(NULL, NULL, errno, "Failed to bind TCP socket.");
 
-        transfer_receive_free(data);
-        return;
+        transfer_close(&data->tcp);
+        transfer_close(&data->udp);
+        return false;
     }
 
     if(listen(data->tcp, 8) < 0) {
         error_display_errno(NULL, NULL, errno, "Failed to listen on server socket.");
 
-        transfer_receive_free(data);
-        return;
+        transfer_close(&data->tcp);
+        transfer_close(&data->udp);
+        return false;
     }
 
     transfer_set_nonblocking(data->tcp);
 
-    info_display("Receive", " return", false, data, transfer_receive_update, transfer_receive_draw_waiting_top);
+    return true;
+}
+
+// Makes the network of its own and waits for a sender on it.
+static bool transfer_receive_start_nearby(transfer_receive_data* data) {
+    if(!udslink_enter()) {
+        error_display(NULL, NULL, "Failed to open socket.");
+        return false;
+    }
+
+    Result res = udslink_host_start(data->localName);
+    if(R_FAILED(res)) {
+        error_display_res(NULL, NULL, res, "Failed to open server socket.");
+        udslink_leave();
+        return false;
+    }
+
+    data->uds = true;
+    return true;
+}
+
+static void transfer_receive_set_button(ui_view* view, transfer_receive_data* data) {
+    info_set_button(view, data->uds ? "Receive over Wi-Fi" : "Receive without Wi-Fi", transfer_receive_switch);
+}
+
+// The button: from the Wi-Fi to a network of its own, or back. Only while waiting.
+static void transfer_receive_switch(ui_view* view, void* data) {
+    transfer_receive_data* receive = (transfer_receive_data*) data;
+    if(receive->state != RECEIVE_IDLE || receive->waitingWifi) {
+        return;
+    }
+
+    if(receive->uds) {
+        udslink_host_stop();
+        udslink_leave();
+        receive->uds = false;
+        receive->waitingWifi = true;
+        receive->modeSince = osGetTime();
+        info_set_button(view, NULL, NULL);
+        return;
+    }
+
+    transfer_close(&receive->tcp);
+    transfer_close(&receive->udp);
+
+    if(transfer_receive_start_nearby(receive)) {
+        receive->modeSince = osGetTime();
+    } else {
+        // Back to what it was.
+        transfer_receive_start_wifi(receive);
+    }
+
+    transfer_receive_set_button(view, receive);
+}
+
+void transfer_receive_open() {
+    transfer_receive_data* data = (transfer_receive_data*) calloc(1, sizeof(transfer_receive_data));
+    if(data == NULL) {
+        error_display(NULL, NULL, "Failed to allocate transfer data.");
+        return;
+    }
+
+    data->udp = -1;
+    data->tcp = -1;
+    data->client.fd = -1;
+    data->modeSince = osGetTime();
+
+    transfer_local_name(data->localName, sizeof(data->localName));
+
+    // On a Wi-Fi network the usual way; without one, a network of its own that the
+    // sender will find. The button on the screen changes it either way.
+    bool ok = udslink_wifi_connected() ? transfer_receive_start_wifi(data) : transfer_receive_start_nearby(data);
+    if(!ok) {
+        free(data);
+        return;
+    }
+
+    ui_view* view = info_display("Receive", "\uE001 return   \uE002 other way", false, data, transfer_receive_update, transfer_receive_draw_waiting_top);
+    if(view == NULL) {
+        transfer_receive_free(data);
+        return;
+    }
+
+    transfer_receive_set_button(view, data);
 }

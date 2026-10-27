@@ -124,12 +124,15 @@ another list for actions. Every screen should move to the Titles pattern:
 
 ## Next
 
-0. **Still open from console to console**: a title package over the local wireless (only a
-   file was tried), the fallback "Search nearby" row (tried with a file), the *Super Mario
-   Land 2* CIA received before the certificate fix (its root certificate is wrong: replace
-   the first 0xA00 bytes after the header and the cert alignment with the standard chain), and
-   a release (`v0.3.0` beta) with its notes. The CIAs it makes install only on a console with
-   signature patches (Luma3DS); it logs every send and receive in `/nsa/transfer-log.txt`.
+0. **Still open from console to console**: a title package over the local wireless (only
+   files were tried there, and a CIA received over it installed), cutting and resuming over the
+   local wireless, long transfers over it, sending a title from the New 3DS, the *Super Mario
+   Land 2* CIA received before the certificate fix (its root certificate is wrong: replace the
+   certificate chain, 0xA00 bytes after the header, with the standard one), and a release
+   (`v0.3.0` beta) with its notes. The CIAs it makes install only on a console with signature
+   patches (Luma3DS); every send and receive is logged in `/nsa/transfer-log.txt`. Receive has a
+   button (and X) to change between the Wi-Fi and its own network, the send list a tool icon (and
+   X); both ways were tried on the consoles, and the list drag fix too.
 
 1. ~~Publish v0.2.0 beta~~ done. Promoting to stable needs the owner's OK (`master` must contain the tag first).
 2. **Remote install**, the owner agreed it needs the same treatment. Proposal, to show as

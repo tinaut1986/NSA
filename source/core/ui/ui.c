@@ -8,8 +8,11 @@
 #include "ui.h"
 #include "../error.h"
 #include "../screen.h"
+#include "../appinfo.h"
 #include "../data/smdh.h"
-#include "../../fbi/resources.h"
+#include "../icons.h"
+#include "../theme.h"
+#include "widgets.h"
 
 #define MAX_UI_VIEWS 16
 
@@ -111,200 +114,96 @@ void ui_pop() {
     svcReleaseMutex(ui_stack_mutex);
 }
 
-static void ui_draw_top(ui_view* ui) {
-    screen_select(GFX_TOP);
+static void ui_draw_top_bar() {
+    const theme_current* t = theme();
+    float height = WIDGET_TOP_BAR_HEIGHT;
+    float textY = (height - widget_text_height(WIDGET_SMALL_SCALE)) / 2;
 
-    u32 topScreenBgWidth = 0;
-    u32 topScreenBgHeight = 0;
-    screen_get_texture_size(&topScreenBgWidth, &topScreenBgHeight, TEXTURE_TOP_SCREEN_BG);
+    screen_fill_rect(0, 0, TOP_SCREEN_WIDTH, height, t->palette->surface);
+    screen_fill_rect(0, height - 1, TOP_SCREEN_WIDTH, 1, t->palette->border);
 
-    u32 topScreenTopBarWidth = 0;
-    u32 topScreenTopBarHeight = 0;
-    screen_get_texture_size(&topScreenTopBarWidth, &topScreenTopBarHeight, TEXTURE_TOP_SCREEN_TOP_BAR);
+    // Left: the app and its version.
+    char version[64];
+    snprintf(version, sizeof(version), APP_NAME " %s%s", VERSION_STRING, NSA_DEBUG ? " DEBUG" : "");
+    float left = 8 + widget_text_width(version, WIDGET_SMALL_SCALE);
+    screen_draw_text(version, 8, textY, WIDGET_SMALL_SCALE, t->palette->text);
 
-    u32 topScreenTopBarShadowWidth = 0;
-    u32 topScreenTopBarShadowHeight = 0;
-    screen_get_texture_size(&topScreenTopBarShadowWidth, &topScreenTopBarShadowHeight, TEXTURE_TOP_SCREEN_TOP_BAR_SHADOW);
+    // Right, from the edge: battery, Wi-Fi, FTP, SD free space.
+    float x = TOP_SCREEN_WIDTH - 8;
+    float iconSize = 16;
+    float iconY = (height - iconSize) / 2;
 
-    u32 topScreenBottomBarWidth = 0;
-    u32 topScreenBottomBarHeight = 0;
-    screen_get_texture_size(&topScreenBottomBarWidth, &topScreenBottomBarHeight, TEXTURE_TOP_SCREEN_BOTTOM_BAR);
-
-    u32 topScreenBottomBarShadowWidth = 0;
-    u32 topScreenBottomBarShadowHeight = 0;
-    screen_get_texture_size(&topScreenBottomBarShadowWidth, &topScreenBottomBarShadowHeight, TEXTURE_TOP_SCREEN_BOTTOM_BAR_SHADOW);
-
-    screen_draw_texture(TEXTURE_TOP_SCREEN_BG, (TOP_SCREEN_WIDTH - topScreenBgWidth) / 2, (TOP_SCREEN_HEIGHT - topScreenBgHeight) / 2, topScreenBgWidth, topScreenBgHeight);
-
-    if(ui->drawTop != NULL) {
-        ui->drawTop(ui, ui->data, 0, topScreenTopBarHeight, TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT - topScreenBottomBarHeight);
+    u32 batteryIcon = ICON_BATTERY;
+    u8 charging = 0;
+    u8 level = 0;
+    if(R_SUCCEEDED(PTMU_GetBatteryChargeState(&charging)) && charging) {
+        batteryIcon = ICON_BATTERY_CHARGING;
+    } else if(R_SUCCEEDED(PTMU_GetBatteryLevel(&level)) && level >= 2) {
+        batteryIcon = ICON_BATTERY_1 + (level > 5 ? 3 : level - 2);
     }
 
-    float topScreenTopBarX = (TOP_SCREEN_WIDTH - topScreenTopBarWidth) / 2;
-    float topScreenTopBarY = 0;
-    screen_draw_texture(TEXTURE_TOP_SCREEN_TOP_BAR, topScreenTopBarX, topScreenTopBarY, topScreenTopBarWidth, topScreenTopBarHeight);
-    screen_draw_texture(TEXTURE_TOP_SCREEN_TOP_BAR_SHADOW, topScreenTopBarX, topScreenTopBarY + topScreenTopBarHeight, topScreenTopBarShadowWidth, topScreenTopBarShadowHeight);
+    x -= iconSize;
+    screen_draw_icon(batteryIcon, x, iconY, iconSize, level == 1 && !charging ? t->palette->danger : t->palette->text);
 
-    float topScreenBottomBarX = (TOP_SCREEN_WIDTH - topScreenBottomBarWidth) / 2;
-    float topScreenBottomBarY = TOP_SCREEN_HEIGHT - topScreenBottomBarHeight;
-    screen_draw_texture(TEXTURE_TOP_SCREEN_BOTTOM_BAR, topScreenBottomBarX, topScreenBottomBarY, topScreenBottomBarWidth, topScreenBottomBarHeight);
-    screen_draw_texture(TEXTURE_TOP_SCREEN_BOTTOM_BAR_SHADOW, topScreenBottomBarX, topScreenBottomBarY - topScreenBottomBarShadowHeight, topScreenBottomBarShadowWidth, topScreenBottomBarShadowHeight);
-
-    screen_set_base_alpha(ui_fade_alpha);
-
-    char verText[64];
-    snprintf(verText, 64, "Ver. %s%s", VERSION_STRING, NSA_DEBUG ? " DEBUG" : "");
-
-    float verWidth;
-    float verHeight;
-    screen_get_string_size(&verWidth, &verHeight, verText, 0.5f, 0.5f);
-    screen_draw_string(verText, topScreenTopBarX + 2, topScreenTopBarY + (topScreenTopBarHeight - verHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
-
-    time_t t = time(NULL);
-    char* timeText = ctime(&t);
-    timeText[strlen(timeText) - 1] = '\0';
-
-    float timeTextWidth;
-    float timeTextHeight;
-    screen_get_string_size(&timeTextWidth, &timeTextHeight, timeText, 0.5f, 0.5f);
-    screen_draw_string(timeText, topScreenTopBarX + (topScreenTopBarWidth - timeTextWidth) / 2, topScreenTopBarY + (topScreenTopBarHeight - timeTextHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
-
-    u32 batteryIcon = 0;
-    u8 batteryChargeState = 0;
-    u8 batteryLevel = 0;
-    if(R_SUCCEEDED(PTMU_GetBatteryChargeState(&batteryChargeState)) && batteryChargeState) {
-        batteryIcon = TEXTURE_BATTERY_CHARGING;
-    } else if(R_SUCCEEDED(PTMU_GetBatteryLevel(&batteryLevel))) {
-        batteryIcon = TEXTURE_BATTERY_0 + batteryLevel;
-    } else {
-        batteryIcon = TEXTURE_BATTERY_0;
-    }
-
-    u32 batteryWidth;
-    u32 batteryHeight;
-    screen_get_texture_size(&batteryWidth, &batteryHeight, batteryIcon);
-
-    float batteryX = topScreenTopBarX + topScreenTopBarWidth - 2 - batteryWidth;
-    float batteryY = topScreenTopBarY + (topScreenTopBarHeight - batteryHeight) / 2;
-    screen_draw_texture(batteryIcon, batteryX, batteryY, batteryWidth, batteryHeight);
-
-    u32 wifiIcon = 0;
-    u32 wifiStatus = 0;
-    if(R_SUCCEEDED(ACU_GetWifiStatus(&wifiStatus)) && wifiStatus) {
-        wifiIcon = TEXTURE_WIFI_0 + osGetWifiStrength();
-    } else {
-        wifiIcon = TEXTURE_WIFI_DISCONNECTED;
-    }
-
-    u32 wifiWidth;
-    u32 wifiHeight;
-    screen_get_texture_size(&wifiWidth, &wifiHeight, wifiIcon);
-
-    float wifiX = topScreenTopBarX + topScreenTopBarWidth - 2 - batteryWidth - 4 - wifiWidth;
-    float wifiY = topScreenTopBarY + (topScreenTopBarHeight - wifiHeight) / 2;
-    screen_draw_texture(wifiIcon, wifiX, wifiY, wifiWidth, wifiHeight);
-
-    if(osGetTime() >= ui_free_space_last_update + 1000) {
-        char* currBuffer = ui_free_space_buffer;
-        FS_ArchiveResource resource = {0};
-
-        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_SD)) && currBuffer < ui_free_space_buffer + sizeof(ui_free_space_buffer)) {
-            if(currBuffer != ui_free_space_buffer) {
-                snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), ", ");
-                currBuffer += strlen(currBuffer);
-            }
-
-            u64 size = (u64) resource.freeClusters * (u64) resource.clusterSize;
-            snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), "SD: %.1f %s",
-                     ui_get_display_size(size), ui_get_display_size_units(size));
-            currBuffer += strlen(currBuffer);
-        }
-
-        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_CTR_NAND)) && currBuffer < ui_free_space_buffer + sizeof(ui_free_space_buffer)) {
-            if(currBuffer != ui_free_space_buffer) {
-                snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), ", ");
-                currBuffer += strlen(currBuffer);
-            }
-
-            u64 size = (u64) resource.freeClusters * (u64) resource.clusterSize;
-            snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), "CTR NAND: %.1f %s",
-                     ui_get_display_size(size), ui_get_display_size_units(size));
-            currBuffer += strlen(currBuffer);
-        }
-
-        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_TWL_NAND)) && currBuffer < ui_free_space_buffer + sizeof(ui_free_space_buffer)) {
-            if(currBuffer != ui_free_space_buffer) {
-                snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), ", ");
-                currBuffer += strlen(currBuffer);
-            }
-
-            u64 size = (u64) resource.freeClusters * (u64) resource.clusterSize;
-            snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), "TWL NAND: %.1f %s",
-                     ui_get_display_size(size), ui_get_display_size_units(size));
-            currBuffer += strlen(currBuffer);
-        }
-
-        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_TWL_PHOTO)) && currBuffer < ui_free_space_buffer + sizeof(ui_free_space_buffer)) {
-            if(currBuffer != ui_free_space_buffer) {
-                snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), ", ");
-                currBuffer += strlen(currBuffer);
-            }
-
-            u64 size = (u64) resource.freeClusters * (u64) resource.clusterSize;
-            snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), "TWL Photo: %.1f %s",
-                     ui_get_display_size(size), ui_get_display_size_units(size));
-            currBuffer += strlen(currBuffer);
-        }
-
-        ui_free_space_last_update = osGetTime();
-    }
-
-    float freeSpaceHeight;
-    screen_get_string_size(NULL, &freeSpaceHeight, ui_free_space_buffer, 0.35f, 0.35f);
-
-    screen_draw_string(ui_free_space_buffer, topScreenBottomBarX + 2, topScreenBottomBarY + (topScreenBottomBarHeight - freeSpaceHeight) / 2, 0.35f, 0.35f, COLOR_TEXT, true);
+    u32 wifi = 0;
+    bool online = R_SUCCEEDED(ACU_GetWifiStatus(&wifi)) && wifi;
+    x -= iconSize + 4;
+    screen_draw_icon(online ? ICON_WIFI : ICON_WIFI_OFF, x, iconY, iconSize, online ? t->palette->text : t->palette->textMuted);
 
     if(ui_status_corner != NULL) {
         char corner[64] = "";
         ui_status_corner(corner, sizeof(corner));
         if(corner[0] != '\0') {
-            float cornerWidth;
-            float cornerHeight;
-            screen_get_string_size(&cornerWidth, &cornerHeight, corner, 0.35f, 0.35f);
-            screen_draw_string(corner, topScreenBottomBarX + topScreenBottomBarWidth - 2 - cornerWidth, topScreenBottomBarY + (topScreenBottomBarHeight - cornerHeight) / 2, 0.35f, 0.35f, COLOR_TEXT, true);
+            x -= iconSize + 4;
+            screen_draw_icon(ICON_SERVER, x, iconY, iconSize, t->accent);
         }
     }
 
-    screen_set_base_alpha(0xFF);
+    if(osGetTime() >= ui_free_space_last_update + 1000) {
+        FS_ArchiveResource resource = {0};
+        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_SD))) {
+            u64 size = (u64) resource.freeClusters * (u64) resource.clusterSize;
+            snprintf(ui_free_space_buffer, sizeof(ui_free_space_buffer), "SD %.1f %s", ui_get_display_size(size), ui_get_display_size_units(size));
+        }
+
+        ui_free_space_last_update = osGetTime();
+    }
+
+    float freeWidth = widget_text_width(ui_free_space_buffer, WIDGET_SMALL_SCALE);
+    x -= 6 + freeWidth;
+    screen_draw_text(ui_free_space_buffer, x, textY, WIDGET_SMALL_SCALE, t->palette->textMuted);
+
+    // Centre: date and time, or only the time when the date does not fit.
+    time_t now = time(NULL);
+    struct tm* local = gmtime(&now);
+    char clock[32];
+    strftime(clock, sizeof(clock), "%d/%m  %H:%M", local);
+    float clockWidth = widget_text_width(clock, WIDGET_SMALL_SCALE);
+    float clockX = (TOP_SCREEN_WIDTH - clockWidth) / 2;
+    if(clockX < left + 8 || clockX + clockWidth > x - 8) {
+        strftime(clock, sizeof(clock), "%H:%M", local);
+        clockWidth = widget_text_width(clock, WIDGET_SMALL_SCALE);
+        clockX = left + (x - left - clockWidth) / 2;
+    }
+
+    if(clockX >= left + 4 && clockX + clockWidth <= x - 4) {
+        screen_draw_text(clock, clockX, textY, WIDGET_SMALL_SCALE, t->palette->text);
+    }
 }
 
-// A toast just above the bottom bar: the line, and a bar when the progress is known.
-static void ui_draw_notice(const char* text, float progress, float bottom) {
-    u32 boxWidth;
-    u32 boxHeight;
-    screen_get_texture_size(&boxWidth, &boxHeight, TEXTURE_META_INFO_BOX);
+static void ui_draw_top(ui_view* ui) {
+    screen_select(GFX_TOP);
+    widget_background(TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT);
 
-    float textWidth;
-    float textHeight;
-    screen_get_string_size(&textWidth, &textHeight, text, 0.45f, 0.45f);
+    screen_set_base_alpha(ui_fade_alpha);
 
-    float width = BOTTOM_SCREEN_WIDTH - 16;
-    float height = textHeight + (progress >= 0 ? 16 : 8);
-    float x = 8;
-    float y = bottom - 4 - height;
-    screen_draw_texture(TEXTURE_META_INFO_BOX, x, y, width, height);
-    screen_draw_string(text, x + (width - textWidth) / 2, y + 4, 0.45f, 0.45f, COLOR_TEXT, true);
-
-    if(progress >= 0) {
-        if(progress > 1) {
-            progress = 1;
-        }
-
-        u32 barWidth;
-        u32 barHeight;
-        screen_get_texture_size(&barWidth, &barHeight, TEXTURE_PROGRESS_BAR_CONTENT);
-        screen_draw_texture_crop(TEXTURE_PROGRESS_BAR_CONTENT, x + 6, y + height - 8, (width - 12) * progress, 4);
+    if(ui->drawTop != NULL) {
+        ui->drawTop(ui, ui->data, 0, WIDGET_TOP_BAR_HEIGHT, TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT);
     }
+
+    ui_draw_top_bar();
+
+    screen_set_base_alpha(0xFF);
 }
 
 void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* out, size_t size, float* progress)) {
@@ -313,77 +212,44 @@ void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* 
 }
 
 static void ui_draw_bottom(ui_view* ui) {
+    const theme_current* t = theme();
+
     screen_select(GFX_BOTTOM);
-
-    u32 bottomScreenBgWidth = 0;
-    u32 bottomScreenBgHeight = 0;
-    screen_get_texture_size(&bottomScreenBgWidth, &bottomScreenBgHeight, TEXTURE_BOTTOM_SCREEN_BG);
-
-    u32 bottomScreenTopBarWidth = 0;
-    u32 bottomScreenTopBarHeight = 0;
-    screen_get_texture_size(&bottomScreenTopBarWidth, &bottomScreenTopBarHeight, TEXTURE_BOTTOM_SCREEN_TOP_BAR);
-
-    u32 bottomScreenTopBarShadowWidth = 0;
-    u32 bottomScreenTopBarShadowHeight = 0;
-    screen_get_texture_size(&bottomScreenTopBarShadowWidth, &bottomScreenTopBarShadowHeight, TEXTURE_BOTTOM_SCREEN_TOP_BAR_SHADOW);
-
-    u32 bottomScreenBottomBarWidth = 0;
-    u32 bottomScreenBottomBarHeight = 0;
-    screen_get_texture_size(&bottomScreenBottomBarWidth, &bottomScreenBottomBarHeight, TEXTURE_BOTTOM_SCREEN_BOTTOM_BAR);
-
-    u32 bottomScreenBottomBarShadowWidth = 0;
-    u32 bottomScreenBottomBarShadowHeight = 0;
-    screen_get_texture_size(&bottomScreenBottomBarShadowWidth, &bottomScreenBottomBarShadowHeight, TEXTURE_BOTTOM_SCREEN_BOTTOM_BAR_SHADOW);
-
-    screen_draw_texture(TEXTURE_BOTTOM_SCREEN_BG, (BOTTOM_SCREEN_WIDTH - bottomScreenBgWidth) / 2, (BOTTOM_SCREEN_HEIGHT - bottomScreenBgHeight) / 2, bottomScreenBgWidth, bottomScreenBgHeight);
+    widget_background(BOTTOM_SCREEN_WIDTH, BOTTOM_SCREEN_HEIGHT);
 
     screen_set_base_alpha(ui_fade_alpha);
+
+    float contentTop = WIDGET_TITLE_BAR_HEIGHT;
+    float contentBottom = BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT;
 
     if(ui->drawBottom != NULL) {
-        ui->drawBottom(ui, ui->data, 0, bottomScreenTopBarHeight, BOTTOM_SCREEN_WIDTH, BOTTOM_SCREEN_HEIGHT - bottomScreenBottomBarHeight);
+        ui->drawBottom(ui, ui->data, 0, contentTop, BOTTOM_SCREEN_WIDTH, contentBottom);
     }
 
-    screen_set_base_alpha(0xFF);
-
-    float bottomScreenTopBarX = (BOTTOM_SCREEN_WIDTH - bottomScreenTopBarWidth) / 2;
-    float bottomScreenTopBarY = 0;
-    screen_draw_texture(TEXTURE_BOTTOM_SCREEN_TOP_BAR, bottomScreenTopBarX, bottomScreenTopBarY, bottomScreenTopBarWidth, bottomScreenTopBarHeight);
-    screen_draw_texture(TEXTURE_BOTTOM_SCREEN_TOP_BAR_SHADOW, bottomScreenTopBarX, bottomScreenTopBarY + bottomScreenTopBarHeight, bottomScreenTopBarShadowWidth, bottomScreenTopBarShadowHeight);
-
-    float bottomScreenBottomBarX = (BOTTOM_SCREEN_WIDTH - bottomScreenBottomBarWidth) / 2;
-    float bottomScreenBottomBarY = BOTTOM_SCREEN_HEIGHT - bottomScreenBottomBarHeight;
-    screen_draw_texture(TEXTURE_BOTTOM_SCREEN_BOTTOM_BAR, bottomScreenBottomBarX, bottomScreenBottomBarY, bottomScreenBottomBarWidth, bottomScreenBottomBarHeight);
-    screen_draw_texture(TEXTURE_BOTTOM_SCREEN_BOTTOM_BAR_SHADOW, bottomScreenBottomBarX, bottomScreenBottomBarY - bottomScreenBottomBarShadowHeight, bottomScreenBottomBarShadowWidth, bottomScreenBottomBarShadowHeight);
-
-    screen_set_base_alpha(ui_fade_alpha);
-
+    // Title bar.
+    screen_fill_rect(0, 0, BOTTOM_SCREEN_WIDTH, contentTop, t->palette->surface);
+    screen_fill_rect(0, contentTop - 1, BOTTOM_SCREEN_WIDTH, 1, t->palette->border);
     if(ui->name != NULL) {
-        float nameWidth;
-        float nameHeight;
-        screen_get_string_size(&nameWidth, &nameHeight, ui->name, 0.5f, 0.5f);
-        screen_draw_string(ui->name, (BOTTOM_SCREEN_WIDTH - nameWidth) / 2, (bottomScreenTopBarHeight - nameHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
+        widget_text_centered(ui->name, 0, BOTTOM_SCREEN_WIDTH, (contentTop - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, t->palette->text);
+    }
+
+    // Hint bar: the view's buttons.
+    screen_fill_rect(0, contentBottom, BOTTOM_SCREEN_WIDTH, WIDGET_HINT_BAR_HEIGHT, t->palette->surface);
+    screen_fill_rect(0, contentBottom, BOTTOM_SCREEN_WIDTH, 1, t->palette->border);
+    if(ui->info != NULL) {
+        float scale = WIDGET_SMALL_SCALE;
+        float width = widget_text_width(ui->info, scale);
+        if(width > BOTTOM_SCREEN_WIDTH - 12) {
+            scale *= (BOTTOM_SCREEN_WIDTH - 12) / width;
+        }
+
+        widget_text_centered(ui->info, 0, BOTTOM_SCREEN_WIDTH, contentBottom + (WIDGET_HINT_BAR_HEIGHT - widget_text_height(scale)) / 2, scale, t->palette->textMuted);
     }
 
     char notice[128];
     float progress = -1;
     if(ui_status_notice != NULL && ui_status_notice(notice, sizeof(notice), &progress)) {
-        ui_draw_notice(notice, progress, bottomScreenBottomBarY - bottomScreenBottomBarShadowHeight);
-    }
-
-    if(ui->info != NULL) {
-        float baseInfoWidth;
-        screen_get_string_size(&baseInfoWidth, NULL, ui->info, 0.5f, 0.5f);
-
-        float scale = BOTTOM_SCREEN_WIDTH / (baseInfoWidth + 10);
-        if(scale > 1) {
-            scale = 1;
-        }
-
-        float infoWidth;
-        float infoHeight;
-        screen_get_string_size(&infoWidth, &infoHeight, ui->info, 0.5f * scale, 0.5f * scale);
-
-        screen_draw_string(ui->info, (BOTTOM_SCREEN_WIDTH - infoWidth) / 2, BOTTOM_SCREEN_HEIGHT - (bottomScreenBottomBarHeight + infoHeight) / 2, 0.5f * scale, 0.5f * scale, COLOR_TEXT, true);
+        widget_toast(notice, progress, contentBottom);
     }
 
     screen_set_base_alpha(0xFF);
@@ -392,17 +258,11 @@ static void ui_draw_bottom(ui_view* ui) {
 bool ui_update() {
     ui_view* ui = NULL;
 
-    hidScanInput();
+    input_scan();
 
     ui = ui_top();
     if(ui != NULL && ui->update != NULL) {
-        u32 bottomScreenTopBarHeight = 0;
-        screen_get_texture_size(NULL, &bottomScreenTopBarHeight, TEXTURE_BOTTOM_SCREEN_TOP_BAR);
-
-        u32 bottomScreenBottomBarHeight = 0;
-        screen_get_texture_size(NULL, &bottomScreenBottomBarHeight, TEXTURE_BOTTOM_SCREEN_BOTTOM_BAR);
-
-        ui->update(ui, ui->data, 0, bottomScreenTopBarHeight, BOTTOM_SCREEN_WIDTH, BOTTOM_SCREEN_HEIGHT - bottomScreenBottomBarHeight);
+        ui->update(ui, ui->data, 0, WIDGET_TITLE_BAR_HEIGHT, BOTTOM_SCREEN_WIDTH, BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT);
     }
 
     u64 time = osGetTime();
@@ -411,6 +271,8 @@ bool ui_update() {
     } else {
         ui_fade_alpha = 0xFF;
     }
+
+    theme_update();
 
     ui = ui_top();
     if(ui != NULL) {

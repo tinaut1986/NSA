@@ -7,7 +7,11 @@
 #include "ui.h"
 #include "../screen.h"
 #include "../linkedlist.h"
-#include "../../fbi/resources.h"
+#include "../theme.h"
+
+// Rows are widget rows: the list's pitch, and the padding around them.
+#define LIST_PITCH (WIDGET_ROW_HEIGHT + WIDGET_ROW_GAP)
+#define LIST_PAD 6
 
 typedef struct {
     void* data;
@@ -39,8 +43,8 @@ static void list_validate(list_data* listData, float by1, float by2) {
             listData->scrollPos = 0;
         }
 
-        float viewSize = by2 - by1;
-        float fontHeight = screen_get_font_height(0.5f);
+        float viewSize = by2 - by1 - 2 * LIST_PAD;
+        float fontHeight = LIST_PITCH;
 
         bool found = false;
         if(listData->selectedItem != NULL) {
@@ -75,7 +79,7 @@ static void list_validate(list_data* listData, float by1, float by2) {
             listData->scrollPos = itemY;
         }
 
-        float maxScrollPos = (size * fontHeight) - viewSize;
+        float maxScrollPos = (size * fontHeight) - WIDGET_ROW_GAP - viewSize;
         if(listData->scrollPos > maxScrollPos) {
             listData->scrollPos = maxScrollPos;
         }
@@ -169,8 +173,9 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
             hidTouchRead(&pos);
 
             if(hidKeysDown() & KEY_TOUCH) {
-                u32 index = (u32) ((listData->scrollPos + (pos.py - by1)) / screen_get_font_height(0.5f));
-                if(index >= 0) {
+                int touchY = (int) pos.py - (int) (by1 + LIST_PAD);
+                u32 index = touchY >= 0 ? (u32) ((listData->scrollPos + touchY) / LIST_PITCH) : size;
+                if(index < size) {
                     if(listData->selectedIndex == index) {
                         selectedTouched = true;
                     } else {
@@ -214,8 +219,17 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
 
     list_validate(listData, y1, y2);
 
-    float fontHeight = screen_get_font_height(0.5f);
-    float y = y1 - listData->scrollPos;
+    u32 size = linked_list_size(&listData->items);
+    float top = y1 + LIST_PAD;
+    float bottom = y2 - LIST_PAD;
+    float totalHeight = size * LIST_PITCH - WIDGET_ROW_GAP;
+    bool scrolls = totalHeight > bottom - top;
+    float rowX = x1 + 8;
+    float rowWidth = x2 - x1 - 16 - (scrolls ? WIDGET_SCROLLBAR_WIDTH + 4 : 0);
+
+    float y = top - listData->scrollPos;
+
+    screen_set_clip(x1, y1 + LIST_PAD / 2, x2 - x1, y2 - y1 - LIST_PAD);
 
     linked_list_iter iter;
     linked_list_iterate(&listData->items, &iter);
@@ -227,40 +241,17 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
 
         list_item* item = linked_list_iter_next(&iter);
 
-        if(y > y1 - fontHeight) {
-            float x = x1 + 2;
-            if(item == listData->selectedItem) {
-                x -= listData->selectionScroll;
-            }
-
-            screen_draw_string(item->name, x, y, 0.5f, 0.5f, item->color, true);
-
-            if(item == listData->selectedItem) {
-                u32 selectionOverlayWidth = 0;
-                screen_get_texture_size(&selectionOverlayWidth, NULL, TEXTURE_SELECTION_OVERLAY);
-                screen_draw_texture(TEXTURE_SELECTION_OVERLAY, (x1 + x2 - selectionOverlayWidth) / 2, y, selectionOverlayWidth, fontHeight);
-            }
+        if(y + WIDGET_ROW_HEIGHT >= y1) {
+            widget_row(rowX, y, rowWidth, WIDGET_ROW_HEIGHT, -1, item->name, screen_get_color(item->color), NULL, item == listData->selectedItem);
         }
 
-        y += fontHeight;
+        y += LIST_PITCH;
     }
 
-    u32 size = linked_list_size(&listData->items);
-    if(size > 0) {
-        float totalHeight = size * fontHeight;
-        float viewHeight = y2 - y1;
+    screen_clear_clip();
 
-        if(totalHeight > viewHeight) {
-            u32 scrollBarWidth = 0;
-            screen_get_texture_size(&scrollBarWidth, NULL, TEXTURE_SCROLL_BAR);
-
-            float scrollBarHeight = (viewHeight / totalHeight) * viewHeight;
-
-            float scrollBarX = x2 - scrollBarWidth;
-            float scrollBarY = y1 + (listData->scrollPos / totalHeight) * viewHeight;
-
-            screen_draw_texture(TEXTURE_SCROLL_BAR, scrollBarX, scrollBarY, scrollBarWidth, scrollBarHeight);
-        }
+    if(scrolls) {
+        widget_scrollbar(x2 - 8 - WIDGET_SCROLLBAR_WIDTH, top, bottom - top, listData->scrollPos, bottom - top, totalHeight);
     }
 }
 

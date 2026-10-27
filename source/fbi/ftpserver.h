@@ -15,6 +15,12 @@
 // into it 10 s later (relaunch.h). With curl, upload then install:
 //   curl -T NSA.cia ftp://IP:5000/nsa/update.cia -Q "-SITE INSTALL /nsa/update.cia"
 //
+// Remote control (debugging):
+//   SITE SCREENSHOT          -> both screens to /nsa/screenshots/top.bmp, bottom.bmp
+//   SITE PRESS <keys> [n]    -> holds buttons for n frames (A, B, X, Y, L, R, ZL,
+//                               ZR, START, SELECT, UP, DOWN, LEFT, RIGHT; "A+R")
+//   SITE TAP <x> <y> [n]     -> touches the bottom screen
+//
 // Port 5000, shared with Remote Install's "Receive URLs": that screen pauses
 // the server and resumes it when it closes.
 
@@ -29,6 +35,9 @@ bool ftpserver_running();
 // if it was running when paused.
 void ftpserver_pause();
 void ftpserver_resume();
+
+// Main thread, once per frame after drawing: serves screenshot requests.
+void ftpserver_poll_main();
 
 // "192.168.1.50:5000", or why it is not serving.
 void ftpserver_address(char* out, size_t size);

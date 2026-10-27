@@ -29,7 +29,7 @@ bool relaunch_notice(char* out, size_t size, float* progress) {
 
     u64 now = osGetTime();
     u64 left = at > now ? at - now : 0;
-    snprintf(out, size, APP_NAME " restarts into the new build in %lu s", (u32) ((left + 999) / 1000));
+    snprintf(out, size, _(APP_NAME " restarts into the new build in %lu s"), (u32) ((left + 999) / 1000));
     *progress = 1.0f - (float) left / RELAUNCH_DELAY_MS;
     return true;
 }

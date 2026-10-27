@@ -37,3 +37,5 @@ const char* ui_get_display_size_units(u64 size);
 #include "kbd.h"
 #include "list.h"
 #include "prompt.h"
+#include "widgets.h"
+#include "../input.h"

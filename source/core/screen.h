@@ -17,6 +17,7 @@ void screen_init();
 void screen_exit();
 void screen_set_base_alpha(u8 alpha);
 void screen_set_color(u32 id, u32 color);
+u32 screen_get_color(u32 id);
 u32 screen_allocate_free_texture();
 void screen_load_texture_untiled(u32 id, void* data, u32 size, u32 width, u32 height, GPU_TEXCOLOR format, bool linearFilter);
 void screen_load_texture_path(u32 id, const char* path, bool linearFilter);
@@ -34,3 +35,21 @@ void screen_get_string_size(float* width, float* height, const char* text, float
 void screen_get_string_size_wrap(float* width, float* height, const char* text, float scaleX, float scaleY, float wrapWidth);
 void screen_draw_string(const char* text, float x, float y, float scaleX, float scaleY, u32 colorId, bool centerLines);
 void screen_draw_string_wrap(const char* text, float x, float y, float scaleX, float scaleY, u32 colorId, bool centerLines, float wrapX);
+
+// Shapes and text in any colour (0xAABBGGRR, like the colour IDs), for the
+// themed widgets. All honour screen_set_base_alpha.
+// Writes what the screen shows to a 24-bit BMP. Main thread, between frames.
+bool screen_capture(gfxScreen_t screen, const char* path);
+
+// Clips drawing to a rectangle of the current screen until screen_clear_clip.
+void screen_set_clip(float x, float y, float width, float height);
+void screen_clear_clip();
+void screen_fill_rect(float x, float y, float width, float height, u32 color);
+void screen_fill_round_rect(float x, float y, float width, float height, float radius, u32 color);
+// A rounded rectangle filled with fillColor inside a `border` px edge of borderColor.
+void screen_frame_round_rect(float x, float y, float width, float height, float radius, float border, u32 borderColor, u32 fillColor);
+void screen_fill_circle(float cx, float cy, float radius, u32 color);
+// An icon from romfs:/icons.png (icons.h), drawn in `size` px and tinted.
+void screen_draw_icon(u32 icon, float x, float y, float size, u32 color);
+void screen_draw_text(const char* text, float x, float y, float scale, u32 color);
+void screen_draw_text_wrap(const char* text, float x, float y, float scale, u32 color, float wrapX);

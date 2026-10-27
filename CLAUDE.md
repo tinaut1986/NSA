@@ -44,6 +44,33 @@ make -C tests                        # host tests (needs libjansson-dev)
 version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in `tools/bin/`.
 `make` does not rebuild on a version or `DEBUG` change: `make clean` first.
 
+## Interface
+
+- `source/core/theme.c`: themes (palettes for day and night, radii, borders, menu layout),
+  accent colours and night mode. Widgets (`source/core/ui/widgets.c`) draw everything
+  through the theme; never hard-code a colour in a screen.
+- `source/core/i18n.c`: every user-facing string goes through `_("English")`, string
+  literals only (lookups are cached by address). Spanish is `source/core/i18n_es.c`; a
+  missing entry shows the English.
+- Icons: Tabler (MIT), listed in `tools/icons.txt`; `python3 tools/make_icons.py` rebuilds
+  `romfs/icons.png` and `source/core/icons.h` (needs Chrome and Pillow).
+- The system font has the 3DS button glyphs (`\uE000` A, `\uE001` B, `\uE002` X,
+  `\uE003` Y, `\uE004` L, `\uE005` R) but not "·": use the glyphs in hints.
+
+## Seeing and driving the app (FTP remote control)
+
+With the FTP server on (always in DEBUG builds), port 5000:
+`SITE SCREENSHOT` (both screens to `/nsa/screenshots/top.bmp` and `bottom.bmp`),
+`SITE PRESS <A|B|X|Y|L|R|ZL|ZR|START|SELECT|UP|DOWN|LEFT|RIGHT>[+...] [frames]`,
+`SITE TAP <x> <y> [frames]` (bottom screen). For example:
+`curl -Q "SITE PRESS DOWN" ftp://IP:5000/`.
+
+**Azahar** (flatpak `org.azahar_emu.Azahar`) runs the 3DSX for UI work without the
+console: `flatpak run org.azahar_emu.Azahar "$PWD/output/3ds-arm/3ds/NSA/NSA.3dsx"`, then the
+FTP server answers on `127.0.0.1:5000`. Close it with `pkill -9 -x azahar` before
+launching another build. HTTPS (updater) does not work there; its NAND is virtual, but
+still answer No to destructive prompts.
+
 ## Installing on the console
 
 Ask before installing while the owner is using the console.

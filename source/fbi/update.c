@@ -118,16 +118,16 @@ static void update_offer_display(update_release* release) {
     update_offer* offer = (update_offer*) calloc(1, sizeof(update_offer));
     if(offer == NULL || !update_allowed_download_url(release->url)) {
         free(offer);
-        error_display_res(NULL, NULL, R_APP_BAD_DATA, "Failed to read the update.");
+        error_display_res(NULL, NULL, R_APP_BAD_DATA, _("Failed to read the update."));
         return;
     }
 
     offer->text = changelog_text_create(release->notes);
     string_copy(offer->url, release->url, sizeof(offer->url));
-    snprintf(offer->message, sizeof(offer->message), APP_NAME " %s%s is available.\nInstalled: %s\n\nUpdate now?",
+    snprintf(offer->message, sizeof(offer->message), _(APP_NAME " %s%s is available.\nInstalled: %s\n\nUpdate now?"),
              release->version, release->prerelease ? " BETA" : "", VERSION_STRING);
 
-    prompt_display_yes_no("Update Available", offer->message, COLOR_TEXT, offer, update_offer_draw_top, update_offer_onresponse);
+    prompt_display_yes_no(_("Update Available"), offer->message, COLOR_TEXT, offer, update_offer_draw_top, update_offer_onresponse);
 }
 
 static void update_check_finish(update_check* check) {
@@ -135,25 +135,32 @@ static void update_check_finish(update_check* check) {
 
     if(check->mode == CHECK_HISTORY) {
         if(R_FAILED(check->res)) {
-            error_display_res(NULL, NULL, check->res, "Failed to download the changelog.");
+            error_display_res(NULL, NULL, check->res, _("Failed to download the changelog."));
         } else if(check->found == 0) {
-            prompt_display_notify("Changelog", "No releases in this channel yet.", COLOR_TEXT, NULL, NULL, NULL);
+            prompt_display_notify(_("Changelog"), _("No releases in this channel yet."), COLOR_TEXT, NULL, NULL, NULL);
         } else {
-            changelog_display("Changelog", changelog_text_create(check->release.notes));
+            changelog_display(_("Changelog"), changelog_text_create(check->release.notes));
         }
     } else if(available) {
         update_offer_display(&check->release);
     } else if(check->mode == CHECK_UPDATE) {
         if(R_FAILED(check->res)) {
-            error_display_res(NULL, NULL, check->res, "Failed to check for updates.");
+            error_display_res(NULL, NULL, check->res, _("Failed to check for updates."));
         } else {
-            prompt_display_notify("Updates", "No updates available.", COLOR_TEXT, NULL, NULL, NULL);
+            prompt_display_notify(_("Updates"), _("No updates available."), COLOR_TEXT, NULL, NULL, NULL);
         }
     }
 }
 
 static void update_wait_update(ui_view* view, void* data, float* progress, char* text) {
-    // update_poll() closes this view when the check is done.
+    // update_poll() closes this view when the check is done. B gives up
+    // waiting: the check finishes in the background and says nothing.
+    if((hidKeysDown() & KEY_B) && current != NULL && current->waitView == view) {
+        current->waitView = NULL;
+        current->mode = CHECK_UPDATE_SILENT;
+        ui_pop();
+        info_destroy(view);
+    }
 }
 
 static void update_start(check_mode mode) {
@@ -161,9 +168,9 @@ static void update_start(check_mode mode) {
         // The start-up check is still running: let it answer this request.
         if(current->mode == CHECK_UPDATE_SILENT && mode == CHECK_UPDATE) {
             current->mode = CHECK_UPDATE;
-            current->waitView = info_display("Updates", "", false, NULL, update_wait_update, NULL);
+            current->waitView = info_display(_("Updates"), _("\uE001 cancel"), false, NULL, update_wait_update, NULL);
         } else {
-            prompt_display_notify("Updates", "Already checking. Try again in a moment.", COLOR_TEXT, NULL, NULL, NULL);
+            prompt_display_notify(_("Updates"), _("Already checking. Try again in a moment."), COLOR_TEXT, NULL, NULL, NULL);
         }
 
         return;
@@ -172,7 +179,7 @@ static void update_start(check_mode mode) {
     update_check* check = (update_check*) calloc(1, sizeof(update_check));
     if(check == NULL) {
         if(mode != CHECK_UPDATE_SILENT) {
-            error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, "Failed to check for updates.");
+            error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("Failed to check for updates."));
         }
 
         return;
@@ -185,7 +192,7 @@ static void update_start(check_mode mode) {
     currentThread = threadCreate(update_check_thread, check, 0x10000, 0x18, 1, false);
     if(currentThread == NULL) {
         if(mode != CHECK_UPDATE_SILENT) {
-            error_display_res(NULL, NULL, R_APP_THREAD_CREATE_FAILED, "Failed to check for updates.");
+            error_display_res(NULL, NULL, R_APP_THREAD_CREATE_FAILED, _("Failed to check for updates."));
         }
 
         free(check);
@@ -194,7 +201,7 @@ static void update_start(check_mode mode) {
 
     current = check;
     if(mode != CHECK_UPDATE_SILENT) {
-        check->waitView = info_display(mode == CHECK_HISTORY ? "Changelog" : "Updates", "",
+        check->waitView = info_display(mode == CHECK_HISTORY ? _("Changelog") : _("Updates"), _("\uE001 cancel"),
                                        false, NULL, update_wait_update, NULL);
     }
 }

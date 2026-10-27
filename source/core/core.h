@@ -5,6 +5,9 @@
 #include "ui/ui.h"
 
 #include "appinfo.h"
+#include "i18n.h"
+#include "icons.h"
+#include "theme.h"
 
 #include "clipboard.h"
 #include "error.h"

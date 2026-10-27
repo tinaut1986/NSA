@@ -4,8 +4,8 @@
 manager. It installs as its own app (product code `CTR-P-CNSA`, unique ID `0xFB1A0`)
 next to FBI, keeps its data in `sdmc:/nsa/` and numbers its own releases from `v0.1.0`.
 
-**Start every session by reading [`docs/PLAN.md`](docs/PLAN.md)**: open branches, what
-is on the console, what comes next and the decisions taken. Work in progress lives on a
+**Start every session by reading [`docs/PLAN.md`](docs/PLAN.md)**: where things stand, how the
+console to console transfer works, what comes next, the decisions taken and the known issues. Work in progress lives on a
 topic branch until the owner validates it; PLAN says which.
 
 ## Language
@@ -103,3 +103,15 @@ Ask before installing while the owner is using the console.
   `curl -Q "+ALLO $(stat -c %s output/3ds-arm/NSA.cia)" -Q "-SITE INSTALL /nsa/update.cia" -Q "-DELE /nsa/update.cia" -T output/3ds-arm/NSA.cia ftp://IP:5000/nsa/update.cia`
 - Screenshots: `curl -Q "SITE SCREENSHOT" ftp://IP:5000/` (allow 20 s), then fetch
   `/nsa/screenshots/top.bmp` and `bottom.bmp`.
+
+## Console to console: testing
+
+Read "Console to console" in `docs/PLAN.md` first. In short:
+- `tools/fake_peer.py` plays the other console against Azahar or a console; every send and
+  receive of the real app is logged in `sdmc:/nsa/transfer-log.txt` (fetch it over FTP after an
+  error: it says why a transfer stopped).
+- The owner has a New 3DS XL and a 2DS; their FTP addresses swap after the local wireless.
+  Ask before installing while the owner is using a console, and say what the build holds.
+- In the local wireless mode (no router) the FTP server is off: test it with `/nsa/nearby.flag`
+  (`auto`) and read the log afterwards; **delete the flag when done**.
+- `pkill -f` kills the shell that runs it when the text is in the command: use `pkill -x`.

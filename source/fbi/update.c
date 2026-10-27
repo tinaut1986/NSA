@@ -8,6 +8,7 @@
 #include "changelog.h"
 #include "resources.h"
 #include "section.h"
+#include "relaunch.h"
 #include "settings.h"
 #include "update.h"
 #include "update_manifest.h"
@@ -83,6 +84,20 @@ typedef struct {
     char message[128];
 } update_offer;
 
+static bool update_installed = false;
+
+static void update_install_finished_url(void* data, u32 index) {
+    update_installed = true;
+}
+
+// After the install (or its failure or cancel): restart into a new build.
+static void update_install_finished_all(void* data) {
+    if(update_installed) {
+        update_installed = false;
+        relaunch_request();
+    }
+}
+
 static void update_offer_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     changelog_text_draw(((update_offer*) data)->text, x1, y1, x2, y2);
 }
@@ -91,7 +106,8 @@ static void update_offer_onresponse(ui_view* view, void* data, u32 response) {
     update_offer* offer = (update_offer*) data;
 
     if(response == PROMPT_YES) {
-        action_install_url(NULL, offer->url, fs_get_3dsx_path(), NULL, NULL, NULL, NULL);
+        update_installed = false;
+        action_install_url(NULL, offer->url, fs_get_3dsx_path(), NULL, update_install_finished_url, update_install_finished_all, NULL);
     }
 
     changelog_text_free(offer->text);

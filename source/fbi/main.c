@@ -11,6 +11,7 @@
 #include "../core/ui/ui.h"
 #include "section.h"
 #include "ftpserver.h"
+#include "relaunch.h"
 #include "settings.h"
 #include "update.h"
 #include "task/uitask.h"
@@ -176,6 +177,11 @@ void cleanup() {
     gfxExit();
 }
 
+// The bottom screen's toast: a restart countdown wins over an FTP transfer.
+static bool main_notice(char* out, size_t size, float* progress) {
+    return relaunch_notice(out, size, progress) || ftpserver_notice(out, size, progress);
+}
+
 int main(int argc, const char* argv[]) {
     if(argc > 0 && envIsHomebrew()) {
         fs_set_3dsx_path(argv[0]);
@@ -184,7 +190,7 @@ int main(int argc, const char* argv[]) {
     init();
 
     settings_load();
-    ui_set_status(ftpserver_corner, ftpserver_notice);
+    ui_set_status(ftpserver_corner, main_notice);
 
     mainmenu_open();
     startup_run();
@@ -192,8 +198,8 @@ int main(int argc, const char* argv[]) {
     while(aptMainLoop() && ui_update()) {
         update_poll();
 
-        // SITE INSTALL put a new NSA in place: exit so libctru relaunches it.
-        if(ftpserver_poll_relaunch()) {
+        // A new NSA is in place (updater or SITE INSTALL): exit so libctru relaunches it.
+        if(relaunch_poll()) {
             break;
         }
     }

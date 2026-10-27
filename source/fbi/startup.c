@@ -169,9 +169,9 @@ static void startup_import_update(ui_view* view, void* data, float* progress, ch
         info_destroy(view);
 
         if(importData->err != 0) {
-            error_display_errno(NULL, NULL, importData->err, "Failed to import %s.", importData->failedPath[0] ? importData->failedPath : "the FBI folder");
+            error_display_errno(NULL, NULL, importData->err, _("Failed to import %s."), importData->failedPath[0] ? importData->failedPath : _("the FBI folder"));
         } else {
-            prompt_display_notify("Import", "FBI data imported into " DATA_DIR ".", COLOR_TEXT, NULL, NULL, NULL);
+            prompt_display_notify(_("Import"), _("FBI data imported into " DATA_DIR "."), COLOR_TEXT, NULL, NULL, NULL);
         }
 
         free(importData);
@@ -195,7 +195,7 @@ static void startup_import_onresponse(ui_view* view, void* data, u32 response) {
 
     import_data* importData = (import_data*) calloc(1, sizeof(import_data));
     if(importData == NULL) {
-        error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, "Failed to import the FBI folder.");
+        error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("Failed to import the FBI folder."));
         startup_check_updates();
         return;
     }
@@ -204,13 +204,13 @@ static void startup_import_onresponse(ui_view* view, void* data, u32 response) {
 
     Thread thread = threadCreate(startup_import_thread, importData, 0x10000, 0x18, 1, true);
     if(thread == NULL) {
-        error_display_res(NULL, NULL, R_APP_THREAD_CREATE_FAILED, "Failed to import the FBI folder.");
+        error_display_res(NULL, NULL, R_APP_THREAD_CREATE_FAILED, _("Failed to import the FBI folder."));
         free(importData);
         startup_check_updates();
         return;
     }
 
-    info_display("Importing FBI Data", "", true, importData, startup_import_update, NULL);
+    info_display(_("Importing FBI data"), "", true, importData, startup_import_update, NULL);
 }
 
 void startup_run() {
@@ -220,11 +220,11 @@ void startup_run() {
     }
 
     if(startup_is_dir(LEGACY_ROOT) && !startup_is_dir(DATA_ROOT)) {
-        prompt_display_yes_no("Import FBI Data",
-                              "Found data from FBI in " LEGACY_DIR ".\n"
-                              "Copy it to " DATA_DIR "?\n\n"
-                              "Seeds, secure values, saves, themes and the last\n"
-                              "URLs are copied. NAND dumps stay where they are.",
+        prompt_display_yes_no(_("Import FBI data"),
+                              _("Found data from FBI in " LEGACY_DIR ".\n"
+                                "Copy it to " DATA_DIR "?\n\n"
+                                "Seeds, secure values, saves and the last URLs\n"
+                                "are copied. NAND dumps stay where they are."),
                               COLOR_TEXT, NULL, NULL, startup_import_onresponse);
         return;
     }

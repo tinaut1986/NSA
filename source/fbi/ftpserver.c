@@ -54,6 +54,12 @@ static volatile u64 ftp_allo = 0;
 static volatile u64 ftp_done = 0;
 static volatile u64 ftp_total = 0;
 
+// A screenshot asked for by SITE SCREENSHOT, taken by the main thread.
+static volatile bool shot_requested = false;
+static volatile bool shot_done = false;
+static volatile bool shot_ok = false;
+static volatile u32 shot_ms = 0;
+
 typedef struct {
     int ctrl;
     int pasv;  // Listening data socket after PASV/EPSV, -1 when none.
@@ -578,6 +584,83 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         }
     }
 
+    if(strcmp(sub, "SCREENSHOT") == 0) {
+        shot_done = false;
+        shot_requested = true;
+        // Writing two BMPs to a real SD card takes a few seconds.
+        for(u32 waited = 0; !shot_done && waited < 15000 && ftp_run; waited += FTP_NAP_MS) {
+            svcSleepThread((s64) FTP_NAP_MS * 1000000);
+        }
+
+        shot_requested = false;
+        if(shot_done && shot_ok) {
+            ftp_reply(s, "200 " APP_DATA_DIR "screenshots/top.bmp " APP_DATA_DIR "screenshots/bottom.bmp (%lu ms)", shot_ms);
+        } else {
+            ftp_reply(s, shot_done ? "451 Screenshot failed." : "451 Screenshot not taken in time.");
+        }
+        return;
+    }
+
+    if(strcmp(sub, "PRESS") == 0 || strcmp(sub, "TAP") == 0) {
+        static const struct {
+            const char* name;
+            u32 key;
+        } names[] = {
+                {"A", KEY_A}, {"B", KEY_B}, {"X", KEY_X}, {"Y", KEY_Y}, {"L", KEY_L}, {"R", KEY_R},
+                {"ZL", KEY_ZL}, {"ZR", KEY_ZR}, {"START", KEY_START}, {"SELECT", KEY_SELECT},
+                {"UP", KEY_DUP}, {"DOWN", KEY_DDOWN}, {"LEFT", KEY_DLEFT}, {"RIGHT", KEY_DRIGHT}
+        };
+
+        char* args = path != NULL ? path : "";
+        if(sub[0] == 'T') {
+            unsigned x = 0, y = 0, frames = 4;
+            if(sscanf(args, "%u %u %u", &x, &y, &frames) < 2 || x >= 320 || y >= 240) {
+                ftp_reply(s, "501 SITE TAP <x> <y> [frames]");
+                return;
+            }
+
+            input_inject_tap((u16) x, (u16) y, frames);
+            ftp_reply(s, "200 Tapped %u,%u.", x, y);
+            return;
+        }
+
+        char keysText[64] = "";
+        unsigned frames = 4;
+        sscanf(args, "%63s %u", keysText, &frames);
+        for(char* c = keysText; *c; c++) {
+            if(*c >= 'a' && *c <= 'z') {
+                *c = (char) (*c - 32);
+            }
+        }
+
+        u32 keys = 0;
+        char* save = NULL;
+        for(char* k = strtok_r(keysText, "+", &save); k != NULL; k = strtok_r(NULL, "+", &save)) {
+            u32 found = 0;
+            for(u32 i = 0; i < sizeof(names) / sizeof(*names); i++) {
+                if(strcmp(names[i].name, k) == 0) {
+                    found = names[i].key;
+                }
+            }
+
+            if(found == 0) {
+                ftp_reply(s, "501 Unknown button %s.", k);
+                return;
+            }
+
+            keys |= found;
+        }
+
+        if(keys == 0) {
+            ftp_reply(s, "501 SITE PRESS <A|B|...|UP|DOWN|LEFT|RIGHT>[+...] [frames]");
+            return;
+        }
+
+        input_inject_keys(keys, frames);
+        ftp_reply(s, "200 Pressed.");
+        return;
+    }
+
     if(strcmp(sub, "INSTALL") != 0) {
         ftp_reply(s, "504 Unknown SITE command.");
         return;
@@ -780,7 +863,7 @@ bool ftpserver_start() {
 
     u32 wifi = 0;
     if(R_FAILED(ACU_GetWifiStatus(&wifi)) || wifi == 0) {
-        snprintf(ftp_status, sizeof(ftp_status), "No Wi-Fi");
+        snprintf(ftp_status, sizeof(ftp_status), "%s", _("No Wi-Fi"));
         return false;
     }
 
@@ -797,7 +880,7 @@ bool ftpserver_start() {
     addr.sin_port = htons(FTP_SERVER_PORT);
     addr.sin_addr.s_addr = INADDR_ANY;
     if(ftp_io == NULL || ftp_listen < 0 || bind(ftp_listen, (struct sockaddr*) &addr, sizeof(addr)) != 0 || listen(ftp_listen, 1) != 0) {
-        snprintf(ftp_status, sizeof(ftp_status), "Port %d busy", FTP_SERVER_PORT);
+        snprintf(ftp_status, sizeof(ftp_status), _("Port %d busy"), FTP_SERVER_PORT);
         ftp_close_socket(&ftp_listen);
         free(ftp_io);
         ftp_io = NULL;
@@ -811,7 +894,7 @@ bool ftpserver_start() {
     ftp_thread = threadCreate(ftp_main, NULL, 0x10000, 0x19, 1, false);
     if(ftp_thread == NULL) {
         ftpserver_stop();
-        snprintf(ftp_status, sizeof(ftp_status), "No thread");
+        snprintf(ftp_status, sizeof(ftp_status), "%s", _("No thread"));
         return false;
     }
 
@@ -842,7 +925,7 @@ void ftpserver_stop() {
     free(ftp_io);
     ftp_io = NULL;
     ftp_set_phase(PHASE_NONE, NULL);
-    snprintf(ftp_status, sizeof(ftp_status), "Off");
+    snprintf(ftp_status, sizeof(ftp_status), "%s", _("Off"));
 }
 
 bool ftpserver_running() {
@@ -861,6 +944,20 @@ void ftpserver_resume() {
         ftp_paused = false;
         ftpserver_start();
     }
+}
+
+void ftpserver_poll_main() {
+    if(!shot_requested || shot_done) {
+        return;
+    }
+
+    u64 start = osGetTime();
+    mkdir("sdmc:" APP_DATA_DIR, 0777);
+    mkdir("sdmc:" APP_DATA_DIR "screenshots", 0777);
+    shot_ok = screen_capture(GFX_TOP, "sdmc:" APP_DATA_DIR "screenshots/top.bmp")
+              && screen_capture(GFX_BOTTOM, "sdmc:" APP_DATA_DIR "screenshots/bottom.bmp");
+    shot_ms = (u32) (osGetTime() - start);
+    shot_done = true;
 }
 
 void ftpserver_address(char* out, size_t size) {
@@ -892,10 +989,10 @@ bool ftpserver_notice(char* out, size_t size, float* progress) {
 
     switch(phase) {
         case PHASE_RECEIVING:
-            snprintf(out, size, "FTP: receiving %s", ftp_phase_file);
+            snprintf(out, size, _("FTP: receiving %s"), ftp_phase_file);
             return true;
         case PHASE_INSTALLING:
-            snprintf(out, size, "FTP: installing %s", ftp_phase_file);
+            snprintf(out, size, _("FTP: installing %s"), ftp_phase_file);
             return true;
         default:
             return false;

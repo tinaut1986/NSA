@@ -129,20 +129,11 @@ void changelog_text_draw(changelog_text* text, float x1, float y1, float x2, flo
 
     float y = y1 + CHANGELOG_MARGIN;
     for(u32 i = text->scroll; i < text->count && i < text->scroll + visible; i++) {
-        screen_draw_string(text->lines[i], x1 + CHANGELOG_MARGIN, y, CHANGELOG_TEXT_SCALE, CHANGELOG_TEXT_SCALE, COLOR_TEXT, false);
+        screen_draw_text(text->lines[i], x1 + CHANGELOG_MARGIN, y, CHANGELOG_TEXT_SCALE, theme()->palette->text);
         y += lineHeight;
     }
 
-    if(maxScroll > 0) {
-        u32 barWidth;
-        u32 barHeight;
-        screen_get_texture_size(&barWidth, &barHeight, TEXTURE_SCROLL_BAR);
-
-        float trackHeight = y2 - y1;
-        float thumbHeight = trackHeight * visible / text->count;
-        float thumbY = y1 + (trackHeight - thumbHeight) * text->scroll / maxScroll;
-        screen_draw_texture(TEXTURE_SCROLL_BAR, x2 - barWidth, thumbY, barWidth, thumbHeight);
-    }
+    widget_scrollbar(x2 - 6 - WIDGET_SCROLLBAR_WIDTH, y1 + CHANGELOG_MARGIN, y2 - y1 - 2 * CHANGELOG_MARGIN, text->scroll, visible, text->count);
 }
 
 static void changelog_view_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
@@ -158,23 +149,19 @@ static void changelog_view_draw_top(ui_view* view, void* data, float x1, float y
 }
 
 static void changelog_view_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
-    static const char* help = "Up/Down: Scroll\nL/R: Page";
-
-    float textWidth;
-    float textHeight;
-    screen_get_string_size(&textWidth, &textHeight, help, 0.5f, 0.5f);
-    screen_draw_string(help, x1 + (x2 - x1 - textWidth) / 2, y1 + (y2 - y1 - textHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
+    const char* help = _("Up/Down: scroll   \uE004/\uE005: page");
+    widget_text_centered(help, x1, x2, y1 + (y2 - y1 - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, theme()->palette->textMuted);
 }
 
 void changelog_display(const char* name, changelog_text* text) {
     if(text == NULL) {
-        error_display(NULL, NULL, "Failed to allocate changelog.");
+        error_display(NULL, NULL, _("Failed to allocate changelog."));
         return;
     }
 
     ui_view* view = ui_create();
     view->name = name;
-    view->info = "B: Back";
+    view->info = _("\uE001 back");
     view->data = text;
     view->update = changelog_view_update;
     view->drawTop = changelog_view_draw_top;

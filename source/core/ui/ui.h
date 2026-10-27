@@ -7,6 +7,8 @@ typedef struct ui_view_s {
     void (*update)(struct ui_view_s* view, void* data, float bx1, float by1, float bx2, float by2);
     void (*drawTop)(struct ui_view_s* view, void* data, float x1, float y1, float x2, float y2);
     void (*drawBottom)(struct ui_view_s* view, void* data, float x1, float y1, float x2, float y2);
+    // Optional: draws the title bar's contents itself (title, tool icons).
+    void (*drawTitleBar)(struct ui_view_s* view, void* data, float x1, float y1, float x2, float y2);
 
     Handle active;
 } ui_view;
@@ -37,3 +39,6 @@ const char* ui_get_display_size_units(u64 size);
 #include "kbd.h"
 #include "list.h"
 #include "prompt.h"
+#include "widgets.h"
+#include "overlay.h"
+#include "../input.h"

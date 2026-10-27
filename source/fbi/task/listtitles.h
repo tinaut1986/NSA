@@ -12,7 +12,25 @@ typedef struct title_info_s {
     bool twl;
     bool hasMeta;
     meta_info meta;
+
+    // Grouping (titles.c): a game counts the updates and DLC that share its
+    // unique ID; those are `linked` when their game is in the list.
+    u32 linkedCount;
+    bool linked;
 } title_info;
+
+typedef enum {
+    TITLE_KIND_GAME,
+    TITLE_KIND_UPDATE,
+    TITLE_KIND_DLC,
+    TITLE_KIND_DEMO,
+    TITLE_KIND_DSIWARE,
+    TITLE_KIND_SYSTEM
+} title_kind;
+
+// From the upper half of a title ID; the lower half is shared by a game, its
+// update and its DLC.
+title_kind title_kind_of(u64 titleId);
 
 typedef struct populate_titles_data_s {
     linked_list* items;

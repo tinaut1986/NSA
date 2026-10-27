@@ -8,8 +8,11 @@
 #include "prompt.h"
 #include "ui.h"
 #include "../screen.h"
+#include "../i18n.h"
 #include "../stringutil.h"
-#include "../../fbi/resources.h"
+#include "../theme.h"
+
+
 
 typedef struct {
     const char* text;
@@ -20,7 +23,35 @@ typedef struct {
     void* data;
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2);
     void (*onResponse)(ui_view* view, void* data, u32 response);
+    widget_press press;   // Touched button, answered on release over it.
+    u64 opened;           // For the card's entrance.
 } prompt_data;
+
+#define PROMPT_WIDTH 288
+#define PROMPT_PAD 12
+#define PROMPT_BUTTON_HEIGHT 30
+#define PROMPT_TEXT_SCALE 0.5f
+
+// Where the modal's buttons are; the same for drawing and touch.
+static void prompt_layout(prompt_data* promptData, float bx1, float by1, float bx2, float by2, float* cardX, float* cardY, float* cardH, float* textH) {
+    float textWidth = 0;
+    screen_get_string_size_wrap(&textWidth, textH, promptData->text, PROMPT_TEXT_SCALE, PROMPT_TEXT_SCALE, PROMPT_WIDTH - 2 * PROMPT_PAD);
+    *cardH = PROMPT_PAD + *textH + PROMPT_PAD + PROMPT_BUTTON_HEIGHT + PROMPT_PAD;
+    float maxH = by2 - by1 - 8;
+    if(*cardH > maxH) {
+        *cardH = maxH;
+    }
+
+    *cardX = bx1 + (bx2 - bx1 - PROMPT_WIDTH) / 2;
+    *cardY = by1 + (by2 - by1 - *cardH) / 2;
+}
+
+static void prompt_button_rect(prompt_data* promptData, u32 i, float cardX, float cardY, float cardH, float* x, float* y, float* w) {
+    float gap = 8;
+    *w = (PROMPT_WIDTH - 2 * PROMPT_PAD - gap * (promptData->numOptions - 1)) / promptData->numOptions;
+    *x = cardX + PROMPT_PAD + (*w + gap) * i;
+    *y = cardY + cardH - PROMPT_PAD - PROMPT_BUTTON_HEIGHT;
+}
 
 static void prompt_notify_response(ui_view* view, prompt_data* promptData, u32 response) {
     ui_pop();
@@ -44,22 +75,34 @@ static void prompt_update(ui_view* view, void* data, float bx1, float by1, float
         }
     }
 
+    touchPosition pos;
+    hidTouchRead(&pos);
+
+    float cardX, cardY, cardH, textH;
+    prompt_layout(promptData, bx1, by1, bx2, by2, &cardX, &cardY, &cardH, &textH);
+
     if(hidKeysDown() & KEY_TOUCH) {
-        touchPosition pos;
-        hidTouchRead(&pos);
-
-        float buttonWidth = (bx2 - bx1 - (10 * (promptData->numOptions + 1))) / promptData->numOptions;
-        u32 buttonHeight;
-        screen_get_texture_size(NULL, &buttonHeight, TEXTURE_BUTTON);
-
+        widget_press_end(&promptData->press);
         for(u32 i = 0; i < promptData->numOptions; i++) {
-            float buttonX = bx1 + 10 + (buttonWidth + 10) * i;
-            float buttonY = by2 - 5 - buttonHeight;
-
-            if(pos.px >= buttonX && pos.py >= buttonY && pos.px < buttonX + buttonWidth && pos.py < buttonY + buttonHeight) {
-                prompt_notify_response(view, promptData, i);
-                return;
+            float x, y, w;
+            prompt_button_rect(promptData, i, cardX, cardY, cardH, &x, &y, &w);
+            if(widget_touched(&pos, x, y, w, PROMPT_BUTTON_HEIGHT)) {
+                widget_press_begin(&promptData->press, (int) i, true, pos.px, pos.py);
             }
+        }
+    } else if((hidKeysHeld() & KEY_TOUCH) && promptData->press.index >= 0) {
+        float x, y, w;
+        prompt_button_rect(promptData, (u32) promptData->press.index, cardX, cardY, cardH, &x, &y, &w);
+        if(!widget_touched(&pos, x, y, w, PROMPT_BUTTON_HEIGHT)) {
+            promptData->press.cancelled = true;
+        }
+    } else if(hidKeysUp() & KEY_TOUCH) {
+        int index = promptData->press.index;
+        bool answer = widget_press_on(&promptData->press, index);
+        widget_press_end(&promptData->press);
+        if(answer) {
+            prompt_notify_response(view, promptData, (u32) index);
+            return;
         }
     }
 }
@@ -73,18 +116,18 @@ static void prompt_draw_top(ui_view* view, void* data, float x1, float y1, float
 }
 
 static const char* button_strings[32] = {
-        "A",
-        "B",
+        "\uE000",
+        "\uE001",
         "Select",
         "Start",
         "D-Pad Right",
         "D-Pad Left",
         "D-Pad Up",
         "D-Pad Down",
-        "R",
-        "L",
-        "X",
-        "Y",
+        "\uE005",
+        "\uE004",
+        "\uE002",
+        "\uE003",
         "",
         "",
         "ZL",
@@ -109,7 +152,8 @@ static const char* button_strings[32] = {
 
 static void prompt_button_to_string(char* out, size_t size, u32 button) {
     if(button == PROMPT_BUTTON_ANY) {
-        snprintf(out, size, "Any Button");
+        // Any button closes it, but A is the one to show.
+        snprintf(out, size, "\uE000");
         return;
     }
 
@@ -127,31 +171,38 @@ static void prompt_button_to_string(char* out, size_t size, u32 button) {
 
 static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     prompt_data* promptData = (prompt_data*) data;
+    const theme_current* t = theme();
 
-    float buttonWidth = (x2 - x1 - (10 * (promptData->numOptions + 1))) / promptData->numOptions;
-    u32 buttonHeight;
-    screen_get_texture_size(NULL, &buttonHeight, TEXTURE_BUTTON);
+    float cardX, cardY, cardH, textH;
+    prompt_layout(promptData, x1, y1, x2, y2, &cardX, &cardY, &cardH, &textH);
+
+    // The scrim darkens in while the card rises into place.
+    float e = widget_ease(promptData->opened, 180);
+    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->scrim, (u32) (((t->palette->scrim >> 24) & 0xFF) * e)));
+    screen_set_offset(0, (1 - e) * 14);
+    screen_set_base_alpha((u8) (0x40 + e * 0xBF));
+
+    screen_frame_round_rect(cardX, cardY, PROMPT_WIDTH, cardH, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
+
+    u32 textColor = promptData->color == COLOR_TEXT ? t->palette->text : screen_get_color(promptData->color);
+    screen_draw_text_wrap(promptData->text, cardX + PROMPT_PAD, cardY + PROMPT_PAD, PROMPT_TEXT_SCALE, textColor, cardX + PROMPT_WIDTH - PROMPT_PAD);
 
     char button[64];
-    char text[PROMPT_OPTION_TEXT_MAX + 65];
+    char label[PROMPT_OPTION_TEXT_MAX + 65];
     for(u32 i = 0; i < promptData->numOptions; i++) {
-        float buttonX = x1 + 10 + (buttonWidth + 10) * i;
-        float buttonY = y2 - 5 - buttonHeight;
-        screen_draw_texture(TEXTURE_BUTTON, buttonX, buttonY, buttonWidth, buttonHeight);
+        float x, y, w;
+        prompt_button_rect(promptData, i, cardX, cardY, cardH, &x, &y, &w);
 
-        prompt_button_to_string(button, 64, promptData->optionButtons[i]);
-        snprintf(text, sizeof(text), "%s\n(%s)", promptData->options[i], button);
+        prompt_button_to_string(button, sizeof(button), promptData->optionButtons[i]);
+        snprintf(label, sizeof(label), "%s  %s", button, promptData->options[i]);
 
-        float textWidth;
-        float textHeight;
-        screen_get_string_size(&textWidth, &textHeight, text, 0.5f, 0.5f);
-        screen_draw_string(text, buttonX + (buttonWidth - textWidth) / 2, buttonY + (buttonHeight - textHeight) / 2, 0.5f, 0.5f, promptData->color, true);
+        // The first option (Yes, OK) is the one that goes ahead.
+        widget_button_centered(x, y, w, PROMPT_BUTTON_HEIGHT, label, i == 0);
+        widget_press_draw(&promptData->press, (int) i, x, y, w, PROMPT_BUTTON_HEIGHT, t->def->radiusSmall, i == 0 ? t->onAccent : t->palette->text, false);
     }
 
-    float textWidth;
-    float textHeight;
-    screen_get_string_size(&textWidth, &textHeight, promptData->text, 0.5f, 0.5f);
-    screen_draw_string(promptData->text, x1 + (x2 - x1 - textWidth) / 2, y1 + (y2 - 5 - buttonHeight - y1 - textHeight) / 2, 0.5f, 0.5f, promptData->color, true);
+    screen_set_offset(0, 0);
+    screen_set_base_alpha(0xFF);
 }
 
 ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 color, const char** options, u32* optionButtons, u32 numOptions, void* data, void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2),
@@ -163,11 +214,15 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
         return NULL;
     }
 
+    promptData->press.index = -1;
+    promptData->opened = osGetTime();
+
     promptData->text = text;
     promptData->color = color;
 
     for(u32 i = 0; i < numOptions && i < PROMPT_OPTIONS_MAX; i++) {
-        string_copy(promptData->options[i], options[i], PROMPT_OPTION_TEXT_MAX);
+        // Options are literals: translated here, as they are copied.
+        string_copy(promptData->options[i], _(options[i]), PROMPT_OPTION_TEXT_MAX);
         promptData->optionButtons[i] = optionButtons[i];
     }
 

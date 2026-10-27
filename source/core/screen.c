@@ -7,6 +7,7 @@
 #include <citro3d.h>
 
 #include "error.h"
+#include "icons.h"
 #include "screen.h"
 #include "../libs/stb_image/stb_image.h"
 
@@ -19,9 +20,25 @@ static DVLB_s* dvlb;
 static shaderProgram_s program;
 
 static C3D_RenderTarget* target_top;
+static C3D_RenderTarget* target_top_right;
 static C3D_RenderTarget* target_bottom;
+
+// Added to every quad: a translation (animations) and, on the top screen in
+// 3D, the eye's shift for the current depth.
+static float offset_x = 0;
+static float offset_y = 0;
+static float stereo_shift = 0;   // Pixels per unit of depth for this eye.
+static float depth = 0;
+
+// Moves and fades only text, icons and images (not shapes): a card's
+// contents change while the card stays put.
+static float content_dx = 0;
+static float content_dy = 0;
+static u8 content_alpha = 0xFF;
+static bool shapes_hidden = false;   // Only the contents are drawn.
 static C3D_Mtx projection_top;
 static C3D_Mtx projection_bottom;
+static u32 current_width = TOP_SCREEN_WIDTH;
 
 static C3D_Tex* glyph_sheets;
 static u32 glyph_count;
@@ -37,6 +54,12 @@ static struct {
     u32 width;
     u32 height;
 } textures[MAX_TEXTURES];
+
+// White masks the shapes are tinted from, and the icon atlas.
+#define SHAPE_CIRCLE_SIZE 128
+static u32 shape_white = 0;
+static u32 shape_circle = 0;
+static u32 shape_icons = 0;
 
 static void screen_set_blend(u32 color, bool rgb, bool alpha) {
     C3D_TexEnv* env = C3D_GetTexEnv(0);
@@ -66,6 +89,8 @@ static void screen_set_blend(u32 color, bool rgb, bool alpha) {
     C3D_TexEnvColor(env, color);
 }
 
+static void screen_init_shapes();
+
 void screen_init() {
     if(!C3D_Init(C3D_DEFAULT_CMDBUF_SIZE * 4)) {
         error_panic("Failed to initialize the GPU.");
@@ -83,6 +108,14 @@ void screen_init() {
     }
 
     C3D_RenderTargetSetOutput(target_top, GFX_TOP, GFX_LEFT, displayFlags);
+
+    target_top_right = C3D_RenderTargetCreate(TOP_SCREEN_HEIGHT, TOP_SCREEN_WIDTH, GPU_RB_RGB8, 0);
+    if(target_top_right == NULL) {
+        error_panic("Failed to initialize the top screen's right eye target.");
+        return;
+    }
+
+    C3D_RenderTargetSetOutput(target_top_right, GFX_TOP, GFX_RIGHT, displayFlags);
 
     target_bottom = C3D_RenderTargetCreate(BOTTOM_SCREEN_HEIGHT, BOTTOM_SCREEN_WIDTH, GPU_RB_RGB8, 0);
     if(target_bottom == NULL) {
@@ -157,6 +190,8 @@ void screen_init() {
     }
 
     font_scale = 30.0f / glyphInfo->cellHeight; // 30 is cellHeight in J machines
+
+    screen_init_shapes();
 }
 
 void screen_exit() {
@@ -181,6 +216,11 @@ void screen_exit() {
 
     if(target_top != NULL) {
         C3D_RenderTargetDelete(target_top);
+        if(target_top_right != NULL) {
+            C3D_RenderTargetDelete(target_top_right);
+            target_top_right = NULL;
+        }
+
         target_top = NULL;
     }
 
@@ -206,6 +246,10 @@ void screen_set_color(u32 id, u32 color) {
     }
 
     color_config[id] = color;
+}
+
+u32 screen_get_color(u32 id) {
+    return id < MAX_COLORS ? color_config[id] : color_config[COLOR_TEXT];
 }
 
 static u32 screen_next_pow_2(u32 i) {
@@ -417,7 +461,21 @@ void screen_end_frame() {
 }
 
 void screen_select(gfxScreen_t screen) {
-    C3D_RenderTarget* target = screen == GFX_TOP ? target_top : target_bottom;
+    screen_select_eye(screen, GFX_LEFT, 0);
+}
+
+void screen_select_eye(gfxScreen_t screen, gfx3dSide_t side, float shift) {
+    C3D_RenderTarget* target = screen == GFX_TOP ? (side == GFX_RIGHT ? target_top_right : target_top) : target_bottom;
+    current_width = screen == GFX_TOP ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
+    stereo_shift = screen == GFX_TOP ? shift : 0;
+    depth = 0;
+    offset_x = 0;
+    offset_y = 0;
+    content_dx = 0;
+    content_dy = 0;
+    content_alpha = 0xFF;
+    shapes_hidden = false;
+    screen_clear_clip();
 
     C3D_RenderTargetClear(target, C3D_CLEAR_ALL, 0, 0);
     if(!C3D_FrameDrawOn(target)) {
@@ -428,7 +486,46 @@ void screen_select(gfxScreen_t screen) {
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), screen == GFX_TOP ? &projection_top : &projection_bottom);
 }
 
+void screen_set_offset(float x, float y) {
+    offset_x = x;
+    offset_y = y;
+}
+
+void screen_set_content_motion(float dx, float dy, u8 alpha) {
+    content_dx = dx;
+    content_dy = dy;
+    content_alpha = alpha;
+}
+
+void screen_get_content_motion(float* dx, float* dy, u8* alpha) {
+    *dx = content_dx;
+    *dy = content_dy;
+    *alpha = content_alpha;
+}
+
+void screen_set_shapes_hidden(bool hidden) {
+    shapes_hidden = hidden;
+}
+
+bool screen_get_shapes_hidden() {
+    return shapes_hidden;
+}
+
+void screen_set_depth(float value) {
+    depth = value;
+}
+
+float screen_get_depth() {
+    return depth;
+}
+
 static void screen_draw_quad(float x1, float y1, float x2, float y2, float left, float bottom, float right, float top) {
+    float dx = offset_x + depth * stereo_shift;
+    x1 += dx;
+    x2 += dx;
+    y1 += offset_y;
+    y2 += offset_y;
+
     C3D_ImmDrawBegin(GPU_TRIANGLE_STRIP);
 
     C3D_ImmSendAttrib(x1, y2, 0.5f, 0.0f);
@@ -447,12 +544,19 @@ static void screen_draw_quad(float x1, float y1, float x2, float y2, float left,
 }
 
 void screen_draw_texture(u32 id, float x, float y, float width, float height) {
+    x += content_dx;
+    y += content_dy;
+    u8 savedAlpha = base_alpha;
+    base_alpha = (u8) (base_alpha * content_alpha / 0xFF);
+
     if(id >= MAX_TEXTURES) {
         error_panic("Attempted to draw invalid texture ID \"%lu\".", id);
+        base_alpha = savedAlpha;
         return;
     }
 
     if(textures[id].tex.data == NULL) {
+        base_alpha = savedAlpha;
         return;
     }
 
@@ -466,15 +570,24 @@ void screen_draw_texture(u32 id, float x, float y, float width, float height) {
     if(base_alpha != 0xFF) {
         screen_set_blend(0, false, false);
     }
+
+    base_alpha = savedAlpha;
 }
 
 void screen_draw_texture_crop(u32 id, float x, float y, float width, float height) {
+    x += content_dx;
+    y += content_dy;
+    u8 savedAlpha = base_alpha;
+    base_alpha = (u8) (base_alpha * content_alpha / 0xFF);
+
     if(id >= MAX_TEXTURES) {
         error_panic("Attempted to draw invalid texture ID \"%lu\".", id);
+        base_alpha = savedAlpha;
         return;
     }
 
     if(textures[id].tex.data == NULL) {
+        base_alpha = savedAlpha;
         return;
     }
 
@@ -488,6 +601,8 @@ void screen_draw_texture_crop(u32 id, float x, float y, float width, float heigh
     if(base_alpha != 0xFF) {
         screen_set_blend(0, false, false);
     }
+
+    base_alpha = savedAlpha;
 }
 
 float screen_get_font_height(float scaleY) {
@@ -633,17 +748,15 @@ void screen_get_string_size_wrap(float* width, float* height, const char* text, 
     screen_wrap_string(NULL, NULL, NULL, NULL, width, height, text, 0, wrapWidth, scaleX, scaleY, true);
 }
 
-static void screen_draw_string_internal(const char* text, float x, float y, float scaleX, float scaleY, u32 colorId, bool centerLines, bool wrap, float wrapX) {
+static void screen_draw_string_internal(const char* text, float x, float y, float scaleX, float scaleY, u32 color, bool centerLines, bool wrap, float wrapX) {
     if(text == NULL) {
         return;
     }
 
-    if(colorId >= MAX_COLORS) {
-        error_panic("Attempted to draw string with invalid color ID \"%lu\".", colorId);
-        return;
-    }
-
-    u32 blendColor = color_config[colorId];
+    x += content_dx;
+    y += content_dy;
+    wrapX += content_dx;
+    u32 blendColor = content_alpha == 0xFF ? color : (((((color >> 24) & 0xFF) * content_alpha / 0xFF) << 24) | (color & 0x00FFFFFF));
     if(base_alpha != 0xFF) {
         float alpha1 = ((blendColor >> 24) & 0xFF) / 255.0f;
         float alpha2 = base_alpha / 255.0f;
@@ -722,10 +835,274 @@ static void screen_draw_string_internal(const char* text, float x, float y, floa
     screen_set_blend(0, false, false);
 }
 
+static u32 screen_color_of(u32 colorId) {
+    if(colorId >= MAX_COLORS) {
+        error_panic("Attempted to draw string with invalid color ID \"%lu\".", colorId);
+        return 0xFF000000;
+    }
+
+    return color_config[colorId];
+}
+
 void screen_draw_string(const char* text, float x, float y, float scaleX, float scaleY, u32 colorId, bool centerLines) {
-    screen_draw_string_internal(text, x, y, scaleX, scaleY, colorId, centerLines, false, 0);
+    screen_draw_string_internal(text, x, y, scaleX, scaleY, screen_color_of(colorId), centerLines, false, 0);
 }
 
 void screen_draw_string_wrap(const char* text, float x, float y, float scaleX, float scaleY, u32 colorId, bool centerLines, float wrapX) {
-    screen_draw_string_internal(text, x, y, scaleX, scaleY, colorId, centerLines, true, wrapX);
+    screen_draw_string_internal(text, x, y, scaleX, scaleY, screen_color_of(colorId), centerLines, true, wrapX);
+}
+
+void screen_draw_text(const char* text, float x, float y, float scale, u32 color) {
+    screen_draw_string_internal(text, x, y, scale, scale, color, false, false, 0);
+}
+
+void screen_draw_text_wrap(const char* text, float x, float y, float scale, u32 color, float wrapX) {
+    screen_draw_string_internal(text, x, y, scale, scale, color, false, true, wrapX);
+}
+
+// ---- themed shapes ----
+
+// The framebuffers are portrait (240 wide): the scissor box is in their
+// rotated coordinates.
+static bool clip_on = false;
+static float clip_rect[4];
+
+static void screen_apply_clip(float x, float y, float width, float height) {
+    int left = (int) x;
+    int top = (int) y;
+    int right = (int) (x + width);
+    int bottom = (int) (y + height);
+    if(left < 0) left = 0;
+    if(top < 0) top = 0;
+    if(right > (int) current_width) right = (int) current_width;
+    if(bottom > 240) bottom = 240;
+    if(right <= left || bottom <= top) {
+        right = left + 1;
+        bottom = top + 1;
+    }
+
+    C3D_SetScissor(GPU_SCISSOR_NORMAL, 240 - bottom, current_width - right, 240 - top, current_width - left);
+}
+
+void screen_set_clip(float x, float y, float width, float height) {
+    clip_on = true;
+    clip_rect[0] = x;
+    clip_rect[1] = y;
+    clip_rect[2] = width;
+    clip_rect[3] = height;
+    screen_apply_clip(x, y, width, height);
+}
+
+void screen_clear_clip() {
+    clip_on = false;
+    C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+}
+
+void screen_clip_within(float x, float y, float width, float height) {
+    float x2 = x + width;
+    float y2 = y + height;
+    if(clip_on) {
+        if(x < clip_rect[0]) x = clip_rect[0];
+        if(y < clip_rect[1]) y = clip_rect[1];
+        if(x2 > clip_rect[0] + clip_rect[2]) x2 = clip_rect[0] + clip_rect[2];
+        if(y2 > clip_rect[1] + clip_rect[3]) y2 = clip_rect[1] + clip_rect[3];
+    }
+
+    screen_apply_clip(x, y, x2 - x, y2 - y);
+}
+
+void screen_restore_clip() {
+    if(clip_on) {
+        screen_apply_clip(clip_rect[0], clip_rect[1], clip_rect[2], clip_rect[3]);
+    } else {
+        C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+    }
+}
+
+static void screen_init_shapes() {
+    // RGBA8 texels are stored A, B, G, R (see screen_load_texture_file).
+    u8* white = (u8*) malloc(64 * 64 * 4);
+    u8* circle = (u8*) malloc(SHAPE_CIRCLE_SIZE * SHAPE_CIRCLE_SIZE * 4);
+    if(white == NULL || circle == NULL) {
+        free(white);
+        free(circle);
+        error_panic("Failed to allocate shape textures.");
+        return;
+    }
+
+    memset(white, 0xFF, 64 * 64 * 4);
+
+    // An anti-aliased disc: 4x4 samples per texel.
+    float r = SHAPE_CIRCLE_SIZE / 2.0f;
+    for(u32 y = 0; y < SHAPE_CIRCLE_SIZE; y++) {
+        for(u32 x = 0; x < SHAPE_CIRCLE_SIZE; x++) {
+            u32 inside = 0;
+            for(u32 sy = 0; sy < 4; sy++) {
+                for(u32 sx = 0; sx < 4; sx++) {
+                    float dx = x + (sx + 0.5f) / 4.0f - r;
+                    float dy = y + (sy + 0.5f) / 4.0f - r;
+                    if(dx * dx + dy * dy <= r * r) {
+                        inside++;
+                    }
+                }
+            }
+
+            u8* texel = &circle[(y * SHAPE_CIRCLE_SIZE + x) * 4];
+            texel[0] = (u8) (inside * 255 / 16);
+            texel[1] = texel[2] = texel[3] = 0xFF;
+        }
+    }
+
+    shape_white = screen_allocate_free_texture();
+    screen_load_texture_untiled(shape_white, white, 64 * 64 * 4, 64, 64, GPU_RGBA8, false);
+    shape_circle = screen_allocate_free_texture();
+    screen_load_texture_untiled(shape_circle, circle, SHAPE_CIRCLE_SIZE * SHAPE_CIRCLE_SIZE * 4, SHAPE_CIRCLE_SIZE, SHAPE_CIRCLE_SIZE, GPU_RGBA8, true);
+
+    free(white);
+    free(circle);
+
+    shape_icons = screen_allocate_free_texture();
+    screen_load_texture_path(shape_icons, "romfs:/icons.png", true);
+}
+
+static u32 screen_apply_base_alpha(u32 color) {
+    if(base_alpha == 0xFF) {
+        return color;
+    }
+
+    u32 alpha = ((color >> 24) & 0xFF) * base_alpha / 0xFF;
+    return (alpha << 24) | (color & 0x00FFFFFF);
+}
+
+// Draws a region of a mask texture, tinted. fx/fy are fractions of the image,
+// from its top left corner.
+static void screen_draw_mask_any(u32 id, float x1, float y1, float x2, float y2, float fx1, float fy1, float fx2, float fy2, u32 color) {
+    C3D_Tex* tex = &textures[id].tex;
+    if(tex->data == NULL || x2 <= x1 || y2 <= y1) {
+        return;
+    }
+
+    float uScale = (float) textures[id].width / tex->width;
+    float vScale = (float) textures[id].height / tex->height;
+
+    screen_set_blend(screen_apply_base_alpha(color), true, true);
+    C3D_TexBind(0, tex);
+    screen_draw_quad(x1, y1, x2, y2, fx1 * uScale, 1.0f - fy2 * vScale, fx2 * uScale, 1.0f - fy1 * vScale);
+    screen_set_blend(0, false, false);
+}
+
+// A shape (not an icon): left out while only contents are drawn.
+static void screen_draw_mask(u32 id, float x1, float y1, float x2, float y2, float fx1, float fy1, float fx2, float fy2, u32 color) {
+    if(!shapes_hidden) {
+        screen_draw_mask_any(id, x1, y1, x2, y2, fx1, fy1, fx2, fy2, color);
+    }
+}
+
+void screen_fill_rect(float x, float y, float width, float height, u32 color) {
+    screen_draw_mask(shape_white, x, y, x + width, y + height, 0.25f, 0.25f, 0.75f, 0.75f, color);
+}
+
+void screen_fill_round_rect(float x, float y, float width, float height, float radius, u32 color) {
+    float max = (width < height ? width : height) / 2;
+    if(radius > max) {
+        radius = max;
+    }
+
+    if(radius < 1) {
+        screen_fill_rect(x, y, width, height, color);
+        return;
+    }
+
+    float r = radius;
+    screen_fill_rect(x + r, y, width - 2 * r, height, color);
+    screen_fill_rect(x, y + r, r, height - 2 * r, color);
+    screen_fill_rect(x + width - r, y + r, r, height - 2 * r, color);
+
+    screen_draw_mask(shape_circle, x, y, x + r, y + r, 0, 0, 0.5f, 0.5f, color);
+    screen_draw_mask(shape_circle, x + width - r, y, x + width, y + r, 0.5f, 0, 1, 0.5f, color);
+    screen_draw_mask(shape_circle, x, y + height - r, x + r, y + height, 0, 0.5f, 0.5f, 1, color);
+    screen_draw_mask(shape_circle, x + width - r, y + height - r, x + width, y + height, 0.5f, 0.5f, 1, 1, color);
+}
+
+void screen_frame_round_rect(float x, float y, float width, float height, float radius, float border, u32 borderColor, u32 fillColor) {
+    if(border <= 0) {
+        screen_fill_round_rect(x, y, width, height, radius, fillColor);
+        return;
+    }
+
+    screen_fill_round_rect(x, y, width, height, radius, borderColor);
+    screen_fill_round_rect(x + border, y + border, width - 2 * border, height - 2 * border, radius > border ? radius - border : 0, fillColor);
+}
+
+void screen_fill_circle(float cx, float cy, float radius, u32 color) {
+    screen_draw_mask(shape_circle, cx - radius, cy - radius, cx + radius, cy + radius, 0, 0, 1, 1, color);
+}
+
+void screen_draw_icon(u32 icon, float x, float y, float size, u32 color) {
+    if(icon >= ICON_COUNT || textures[shape_icons].width == 0) {
+        return;
+    }
+
+    float cellW = (float) ICON_CELL / textures[shape_icons].width;
+    float cellH = (float) ICON_CELL / textures[shape_icons].height;
+    float fx = (icon % ICON_COLUMNS) * cellW;
+    float fy = (icon / ICON_COLUMNS) * cellH;
+    x += content_dx;
+    y += content_dy;
+    if(content_alpha != 0xFF) {
+        color = ((((color >> 24) & 0xFF) * content_alpha / 0xFF) << 24) | (color & 0x00FFFFFF);
+    }
+
+    screen_draw_mask_any(shape_icons, x, y, x + size, y + size, fx, fy, fx + cellW, fy + cellH, color);
+}
+
+bool screen_capture(gfxScreen_t screen, const char* path) {
+    u16 fbWidth = 0;
+    u16 fbHeight = 0;
+    u8* fb = gfxGetFramebuffer(screen, GFX_LEFT, &fbWidth, &fbHeight);
+    if(fb == NULL) {
+        return false;
+    }
+
+    // The framebuffer is portrait: fbWidth (240) is the screen's height.
+    u32 width = fbHeight;
+    u32 height = fbWidth;
+    u32 rowSize = width * 3;
+    u32 imageSize = rowSize * height;
+
+    u8 header[54] = {'B', 'M'};
+    u32 fileSize = sizeof(header) + imageSize;
+    memcpy(&header[2], &fileSize, 4);
+    header[10] = sizeof(header);
+    header[14] = 40;
+    memcpy(&header[18], &width, 4);
+    memcpy(&header[22], &height, 4);
+    header[26] = 1;
+    header[28] = 24;
+    memcpy(&header[34], &imageSize, 4);
+
+    FILE* f = fopen(path, "wb");
+    if(f == NULL) {
+        return false;
+    }
+
+    // One write for the whole image: row by row is slow on a real SD card.
+    u8* image = (u8*) malloc(imageSize);
+    bool ok = image != NULL && fwrite(header, 1, sizeof(header), f) == sizeof(header);
+
+    // BMP rows go bottom-up; each framebuffer column is one screen column, from the bottom.
+    for(u32 r = 0; ok && r < height; r++) {
+        u8* row = &image[r * rowSize];
+        for(u32 x = 0; x < width; x++) {
+            u8* px = &fb[(x * fbWidth + r) * 3];
+            row[x * 3 + 0] = px[0];
+            row[x * 3 + 1] = px[1];
+            row[x * 3 + 2] = px[2];
+        }
+    }
+
+    ok = ok && fwrite(image, 1, imageSize, f) == imageSize;
+    free(image);
+    ok = fclose(f) == 0 && ok;
+    return ok;
 }

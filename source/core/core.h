@@ -4,6 +4,8 @@
 #include "task/task.h"
 #include "ui/ui.h"
 
+#include "appinfo.h"
+
 #include "clipboard.h"
 #include "error.h"
 #include "fs.h"

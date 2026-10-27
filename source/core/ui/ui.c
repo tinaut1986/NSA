@@ -229,7 +229,9 @@ static void ui_draw_bottom(ui_view* ui) {
     // Title bar.
     screen_fill_rect(0, 0, BOTTOM_SCREEN_WIDTH, contentTop, t->palette->surface);
     screen_fill_rect(0, contentTop - 1, BOTTOM_SCREEN_WIDTH, 1, t->palette->border);
-    if(ui->name != NULL) {
+    if(ui->drawTitleBar != NULL) {
+        ui->drawTitleBar(ui, ui->data, 0, 0, BOTTOM_SCREEN_WIDTH, contentTop);
+    } else if(ui->name != NULL) {
         widget_text_centered(ui->name, 0, BOTTOM_SCREEN_WIDTH, (contentTop - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, t->palette->text);
     }
 

@@ -136,7 +136,8 @@ static const char* button_strings[32] = {
 
 static void prompt_button_to_string(char* out, size_t size, u32 button) {
     if(button == PROMPT_BUTTON_ANY) {
-        snprintf(out, size, "%s", _("Any button"));
+        // Any button closes it, but A is the one to show.
+        snprintf(out, size, "\uE000");
         return;
     }
 
@@ -175,7 +176,7 @@ static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, fl
         snprintf(label, sizeof(label), "%s  %s", button, promptData->options[i]);
 
         // The first option (Yes, OK) is the one that goes ahead.
-        widget_button(x, y, w, PROMPT_BUTTON_HEIGHT, -1, label, i == 0);
+        widget_button_centered(x, y, w, PROMPT_BUTTON_HEIGHT, label, i == 0);
     }
 }
 

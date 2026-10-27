@@ -120,6 +120,38 @@ const i18n_entry i18n_es[] = {
         {"Failed to import %s.", "No se ha podido importar %s."},
         {"the FBI folder", "la carpeta de FBI"},
         {"Failed to import the FBI folder.", "No se ha podido importar la carpeta de FBI."},
+        // Titles
+        {"Titles", "Títulos"},
+        {"\uE000 actions   \uE003 view   \uE004 filter   \uE005 search   \uE001 back", "\uE000 acciones   \uE003 vista   \uE004 filtro   \uE005 buscar   \uE001 volver"},
+        {"Launch", "Abrir"},
+        {"Save data", "Partidas"},
+        {"Extract icon", "Extraer icono"},
+        {"Import seed", "Importar seed"},
+        {"Import secure value", "Importar secure value"},
+        {"Export secure value", "Exportar secure value"},
+        {"Delete secure value", "Borrar secure value"},
+        {"Import save", "Importar partida"},
+        {"Export save", "Exportar partida"},
+        {"Erase save", "Borrar partida"},
+        {"Delete", "Borrar"},
+        {"Delete with ticket", "Borrar con ticket"},
+        {"Game card", "Cartucho"},
+        {"Show", "Mostrar"},
+        {"Sort by", "Ordenar por"},
+        {"Name", "Nombre"},
+        {"Size", "Tamaño"},
+        {"Search titles", "Buscar títulos"},
+        {"Nothing matches the search.", "Nada coincide con la búsqueda."},
+        {"Title ID", "ID del título"},
+        {"Version", "Versión"},
+        {"Product code", "Código"},
+        {"Region", "Región"},
+        {"Type", "Tipo"},
+        {"Unknown", "Desconocida"},
+
+        // Overlays
+        {"\uE000 choose   \uE001 close", "\uE000 elegir   \uE001 cerrar"},
+        {"\uE000 run   \uE001 close", "\uE000 ejecutar   \uE001 cerrar"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

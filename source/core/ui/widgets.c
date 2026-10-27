@@ -23,32 +23,40 @@ void widget_text_fit(const char* text, float x, float y, float scale, u32 color,
         return;
     }
 
-    if(widget_text_width(text, scale) <= maxWidth) {
-        screen_draw_text(text, x, y, scale, color);
-        return;
-    }
-
+    // One line: titles' descriptions often carry line breaks.
     char buf[256];
     size_t len = strlen(text);
     if(len >= sizeof(buf) - 4) {
         len = sizeof(buf) - 4;
     }
 
+    for(size_t i = 0; i < len; i++) {
+        buf[i] = text[i] == '\n' || text[i] == '\r' ? ' ' : text[i];
+    }
+
+    buf[len] = '\0';
+
+    if(widget_text_width(buf, scale) <= maxWidth) {
+        screen_draw_text(buf, x, y, scale, color);
+        return;
+    }
+
     // Shorten until it fits, keeping whole UTF-8 characters.
+    char cut[256];
     while(len > 0) {
         len--;
-        while(len > 0 && (text[len] & 0xC0) == 0x80) {
+        while(len > 0 && (buf[len] & 0xC0) == 0x80) {
             len--;
         }
 
-        memcpy(buf, text, len);
-        strcpy(buf + len, "...");
-        if(widget_text_width(buf, scale) <= maxWidth) {
+        memcpy(cut, buf, len);
+        strcpy(cut + len, "...");
+        if(widget_text_width(cut, scale) <= maxWidth) {
             break;
         }
     }
 
-    screen_draw_text(buf, x, y, scale, color);
+    screen_draw_text(cut, x, y, scale, color);
 }
 
 void widget_text_centered(const char* text, float x1, float x2, float y, float scale, u32 color) {
@@ -92,6 +100,17 @@ void widget_button(float x, float y, float width, float height, int icon, const 
     float scale = widget_text_width(label, WIDGET_TEXT_SCALE) <= room ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
     textHeight = widget_text_height(scale);
     widget_text_fit(label, tx, y + (height - textHeight) / 2, scale, ink, room);
+}
+
+void widget_button_centered(float x, float y, float width, float height, const char* label, bool selected) {
+    const theme_current* t = theme();
+    u32 fill = selected ? t->accent : t->palette->surface;
+    u32 edge = selected ? t->accent : t->palette->border;
+    u32 ink = selected ? t->onAccent : t->palette->text;
+    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+
+    float scale = widget_text_width(label, WIDGET_TEXT_SCALE) <= width - 12 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
+    widget_text_centered(label, x, x + width, y + (height - widget_text_height(scale)) / 2, scale, ink);
 }
 
 void widget_row(float x, float y, float width, float height, int icon, const char* label, u32 labelColor, const char* value, bool selected) {

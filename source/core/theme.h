@@ -72,3 +72,6 @@ void theme_select(u32 theme, u32 accent, theme_night_mode night);
 // Re-evaluates THEME_NIGHT_AUTO against the clock; cheap, call once per frame.
 void theme_update();
 const theme_current* theme();
+
+// Mixes two opaque colours: weight 0 is all `a`, 255 all `b`.
+u32 theme_mix(u32 a, u32 b, u32 weightB);

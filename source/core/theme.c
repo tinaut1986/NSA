@@ -96,7 +96,7 @@ u32 theme_accent_find(const char* id) {
     return 0;
 }
 
-static u32 theme_mix(u32 a, u32 b, u32 weightB) {
+u32 theme_mix(u32 a, u32 b, u32 weightB) {
     u32 out = 0xFF000000;
     for(u32 shift = 0; shift < 24; shift += 8) {
         u32 ca = (a >> shift) & 0xFF;

@@ -43,3 +43,13 @@ qrcode
 world-download
 power
 player-play
+arrow-left
+list
+layout-grid
+filter
+arrows-sort
+search
+key
+shield-lock
+trash-x
+building

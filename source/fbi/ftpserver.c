@@ -58,6 +58,7 @@ static volatile u64 ftp_total = 0;
 static volatile bool shot_requested = false;
 static volatile bool shot_done = false;
 static volatile bool shot_ok = false;
+static volatile u32 shot_ms = 0;
 
 typedef struct {
     int ctrl;
@@ -592,7 +593,11 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         }
 
         shot_requested = false;
-        ftp_reply(s, shot_done && shot_ok ? "200 " APP_DATA_DIR "screenshots/top.bmp " APP_DATA_DIR "screenshots/bottom.bmp" : "451 Screenshot failed.");
+        if(shot_done && shot_ok) {
+            ftp_reply(s, "200 " APP_DATA_DIR "screenshots/top.bmp " APP_DATA_DIR "screenshots/bottom.bmp (%lu ms)", shot_ms);
+        } else {
+            ftp_reply(s, shot_done ? "451 Screenshot failed." : "451 Screenshot not taken in time.");
+        }
         return;
     }
 
@@ -946,10 +951,12 @@ void ftpserver_poll_main() {
         return;
     }
 
+    u64 start = osGetTime();
     mkdir("sdmc:" APP_DATA_DIR, 0777);
     mkdir("sdmc:" APP_DATA_DIR "screenshots", 0777);
     shot_ok = screen_capture(GFX_TOP, "sdmc:" APP_DATA_DIR "screenshots/top.bmp")
               && screen_capture(GFX_BOTTOM, "sdmc:" APP_DATA_DIR "screenshots/bottom.bmp");
+    shot_ms = (u32) (osGetTime() - start);
     shot_done = true;
 }
 

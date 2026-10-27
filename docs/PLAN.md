@@ -48,6 +48,22 @@ installed over FTP at `192.168.1.133`. Still to confirm there:
   stay unlinked? (If many: read the real ExtData ID from each game's exheader; see Next.)
 - The Wi-Fi SSID and the system version in System (Azahar gives neither).
 
+## Export an installed title as a CIA (`feat/export-cia`, validated, waiting to be merged)
+
+Titles' sheet has "Export as CIA" (CTR titles on SD or NAND, not cards or DSiWare); the
+file goes to `sdmc:/nsa/cias/<name> [<title ID>] v<version>.cia`
+(`source/fbi/action/exportcia.c`). fs:USER does not give a title's raw contents, so it
+borrows fs's own `PxiFS0` session through Luma3DS's `svcControlService` (0xB0) and reads
+each content with FSPXI on archive `0x2345678A`, path type 2 (raw content by TMD index):
+the NCCH as installed, without the SD and title key layers. Certificates come from
+`nand:/dbs/certs.db` (found by issuer and name); ticket and TMD are made here, unsigned,
+contents marked not encrypted, hashes computed while copying; the SMDH is the meta.
+Installing it needs signature patches; installing it on a console that has the title's
+real ticket replaces that ticket with the made one. The copy reads the next block while
+the last one is written (system core) and hashed (core 2 on a New 3DS, else the app core).
+The owner validated it on the console (export, then NSA and FBI take the CIA). Azahar
+cannot run it: it has no Luma SVCs.
+
 ## What the owner asked for (the direction)
 
 The look is right, but navigation still feels like FBI: lists, Select for options,

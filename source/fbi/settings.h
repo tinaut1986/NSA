@@ -10,6 +10,7 @@ typedef enum {
 typedef struct {
     update_channel channel;
     bool autoUpdate;
+    bool ftpServer;
 } settings_data;
 
 void settings_load();

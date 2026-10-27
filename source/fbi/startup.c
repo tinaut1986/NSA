@@ -9,6 +9,7 @@
 
 #include "resources.h"
 #include "section.h"
+#include "ftpserver.h"
 #include "settings.h"
 #include "update.h"
 #include "../core/core.h"
@@ -213,6 +214,11 @@ static void startup_import_onresponse(ui_view* view, void* data, u32 response) {
 }
 
 void startup_run() {
+    // Debug builds always serve, whatever the saved setting says.
+    if(settings_get()->ftpServer || NSA_DEBUG) {
+        ftpserver_start();
+    }
+
     if(startup_is_dir(LEGACY_ROOT) && !startup_is_dir(DATA_ROOT)) {
         prompt_display_yes_no("Import FBI Data",
                               "Found data from FBI in " LEGACY_DIR ".\n"

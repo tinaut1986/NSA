@@ -49,7 +49,8 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           make clean
-          make -j"$(nproc)"
+          # Development builds: the FTP server starts with NSA (releases: off).
+          make -j"$(nproc)" DEBUG=1
 
       - name: Name the build
         id: v

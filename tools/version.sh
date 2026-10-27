@@ -5,7 +5,9 @@
 #   otherwise, from git:
 #     exactly on a vX.Y.Z tag     -> X.Y.Z
 #     N commits after vX.Y.Z      -> X.Y.(Z+1)-dev.N+hash
-# Upstream FBI's tags (2.6.1...) count as a base until we have one of ours.
+#     before our first tag        -> 0.1.0-dev.N+hash (N: commits since FBI 2.6.1)
+# NSA numbers its own releases from v0.1.0; upstream FBI's tags (2.6.1...)
+# are never a version of ours.
 # The updater orders one number's builds dev < beta < plain.
 set -eu
 
@@ -18,9 +20,11 @@ if [ -n "${VERSION:-}" ]; then
 fi
 
 cd "$(dirname "$0")/.."
-desc=$(git describe --tags --long --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null ||
-       git describe --tags --long --match '[0-9]*.[0-9]*.[0-9]*' 2>/dev/null ||
-       echo "0.0.0-0-g$(git rev-parse --short HEAD 2>/dev/null || echo unknown)")
+if ! desc=$(git describe --tags --long --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null); then
+    commits=$(git rev-list --count 2.6.1..HEAD 2>/dev/null || echo 0)
+    echo "0.1.0-dev.${commits}+$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    exit 0
+fi
 
 tag=${desc%-*-g*}
 rest=${desc#"$tag"-}

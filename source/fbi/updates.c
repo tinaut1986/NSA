@@ -65,7 +65,7 @@ static void updates_draw_top(ui_view* view, void* data, float x1, float y1, floa
     }
 
     char text[512];
-    snprintf(text, sizeof(text), "Installed: %s\n\n%s", VERSION_STRING, help);
+    snprintf(text, sizeof(text), "Installed: %s\nBased on " APP_UPSTREAM_VERSION "\n\n%s", VERSION_STRING, help);
 
     float textWidth;
     float textHeight;

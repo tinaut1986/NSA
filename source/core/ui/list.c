@@ -506,8 +506,19 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
     } else if(listData->touching && (hidKeysHeld() & KEY_TOUCH)) {
         if(!listData->dragged && abs((int) pos.py - (int) listData->touchStartY) > 6) {
             listData->dragged = true;
+            // The touch was not a selection after all: the item selected before comes back,
+            // with its index. (The index of the item touched was left, and list_validate took
+            // the difference for items that had come or gone above it and scrolled the
+            // list by it, which put the view back where the selection was: a drag
+            // could never get anywhere.)
             if(listData->press.index >= 0 && listData->pressPrevious != NULL) {
                 listData->selectedItem = listData->pressPrevious;
+                for(u32 i = 0; i < listData->visibleCount; i++) {
+                    if(listData->visible[i] == listData->pressPrevious) {
+                        listData->selectedIndex = i;
+                        break;
+                    }
+                }
             }
 
             listData->press.cancelled = true;

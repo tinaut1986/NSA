@@ -72,7 +72,8 @@ version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in 
 With the FTP server on (always in DEBUG builds), port 5000:
 `SITE SCREENSHOT` (both screens to `/nsa/screenshots/top.bmp` and `bottom.bmp`),
 `SITE PRESS <A|B|X|Y|L|R|ZL|ZR|START|SELECT|UP|DOWN|LEFT|RIGHT>[+...] [frames]`,
-`SITE TAP <x> <y> [frames]` (bottom screen). For example:
+`SITE TAP <x> <y> [frames]` (bottom screen), `SITE DRAG <x> <y1> <y2> [frames]` (a finger sliding
+from y1 to y2, to scroll). For example:
 `curl -Q "SITE PRESS DOWN" ftp://IP:5000/`.
 
 To look at the real console, wait a few seconds after `SITE SCREENSHOT` (it answers

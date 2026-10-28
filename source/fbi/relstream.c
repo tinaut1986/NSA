@@ -151,7 +151,8 @@ bool rs_failed(const rs* s) {
 }
 
 bool rs_flushed(const rs* s) {
-    return s->sCount == 0 && s->una == s->next;
+    // After rs_close the end has to go out (and be acknowledged) too.
+    return s->sCount == 0 && s->una == s->next && (!s->closing || s->finQueued);
 }
 
 void rs_get_stats(const rs* s, rs_stats* out) {

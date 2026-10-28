@@ -244,8 +244,10 @@ static void task_data_op_retry_onresponse(ui_view* view, void* data, u32 respons
 static void task_data_op_thread(void* arg) {
     data_op_data* data = (data_op_data*) arg;
 
-    for(data->processed = 0; data->processed < data->total; data->processed++) {
+    data->processed = 0;
+    while(data->processed < data->total) {
         Result res = 0;
+        u32 next = data->processed + 1;
 
         if(R_SUCCEEDED(res = task_data_op_check_running(data))) {
             switch(data->op) {
@@ -286,17 +288,18 @@ static void task_data_op_thread(void* arg) {
                     svcWaitSynchronization(retryView->active, U64_MAX);
 
                     if(data->retryResponse) {
-                        if(proceed) {
-                            data->processed--;
-                        } else {
-                            data->processed = 0;
-                        }
+                        // Again from this item, or from the first one.
+                        next = proceed ? data->processed : 0;
                     } else if(!proceed) {
                         break;
                     }
+                } else if(!proceed) {
+                    break;
                 }
             }
         }
+
+        data->processed = next;
     }
 
     svcCloseHandle(data->cancelEvent);

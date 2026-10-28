@@ -1159,6 +1159,7 @@ typedef struct {
     char lastFile[FILE_NAME_MAX];
     u64 lastSize;
     u32 lastKind;
+    u32 lastCheck;
     bool lastInstall;
     char lastDir[FILE_PATH_MAX];
 
@@ -1660,17 +1661,25 @@ static void transfer_receive_start(transfer_receive_data* data) {
 
     u32 id = (u32) osGetTime() ^ (u32) svcGetSystemTick();
 
+    // A path cut short could make <name>.part.pos the .part itself, or the .part
+    // a file already there.
+    if(R_SUCCEEDED(res)
+       && ((size_t) snprintf(data->part, sizeof(data->part), "%s%s.part", data->dir, name) >= sizeof(data->part)
+           || (size_t) snprintf(data->position, sizeof(data->position), "%s.pos", data->part) >= sizeof(data->position))) {
+        transfer_log("receive: the path for %s in %s is too long\n", name, data->dir);
+        res = R_APP_BAD_DATA;
+    }
+
     if(R_SUCCEEDED(res)) {
         data->haveLast = true;
         string_copy(data->lastSender, data->sender, sizeof(data->lastSender));
         string_copy(data->lastFile, data->file, sizeof(data->lastFile));
         data->lastSize = data->size;
         data->lastKind = data->kind;
+        data->lastCheck = data->check;
         data->lastInstall = data->install;
         string_copy(data->lastDir, data->dir, sizeof(data->lastDir));
 
-        snprintf(data->part, sizeof(data->part), "%s%s.part", data->dir, name);
-        snprintf(data->position, sizeof(data->position), "%s.pos", data->part);
         data->start = transfer_receive_resume_point(data);
         transfer_log("receive: %s -> %s, %s, from byte %llu\n", data->file, data->dir, data->install ? "to install" : "to save", data->start);
 
@@ -1693,7 +1702,7 @@ static void transfer_receive_start(transfer_receive_data* data) {
         }
 
         if(data->kind == TRANSFER_KIND_TITLE) {
-            res = action_export_cia_sink_open(data->part, data->start > 0, &data->sink);
+            res = action_export_cia_sink_open(data->part, data->size, data->start > 0, &data->sink);
         } else {
             FS_Path* fsPath = fs_make_path_utf8(data->part);
             if(fsPath == NULL) {
@@ -2004,7 +2013,7 @@ static void transfer_receive_hello_done(transfer_receive_data* data) {
     }
 
     // The same file again after a failure: as it was chosen then.
-    if(data->haveLast && data->lastKind == data->kind && data->lastSize == data->size
+    if(data->haveLast && data->lastKind == data->kind && data->lastSize == data->size && data->lastCheck == data->check
        && strcmp(data->lastSender, data->sender) == 0 && strcmp(data->lastFile, data->file) == 0) {
         data->install = data->lastInstall;
         string_copy(data->dir, data->lastDir, sizeof(data->dir));

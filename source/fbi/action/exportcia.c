@@ -90,6 +90,7 @@ typedef struct export_cia_data_s {
     bool sinkDone;
     volatile u64 sinkHashed;
     u64 sinkHashTotal;
+    u64 sinkSize;   // The whole package, as the hello said.
 
     data_op_data exportInfo;
 } export_cia_data;
@@ -899,7 +900,7 @@ void action_export_cia_stream_free(export_cia_data* data) {
 
 // Receiving: a CIA is built at `path` from the package that is written to it.
 
-Result action_export_cia_sink_open(const char* path, bool resume, export_cia_data** out) {
+Result action_export_cia_sink_open(const char* path, u64 size, bool resume, export_cia_data** out) {
     export_cia_data* data = (export_cia_data*) calloc(1, sizeof(export_cia_data));
     if(data == NULL) {
         return R_APP_OUT_OF_MEMORY;
@@ -907,6 +908,7 @@ Result action_export_cia_sink_open(const char* path, bool resume, export_cia_dat
 
     data->sink = true;
     data->sinkResume = resume;
+    data->sinkSize = size;
     data->title = &data->sinkTitle;
     string_copy(data->path, path, sizeof(data->path));
     LightLock_Init(&data->sinkLock);
@@ -942,9 +944,21 @@ static Result action_export_cia_sink_start(export_cia_data* data) {
         data->contents[i].index = action_export_cia_get16(entry + 4);
         data->contents[i].type = action_export_cia_get16(entry + 6);
         data->contents[i].size = action_export_cia_get64(entry + 8);
+        // No content is bigger than the SD card's FAT allows: the sums below
+        // cannot overflow with that (at most PACKAGE_CONTENTS_MAX of them).
+        if(data->contents[i].size > 0xFFFFFFFFULL) {
+            return R_APP_BAD_DATA;
+        }
+
         data->sinkStarts[i] = position;
         position += data->contents[i].size;
         data->sinkHashTotal += data->contents[i].size;
+    }
+
+    // The transfer ends when the hello's size has arrived: a header that says
+    // otherwise would leave contents unwritten (or never end).
+    if(position != data->sinkSize) {
+        return R_APP_BAD_DATA;
     }
 
     const u8* meta = data->sinkTitle.hasMeta ? header + PACKAGE_HEAD_SIZE + count * PACKAGE_ENTRY_SIZE : NULL;
@@ -1003,7 +1017,8 @@ Result action_export_cia_sink_write_at(export_cia_data* data, u64 offset, const 
         content++;
     }
 
-    if(offset < data->sinkStarts[content] || offset + size > data->sinkStarts[content] + data->contents[content].size) {
+    u64 within = offset - data->sinkStarts[content];
+    if(offset < data->sinkStarts[content] || within > data->contents[content].size || size > data->contents[content].size - within) {
         return R_APP_BAD_DATA;
     }
 

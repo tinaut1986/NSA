@@ -13,7 +13,7 @@
 // SITE INSTALL <path>: installs that CIA from the SD card. Only titles that
 // install to the SD card; when it is NSA itself (CIA build), NSA restarts
 // into it 10 s later (relaunch.h). With curl, upload then install:
-//   curl -T NSA.cia ftp://IP:5000/nsa/update.cia -Q "-SITE INSTALL /nsa/update.cia"
+//   curl -T NSA.cia ftp://IP:5021/nsa/update.cia -Q "-SITE INSTALL /nsa/update.cia"
 //
 // Remote control (debugging):
 //   SITE SCREENSHOT          -> both screens to /nsa/screenshots/top.bmp, bottom.bmp
@@ -21,31 +21,31 @@
 //                               ZR, START, SELECT, UP, DOWN, LEFT, RIGHT; "A+R")
 //   SITE TAP <x> <y> [n]     -> touches the bottom screen
 //
-// Port 5000, shared with Remote Install's "Receive URLs": that screen pauses
-// the server and resumes it when it closes.
+// Port 5021, passive data ports 5022-5085: clear of Remote Install's "Receive
+// URLs" (5000, where FBI's PC tools send) and of the console to console ports
+// (5001 discovery, 5002 transfers).
 
-#define FTP_SERVER_PORT 5000
+#define FTP_SERVER_PORT 5021
 
 // False with a reason in ftpserver_address() (no Wi-Fi, port busy...).
 bool ftpserver_start();
 void ftpserver_stop();
 bool ftpserver_running();
 
-// Give port 5000 to someone else for a while; resume restarts the server only
-// if it was running when paused.
+// While the radio is taken by the local wireless: the server stops, and
+// resume_later starts it again only if it was running (or about to) when paused.
+// The network may not be back yet: it tries every couple of seconds (from
+// ftpserver_poll_main) for two minutes.
 void ftpserver_pause();
-void ftpserver_resume();
-// As resume, but the network may not be back yet: tries again every couple of
-// seconds (from ftpserver_poll_main) for two minutes.
 void ftpserver_resume_later();
 
 // Main thread, once per frame after drawing: serves screenshot requests.
 void ftpserver_poll_main();
 
-// "192.168.1.50:5000", or why it is not serving.
+// "192.168.1.50:5021", or why it is not serving.
 void ftpserver_address(char* out, size_t size);
 
-// "FTP 192.168.1.50:5000" while serving, else empty: for ui_set_status.
+// "FTP 192.168.1.50:5021" while serving, else empty: for ui_set_status.
 void ftpserver_corner(char* out, size_t size);
 
 // While a CIA arrives or installs: the line to show and how far along it is

@@ -69,12 +69,12 @@ version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in 
 
 ## Seeing and driving the app (FTP remote control)
 
-With the FTP server on (always in DEBUG builds), port 5000:
+With the FTP server on (always in DEBUG builds), port 5021 (5000 until v0.3.0):
 `SITE SCREENSHOT` (both screens to `/nsa/screenshots/top.bmp` and `bottom.bmp`),
 `SITE PRESS <A|B|X|Y|L|R|ZL|ZR|START|SELECT|UP|DOWN|LEFT|RIGHT>[+...] [frames]`,
 `SITE TAP <x> <y> [frames]` (bottom screen), `SITE DRAG <x> <y1> <y2> [frames]` (a finger sliding
 from y1 to y2, to scroll). For example:
-`curl -Q "SITE PRESS DOWN" ftp://IP:5000/`.
+`curl -Q "SITE PRESS DOWN" ftp://IP:5021/`.
 
 To look at the real console, wait a few seconds after `SITE SCREENSHOT` (it answers
 "not taken in time" but the files appear) and measure on that image: Azahar's font and
@@ -82,7 +82,7 @@ data differ (see `docs/PLAN.md`, Known issues).
 
 **Azahar** (flatpak `org.azahar_emu.Azahar`) runs the 3DSX for UI work without the
 console: `flatpak run org.azahar_emu.Azahar "$PWD/output/3ds-arm/3ds/NSA/NSA.3dsx"`, then the
-FTP server answers on `127.0.0.1:5000`. Close it with `pkill -9 -x azahar` before
+FTP server answers on `127.0.0.1:5021`. Close it with `pkill -9 -x azahar` before
 launching another build. HTTPS (updater) does not work there; its NAND is virtual, but
 still answer No to destructive prompts.
 
@@ -90,8 +90,8 @@ still answer No to destructive prompts.
 
 Ask before installing while the owner is using the console.
 
-- **NSA's FTP server** (Settings → FTP Server, always on in DEBUG builds), port 5000:
-  `curl -T output/3ds-arm/NSA.cia ftp://IP:5000/nsa/update.cia -Q "-SITE INSTALL /nsa/update.cia"`.
+- **NSA's FTP server** (Settings → FTP Server, always on in DEBUG builds), port 5021:
+  `curl -T output/3ds-arm/NSA.cia ftp://IP:5021/nsa/update.cia -Q "-SITE INSTALL /nsa/update.cia"`.
   NSA restarts into the new build 10 s later.
 - **FBI's Remote Install → Receive URLs** (port 5000): serve the CIA over HTTP from
   this PC and send the URL with FBI's protocol (4-byte big-endian length, then the
@@ -100,8 +100,8 @@ Ask before installing while the owner is using the console.
 - The owner's console was at `192.168.1.133` (2026-10-27).
 - A helper loop used in sessions: upload with `ALLO` and `SITE INSTALL` in one curl
   call, then `DELE` the uploaded file:
-  `curl -Q "+ALLO $(stat -c %s output/3ds-arm/NSA.cia)" -Q "-SITE INSTALL /nsa/update.cia" -Q "-DELE /nsa/update.cia" -T output/3ds-arm/NSA.cia ftp://IP:5000/nsa/update.cia`
-- Screenshots: `curl -Q "SITE SCREENSHOT" ftp://IP:5000/` (allow 20 s), then fetch
+  `curl -Q "+ALLO $(stat -c %s output/3ds-arm/NSA.cia)" -Q "-SITE INSTALL /nsa/update.cia" -Q "-DELE /nsa/update.cia" -T output/3ds-arm/NSA.cia ftp://IP:5021/nsa/update.cia`
+- Screenshots: `curl -Q "SITE SCREENSHOT" ftp://IP:5021/` (allow 20 s), then fetch
   `/nsa/screenshots/top.bmp` and `bottom.bmp`.
 
 ## Console to console: testing

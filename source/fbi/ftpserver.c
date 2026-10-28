@@ -1029,13 +1029,6 @@ void ftpserver_pause() {
     }
 }
 
-void ftpserver_resume() {
-    if(ftp_paused) {
-        ftp_paused = false;
-        ftpserver_start();
-    }
-}
-
 void ftpserver_resume_later() {
     if(ftp_paused) {
         ftp_paused = false;

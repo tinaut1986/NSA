@@ -139,6 +139,12 @@ static int run(const scenario* sc) {
         } else if(!closed) {
             rs_close(a);
             closed = true;
+
+            // The end itself still has to go out.
+            if(rs_flushed(a)) {
+                printf("  FAIL %s: flushed before the end was sent\n", sc->name);
+                ok = 0;
+            }
         }
 
         rs_poll(a);

@@ -21,6 +21,7 @@
 #define CONN_THREAD_PRIORITY 0x38
 #define CONN_END_OFFSET 0xFFFFFFFFFFFFFFFFULL
 #define CONN_HELLO_TIMEOUT 5000
+#define TRANSFER_PENDING_MAX 8
 
 static void conn_put32(u8* out, u32 value) {
     out[0] = (u8) (value >> 24);
@@ -435,6 +436,16 @@ struct transfer_receiver {
     u32 running;
     u32 used;
 
+    // Connections accepted but not yet known to be this transfer's (see
+    // transfer_receiver_accept). Only the main thread touches them.
+    struct {
+        int fd;
+        u64 begin;
+        u8 hello[8];
+        u32 got;
+    } pending[TRANSFER_PENDING_MAX];
+    u64 idleSince;  // When the last worker ended without the transfer whole.
+
     Thread threads[TRANSFER_CONNECTIONS];
     struct {
         transfer_receiver* receiver;
@@ -462,26 +473,6 @@ static void receiver_worker(void* arg) {
     u8* buffer = (u8*) malloc(TRANSFER_CHUNK);
     Result res = buffer != NULL ? 0 : R_APP_OUT_OF_MEMORY;
 
-    if(R_SUCCEEDED(res) && !control) {
-        // Which transfer is this connection for?
-        u8 hello[8];
-        u64 begin = osGetTime();
-        res = R_APP_IO_ERROR;
-        while(osGetTime() - begin < CONN_HELLO_TIMEOUT) {
-            if(R_SUCCEEDED(transfer_conn_io(link.fd, false, hello, sizeof(hello), 0, &r->stop))) {
-                if(memcmp(hello, CONN_MAGIC, 4) == 0 && conn_get32(hello + 4) == r->id) {
-                    res = 0;
-                }
-
-                break;
-            }
-
-            if(r->stop) {
-                break;
-            }
-        }
-    }
-
     bool endSeen = false;
     while(R_SUCCEEDED(res) && !r->stop) {
         u8 record[12];
@@ -500,7 +491,7 @@ static void receiver_worker(void* arg) {
             break;
         }
 
-        if(len == 0 || len > TRANSFER_CHUNK || offset + len > r->end || (offset < r->start && offset + len > r->head)) {
+        if(len == 0 || len > TRANSFER_CHUNK || offset > r->end || len > r->end - offset || (offset < r->start && offset + len > r->head)) {
             res = R_APP_BAD_DATA;
             break;
         }
@@ -525,6 +516,7 @@ static void receiver_worker(void* arg) {
         }
 
         LightLock_Unlock(&r->lock);
+
     }
 
     // Once everything is here a connection ending early costs nothing.
@@ -601,6 +593,10 @@ Result transfer_receiver_start(transfer_receiver** out, transfer_link* control, 
     r->start = start;
     r->end = end;
     r->head = head;
+    for(u32 i = 0; i < TRANSFER_PENDING_MAX; i++) {
+        r->pending[i].fd = -1;
+    }
+
     r->needed = end - start + (start > 0 ? head : 0);
     r->write = write;
     r->user = user;
@@ -620,7 +616,11 @@ void transfer_receiver_accept(transfer_receiver* r) {
         return;
     }
 
-    for(int i = 0; i < TRANSFER_CONNECTIONS; i++) {
+    for(u32 i = 0; i < TRANSFER_PENDING_MAX; i++) {
+        if(r->pending[i].fd >= 0) {
+            continue;
+        }
+
         int sock = accept(r->listenSock, NULL, NULL);
         if(sock < 0) {
             break;
@@ -628,6 +628,46 @@ void transfer_receiver_accept(transfer_receiver* r) {
 
         fcntl(sock, F_SETFL, fcntl(sock, F_GETFL, 0) | O_NONBLOCK);
         transfer_conn_set_buffers(sock);
+
+        r->pending[i].fd = sock;
+        r->pending[i].begin = osGetTime();
+        r->pending[i].got = 0;
+    }
+
+    // A connection becomes a worker only once it has said which transfer it is
+    // for: anything else (another console's hello, a late connection of an
+    // earlier attempt, a scan) is closed without touching this transfer.
+    for(u32 i = 0; i < TRANSFER_PENDING_MAX; i++) {
+        int sock = r->pending[i].fd;
+        if(sock < 0) {
+            continue;
+        }
+
+        u8* hello = r->pending[i].hello;
+        u32 want = sizeof(r->pending[i].hello);
+        bool closed = false;
+        while(r->pending[i].got < want) {
+            ssize_t n = recv(sock, hello + r->pending[i].got, want - r->pending[i].got, 0);
+            if(n <= 0) {
+                closed = n == 0 || (errno != EAGAIN && errno != EWOULDBLOCK);
+                break;
+            }
+
+            r->pending[i].got += (u32) n;
+        }
+
+        if(r->pending[i].got < want && !closed && osGetTime() - r->pending[i].begin < CONN_HELLO_TIMEOUT) {
+            continue;
+        }
+
+        r->pending[i].fd = -1;
+
+        bool ours = r->pending[i].got == want && memcmp(hello, CONN_MAGIC, 4) == 0 && conn_get32(hello + 4) == r->id;
+        if(!ours) {
+            udslink_log("receiver: closed a connection that is not part of this transfer\n");
+            close(sock);
+            continue;
+        }
 
         transfer_link link = {sock, NULL};
         if(!receiver_spawn(r, link, false)) {
@@ -637,10 +677,28 @@ void transfer_receiver_accept(transfer_receiver* r) {
 }
 
 bool transfer_receiver_progress(transfer_receiver* r, u64* received, Result* result) {
+    // Every worker gone without the transfer whole is a failure, unless another
+    // connection is still on its way (just accepted, or not yet).
+    bool pending = false;
+    for(u32 i = 0; i < TRANSFER_PENDING_MAX; i++) {
+        pending = pending || r->pending[i].fd >= 0;
+    }
+
     LightLock_Lock(&r->lock);
     *received = r->received;
-    bool done = r->complete || r->running == 0 || r->result != 0;
-    *result = r->complete ? 0 : (r->result != 0 ? r->result : (r->running == 0 ? R_APP_IO_ERROR : 0));
+    bool idle = false;
+    if(r->running == 0 && !r->complete && !pending) {
+        if(r->idleSince == 0) {
+            r->idleSince = osGetTime();
+        }
+
+        idle = osGetTime() - r->idleSince > 2000;
+    } else {
+        r->idleSince = 0;
+    }
+
+    bool done = r->complete || idle || r->result != 0;
+    *result = r->complete ? 0 : (r->result != 0 ? r->result : (idle ? R_APP_IO_ERROR : 0));
     LightLock_Unlock(&r->lock);
 
     return done;
@@ -661,6 +719,12 @@ void transfer_receiver_free(transfer_receiver* r) {
         if(r->threads[i] != NULL) {
             threadJoin(r->threads[i], U64_MAX);
             threadFree(r->threads[i]);
+        }
+    }
+
+    for(u32 i = 0; i < TRANSFER_PENDING_MAX; i++) {
+        if(r->pending[i].fd >= 0) {
+            close(r->pending[i].fd);
         }
     }
 

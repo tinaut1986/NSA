@@ -55,7 +55,7 @@ u32 action_export_cia_stream_content_count(export_cia_data* data);
 u64 action_export_cia_stream_content_size(export_cia_data* data, u32 index);
 Result action_export_cia_stream_read(export_cia_data* data, u32 index, u64 offset, void* buffer, u32 size);
 void action_export_cia_stream_free(export_cia_data* data);
-Result action_export_cia_sink_open(const char* path, bool resume, export_cia_data** out);
+Result action_export_cia_sink_open(const char* path, u64 size, bool resume, export_cia_data** out);
 Result action_export_cia_sink_write_at(export_cia_data* data, u64 offset, const void* buffer, u32 size);
 void action_export_cia_sink_progress(export_cia_data* data, u64* done, u64* total);
 Result action_export_cia_sink_finish(export_cia_data* data);

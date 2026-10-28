@@ -21,6 +21,7 @@
 
 static struct {
     bool active;
+    u64 autoLeaveAt;     // Tests (nearby.flag auto): when this session closes itself; 0 = never.
     bool hosting;
     udsBindContext hostBind;
     bool hostBound;
@@ -131,15 +132,11 @@ bool udslink_wifi_connected() {
 }
 
 // For tests: the local wireless is closed after a while whatever the screens
-// are doing, so the Wi-Fi (and the FTP server) come back.
-static void watchdog_thread(void* arg) {
-    (void) arg;
-
-    for(int i = 0; i < 1500; i++) {
-        svcSleepThread(100000000);
-    }
-
-    if(uds.active) {
+// are doing, so the Wi-Fi (and the FTP server) come back. On the main thread,
+// and only the session that set the time: a later one has its own.
+void udslink_poll_main() {
+    if(uds.active && uds.autoLeaveAt != 0 && osGetTime() >= uds.autoLeaveAt) {
+        udslink_log("uds: closed by the nearby.flag timeout\n");
         udslink_leave();
     }
 }
@@ -160,10 +157,7 @@ bool udslink_enter() {
     LightLock_Init(&uds.lock);
     uds.active = true;
 
-    if(udslink_auto()) {
-        Thread watchdog = threadCreate(watchdog_thread, NULL, 0x2000, 0x3A, -2, true);
-        (void) watchdog;
-    }
+    uds.autoLeaveAt = udslink_auto() ? osGetTime() + 150000 : 0;
 
     return true;
 }
@@ -177,6 +171,7 @@ void udslink_leave() {
     udslink_host_stop();
     udsExit();
     uds.active = false;
+    uds.autoLeaveAt = 0;
 
     // The system brings the Wi-Fi back a few seconds after UDS closes: the FTP
     // server starts again once it has.

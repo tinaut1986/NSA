@@ -11,6 +11,7 @@
 #include "../core/ui/ui.h"
 #include "section.h"
 #include "ftpserver.h"
+#include "udslink.h"
 #include "selftest.h"
 #include "relaunch.h"
 #include "settings.h"
@@ -201,6 +202,7 @@ int main(int argc, const char* argv[]) {
     while(aptMainLoop() && ui_update()) {
         update_poll();
         ftpserver_poll_main();
+        udslink_poll_main();
 
         // A new NSA is in place (updater or SITE INSTALL): exit so libctru relaunches it.
         if(relaunch_poll()) {

@@ -164,6 +164,9 @@ another list for actions. Every screen should move to the Titles pattern:
 
 ## Next
 
+Every item below also has a GitHub issue (tinaut1986/NSA, #3 to #16); the issues are kept
+current, this list is the summary. What only the owner can test (local wireless) is #8.
+
 0. **Still open from console to console**:
    - A **title package over the local wireless** (only files were tried there), cutting and
      resuming over it, long transfers over it (hundreds of MB: does the stream hold for

@@ -600,8 +600,9 @@ def check_received_title(ctx):
     path = ctx.exported(ctx.b, RECEIVED_DIR)
     check(path is not None, f'B has no CIA with {ctx.tag()} in {RECEIVED_DIR}')
     verify_cia(ctx.b.get(path), ctx.pick_title())
-    if ctx.reference is not None and ctx.b.sha256(path) != ctx.reference:
-        print('    note: the received CIA is valid but not byte for byte the one exported on A')
+    # The padding between sections is zeroed, so the CIA is the same file on both sides.
+    if ctx.reference is not None:
+        check(ctx.b.sha256(path) == ctx.reference, 'the received CIA is not byte for byte the one exported on A')
 
 
 @test(2)

@@ -17,6 +17,9 @@ typedef struct list_item_s {
 ui_view* list_display(const char* name, const char* info, void* data, void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched),
                                                                       void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected));
 void list_destroy(ui_view* view);
+// What the list `view` shows (selftest.c); false when `view` is not one.
+typedef struct ui_description_s ui_description;
+bool list_describe(ui_view* view, ui_description* out);
 
 typedef enum {
     LIST_MODE_ROWS,

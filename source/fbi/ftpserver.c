@@ -17,6 +17,7 @@
 
 #include "ftpserver.h"
 #include "relaunch.h"
+#include "selftest.h"
 #include "../core/core.h"
 
 #define FTP_PATH_MAX 512
@@ -59,6 +60,12 @@ static volatile bool shot_requested = false;
 static volatile bool shot_done = false;
 static volatile bool shot_ok = false;
 static volatile u32 shot_ms = 0;
+
+// A SITE TEST command, run by the main thread (it opens screens, reads the top one).
+static volatile bool test_requested = false;
+static volatile bool test_done = false;
+static char test_command[FTP_LINE_MAX];
+static char test_reply[FTP_LINE_MAX];
 
 typedef struct {
     int ctrl;
@@ -601,6 +608,58 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    if(NSA_DEBUG && strcmp(sub, "TEST") == 0) {
+        string_copy(test_command, path != NULL ? path : "", sizeof(test_command));
+        test_done = false;
+        test_requested = true;
+        for(u32 waited = 0; !test_done && waited < 15000 && ftp_run; waited += FTP_NAP_MS) {
+            svcSleepThread((s64) FTP_NAP_MS * 1000000);
+        }
+
+        test_requested = false;
+        if(test_done) {
+            ftp_reply(s, "%s", test_reply);
+        } else {
+            ftp_reply(s, "451 The main thread did not answer in time.");
+        }
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "FAULT") == 0) {
+        char point[32] = "";
+        unsigned skip = 0, count = 1;
+        int got = sscanf(path != NULL ? path : "", "%31s %u %u", point, &skip, &count);
+        if(got >= 1 && strcasecmp(point, "CLEAR") == 0) {
+            selftest_fault_clear();
+            ftp_reply(s, "200 No faults.");
+        } else if(got >= 1 && strcasecmp(point, "LIST") == 0) {
+            char list[256];
+            selftest_fault_list(list, sizeof(list));
+            ftp_reply(s, "200 %s", list[0] != '\0' ? list : "none");
+        } else if(got >= 1) {
+            selftest_fault_arm(point, skip, count);
+            ftp_reply(s, "200 %s fails %u time(s) after %u.", point, count, skip);
+        } else {
+            ftp_reply(s, "501 SITE FAULT <point> [skip] [count] | CLEAR | LIST");
+        }
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "SHA256") == 0) {
+        char vpath[FTP_PATH_MAX];
+        char rpath[FTP_PATH_MAX + 8];
+        ftp_resolve_path(s, path != NULL ? path : "", vpath, sizeof(vpath));
+        ftp_real_path(vpath, rpath, sizeof(rpath));
+
+        char hex[65];
+        if(selftest_sha256(rpath, hex, sizeof(hex))) {
+            ftp_reply(s, "200 %s", hex);
+        } else {
+            ftp_reply(s, "550 Could not read %s.", vpath);
+        }
+        return;
+    }
+
     if(strcmp(sub, "DRAG") == 0) {
         char* args = path != NULL ? path : "";
         unsigned x = 0, y1 = 0, y2 = 0, frames = 20;
@@ -979,6 +1038,11 @@ void ftpserver_poll_main() {
         } else {
             ftp_retry_next = osGetTime() + 2000;
         }
+    }
+
+    if(test_requested && !test_done) {
+        selftest_run(test_command, test_reply, sizeof(test_reply));
+        test_done = true;
     }
 
     if(!shot_requested || shot_done) {

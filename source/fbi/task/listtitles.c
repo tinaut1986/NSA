@@ -327,6 +327,15 @@ static void task_populate_titles_thread(void* arg) {
     data->finished = true;
 }
 
+list_item* task_title_item(FS_MediaType mediaType, u64 titleId) {
+    list_item* item = task_populate_titles_placeholder(mediaType, titleId, false);
+    if(item != NULL) {
+        task_populate_titles_load_ctr(item);
+    }
+
+    return item;
+}
+
 void task_free_title(list_item* item) {
     if(item == NULL) {
         return;

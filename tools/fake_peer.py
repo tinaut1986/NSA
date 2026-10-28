@@ -8,7 +8,7 @@ see docs/PLAN.md, "Console to console") against Azahar or a console, with no sec
                                      (list 127.0.0.1 in /nsa/peers.txt of the sender)
 
 NSA asks its user first (Allow, then Install/Save): press the buttons yourself, or with the FTP
-server's `SITE PRESS A` (curl -Q "SITE PRESS A" ftp://HOST:5000/). `--drop 0.6` cuts the
+server's `SITE PRESS A` (curl -Q "SITE PRESS A" ftp://HOST:5021/). `--drop 0.6` cuts the
 transfer at 60 % to try the resume; run it again to see it go on. Prints what it learns.
 """
 import hashlib, os, socket, struct, sys, threading, time, zlib

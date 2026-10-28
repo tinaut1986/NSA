@@ -134,7 +134,7 @@ DEBUG build, sit on the main menu, on the same Wi-Fi as the PC:
 A failed test leaves both transfer logs and screenshots in `test-results/<time>/`. Nothing is
 installed; it writes only in `/nsa/tests/`, `/nsa/received/` and the title's CIA in `/nsa/cias/`.
 
-What DEBUG builds have for it (FTP, port 5000; release builds answer 502 or ignore them):
+What DEBUG builds have for it (FTP, port 5021; release builds answer 502 or ignore them):
 - `SITE TEST UI`: the top view as JSON: depth (1 = main menu), untranslated name (`ui_view.id`),
   kind (prompt, info, list), a prompt's untranslated text, options and their buttons, an info's
   line and bar, a list's count and selection. The tests answer dialogs by name, not by position.
@@ -183,8 +183,8 @@ current, this list is the summary. What only the owner can test (local wireless)
    a mockup first: three big cards (QR code, enter URLs, receive from a computer), the
    receive screen with the console's IP and port large and what has arrived, the last
    request as a history row, progress like the new dialogs. Translate its list items.
-   Possibly move "Receive URLs" off port 5000 (it pauses the FTP server): the owner
-   raised it, not decided.
+   Four cards: "Receive from another 3DS" is the fourth. (The FTP server moved off
+   port 5000 so Receive URLs no longer pauses it.)
 3. **Pending titles, System save data, Dump NAND** on the same pattern (Dump NAND as
    its own screen: space needed against free on the SD card, progress with ETA, where
    the file ends up). Pending titles and System save data still have FBI's action lists
@@ -215,9 +215,11 @@ current, this list is the summary. What only the owner can test (local wireless)
   once), own versions from `v0.1.0`. Upstream is noted as "based on FBI 2.6.1".
 - Updates: Stable/Beta channels from GitHub releases; the changelog joins every
   release since the installed one. Ported from `../zelda-tmc-3ds` (host tests in `tests/`).
-- FTP server on port 5000, SD card only; `SITE INSTALL` refuses NAND titles and never
-  deletes a title to force a downgrade (it would delete the game's saves). Remote
-  install's "Receive URLs" also uses 5000 and pauses the server while open.
+- FTP server on port 5021 (passive 5022-5085), SD card only; `SITE INSTALL` refuses NAND
+  titles and never deletes a title to force a downgrade (it would delete the game's saves).
+  It was on 5000 until v0.3.0 and paused while Remote install's "Receive URLs" was open;
+  it moved instead of Receive URLs because FBI's PC tools (`servefiles.py`) only send to
+  5000. Ports: 5000 Receive URLs, 5001 discovery (UDP), 5002 transfers, 5021 FTP.
 - `DEBUG=1` builds start the FTP server; release builds only when turned on.
 - FBI's PNG themes and `textcolor.cfg` were dropped for drawn shapes.
 - **Strings**: `_("English")` for literals (cached by address). Text that may be built

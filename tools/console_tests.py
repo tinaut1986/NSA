@@ -18,7 +18,7 @@ logs and screenshots in test-results/.
 """
 import argparse, ftplib, hashlib, io, json, os, random, socket, struct, sys, time, traceback
 
-PORT = 5000
+PORT = 5021
 # Big enough that a cut after RESUME_SKIP chunks of 256 KiB can go on from a saved
 # place (it is saved every 4 MiB), small enough to be quick.
 PAYLOAD_SIZE = 16 * 1024 * 1024

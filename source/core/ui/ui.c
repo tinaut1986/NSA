@@ -147,7 +147,7 @@ static void ui_draw_top_bar() {
         char corner[64] = "";
         ui_status_corner(corner, sizeof(corner));
         if(corner[0] != '\0') {
-            // "FTP 192.168.1.133:5000" -> ".133"
+            // "FTP 192.168.1.133:5021" -> ".133"
             char tail[16] = "";
             char* dot = strrchr(corner, '.');
             if(dot != NULL) {

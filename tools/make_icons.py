@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Builds romfs/icons16.png, romfs/icons32.png and source/core/icons.h from
-Tabler Icons (MIT).
+Tabler Icons (MIT), and NSA's own icons in tools/icons/<name>.svg (drawn on
+Tabler's 24 px grid with 2 px strokes, so they match).
 
 Renders each icon in tools/icons.txt with headless Chrome and the Tabler
 webfont, then turns it into a white mask whose alpha is the ink. One atlas per
@@ -27,12 +28,18 @@ names = [line.strip() for line in (ROOT / "tools/icons.txt").read_text().splitli
 rows = (len(names) + COLUMNS - 1) // COLUMNS
 
 
+def glyph(i, n, cell):
+    place = f"position:absolute;left:{(i % COLUMNS) * cell}px;top:{(i // COLUMNS) * cell}px;width:{cell}px;height:{cell}px"
+    own = ROOT / "tools/icons" / f"{n}.svg"
+    if own.exists():
+        svg = own.read_text().strip().replace("<svg ", f'<svg width="{cell}" height="{cell}" ', 1)
+        return f'<div style="{place}">{svg}</div>'
+    return f'<i class="ti ti-{n}" style="{place};font-size:{cell}px;line-height:{cell}px;text-align:center"></i>'
+
+
 def render(cell):
     width, height = COLUMNS * cell, rows * cell
-    cells = "".join(
-        f'<i class="ti ti-{n}" style="position:absolute;left:{(i % COLUMNS) * cell}px;top:{(i // COLUMNS) * cell}px;'
-        f'width:{cell}px;height:{cell}px;font-size:{cell}px;line-height:{cell}px;text-align:center"></i>'
-        for i, n in enumerate(names))
+    cells = "".join(glyph(i, n, cell) for i, n in enumerate(names))
     html = (f'<!doctype html><html><head><link rel="stylesheet" href="{TABLER}"></head>'
             f'<body style="margin:0;background:#fff;color:#000;width:{width}px;height:{height}px;position:relative;'
             f'-webkit-font-smoothing:antialiased">{cells}</body></html>')

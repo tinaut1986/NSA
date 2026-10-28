@@ -95,7 +95,7 @@ static const char* transfer_model_name(u8 model) {
 }
 
 // "New 3DS of Marta": the model and the user name set in System Settings.
-static void transfer_local_name(char* out, size_t size) {
+void transfer_local_name(char* out, size_t size) {
     u8 model = 0;
     const char* modelName = R_SUCCEEDED(CFGU_GetSystemModel(&model)) ? transfer_model_name(model) : "3DS";
 
@@ -306,7 +306,7 @@ static void transfer_send_draw_top(ui_view* view, void* data, float x1, float y1
 
     char size[32];
     transfer_size_text(size, sizeof(size), session->size);
-    transfer_draw_card(x1, y1, x2, y2, ICON_WIFI, session->name, size);
+    transfer_draw_card(x1, y1, x2, y2, ICON_3DS, session->name, size);
 }
 
 static void transfer_send_free(transfer_send_session* session) {
@@ -782,7 +782,7 @@ static void transfer_send_draw_row(void* data, list_item* item, float x, float y
         return;
     }
 
-    screen_draw_icon(ICON_DEVICE_NINTENDO, x + 9, y + (height - 16) / 2, 16, selected ? t->onAccent : t->accent);
+    screen_draw_icon(ICON_3DS, x + 9, y + (height - 16) / 2, 16, selected ? t->onAccent : t->accent);
 
     char ip[24];
     snprintf(ip, sizeof(ip), "%s", peer->uds ? _("Nearby") : inet_ntoa(peer->addr));
@@ -810,7 +810,7 @@ static void transfer_send_list_draw_top(ui_view* view, void* data, float x1, flo
         snprintf(line, sizeof(line), "%s", _("Waiting for the Wi-Fi..."));
     }
 
-    transfer_draw_card(x1, y1, x2, y2, ICON_WIFI, _("Send to another 3DS"), line);
+    transfer_draw_card(x1, y1, x2, y2, ICON_3DS, _("Send to another 3DS"), line);
 }
 
 static void transfer_send_list_exit(ui_view* view, transfer_send_data* data, linked_list* items) {
@@ -2236,7 +2236,7 @@ static void transfer_receive_draw_waiting_top(ui_view* view, void* data, float x
         transfer_ip_text(ip, sizeof(ip));
     }
 
-    transfer_draw_card(x1, y1, x2, y2, ICON_WIFI, receive->localName, ip);
+    transfer_draw_card(x1, y1, x2, y2, ICON_3DS, receive->localName, ip);
 }
 
 static void transfer_receive_switch(ui_view* view, void* data);

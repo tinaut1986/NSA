@@ -57,7 +57,8 @@ version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in 
   only: lookups are cached by address) or, for text that may be built at run time,
   `i18n_translate_text` (by content, never cached; the dialogs and lists already do it).
   Spanish is `source/core/i18n_es.c`; a missing entry shows the English.
-- Icons: Tabler (MIT), listed in `tools/icons.txt`; `python3 tools/make_icons.py` rebuilds
+- Icons: Tabler (MIT), listed in `tools/icons.txt`, plus NSA's own in `tools/icons/<name>.svg`
+  (24 px grid, 2 px strokes, like Tabler; `3ds` is the console, for everything console to console); `python3 tools/make_icons.py` rebuilds
   `romfs/icons16.png`, `romfs/icons32.png` and `source/core/icons.h` (needs Chrome and
   Pillow). Draw at 16 or 32 px so they land on whole pixels.
 - Screens: lists are `source/core/ui/list.c` (rows or grid, tools, filter, long press),

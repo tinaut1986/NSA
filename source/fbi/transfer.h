@@ -8,6 +8,9 @@
 //             then the file follows as it is.
 // The receiver saves to sdmc:/nsa/received/ and may install it right after.
 
+// "New 3DS XL - Marta": the model and the user name, as other consoles see this one.
+void transfer_local_name(char* out, size_t size);
+
 // The Receive screen: waits for a sender and asks what to do with its file.
 void transfer_receive_open();
 

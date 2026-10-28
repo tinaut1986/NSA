@@ -63,3 +63,7 @@ folder-up
 bolt
 device-nintendo
 stack-2
+device-desktop
+keyboard
+history
+3ds

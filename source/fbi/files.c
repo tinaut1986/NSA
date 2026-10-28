@@ -463,7 +463,7 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
         actions[count++] = (sheet_action) {ICON_TICKET, _("Install and delete ticket"), false, files_install_ticket_delete};
     }
 
-    actions[count++] = (sheet_action) {ICON_WIFI, _("Send to another 3DS"), false, files_send};
+    actions[count++] = (sheet_action) {ICON_3DS, _("Send to another 3DS"), false, files_send};
     actions[count++] = (sheet_action) {ICON_COPY, _("Copy"), false, files_copy};
     actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename"), false, files_rename};
     actions[count++] = (sheet_action) {ICON_TRASH, _("Delete"), true, files_delete_file};

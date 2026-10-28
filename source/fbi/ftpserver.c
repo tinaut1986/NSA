@@ -41,6 +41,11 @@ typedef enum {
 static Thread ftp_thread = NULL;
 static volatile bool ftp_run = false;
 static bool ftp_paused = false;
+
+// ftpserver_resume_later(): starts are tried until the Wi-Fi is back.
+static bool ftp_retry = false;
+static u64 ftp_retry_next = 0;
+static u64 ftp_retry_end = 0;
 static int ftp_listen = -1;
 static volatile int ftp_ctrl = -1;
 static volatile int ftp_data = -1;
@@ -926,6 +931,8 @@ static void ftp_main(void* arg) {
     }
 }
 
+static void ftp_shutdown();
+
 bool ftpserver_start() {
     if(ftp_run) {
         return true;
@@ -965,7 +972,7 @@ bool ftpserver_start() {
     // Below the UI thread's priority, on the system core like NSA's tasks.
     ftp_thread = threadCreate(ftp_main, NULL, 0x10000, 0x19, 1, false);
     if(ftp_thread == NULL) {
-        ftpserver_stop();
+        ftp_shutdown();
         snprintf(ftp_status, sizeof(ftp_status), "%s", _("No thread"));
         return false;
     }
@@ -973,7 +980,7 @@ bool ftpserver_start() {
     return true;
 }
 
-void ftpserver_stop() {
+static void ftp_shutdown() {
     ftp_run = false;
 
     // Wake anything blocked: the thread polls with short naps anyway.
@@ -1000,13 +1007,24 @@ void ftpserver_stop() {
     snprintf(ftp_status, sizeof(ftp_status), "%s", _("Off"));
 }
 
+// Off for good (Settings, leaving NSA): a start still waiting for the Wi-Fi is
+// dropped too, or it would turn the server back on.
+void ftpserver_stop() {
+    ftp_retry = false;
+    ftp_paused = false;
+    ftp_shutdown();
+}
+
 bool ftpserver_running() {
     return ftp_run;
 }
 
 void ftpserver_pause() {
-    if(ftp_run) {
-        ftpserver_stop();
+    // A start still waiting for the Wi-Fi counts as running: otherwise the
+    // resume after this pause would find nothing to bring back.
+    if(ftp_run || ftp_retry) {
+        ftp_retry = false;
+        ftp_shutdown();
         ftp_paused = true;
     }
 }
@@ -1017,10 +1035,6 @@ void ftpserver_resume() {
         ftpserver_start();
     }
 }
-
-static bool ftp_retry = false;
-static u64 ftp_retry_next = 0;
-static u64 ftp_retry_end = 0;
 
 void ftpserver_resume_later() {
     if(ftp_paused) {

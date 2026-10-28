@@ -193,6 +193,13 @@ static u32 action_export_cia_save_size(export_cia_data* data) {
     return saveSize <= 0xFFFFFFFF ? (u32) saveSize : 0;
 }
 
+// The padding between sections: SetSize leaves whatever the SD card held there,
+// and two exports of one title should be the same file.
+static Result action_export_cia_zero(export_cia_data* data, u64 start, u64 end) {
+    static const u8 zeros[0x40] = {0};
+    return end > start ? action_export_cia_write(data, start, zeros, (u32) (end - start)) : 0;
+}
+
 static Result action_export_cia_write_tmd(export_cia_data* data) {
     u8* tmd = (u8*) calloc(1, data->tmdSize);
     if(tmd == NULL) {
@@ -364,7 +371,12 @@ static Result action_export_cia_create_file(export_cia_data* data, const u8* met
                            || R_FAILED(res = action_export_cia_write(data, 0, head, CIA_HEADER_SIZE))
                            || R_FAILED(res = action_export_cia_write(data, certOffset, certs, CIA_CERT_SIZE))
                            || R_FAILED(res = action_export_cia_write(data, ticketOffset, ticket, CIA_TICKET_SIZE))
-                           || (hasMeta && R_FAILED(res = meta != NULL ? action_export_cia_write(data, metaOffset, meta, CIA_META_SIZE) : action_export_cia_write_meta(data, metaOffset)))) {
+                           || (hasMeta && R_FAILED(res = meta != NULL ? action_export_cia_write(data, metaOffset, meta, CIA_META_SIZE) : action_export_cia_write_meta(data, metaOffset)))
+                           || R_FAILED(res = action_export_cia_zero(data, CIA_HEADER_SIZE, certOffset))
+                           || R_FAILED(res = action_export_cia_zero(data, certOffset + CIA_CERT_SIZE, ticketOffset))
+                           || R_FAILED(res = action_export_cia_zero(data, ticketOffset + CIA_TICKET_SIZE, data->tmdOffset))
+                           || R_FAILED(res = action_export_cia_zero(data, data->tmdOffset + data->tmdSize, data->contentsOffset))
+                           || (hasMeta && R_FAILED(res = action_export_cia_zero(data, data->contentsOffset + contentSize, metaOffset)))) {
                             FSFILE_Close(data->ciaHandle);
                             data->ciaHandle = 0;
                             FSUSER_DeleteFile(sdmcArchive, *fsPath);

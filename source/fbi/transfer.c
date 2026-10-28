@@ -449,12 +449,20 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
             session->speedTime = now;
         }
 
-        u64 total = session->size - session->start;
-        u32 eta = session->speed > 0 ? (u32) ((total - session->sent) / session->speed) : 0;
+        // Where the file is, not what this try sent: a resume starts part way and
+        // sends a title package's header again first.
+        u64 again = session->stream != NULL && session->start > 0 ? session->head : 0;
+        u64 at = session->start + (session->sent > again ? session->sent - again : 0);
+        if(at > session->size) {
+            at = session->size;
+        }
 
-        *progress = total != 0 ? (float) ((double) session->sent / (double) total) : 0;
+        u64 total = session->size;
+        u32 eta = session->speed > 0 ? (u32) ((total - at) / session->speed) : 0;
+
+        *progress = total != 0 ? (float) ((double) at / (double) total) : 0;
         snprintf(text, PROGRESS_TEXT_MAX, _("To %s\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), session->peerName,
-                 ui_get_display_size(session->sent), ui_get_display_size_units(session->sent),
+                 ui_get_display_size(at), ui_get_display_size_units(at),
                  ui_get_display_size(total), ui_get_display_size_units(total),
                  ui_get_display_size(session->speed), ui_get_display_size_units(session->speed),
                  ui_get_display_eta(eta));
@@ -984,6 +992,9 @@ static void transfer_send_list_update(ui_view* view, void* data, linked_list* it
 
     u64 now = osGetTime();
     if(sendData->udsMode) {
+        // Joining a console stops the scan; back on this list the send is over
+        // (its link closed with it), so look again. Nothing if it is running.
+        udslink_scan_start();
         transfer_send_sync_nearby(sendData, items);
     } else {
         if(now - sendData->lastProbe >= TRANSFER_PROBE_INTERVAL) {
@@ -1590,12 +1601,19 @@ static void transfer_receive_progress_update(ui_view* view, void* data, float* p
             receive->speedTime = now;
         }
 
-        u64 total = receive->size - receive->start;
-        u32 eta = receive->speed > 0 ? (u32) ((total - receive->received) / receive->speed) : 0;
+        // As on the sender: where the file is, without the header sent again.
+        u64 again = receive->kind == TRANSFER_KIND_TITLE && receive->start > 0 ? receive->head : 0;
+        u64 at = receive->start + (receive->received > again ? receive->received - again : 0);
+        if(at > receive->size) {
+            at = receive->size;
+        }
 
-        *progress = total != 0 ? (float) ((double) receive->received / (double) total) : 0;
+        u64 total = receive->size;
+        u32 eta = receive->speed > 0 ? (u32) ((total - at) / receive->speed) : 0;
+
+        *progress = total != 0 ? (float) ((double) at / (double) total) : 0;
         snprintf(text, PROGRESS_TEXT_MAX, _("From %s\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), receive->sender,
-                 ui_get_display_size(receive->received), ui_get_display_size_units(receive->received),
+                 ui_get_display_size(at), ui_get_display_size_units(at),
                  ui_get_display_size(total), ui_get_display_size_units(total),
                  ui_get_display_size(receive->speed), ui_get_display_size_units(receive->speed),
                  ui_get_display_eta(eta));

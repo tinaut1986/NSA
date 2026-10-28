@@ -33,6 +33,8 @@ bool udslink_enter();
 // Gives it back: stops UDS and starts the FTP server again as the Wi-Fi returns.
 void udslink_leave();
 bool udslink_active();
+// Main loop: the nearby.flag auto timeout (tests).
+void udslink_poll_main();
 
 // Hosting: the network exists until udslink_host_stop().
 Result udslink_host_start(const char* name);

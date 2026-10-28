@@ -207,6 +207,19 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         menu->selected = (menu->selected + 1) % OPTION_COUNT;
     } else if(settingsmenu_repeat(menu, KEY_UP)) {
         menu->selected = (menu->selected + OPTION_COUNT - 1) % OPTION_COUNT;
+    } else if(hidKeysDown() & (KEY_R | KEY_L)) {
+        // Left and Right change the option, so L and R turn a page: the first row
+        // that was not shown (or the one a page above) becomes the top one.
+        u32 page = (u32) ((viewHeight - WIDGET_ROW_HEIGHT) / ROW_PITCH) + 1;
+        u32 first = (u32) ((menu->scroll + ROW_PITCH - 1) / ROW_PITCH);
+        if(hidKeysDown() & KEY_R) {
+            menu->selected = first + page < OPTION_COUNT ? first + page : OPTION_COUNT - 1;
+        } else {
+            menu->selected = first > page ? first - page : 0;
+        }
+
+        menu->scroll = menu->selected * ROW_PITCH;
+        settingsmenu_clamp_scroll(menu, viewHeight);
     } else if(hidKeysDown() & KEY_RIGHT) {
         settingsmenu_change((settings_option) menu->selected, 1);
     } else if(hidKeysDown() & KEY_LEFT) {

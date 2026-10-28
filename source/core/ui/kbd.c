@@ -34,6 +34,10 @@ static void kbd_update(ui_view* view, void* data, float bx1, float by1, float bx
 
     ui_pop();
 
+    if(button == SWKBD_BUTTON_CONFIRM) {
+        sheet_confirmed();
+    }
+
     if(kbdData->onResponse != NULL) {
         kbdData->onResponse(view, kbdData->data, button, kbdData->response);
     }

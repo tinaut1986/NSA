@@ -396,10 +396,12 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
     if(count > 0) {
         u32 cols = l.columns;
-        u32 page = (u32) ((l.y2 - l.y1) / l.pitchY);
-        if(page < 1) {
-            page = 1;
-        }
+        // Rows turn a page with Left and Right: the first row that was not
+        // wholly shown (or the one a page above) becomes the top one, and is selected.
+        float from = listData->scrollGliding ? listData->scrollTarget : listData->scrollPos;
+        u32 firstShown = (u32) ((from + l.pitchY - 1) / l.pitchY);
+        u32 whole = (u32) ((l.y2 - l.y1 - l.itemH) / l.pitchY) + 1;
+        bool paged = false;
 
         if(list_repeat(listData, KEY_DOWN)) {
             if(listData->selectedIndex + cols < count) {
@@ -420,20 +422,28 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
             if(cols > 1) {
                 listData->selectedIndex = (listData->selectedIndex + 1) % count;
             } else {
-                // Rows: Left/Right jump a page.
-                listData->selectedIndex = listData->selectedIndex + page < count ? listData->selectedIndex + page : count - 1;
+                listData->selectedIndex = firstShown + whole < count ? firstShown + whole : count - 1;
+                paged = true;
             }
         } else if(list_repeat(listData, KEY_LEFT)) {
             if(cols > 1) {
                 listData->selectedIndex = (listData->selectedIndex + count - 1) % count;
             } else {
-                listData->selectedIndex = listData->selectedIndex > page ? listData->selectedIndex - page : 0;
+                listData->selectedIndex = firstShown > whole ? firstShown - whole : 0;
+                paged = true;
             }
         }
 
         if(listData->selectedIndex != last) {
             listData->selectedItem = listData->visible[listData->selectedIndex];
             list_validate(listData, &l, true);
+        }
+
+        if(paged) {
+            listData->scrollTarget = listData->selectedIndex * l.pitchY;
+            listData->scrollGliding = true;
+            listData->scrollVelocity = 0;
+            list_clamp_scroll(listData, &l);
         }
     }
 

@@ -63,6 +63,11 @@ static void prompt_button_rect(prompt_data* promptData, u32 i, float cardX, floa
 static void prompt_notify_response(ui_view* view, prompt_data* promptData, u32 response) {
     ui_pop();
 
+    // The last of two or more answers backs out (No, Cancel); any other goes ahead.
+    if(promptData->numOptions < 2 || response != promptData->numOptions - 1) {
+        sheet_confirmed();
+    }
+
     if(promptData->onResponse != NULL) {
         promptData->onResponse(view, promptData->data, response);
     }

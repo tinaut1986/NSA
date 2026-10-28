@@ -38,6 +38,11 @@ typedef struct {
     bool stay;              // Runs with the sheet still open: B in what it opens comes back to it.
 } sheet_action;
 
+// An action leaves the sheet under what it opens: backing out of that (B, No)
+// shows the sheet again, while anything confirmed on the way closes it.
+// Prompts call sheet_confirmed() for an answer that goes ahead.
+void sheet_confirmed();
+
 // `title` (or NULL for none, when the top screen already shows the item) and
 // `texture`, an icon to show by it (or 0), make the sheet's header.
 void sheet_display(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data);

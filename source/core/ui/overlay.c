@@ -386,7 +386,18 @@ typedef struct {
     u64 opened;           // For the slide up.
     bool list;     // One row per action instead of a grid of buttons.
     float scroll;  // List only, when the rows do not all fit.
+    // An action is running in what it opened: back here, the sheet closes if
+    // anything was confirmed since (see sheet_confirmed), else it is shown again.
+    bool waiting;
+    u32 confirmsAtRun;
 } sheet_data;
+
+// Answers that went ahead (Yes, OK...) since NSA started.
+static u32 sheet_confirms = 0;
+
+void sheet_confirmed() {
+    sheet_confirms++;
+}
 
 static u32 sheet_columns(sheet_data* s) {
     return s->list ? 1 : SHEET_COLUMNS;
@@ -447,6 +458,16 @@ static void sheet_reveal(sheet_data* s) {
     }
 }
 
+// Scrolls a list so that `index` is its top row (as far as it goes).
+static void sheet_page_to(sheet_data* s, u32 index) {
+    float pitch = sheet_button_height(s) + sheet_gap(s);
+    float max = sheet_content_height(s) - sheet_visible_height(s);
+    s->scroll = index * pitch;
+    if(s->scroll > max) {
+        s->scroll = max > 0 ? max : 0;
+    }
+}
+
 static void sheet_close(ui_view* view, sheet_data* s) {
     ui_pop();
     free(s);
@@ -464,14 +485,30 @@ static void sheet_run(ui_view* view, sheet_data* s, u32 index) {
         return;
     }
 
-    sheet_close(view, s);
+    // The sheet stays under what the action opens, so that backing out of it
+    // (B, No) comes back here; an action that opens nothing closes it now.
+    s->waiting = true;
+    s->confirmsAtRun = sheet_confirms;
     if(run != NULL) {
         run(data);
+    }
+
+    if(ui_top() == view) {
+        sheet_close(view, s);
     }
 }
 
 static void sheet_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     sheet_data* s = (sheet_data*) data;
+
+    if(s->waiting) {
+        s->waiting = false;
+        if(sheet_confirms != s->confirmsAtRun) {
+            sheet_close(view, s);
+            return;
+        }
+    }
+
     u32 down = hidKeysDown();
 
     if(down & KEY_B) {
@@ -481,10 +518,24 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
 
     u32 cols = sheet_columns(s);
     u32 last = s->selected;
+    // A list turns a page with Left and Right: to the first row that was not shown.
+    u32 page = (u32) ((sheet_visible_height(s) - sheet_button_height(s)) / (sheet_button_height(s) + sheet_gap(s))) + 1;
+    if(page < 1) {
+        page = 1;
+    }
+
     if((down & KEY_RIGHT) && cols > 1) {
         s->selected = (s->selected + 1) % s->count;
     } else if((down & KEY_LEFT) && cols > 1) {
         s->selected = (s->selected + s->count - 1) % s->count;
+    } else if((down & KEY_RIGHT) && s->count > 0) {
+        u32 first = (u32) ((s->scroll + sheet_button_height(s) + sheet_gap(s) - 1) / (sheet_button_height(s) + sheet_gap(s)));
+        s->selected = first + page < s->count ? first + page : s->count - 1;
+        sheet_page_to(s, s->selected);
+    } else if((down & KEY_LEFT) && s->count > 0) {
+        u32 first = (u32) ((s->scroll + sheet_button_height(s) + sheet_gap(s) - 1) / (sheet_button_height(s) + sheet_gap(s)));
+        s->selected = first > page ? first - page : 0;
+        sheet_page_to(s, s->selected);
     } else if(down & KEY_DOWN) {
         s->selected = s->selected + cols < s->count ? s->selected + cols : s->selected % cols;
     } else if(down & KEY_UP) {

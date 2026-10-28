@@ -15,8 +15,17 @@ typedef enum content_type_e {
     CONTENT_3DSX_SMDH
 } content_type;
 
+// What became of each URL, for the list on the install screen.
+typedef enum {
+    URL_QUEUED,
+    URL_INSTALLED,
+    URL_FAILED,
+    URL_SKIPPED
+} url_state;
+
 typedef struct {
     char urls[INSTALL_URLS_MAX][DOWNLOAD_URL_MAX];
+    u8 states[INSTALL_URLS_MAX];
 
     char paths[INSTALL_URLS_MAX][FILE_PATH_MAX];
 
@@ -41,6 +50,8 @@ static void action_install_url_free_data(install_url_data* data) {
 
     free(data);
 }
+
+static void action_install_url_install_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2);
 
 static void action_install_url_n3ds_onresponse(ui_view* view, void* data, u32 response) {
     ((install_url_data*) data)->n3dsContinue = response == PROMPT_YES;
@@ -103,12 +114,13 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
 
             bool n3ds = false;
             if(R_SUCCEEDED(APT_CheckNew3DS(&n3ds)) && !n3ds && ((titleId >> 28) & 0xF) == 2) {
-                ui_view* view = prompt_display_yes_no("Confirmation", "Title is intended for New 3DS systems.\nContinue?", COLOR_TEXT, data, action_install_url_draw_top, action_install_url_n3ds_onresponse);
+                ui_view* view = prompt_display_yes_no("Confirmation", "Title is intended for New 3DS systems.\nContinue?", COLOR_TEXT, data, action_install_url_install_draw_top, action_install_url_n3ds_onresponse);
                 if(view != NULL) {
                     svcWaitSynchronization(view->active, U64_MAX);
                 }
 
                 if(!installData->n3dsContinue) {
+                    installData->states[index] = URL_SKIPPED;
                     return R_APP_SKIPPED;
                 }
             }
@@ -221,6 +233,10 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
         }
     }
 
+    if(succeeded && R_SUCCEEDED(res)) {
+        installData->states[index] = URL_INSTALLED;
+    }
+
     if(R_SUCCEEDED(res) && installData->finishedURL != NULL) {
         installData->finishedURL(installData->userData, index);
     }
@@ -242,46 +258,216 @@ static Result action_install_url_restore(void* data, u32 index) {
 
 static bool action_install_url_error(void* data, u32 index, Result res, ui_view** errorView) {
     install_url_data* installData = (install_url_data*) data;
+    installData->states[index] = URL_FAILED;
 
     char* url = installData->urls[index];
     if(strlen(url) > 38) {
-        *errorView = error_display_res(data, action_install_url_draw_top, res, "Failed to install from URL.\n%.35s...", url);
+        *errorView = error_display_res(data, action_install_url_install_draw_top, res, "Failed to install from URL.\n%.35s...", url);
     } else {
-        *errorView = error_display_res(data, action_install_url_draw_top, res, "Failed to install from URL.\n%.38s", url);
+        *errorView = error_display_res(data, action_install_url_install_draw_top, res, "Failed to install from URL.\n%.38s", url);
     }
 
     return true;
 }
 
-static void action_install_url_install_update(ui_view* view, void* data, float* progress, char* text) {
+// ---- the install screen: the current URL's progress on top, every URL below ----
+
+// "game.cia" from "http://host/dir/game.cia?x=1".
+static void action_install_url_file_name(const char* url, char* out, size_t size) {
+    const char* start = strstr(url, "://");
+    start = start != NULL ? start + 3 : url;
+
+    const char* slash = strrchr(start, '/');
+    const char* name = slash != NULL && slash[1] != '\0' ? slash + 1 : start;
+    size_t len = strcspn(name, "?#");
+    if(len >= size) {
+        len = size - 1;
+    }
+
+    memcpy(out, name, len);
+    out[len] = '\0';
+}
+
+// "192.168.1.143" from "http://192.168.1.143:8080/game.cia".
+static void action_install_url_host(const char* url, char* out, size_t size) {
+    const char* start = strstr(url, "://");
+    start = start != NULL ? start + 3 : url;
+
+    size_t len = strcspn(start, ":/?#");
+    if(len >= size) {
+        len = size - 1;
+    }
+
+    memcpy(out, start, len);
+    out[len] = '\0';
+}
+
+static u32 action_install_url_count(install_url_data* data, url_state state) {
+    u32 count = 0;
+    for(u32 i = 0; i < data->installInfo.total; i++) {
+        if(data->states[i] == state) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+static void action_install_url_install_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     install_url_data* installData = (install_url_data*) data;
 
     if(installData->installInfo.finished) {
         ui_pop();
-        info_destroy(view);
+        ui_destroy(view);
 
-        if(R_SUCCEEDED(installData->installInfo.result)) {
-            prompt_display_notify("Success", "Install finished.", COLOR_TEXT, NULL, NULL, NULL);
+        // A cancel has said so already, and so has a single URL that failed.
+        u32 installed = action_install_url_count(installData, URL_INSTALLED);
+        u32 failed = action_install_url_count(installData, URL_FAILED);
+        u32 skipped = action_install_url_count(installData, URL_SKIPPED);
+        if(installData->installInfo.result != R_APP_CANCELLED) {
+            if(failed == 0 && skipped == 0) {
+                if(installed > 0) {
+                    prompt_display_notify("Success", "Install finished.", COLOR_TEXT, NULL, NULL, NULL);
+                }
+            } else if(installData->installInfo.total > 1) {
+                char text[128];
+                snprintf(text, sizeof(text), _("Installed: %lu\nFailed: %lu\nSkipped: %lu"), installed, failed, skipped);
+                prompt_display_notify(failed > 0 ? "Failure" : "Success", text, COLOR_TEXT, NULL, NULL, NULL);
+            }
         }
 
         action_install_url_free_data(installData);
-
         return;
     }
 
     if(hidKeysDown() & KEY_B) {
         svcSignalEvent(installData->installInfo.cancelEvent);
     }
+}
 
-    *progress = installData->installInfo.currTotal != 0 ? (float) ((double) installData->installInfo.currProcessed / (double) installData->installInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), installData->installInfo.processed, installData->installInfo.total,
-             ui_get_display_size(installData->installInfo.currProcessed),
-             ui_get_display_size_units(installData->installInfo.currProcessed),
-             ui_get_display_size(installData->installInfo.currTotal),
-             ui_get_display_size_units(installData->installInfo.currTotal),
-             ui_get_display_size(installData->installInfo.bytesPerSecond),
-             ui_get_display_size_units(installData->installInfo.bytesPerSecond),
-             ui_get_display_eta(installData->installInfo.estimatedRemainingSeconds));
+static void action_install_url_install_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    install_url_data* installData = (install_url_data*) data;
+    const theme_current* t = theme();
+    data_op_data* info = &installData->installInfo;
+    if(info->total == 0) {
+        return;
+    }
+
+    u32 index = info->processed < info->total ? info->processed : info->total - 1;
+
+    float cardX = x1 + 12;
+    float cardY = y1 + 14;
+    float cardW = x2 - x1 - 24;
+    float cardH = 100;
+    widget_card(cardX, cardY, cardW, cardH);
+
+    float cx = cardX + 14;
+    float right = cardX + cardW - 14;
+    float y = cardY + 12;
+
+    char name[FILE_NAME_MAX];
+    action_install_url_file_name(installData->urls[index], name, sizeof(name));
+    screen_draw_icon(ICON_PACKAGE, cx, y + 1, 16, t->accent);
+    widget_text_fit(name, cx + 22, y, WIDGET_TITLE_SCALE, t->palette->text, right - cx - 22);
+    y += widget_text_height(WIDGET_TITLE_SCALE) + 4;
+
+    char host[64];
+    action_install_url_host(installData->urls[index], host, sizeof(host));
+    char line[160];
+    snprintf(line, sizeof(line), _("From %s"), host);
+    widget_text_fit(line, cx, y, WIDGET_TEXT_SCALE, t->palette->textMuted, right - cx);
+    y += widget_text_height(WIDGET_TEXT_SCALE) + 10;
+
+    float progress = info->currTotal != 0 ? (float) ((double) info->currProcessed / (double) info->currTotal) : 0;
+    widget_progress(cx, y, right - cx, 8, progress);
+    y += 8 + 8;
+
+    snprintf(line, sizeof(line), _("%.2f %s / %.2f %s, %.2f %s/s, ETA %s"),
+             ui_get_display_size(info->currProcessed), ui_get_display_size_units(info->currProcessed),
+             ui_get_display_size(info->currTotal), ui_get_display_size_units(info->currTotal),
+             ui_get_display_size(info->bytesPerSecond), ui_get_display_size_units(info->bytesPerSecond),
+             ui_get_display_eta(info->estimatedRemainingSeconds));
+    widget_text_fit(line, cx, y, WIDGET_SMALL_SCALE, t->palette->textMuted, right - cx);
+    y += widget_text_height(WIDGET_SMALL_SCALE) + 8;
+
+    if(info->total > 1) {
+        snprintf(line, sizeof(line), _("%lu of %lu"), index + 1, info->total);
+        widget_text_fit(line, cx, y, WIDGET_SMALL_SCALE, t->palette->text, right - cx);
+    }
+
+    widget_storage(SYSTEM_MEDIATYPE_SD, cardX + 4, y2 - 52, cardW - 8);
+}
+
+#define INSTALL_ROW_HEIGHT 28
+#define INSTALL_ROW_GAP 4
+
+static void action_install_url_install_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    install_url_data* installData = (install_url_data*) data;
+    const theme_current* t = theme();
+    data_op_data* info = &installData->installInfo;
+
+    float x = x1 + 8;
+    float w = x2 - x1 - 16;
+    u32 fits = (u32) ((y2 - y1 - 8) / (INSTALL_ROW_HEIGHT + INSTALL_ROW_GAP));
+    if(fits == 0) {
+        return;
+    }
+
+    // Keep the current URL in view.
+    u32 first = info->processed >= fits ? info->processed - fits + 1 : 0;
+    if(first + fits > info->total) {
+        first = info->total > fits ? info->total - fits : 0;
+    }
+
+    for(u32 i = first; i < info->total && i < first + fits; i++) {
+        float y = y1 + 8 + (i - first) * (INSTALL_ROW_HEIGHT + INSTALL_ROW_GAP);
+        bool current = i == info->processed && !info->finished;
+        screen_frame_round_rect(x, y, w, INSTALL_ROW_HEIGHT, t->def->radiusSmall, t->def->border, current ? t->accent : t->palette->border, t->palette->surface);
+
+        u32 icon = ICON_CLOCK;
+        u32 iconColor = t->palette->textMuted;
+        char status[32];
+        if(current) {
+            icon = ICON_DOWNLOAD;
+            iconColor = t->accent;
+            snprintf(status, sizeof(status), "%d %%", info->currTotal != 0 ? (int) (info->currProcessed * 100 / info->currTotal) : 0);
+        } else if(installData->states[i] == URL_INSTALLED) {
+            icon = ICON_CHECK;
+            iconColor = t->palette->success;
+            string_copy(status, _("Installed"), sizeof(status));
+        } else if(installData->states[i] == URL_FAILED) {
+            icon = ICON_X;
+            iconColor = t->palette->danger;
+            string_copy(status, _("Failed"), sizeof(status));
+        } else if(installData->states[i] == URL_SKIPPED) {
+            icon = ICON_X;
+            string_copy(status, _("Skipped"), sizeof(status));
+        } else {
+            string_copy(status, _("Queued"), sizeof(status));
+        }
+
+        screen_draw_icon(icon, x + 7, y + (INSTALL_ROW_HEIGHT - 16) / 2, 16, iconColor);
+
+        float statusW = widget_text_width(status, WIDGET_SMALL_SCALE);
+        screen_draw_text(status, x + w - 8 - statusW, y + (INSTALL_ROW_HEIGHT - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, iconColor == t->palette->textMuted ? t->palette->textMuted : iconColor);
+
+        char name[FILE_NAME_MAX];
+        action_install_url_file_name(installData->urls[i], name, sizeof(name));
+        float tx = x + 29;
+        widget_text_fit(name, tx, y + (INSTALL_ROW_HEIGHT - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, t->palette->text, x + w - 16 - statusW - tx);
+    }
+}
+
+static void action_install_url_install_show(install_url_data* data) {
+    ui_view* view = ui_create();
+    view->name = _("Installing");
+    view->id = "Installing";
+    view->info = _(" cancel");
+    view->data = data;
+    view->update = action_install_url_install_update;
+    view->drawTop = action_install_url_install_draw_top;
+    view->drawBottom = action_install_url_install_draw_bottom;
+    ui_push(view);
 }
 
 static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32 response) {
@@ -290,7 +476,7 @@ static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32
     if(response == PROMPT_YES) {
         Result res = task_data_op(&installData->installInfo);
         if(R_SUCCEEDED(res)) {
-            info_display("Installing From URL(s)", "Press B to cancel.", true, data, action_install_url_install_update, action_install_url_draw_top);
+            action_install_url_install_show(installData);
         } else {
             error_display_res(NULL, NULL, res, "Failed to initiate installation.");
 

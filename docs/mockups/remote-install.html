@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Remote install mockup</title>
+<style>
+:root {
+  --bg: #141917; --surface: #1F2624; --border: #34403C; --text: #E6ECEA; --muted: #97A39F;
+  --accent: #378ADD; --on-accent: #fff; --success: #5DCAA5; --success-soft: #085041; --danger: #F09595;
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px; background: #0b0d0c; color: var(--text); font: 13px/1.3 "Noto Sans", "Segoe UI", sans-serif; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+.note { color: #b7c2be; max-width: 1100px; margin: 0 0 20px; font-size: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 36px; }
+.shot { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.shot > p { margin: 0; color: #b7c2be; font-size: 13px; max-width: 800px; text-align: center; }
+.device { zoom: 2; display: flex; flex-direction: column; align-items: center; background: #000; }
+.top { width: 400px; height: 240px; background: var(--bg); position: relative; overflow: hidden; }
+.bottom { width: 320px; height: 240px; background: var(--bg); position: relative; overflow: hidden; }
+.status { height: 18px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px; font-size: 10px; color: var(--muted); }
+.status b { color: var(--text); font-weight: 400; }
+.titlebar { height: 26px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--border); font-size: 12px; position: relative; }
+.titlebar .tool { position: absolute; top: 4px; width: 18px; height: 18px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; }
+.hint { position: absolute; bottom: 0; left: 0; right: 0; height: 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 9px; color: var(--muted); }
+.glyph { display: inline-flex; width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--muted); font-size: 7px; align-items: center; justify-content: center; margin-right: 2px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.ico { width: 16px; height: 16px; display: inline-block; }
+.ico32 { width: 32px; height: 32px; }
+.muted { color: var(--muted); }
+.big { font-size: 24px; letter-spacing: .5px; }
+/* bottom: home */
+.tiles { position: absolute; top: 32px; left: 8px; right: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tile { height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; text-align: center; }
+.tile.sel { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.history { position: absolute; left: 8px; right: 8px; top: 174px; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 10px; }
+.history .t { flex: 1; }
+.history .t div:first-child { font-size: 11px; }
+.pill { font-size: 9px; padding: 3px 7px; border-radius: 10px; border: 1px solid var(--border); color: var(--text); }
+/* top: details */
+.details { position: absolute; top: 26px; left: 12px; right: 12px; bottom: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.details h2 { margin: 0; font-size: 15px; font-weight: 500; display: flex; gap: 8px; align-items: center; }
+.cells { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: auto; }
+.cell { background: var(--bg); border-radius: 6px; padding: 5px 8px; font-size: 10px; }
+.cell div:last-child { font-size: 12px; color: var(--text); }
+.cell div:first-child { color: var(--muted); font-size: 9px; }
+/* receive screen */
+.addr { position: absolute; top: 34px; left: 12px; right: 12px; padding: 12px 14px; text-align: center; }
+.addr .ip { font-size: 30px; font-weight: 500; margin: 4px 0; }
+.addr .ip span { color: var(--accent); }
+.how { position: absolute; left: 12px; right: 12px; top: 150px; padding: 8px 12px; font-size: 10px; }
+.how code { color: var(--text); background: var(--bg); padding: 1px 4px; border-radius: 3px; font-size: 9px; }
+.list { position: absolute; top: 32px; left: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; }
+.item { height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 11px; }
+.item .n { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.item .s { font-size: 9px; color: var(--muted); }
+.item.sel { border-color: var(--accent); }
+.empty { position: absolute; top: 70px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.bar { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.ok { color: var(--success); } .bad { color: var(--danger); }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.cam { position: absolute; top: 18px; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, #2a302e 0 8px, #252b29 8px 16px); display: flex; align-items: center; justify-content: center; }
+.frame { width: 150px; height: 150px; border: 2px solid var(--accent); border-radius: 10px; box-shadow: 0 0 0 999px rgba(0,0,0,.35); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-3ds" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="9" rx="1.5"/><rect x="5" y="13" width="14" height="9" rx="1.5"/><path d="M9 17h.01M15 17h.01"/></symbol>
+    <symbol id="i-pc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M7 20h10M9 16v4M15 16v4"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h3v-3"/></symbol>
+    <symbol id="i-kbd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol>
+    <symbol id="i-hist" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l2 2"/><path d="M3.05 11a9 9 0 1 1 .5 4M3 20v-5h5"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></symbol>
+    <symbol id="i-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></symbol>
+  </defs>
+</svg>
+
+<h1>Instalación remota: maqueta</h1>
+<p class="note">Tema Cards, modo noche, acento azul, a tamaño doble. Arriba la pantalla superior (400×240), debajo la táctil (320×240).
+Las cuatro formas de recibir son tarjetas grandes; la última petición queda como una fila de historial.</p>
+
+<div class="row">
+
+<!-- 1. Home -->
+<div class="shot">
+<div class="device">
+  <div class="top">
+    <div class="status"><b>NSA 0.3.1</b><span>23:01 · .139 · 100</span></div>
+    <div class="details card">
+      <h2><svg class="ico" style="width:20px;height:20px"><use href="#i-3ds"/></svg>Recibir de otra 3DS</h2>
+      <div class="muted">Otra consola con NSA te envía un juego, una actualización o un archivo, por la Wi-Fi de casa o sin router. Lo instalas o lo guardas al llegar.</div>
+      <div class="cells">
+        <div class="cell"><div>Esta consola</div><div>New 3DS XL - 71N4U7</div></div>
+        <div class="cell"><div>Red</div><div>Wi-Fi · 192.168.1.139</div></div>
+        <div class="cell"><div>Se guarda en</div><div>/nsa/received/</div></div>
+        <div class="cell"><div>Espacio libre</div><div>21.4 GiB</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="titlebar"><span class="tool" style="left:6px"><svg class="ico"><use href="#i-back"/></svg></span>Instalación remota</div>
+    <div class="tiles">
+      <div class="tile card sel"><svg class="ico32"><use href="#i-3ds"/></svg>Recibir de otra 3DS</div>
+      <div class="tile card"><svg class="ico32"><use href="#i-pc"/></svg>Recibir del ordenador</div>
+      <div class="tile card"><svg class="ico32"><use href="#i-qr"/></svg>Escanear código QR</div>
+      <div class="tile card"><svg class="ico32"><use href="#i-kbd"/></svg>Escribir URL</div>
+    </div>
+    <div class="history card">
+      <svg class="ico muted"><use href="#i-hist"/></svg>
+      <div class="t"><div>Última petición</div><div class="muted">3 URL · ayer 21:40</div></div>
+      <span class="pill">Repetir</span>
+    </div>
+    <div class="hint"><span><span class="glyph">A</span>abrir</span><span><span class="glyph">Y</span>repetir la última</span><span><span class="glyph">B</span>volver</span></div>
+  </div>
+</div>
+<p>1 · Inicio. La tarjeta arriba explica la opción elegida y da los datos útiles.<br>Pulsación larga en la fila de historial: «Ver URL» / «Olvidar».</p>
+</div>
+
+<!-- 2. Receive from computer -->
+<div class="shot">
+<div class="device">
+  <div class="top">
+    <div class="status"><b>NSA 0.3.1</b><span>23:02 · .139 · 100</span></div>
+    <div class="addr card">
+      <div class="muted">Envía desde el ordenador a</div>
+      <div class="ip">192.168.1.139<span>:5000</span></div>
+      <div class="muted" style="font-size:10px">El FTP sigue en marcha en el puerto 5021</div>
+    </div>
+    <div class="how card">
+      <div style="margin-bottom:4px">Con <code>servefiles.py</code> (FBI) o cualquier herramienta para FBI:</div>
+      <code>python servefiles.py 192.168.1.139 juego.cia</code>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="titlebar"><span class="tool" style="left:6px"><svg class="ico"><use href="#i-back"/></svg></span>Recibir del ordenador</div>
+    <div class="empty">
+      <svg class="ico32"><use href="#i-pc"/></svg>
+      <div>Esperando al ordenador...</div>
+      <div style="font-size:9px">Las URL que lleguen aparecerán aquí</div>
+    </div>
+    <div class="hint"><span><span class="glyph">B</span>volver</span></div>
+  </div>
+</div>
+<p>2 · Recibir del ordenador. IP y puerto en grande arriba; abajo, lo que va llegando.</p>
+</div>
+
+<!-- 3. URLs arrived -->
+<div class="shot">
+<div class="device">
+  <div class="top">
+    <div class="status"><b>NSA 0.3.1</b><span>23:03 · .139 · 100</span></div>
+    <div class="details card">
+      <h2><svg class="ico" style="width:20px;height:20px"><use href="#i-box"/></svg>Life Force [00040000000B5A00] v0.cia</h2>
+      <div class="muted">Desde 192.168.1.143 · CIA · instala en la SD</div>
+      <div class="bar"><i style="width:62%"></i></div>
+      <div class="muted" style="font-size:10px">7.40 MiB / 11.93 MiB · 1.2 MiB/s · quedan 00:04</div>
+      <div class="cells">
+        <div class="cell"><div>Petición</div><div>2 de 3</div></div>
+        <div class="cell"><div>Espacio libre</div><div>21.4 GiB</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="titlebar">Recibir del ordenador</div>
+    <div class="list">
+      <div class="item card"><svg class="ico ok"><use href="#i-check"/></svg><span class="n">Homebrew Launcher.cia</span><span class="s ok">Instalado</span></div>
+      <div class="item card sel"><svg class="ico" style="color:var(--accent)"><use href="#i-dl"/></svg><span class="n">Life Force.cia</span><span class="s">62 %</span></div>
+      <div class="item card"><span class="dot" style="background:var(--border)"></span><span class="n">Pokémon Yellow.cia</span><span class="s">En cola</span></div>
+    </div>
+    <div class="hint"><span><span class="glyph">B</span>cancelar</span></div>
+  </div>
+</div>
+<p>3 · Instalando. El progreso arriba como en los diálogos nuevos; abajo cada URL con su estado.<br>Al acabar: resumen («3 instalados») y la petición pasa al historial.</p>
+</div>
+
+<!-- 4. QR -->
+<div class="shot">
+<div class="device">
+  <div class="top">
+    <div class="status"><b>NSA 0.3.1</b><span>23:04 · .139 · 100</span></div>
+    <div class="cam"><div class="frame"></div></div>
+  </div>
+  <div class="bottom">
+    <div class="titlebar"><span class="tool" style="left:6px"><svg class="ico"><use href="#i-back"/></svg></span>Escanear código QR</div>
+    <div class="empty">
+      <svg class="ico32"><use href="#i-qr"/></svg>
+      <div>Apunta la cámara al código</div>
+      <div style="font-size:9px">Un QR con una o varias URL de CIA</div>
+    </div>
+    <div class="hint"><span><span class="glyph">B</span>volver</span></div>
+  </div>
+</div>
+<p>4 · QR. La cámara ocupa la pantalla superior con un marco; abajo solo la indicación.<br>Escribir URL abre el teclado y después la misma pantalla 3.</p>
+</div>
+
+</div>
+</body>
+</html>

@@ -518,7 +518,7 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
 
         if(!card) {
             actions[count++] = (sheet_action) {ICON_PACKAGE, _("Export as CIA"), false, titles_export_cia};
-            actions[count++] = (sheet_action) {ICON_WIFI, _("Send to another 3DS"), false, titles_export_cia_send};
+            actions[count++] = (sheet_action) {ICON_3DS, _("Send to another 3DS"), false, titles_export_cia_send};
             actions[count++] = (sheet_action) {ICON_KEY, _("Import seed"), false, titles_import_seed};
             actions[count++] = (sheet_action) {ICON_SHIELD_LOCK, _("Import secure value"), false, titles_import_sv};
             actions[count++] = (sheet_action) {ICON_SHIELD_LOCK, _("Export secure value"), false, titles_export_sv};

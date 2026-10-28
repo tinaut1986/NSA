@@ -158,7 +158,7 @@ void systeminfo_draw_top(float x1, float y1, float x2, float y2) {
     float cardDepth = screen_get_depth();
     screen_set_depth(cardDepth + 1);
     screen_fill_round_rect(x + 8, cardY + (cardH - tile) / 2, tile, tile, t->def->radius, t->accentSoft);
-    screen_draw_icon(ICON_DEVICE_NINTENDO, x + 8 + 9, cardY + (cardH - tile) / 2 + 9, 28, t->accent);
+    screen_draw_icon(ICON_3DS, x + 8 + 9, cardY + (cardH - tile) / 2 + 9, 28, t->accent);
     screen_set_depth(cardDepth);
 
     float tx = x + 8 + tile + 12;

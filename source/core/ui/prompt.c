@@ -17,7 +17,7 @@
 
 typedef struct {
     const char* text;
-    char sourceText[256];   // Before translation, for the tests.
+    char sourceText[512];   // Before translation: the tests read it, and it is drawn when there is no translation.
     u32 color;
     u32 icon;          // The header's icon and its colour, by kind of dialog.
     u32 iconColor;
@@ -229,8 +229,12 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
     promptData->opened = osGetTime();
 
     // Messages are mostly literals, some built at run time: looked up by content.
-    promptData->text = i18n_translate_text(text);
     string_copy(promptData->sourceText, text != NULL ? text : "", sizeof(promptData->sourceText));
+    promptData->text = i18n_translate_text(text);
+    // Untranslated, it is the caller's text, which may be built on its stack: keep the copy.
+    if(promptData->text == text) {
+        promptData->text = promptData->sourceText;
+    }
     promptData->color = color;
 
     const theme_current* t = theme();

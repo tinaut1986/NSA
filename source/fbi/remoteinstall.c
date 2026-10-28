@@ -10,6 +10,7 @@
 
 #include "resources.h"
 #include "section.h"
+#include "ftpserver.h"
 #include "transfer.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -194,8 +195,45 @@ static void remoteinstall_network_update(ui_view* view, void* data, float* progr
         }
     }
 
+    snprintf(text, PROGRESS_TEXT_MAX, "%s", _("Waiting for the computer...\nWhat it sends installs from here."));
+}
+
+// The address to send to, large, and how.
+static void remoteinstall_network_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    const theme_current* t = theme();
+
+    float cardX = x1 + 12;
+    float cardW = x2 - x1 - 24;
+    float cardY = y1 + 14;
+    float cardH = 100;
+    widget_card(cardX, cardY, cardW, cardH);
+
+    widget_text_centered(_("Send from your computer to"), cardX, cardX + cardW, cardY + 12, WIDGET_TEXT_SCALE, t->palette->textMuted);
+
     struct in_addr addr = {(in_addr_t) gethostid()};
-    snprintf(text, PROGRESS_TEXT_MAX, _("Waiting for connection...\nIP: %s\nPort: 5000"), inet_ntoa(addr));
+    char ip[32];
+    snprintf(ip, sizeof(ip), "%s", inet_ntoa(addr));
+    const char* port = ":5000";
+    float scale = 1.1f;
+    float ipW = widget_text_width(ip, scale);
+    float width = ipW + widget_text_width(port, scale);
+    float textX = cardX + (cardW - width) / 2;
+    float textY = cardY + 12 + widget_text_height(WIDGET_TEXT_SCALE) + 8;
+    screen_draw_text(ip, textX, textY, scale, t->palette->text);
+    screen_draw_text(port, textX + ipW, textY, scale, t->accent);
+
+    if(ftpserver_running()) {
+        widget_text_centered(_("The FTP server keeps running on port 5021."), cardX, cardX + cardW, cardY + cardH - 12 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, t->palette->textMuted);
+    }
+
+    float howY = cardY + cardH + 10;
+    float howH = 52;
+    widget_card(cardX, howY, cardW, howH);
+    screen_draw_text_wrap(_("With servefiles.py, or any tool made for FBI:"), cardX + 14, howY + 10, WIDGET_SMALL_SCALE, t->palette->textMuted, cardX + cardW - 14);
+
+    char command[96];
+    snprintf(command, sizeof(command), "python servefiles.py %s game.cia", ip);
+    widget_text_fit(command, cardX + 14, howY + 12 + widget_text_height(WIDGET_SMALL_SCALE) + 4, WIDGET_TEXT_SCALE, t->palette->text, cardW - 28);
 }
 
 static void remoteinstall_receive_urls_network() {
@@ -236,7 +274,7 @@ static void remoteinstall_receive_urls_network() {
         return;
     }
 
-    info_display("Receive URL(s)", "B: Return", false, data, remoteinstall_network_update, NULL);
+    info_display("Receive from a computer", "\uE001 back", false, data, remoteinstall_network_update, remoteinstall_network_draw_top);
 }
 
 #define QR_IMAGE_WIDTH 400
@@ -296,6 +334,25 @@ static void remoteinstall_qr_draw_top(ui_view* view, void* data, float x1, float
 
         screen_draw_texture(installData->tex, 0, 0, QR_IMAGE_WIDTH, QR_IMAGE_HEIGHT);
     }
+
+    // Where to hold the code: its four corners.
+    const theme_current* t = theme();
+    float size = 150;
+    float arm = 24;
+    float line = 3;
+    float fx = (QR_IMAGE_WIDTH - size) / 2;
+    float fy = (QR_IMAGE_HEIGHT - size) / 2;
+    float depth = screen_get_depth();
+    screen_set_depth(depth + 1);
+    for(u32 corner = 0; corner < 4; corner++) {
+        float cx = corner % 2 == 0 ? fx : fx + size - arm;
+        float cy = corner / 2 == 0 ? fy : fy + size - line;
+        float vx = corner % 2 == 0 ? fx : fx + size - line;
+        float vy = corner / 2 == 0 ? fy : fy + size - arm;
+        screen_fill_round_rect(cx, cy, arm, line, line / 2, t->accent);
+        screen_fill_round_rect(vx, vy, line, arm, line / 2, t->accent);
+    }
+    screen_set_depth(depth);
 }
 
 static void remoteinstall_qr_update(ui_view* view, void* data, float* progress, char* text) {
@@ -381,7 +438,7 @@ static void remoteinstall_qr_update(ui_view* view, void* data, float* progress, 
         }
     }
 
-    snprintf(text, PROGRESS_TEXT_MAX, _("Waiting for QR code..."));
+    snprintf(text, PROGRESS_TEXT_MAX, "%s", _("Point the camera at the code.\nA QR code with one or more links to CIAs."));
 }
 
 static void remoteinstall_scan_qr_code() {
@@ -428,7 +485,7 @@ static void remoteinstall_scan_qr_code() {
 
     data->tex = screen_allocate_free_texture();
 
-    info_display("QR Code Install", "B: Return, X: Switch Camera", false, data, remoteinstall_qr_update, remoteinstall_qr_draw_top);
+    info_display("Scan QR code", "\uE002 switch camera   \uE001 back", false, data, remoteinstall_qr_update, remoteinstall_qr_draw_top);
 }
 
 static void remoteinstall_manually_enter_urls_onresponse(ui_view* view, void* data, SwkbdButton button, const char* response) {
@@ -460,43 +517,438 @@ static void remoteinstall_repeat_last_request() {
 
 static void remoteinstall_forget_last_request() {
     Result forgetRes = remoteinstall_set_last_urls(NULL);
-    if(R_SUCCEEDED(forgetRes)) {
-        prompt_display_notify("Success", "Last requested URL(s) forgotten.", COLOR_TEXT, NULL, NULL, NULL);
-    } else {
+    if(R_FAILED(forgetRes)) {
         error_display_res(NULL, NULL, forgetRes, "Failed to forget last requested URL(s).");
     }
 }
 
-static list_item receive_urls_network = {"Receive URLs over the network", COLOR_TEXT, remoteinstall_receive_urls_network};
-static list_item receive_from_3ds = {"Receive from another 3DS", COLOR_TEXT, transfer_receive_open};
-static list_item scan_qr_code = {"Scan QR Code", COLOR_TEXT, remoteinstall_scan_qr_code};
-static list_item manually_enter_urls = {"Manually enter URLs", COLOR_TEXT, remoteinstall_manually_enter_urls};
-static list_item repeat_last_request = {"Repeat last request", COLOR_TEXT, remoteinstall_repeat_last_request};
-static list_item forget_last_request = {"Forget last request", COLOR_TEXT, remoteinstall_forget_last_request};
+// ---- the home screen: four ways in as tiles, the last request as a row ----
 
-static void remoteinstall_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
+typedef struct {
+    u32 icon;
+    const char* name;
+    const char* description;
+    void (*open)();
+} remoteinstall_entry;
+
+static const remoteinstall_entry entries[] = {
+        {ICON_3DS, "Receive from another 3DS", "Another console running NSA sends you a game or a file, over your Wi-Fi or with no router. Install it or keep it.", transfer_receive_open},
+        {ICON_DEVICE_DESKTOP, "Receive from a computer", "Send CIAs from a computer with servefiles.py or any tool made for FBI: they install as they arrive.", remoteinstall_receive_urls_network},
+        {ICON_QRCODE, "Scan QR code", "Point the camera at a QR code that holds one or more links to CIAs.", remoteinstall_scan_qr_code},
+        {ICON_KEYBOARD, "Enter URLs", "Type one or more links to CIAs, one per line, and install from them.", remoteinstall_manually_enter_urls},
+};
+
+#define ENTRY_COUNT (sizeof(entries) / sizeof(*entries))
+#define HISTORY_INDEX ENTRY_COUNT   // The last request's row, when there is one.
+#define TILE_HEIGHT 60
+#define HISTORY_HEIGHT 36
+#define GAP 6
+#define PAD 8
+
+typedef struct {
+    u32 selected;
+    u64 nextMove;
+    widget_press press;
+
+    // The last request, read again every second (a screen opened from here may change it).
+    bool haveLast;
+    u32 lastCount;
+    char lastHost[64];
+    char lastFirst[DOWNLOAD_URL_MAX];
+    char lastShown[3][DOWNLOAD_URL_MAX];   // The first few, for the top card.
+    u64 lastRead;
+
+    u32 shown;
+    u32 leaving;
+    u64 shownTime;
+} remoteinstall_data;
+
+static void remoteinstall_read_last(remoteinstall_data* data) {
+    data->lastRead = osGetTime();
+    data->haveLast = false;
+
+    char* text = (char*) calloc(1, DOWNLOAD_URL_MAX * INSTALL_URLS_MAX);
+    if(text == NULL) {
+        return;
+    }
+
+    if(remoteinstall_get_last_urls(text, DOWNLOAD_URL_MAX * INSTALL_URLS_MAX)) {
+        data->haveLast = true;
+        data->lastCount = 0;
+        for(const char* line = text; *line != '\0';) {
+            size_t len = strcspn(line, "\n");
+            if(len > 0) {
+                if(data->lastCount < 3) {
+                    char* shown = data->lastShown[data->lastCount];
+                    size_t n = len < DOWNLOAD_URL_MAX - 1 ? len : DOWNLOAD_URL_MAX - 1;
+                    memcpy(shown, line, n);
+                    shown[n] = '\0';
+                    if(data->lastCount == 0) {
+                        string_copy(data->lastFirst, shown, sizeof(data->lastFirst));
+                    }
+                }
+
+                data->lastCount++;
+            }
+
+            line += len;
+            if(*line == '\n') {
+                line++;
+            }
+        }
+
+        const char* host = strstr(data->lastFirst, "://");
+        host = host != NULL ? host + 3 : data->lastFirst;
+        size_t len = strcspn(host, ":/?#");
+        if(len >= sizeof(data->lastHost)) {
+            len = sizeof(data->lastHost) - 1;
+        }
+
+        memcpy(data->lastHost, host, len);
+        data->lastHost[len] = '\0';
+    }
+
+    free(text);
+}
+
+static void remoteinstall_rect(u32 index, float x1, float y1, float x2, float* x, float* y, float* w, float* h) {
+    float area = x2 - x1 - 2 * PAD;
+    if(index < ENTRY_COUNT) {
+        *w = (area - GAP) / 2;
+        *h = TILE_HEIGHT;
+        *x = x1 + PAD + (index % 2) * (*w + GAP);
+        *y = y1 + PAD + (index / 2) * (TILE_HEIGHT + GAP);
+    } else {
+        *w = area;
+        *h = HISTORY_HEIGHT;
+        *x = x1 + PAD;
+        *y = y1 + PAD + 2 * (TILE_HEIGHT + GAP);
+    }
+}
+
+static u32 remoteinstall_targets(remoteinstall_data* data) {
+    return ENTRY_COUNT + (data->haveLast ? 1 : 0);
+}
+
+// Two by two, the history row under both columns.
+static u32 remoteinstall_move(remoteinstall_data* data, u32 selected, u32 key) {
+    bool history = data->haveLast;
+    if(selected == HISTORY_INDEX) {
+        if(key == KEY_UP) {
+            return 2;
+        } else if(key == KEY_DOWN) {
+            return 0;
+        }
+
+        return selected;
+    }
+
+    switch(key) {
+        case KEY_LEFT: return selected % 2 == 1 ? selected - 1 : selected;
+        case KEY_RIGHT: return selected % 2 == 0 ? selected + 1 : selected;
+        case KEY_UP: return selected >= 2 ? selected - 2 : (history ? HISTORY_INDEX : selected + 2);
+        case KEY_DOWN: return selected < 2 ? selected + 2 : (history ? HISTORY_INDEX : selected - 2);
+        default: return selected;
+    }
+}
+
+static bool remoteinstall_repeat(remoteinstall_data* data, u32 key) {
+    if(hidKeysDown() & key) {
+        data->nextMove = osGetTime() + 400;
+        return true;
+    }
+
+    if((hidKeysHeld() & key) && osGetTime() >= data->nextMove) {
+        data->nextMove = osGetTime() + 120;
+        return true;
+    }
+
+    return false;
+}
+
+static void remoteinstall_sheet_repeat(void* data) {
+    remoteinstall_repeat_last_request();
+}
+
+static void remoteinstall_sheet_forget(void* data) {
+    remoteinstall_forget_last_request();
+    ((remoteinstall_data*) data)->lastRead = 0;
+}
+
+static void remoteinstall_history_actions(remoteinstall_data* data) {
+    static const sheet_action actions[] = {
+            {ICON_REFRESH, "Install again", false, remoteinstall_sheet_repeat, false},
+            {ICON_TRASH, "Forget", true, remoteinstall_sheet_forget, false},
+    };
+
+    sheet_action translated[2];
+    for(u32 i = 0; i < 2; i++) {
+        translated[i] = actions[i];
+        translated[i].label = _(actions[i].label);
+    }
+
+    sheet_display(_("Last request"), 0, translated, 2, data);
+}
+
+static void remoteinstall_open_target(remoteinstall_data* data, u32 index) {
+    if(index < ENTRY_COUNT) {
+        entries[index].open();
+    } else if(data->haveLast) {
+        remoteinstall_repeat_last_request();
+    }
+}
+
+static void remoteinstall_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
+    remoteinstall_data* menu = (remoteinstall_data*) data;
+
+    view->name = _("Remote install");
+    view->info = menu->haveLast ? _(" open    install the last again    back") : _(" open    back");
+
+    if(menu->lastRead == 0 || osGetTime() - menu->lastRead > 1000) {
+        remoteinstall_read_last(menu);
+        if(!menu->haveLast && menu->selected == HISTORY_INDEX) {
+            menu->selected = 2;
+        }
+    }
+
     if(hidKeysDown() & KEY_B) {
         ui_pop();
-        list_destroy(view);
-
+        free(menu);
+        ui_destroy(view);
         return;
     }
 
-    if(selected != NULL && (selectedTouched || hidKeysDown() & KEY_A) && selected->data != NULL) {
-        ((void(*)()) selected->data)();
+    if((hidKeysDown() & KEY_Y) && menu->haveLast) {
+        remoteinstall_repeat_last_request();
         return;
     }
 
-    if(linked_list_size(items) == 0) {
-        linked_list_add(items, &receive_urls_network);
-        linked_list_add(items, &receive_from_3ds);
-        linked_list_add(items, &scan_qr_code);
-        linked_list_add(items, &manually_enter_urls);
-        linked_list_add(items, &repeat_last_request);
-        linked_list_add(items, &forget_last_request);
+    static const u32 keys[] = {KEY_DOWN, KEY_UP, KEY_RIGHT, KEY_LEFT};
+    if(menu->press.index < 0) {
+        for(u32 i = 0; i < sizeof(keys) / sizeof(*keys); i++) {
+            if(remoteinstall_repeat(menu, keys[i])) {
+                menu->selected = remoteinstall_move(menu, menu->selected, keys[i]);
+                break;
+            }
+        }
+    }
+
+    // A, or a finger: acts on release; a long hold on the last request offers its actions.
+    touchPosition pos;
+    hidTouchRead(&pos);
+    if(hidKeysDown() & KEY_TOUCH) {
+        widget_press_end(&menu->press);
+        for(u32 i = 0; i < remoteinstall_targets(menu); i++) {
+            float x, y, w, h;
+            remoteinstall_rect(i, bx1, by1, bx2, &x, &y, &w, &h);
+            if(widget_touched(&pos, x, y, w, h)) {
+                widget_press_begin(&menu->press, (int) i, true, pos.px, pos.py);
+                menu->selected = i;
+            }
+        }
+    } else if(hidKeysDown() & KEY_A) {
+        float x, y, w, h;
+        remoteinstall_rect(menu->selected, bx1, by1, bx2, &x, &y, &w, &h);
+        widget_press_begin(&menu->press, (int) menu->selected, false, x + w / 2, y + h / 2);
+    }
+
+    if(menu->press.index >= 0) {
+        bool touch = menu->press.touch;
+        bool held = touch ? (hidKeysHeld() & KEY_TOUCH) != 0 : (hidKeysHeld() & KEY_A) != 0;
+        if(held && touch && !menu->press.cancelled) {
+            float x, y, w, h;
+            remoteinstall_rect((u32) menu->press.index, bx1, by1, bx2, &x, &y, &w, &h);
+            if(!widget_touched(&pos, x, y, w, h)) {
+                menu->press.cancelled = true;
+            }
+        }
+
+        if(held && menu->press.index == HISTORY_INDEX && widget_press_long_due(&menu->press)) {
+            remoteinstall_history_actions(menu);
+        } else if(!held) {
+            int index = menu->press.index;
+            bool open = widget_press_on(&menu->press, index) && !menu->press.fired;
+            widget_press_end(&menu->press);
+            if(open) {
+                remoteinstall_open_target(menu, (u32) index);
+            }
+        }
+    }
+}
+
+// A cell under the top card: a label over its value.
+static void remoteinstall_draw_cell(float x, float y, float w, const char* label, const char* value) {
+    const theme_current* t = theme();
+    float h = 30;
+    screen_fill_round_rect(x, y, w, h, t->def->radiusSmall, t->palette->surface);
+    widget_text_fit(label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted, w - 16);
+    widget_text_fit(value, x + 8, y + 4 + widget_text_height(WIDGET_SMALL_SCALE), WIDGET_TEXT_SCALE, t->palette->text, w - 16);
+}
+
+static void remoteinstall_draw_card(remoteinstall_data* menu, u32 index, float x1, float y1, float x2, float y2) {
+    const theme_current* t = theme();
+
+    float cardX = x1 + 12;
+    float cardY = y1 + 14;
+    float cardW = x2 - x1 - 24;
+    float cardH = 96;
+    widget_card(cardX, cardY, cardW, cardH);
+
+    u32 icon = index < ENTRY_COUNT ? entries[index].icon : ICON_HISTORY;
+    const char* name = index < ENTRY_COUNT ? _(entries[index].name) : _("Last request");
+
+    float tile = 64;
+    float tileX = cardX + 16;
+    float tileY = cardY + (cardH - tile) / 2;
+    float depth = screen_get_depth();
+    screen_set_depth(depth + 1);
+    screen_fill_round_rect(tileX, tileY, tile, tile, t->def->radius, t->accentSoft);
+    screen_draw_icon(icon, tileX + 14, tileY + 14, 36, t->accent);
+    screen_set_depth(depth);
+
+    float textX = tileX + tile + 14;
+    float wrap = cardX + cardW - 14;
+    float textY = cardY + 14;
+    screen_draw_text(name, textX, textY, WIDGET_TITLE_SCALE, t->palette->text);
+    textY += widget_text_height(WIDGET_TITLE_SCALE) + 4;
+
+    if(index < ENTRY_COUNT) {
+        screen_draw_text_wrap(_(entries[index].description), textX, textY, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap);
+    } else {
+        char line[96];
+        snprintf(line, sizeof(line), menu->lastCount == 1 ? _("%lu link from %s") : _("%lu links from %s"), menu->lastCount, menu->lastHost);
+        widget_text_fit(line, textX, textY, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap - textX);
+        textY += widget_text_height(WIDGET_TEXT_SCALE) + 4;
+        for(u32 i = 0; i < menu->lastCount && i < 3; i++) {
+            widget_text_fit(menu->lastShown[i], textX, textY, WIDGET_SMALL_SCALE, t->palette->text, wrap - textX);
+            textY += widget_text_height(WIDGET_SMALL_SCALE) + 2;
+        }
+    }
+
+    // Under the card, what is useful to know for this way in.
+    float cellY = cardY + cardH + 8;
+    float cellW = (cardW - 6) / 2;
+    struct in_addr addr = {(in_addr_t) gethostid()};
+    bool wifi = addr.s_addr != 0;
+    char value[64];
+    if(index == 0) {
+        transfer_local_name(value, sizeof(value));
+        remoteinstall_draw_cell(cardX, cellY, cellW, _("This console"), value);
+        remoteinstall_draw_cell(cardX + cellW + 6, cellY, cellW, _("Saved to"), "/nsa/received/");
+    } else if(index == 1) {
+        if(wifi) {
+            snprintf(value, sizeof(value), "%s:5000", inet_ntoa(addr));
+        } else {
+            string_copy(value, _("No Wi-Fi"), sizeof(value));
+        }
+
+        remoteinstall_draw_cell(cardX, cellY, cellW, _("Send to"), value);
+        remoteinstall_draw_cell(cardX + cellW + 6, cellY, cellW, _("FTP server"), ftpserver_running() ? _("Keeps running") : _("Off"));
+    }
+}
+
+typedef struct {
+    remoteinstall_data* menu;
+    float x1, y1, x2, y2;
+} remoteinstall_top_context;
+
+static void remoteinstall_draw_card_fade(void* data, bool leaving) {
+    remoteinstall_top_context* c = (remoteinstall_top_context*) data;
+    remoteinstall_draw_card(c->menu, leaving ? c->menu->leaving : c->menu->selected, c->x1, c->y1, c->x2, c->y2);
+}
+
+static void remoteinstall_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    remoteinstall_data* menu = (remoteinstall_data*) data;
+
+    if(menu->shown != menu->selected) {
+        menu->leaving = menu->shown;
+        menu->shown = menu->selected;
+        menu->shownTime = osGetTime();
+    }
+
+    remoteinstall_top_context context = {menu, x1, y1, x2, y2};
+    widget_crossfade(widget_ease(menu->shownTime, WIDGET_CROSSFADE_TIME), remoteinstall_draw_card_fade, &context, menu->leaving != menu->shown);
+
+    widget_storage(SYSTEM_MEDIATYPE_SD, x1 + 16, y2 - 52, x2 - x1 - 32);
+}
+
+// A big tile: the icon over the label, on two lines when it must.
+static void remoteinstall_draw_tile(float x, float y, float w, float h, u32 icon, const char* label, bool selected) {
+    const theme_current* t = theme();
+    u32 ink = selected ? t->onAccent : t->palette->text;
+    screen_frame_round_rect(x, y, w, h, t->def->radius, t->def->border, selected ? t->accent : t->palette->border, selected ? t->accent : t->palette->surface);
+
+    float iconSize = 26;
+    float textH = widget_text_height(WIDGET_TEXT_SCALE);
+    float top = y + (h - iconSize - 4 - textH) / 2;
+    screen_draw_icon(icon, x + (w - iconSize) / 2, top, iconSize, selected ? t->onAccent : t->accent);
+    float labelW = widget_text_width(label, WIDGET_TEXT_SCALE);
+    if(labelW <= w - 8) {
+        widget_text_centered(label, x, x + w, top + iconSize + 4, WIDGET_TEXT_SCALE, ink);
+    } else {
+        widget_text_fit(label, x + 4, top + iconSize + 4, WIDGET_TEXT_SCALE, ink, w - 8);
+    }
+}
+
+static void remoteinstall_draw_history(remoteinstall_data* menu, float x, float y, float w, float h, bool selected) {
+    const theme_current* t = theme();
+    u32 ink = selected ? t->onAccent : t->palette->text;
+    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
+    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, selected ? t->accent : t->palette->border, selected ? t->accent : t->palette->surface);
+
+    screen_draw_icon(ICON_HISTORY, x + 9, y + (h - 16) / 2, 16, selected ? t->onAccent : t->accent);
+
+    const char* badge = _("Install again");
+    float badgeW = widget_text_width(badge, WIDGET_SMALL_SCALE) + 12;
+    float textX = x + 33;
+    float textW = x + w - 9 - badgeW - 8 - textX;
+    float lineH = widget_text_height(WIDGET_TEXT_SCALE);
+    float smallH = widget_text_height(WIDGET_SMALL_SCALE);
+    float top = y + (h - lineH - smallH - 1) / 2;
+    widget_text_fit(_("Last request"), textX, top, WIDGET_TEXT_SCALE, ink, textW);
+
+    char line[96];
+    snprintf(line, sizeof(line), menu->lastCount == 1 ? _("%lu link from %s") : _("%lu links from %s"), menu->lastCount, menu->lastHost);
+    widget_text_fit(line, textX, top + lineH + 1, WIDGET_SMALL_SCALE, muted, textW);
+
+    widget_badge(x + w - 9 - badgeW, y + (h - smallH - 6) / 2, badge, selected ? THEME_ALPHA(t->onAccent, 0x30) : t->accentSoft, selected ? t->onAccent : t->accent);
+}
+
+static void remoteinstall_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    remoteinstall_data* menu = (remoteinstall_data*) data;
+    const theme_current* t = theme();
+
+    for(u32 i = 0; i < remoteinstall_targets(menu); i++) {
+        float x, y, w, h;
+        remoteinstall_rect(i, x1, y1, x2, &x, &y, &w, &h);
+        bool selected = i == menu->selected;
+        if(i < ENTRY_COUNT) {
+            remoteinstall_draw_tile(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
+        } else {
+            remoteinstall_draw_history(menu, x, y, w, h, selected);
+        }
+
+        widget_press_draw(&menu->press, (int) i, x, y, w, h, i < ENTRY_COUNT ? t->def->radius : t->def->radiusSmall, selected ? t->onAccent : t->palette->text, i == HISTORY_INDEX);
     }
 }
 
 void remoteinstall_open() {
-    list_display("Remote Install", "A: Select, B: Return", NULL, remoteinstall_update, NULL);
+    remoteinstall_data* data = (remoteinstall_data*) calloc(1, sizeof(remoteinstall_data));
+    if(data == NULL) {
+        error_display(NULL, NULL, "Failed to allocate remote install data.");
+        return;
+    }
+
+    data->press.index = -1;
+    remoteinstall_read_last(data);
+
+    ui_view* view = ui_create();
+    view->name = _("Remote install");
+    view->id = "Remote install";
+    view->info = _(" open    back");
+    view->data = data;
+    view->update = remoteinstall_update;
+    view->drawTop = remoteinstall_draw_top;
+    view->drawBottom = remoteinstall_draw_bottom;
+    ui_push(view);
 }

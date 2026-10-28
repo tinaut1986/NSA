@@ -8,6 +8,7 @@
 #include "action.h"
 #include "../resources.h"
 #include "../task/uitask.h"
+#include "../selftest.h"
 #include "../transfer.h"
 #include "../udslink.h"
 #include "ciacerts.h"
@@ -496,6 +497,10 @@ static Result action_export_cia_get_src_size(void* data, u32 handle, u64* size) 
 
 static Result action_export_cia_read_src(void* data, u32 handle, u32* bytesRead, void* buffer, u64 offset, u32 size) {
     export_cia_data* exportData = (export_cia_data*) data;
+    if(selftest_fault("export.read")) {
+        return R_APP_IO_ERROR;
+    }
+
     return FSPXI_ReadFile(exportData->pxiHandle, exportData->pxiFile, bytesRead, offset, buffer, size);
 }
 
@@ -576,6 +581,10 @@ static Result action_export_cia_write_dst(void* data, u32 handle, u32* bytesWrit
     Result res = action_export_cia_wait_job(exportData);
     if(R_FAILED(res)) {
         return res;
+    }
+
+    if(selftest_fault("export.write")) {
+        return R_APP_IO_ERROR;
     }
 
     memcpy(exportData->jobBuffer, buffer, size);
@@ -873,6 +882,10 @@ u64 action_export_cia_stream_content_size(export_cia_data* data, u32 index) {
 
 // Reads from content `index` (by its place in the list). Safe from several threads.
 Result action_export_cia_stream_read(export_cia_data* data, u32 index, u64 offset, void* buffer, u32 size) {
+    if(selftest_fault("title.read")) {
+        return R_APP_IO_ERROR;
+    }
+
     u32 filePath[5] = {2, data->contents[index].index, 0, 0, 0};
 
     LightLock_Lock(&data->pxiLock);

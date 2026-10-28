@@ -10,6 +10,7 @@
 
 #include <3ds.h>
 
+#include "selftest.h"
 #include "transferconn.h"
 #include "udslink.h"
 #include "../core/core.h"
@@ -295,6 +296,11 @@ static void sender_worker(void* arg) {
             LightLock_Lock(&s->lock);
             s->sent += chunk->len;
             LightLock_Unlock(&s->lock);
+
+            // As if the network dropped: the connection goes, the transfer fails.
+            if(selftest_fault("send.chunk")) {
+                res = R_APP_IO_ERROR;
+            }
         }
     }
 
@@ -517,6 +523,10 @@ static void receiver_worker(void* arg) {
 
         LightLock_Unlock(&r->lock);
 
+        if(selftest_fault("recv.chunk")) {
+            res = R_APP_IO_ERROR;
+            break;
+        }
     }
 
     // Once everything is here a connection ending early costs nothing.

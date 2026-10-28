@@ -11,6 +11,7 @@
 #include "../core/ui/ui.h"
 #include "section.h"
 #include "ftpserver.h"
+#include "selftest.h"
 #include "relaunch.h"
 #include "settings.h"
 #include "update.h"
@@ -154,6 +155,7 @@ void init() {
 
     screen_init();
     ui_init();
+    selftest_init();
     task_init();
 }
 

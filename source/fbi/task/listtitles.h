@@ -52,6 +52,8 @@ typedef struct populate_titles_data_s {
     Handle cancelEvent;
 } populate_titles_data;
 
+// One CTR title, loaded at once, as a list item (free it with task_free_title).
+list_item* task_title_item(FS_MediaType mediaType, u64 titleId);
 void task_free_title(list_item* item);
 void task_clear_titles(linked_list* items);
 Result task_populate_titles(populate_titles_data* data);

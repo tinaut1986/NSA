@@ -656,6 +656,7 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
 
     ui_view* view = ui_create();
     view->name = i18n_translate_text(name);
+    view->id = name;
     view->info = i18n_translate_text(info);
     view->data = listData;
     view->update = list_update;
@@ -738,4 +739,17 @@ void list_set_progress(ui_view* view, u32 done, u32 total) {
     list_data* listData = (list_data*) view->data;
     listData->progressDone = done;
     listData->progressTotal = total;
+}
+
+bool list_describe(ui_view* view, ui_description* out) {
+    if(view == NULL || view->update != list_update) {
+        return false;
+    }
+
+    list_data* listData = (list_data*) view->data;
+    out->kind = "list";
+    out->count = listData->visibleCount;
+    out->selected = listData->selectedItem != NULL ? linked_list_index_of(&listData->items, listData->selectedItem) : -1;
+    out->selectedName = listData->selectedItem != NULL ? listData->selectedItem->name : NULL;
+    return true;
 }

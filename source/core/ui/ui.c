@@ -69,6 +69,14 @@ void ui_destroy(ui_view* view) {
     }
 }
 
+u32 ui_depth() {
+    svcWaitSynchronization(ui_stack_mutex, U64_MAX);
+    u32 depth = (u32) (ui_stack_top + 1);
+    svcReleaseMutex(ui_stack_mutex);
+
+    return depth;
+}
+
 ui_view* ui_top() {
     svcWaitSynchronization(ui_stack_mutex, U64_MAX);
 

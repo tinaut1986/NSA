@@ -17,11 +17,13 @@
 
 typedef struct {
     const char* text;
+    char sourceText[256];   // Before translation, for the tests.
     u32 color;
     u32 icon;          // The header's icon and its colour, by kind of dialog.
     u32 iconColor;
     char title[64];
     char options[PROMPT_OPTIONS_MAX][PROMPT_OPTION_TEXT_MAX];
+    const char* optionIds[PROMPT_OPTIONS_MAX];
     u32 optionButtons[PROMPT_OPTIONS_MAX];
     u32 numOptions;
     void* data;
@@ -228,6 +230,7 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
 
     // Messages are mostly literals, some built at run time: looked up by content.
     promptData->text = i18n_translate_text(text);
+    string_copy(promptData->sourceText, text != NULL ? text : "", sizeof(promptData->sourceText));
     promptData->color = color;
 
     const theme_current* t = theme();
@@ -247,6 +250,7 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
     for(u32 i = 0; i < numOptions && i < PROMPT_OPTIONS_MAX; i++) {
         // Options are literals: translated here, as they are copied.
         string_copy(promptData->options[i], _(options[i]), PROMPT_OPTION_TEXT_MAX);
+        promptData->optionIds[i] = options[i];
         promptData->optionButtons[i] = optionButtons[i];
     }
 
@@ -257,6 +261,7 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
 
     ui_view* view = ui_create();
     view->name = i18n_translate_text(name);
+    view->id = name;
     view->info = "";
     view->data = promptData;
     view->update = prompt_update;
@@ -279,4 +284,21 @@ ui_view* prompt_display_yes_no(const char* name, const char* text, u32 color, vo
     static const char* options[2] = {"Yes", "No"};
     static u32 optionButtons[2] = {KEY_A, KEY_B};
     return prompt_display_multi_choice(name, text, color, options, optionButtons, 2, data, drawTop, onResponse);
+}
+
+bool prompt_describe(ui_view* view, ui_description* out) {
+    if(view == NULL || view->update != prompt_update) {
+        return false;
+    }
+
+    prompt_data* promptData = (prompt_data*) view->data;
+    out->kind = "prompt";
+    out->text = promptData->sourceText;
+    out->optionCount = promptData->numOptions < UI_DESCRIPTION_OPTIONS_MAX ? promptData->numOptions : UI_DESCRIPTION_OPTIONS_MAX;
+    for(u32 i = 0; i < out->optionCount; i++) {
+        out->options[i] = promptData->optionIds[i];
+        out->buttons[i] = promptData->optionButtons[i];
+    }
+
+    return true;
 }

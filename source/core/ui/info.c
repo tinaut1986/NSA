@@ -166,6 +166,7 @@ ui_view* info_display(const char* name, const char* info, bool bar, void* data, 
 
     ui_view* view = ui_create();
     view->name = i18n_translate_text(name);
+    view->id = name;
     view->info = i18n_translate_text(info);
     view->data = infoData;
     view->update = info_update;
@@ -194,4 +195,16 @@ void info_set_button(ui_view* view, const char* label, void (*onPress)(ui_view* 
 
     snprintf(infoData->buttonLabel, sizeof(infoData->buttonLabel), "\uE002  %s", i18n_translate_text(label));
     infoData->onButton = onPress;
+}
+
+bool info_describe(ui_view* view, ui_description* out) {
+    if(view == NULL || view->update != info_update) {
+        return false;
+    }
+
+    info_data* infoData = (info_data*) view->data;
+    out->kind = "info";
+    out->text = infoData->text;
+    out->progress = infoData->bar ? infoData->progress : -1;
+    return true;
 }

@@ -109,7 +109,7 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
 - Using UDS drops the Wi-Fi and the FTP server; leaving it pauses/restarts the FTP
   (`ftpserver_resume_later`, retried from `ftpserver_poll_main` for 2 minutes).
 
-**Log and developer tools**
+**Log and developer tools** (the tests on the consoles are in their own section below)
 - `sdmc:/nsa/transfer-log.txt` (every send and receive; the reason of every failure, with
   errno; starts over at 96 KB). Read it from the PC through the FTP server after an error.
 - `sdmc:/nsa/nearby.flag`: `1` or `auto` makes the console behave as if it had no Wi-Fi;
@@ -122,6 +122,34 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
 Wi-Fi (title sizes from 4 to 300 MB), resume after a cut (file and title), the retry after a
 failure, the cancel message, files over the local wireless, a CIA received over it installed,
 changing the mode both ways, the list drag fix.
+
+## Tests on the consoles (`tools/console_tests.py`, `source/fbi/selftest.c`)
+
+Run them after any change to exporting or transfers: the consoles do the steps that are hard to
+make happen by hand (a write that fails, a connection that drops, a retry). Both consoles run a
+DEBUG build, sit on the main menu, on the same Wi-Fi as the PC:
+
+    tools/console_tests.py --a <sender/exporter> --b <receiver>   (--only <prefix>, --list, --title)
+
+A failed test leaves both transfer logs and screenshots in `test-results/<time>/`. Nothing is
+installed; it writes only in `/nsa/tests/`, `/nsa/received/` and the title's CIA in `/nsa/cias/`.
+
+What DEBUG builds have for it (FTP, port 5000; release builds answer 502 or ignore them):
+- `SITE TEST UI`: the top view as JSON: depth (1 = main menu), untranslated name (`ui_view.id`),
+  kind (prompt, info, list), a prompt's untranslated text, options and their buttons, an info's
+  line and bar, a list's count and selection. The tests answer dialogs by name, not by position.
+- `SITE TEST EXPORT|SENDTITLE <title ID> [nand]`, `SEND <path>`, `RECEIVE`, `TITLES` (SD titles,
+  smallest first, in `/nsa/tests/titles.txt`): open the same screens as the menus.
+- `SITE FAULT <point> [skip] [count]` (`CLEAR`, `LIST`): the next hits of `point` after `skip`
+  fail `count` times, as the real failure would (an I/O error). Points: `export.read`,
+  `export.write`, `title.read` (sending a title), `send.read`, `send.chunk` (a sender connection
+  drops), `recv.chunk` (a receiver connection drops), `recv.write` (the receiver's SD write).
+  A fired fault writes a line in `transfer-log.txt`.
+- `SITE SHA256 <path>`: the file's hash, computed on the console.
+
+The runner also checks every CIA (TMD hashes and each content's SHA-256) and makes stray
+connections to the receiver's port 5002 itself. Not covered: the local wireless (the FTP server
+is off there) and installing.
 
 ## What the owner asked for (the direction)
 

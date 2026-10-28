@@ -107,6 +107,9 @@ Ask before installing while the owner is using the console.
 ## Console to console: testing
 
 Read "Console to console" in `docs/PLAN.md` first. In short:
+- `tools/console_tests.py --a IP --b IP` runs the automated tests on the two consoles (DEBUG
+  builds, on the main menu): exports, sends, failures made on purpose with `SITE FAULT`, retries.
+  Run it after changing exporting or transfers; see "Tests on the consoles" in PLAN.
 - `tools/fake_peer.py` plays the other console against Azahar or a console; every send and
   receive of the real app is logged in `sdmc:/nsa/transfer-log.txt` (fetch it over FTP after an
   error: it says why a transfer stopped).

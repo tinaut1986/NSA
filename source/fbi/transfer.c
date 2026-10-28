@@ -14,6 +14,7 @@
 #include <3ds.h>
 
 #include "resources.h"
+#include "selftest.h"
 #include "transfer.h"
 #include "transferconn.h"
 #include "udslink.h"
@@ -261,6 +262,10 @@ typedef struct {
 // and each content is read from the system.
 static Result transfer_send_read(void* user, const transfer_chunk* chunk, void* buffer) {
     transfer_send_session* session = (transfer_send_session*) user;
+
+    if(selftest_fault("send.read")) {
+        return R_APP_IO_ERROR;
+    }
 
     if(session->stream != NULL) {
         if(chunk->segment == 0) {
@@ -1326,6 +1331,10 @@ static void transfer_receive_track(transfer_receive_data* data, u64 offset, u32 
 // The bytes at `offset` of the payload, from any connection.
 static Result transfer_receive_write(void* user, u64 offset, const void* buffer, u32 size) {
     transfer_receive_data* data = (transfer_receive_data*) user;
+
+    if(selftest_fault("recv.write")) {
+        return R_APP_IO_ERROR;
+    }
 
     Result res = 0;
     if(data->sink != NULL) {

@@ -6,6 +6,8 @@
 #include "../core/clipboard.h"
 #include "../core/error.h"
 #include "../core/fs.h"
+#include <jansson.h>
+#include "../core/http.h"
 #include "../core/screen.h"
 #include "../core/task/task.h"
 #include "../core/ui/ui.h"
@@ -157,6 +159,7 @@ void init() {
     screen_init();
     ui_init();
     selftest_init();
+    http_set_log(udslink_log);
     task_init();
 }
 

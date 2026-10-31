@@ -189,7 +189,10 @@ static Result task_data_op_download_progress(void* userData, u64 total, u64 curr
     u64 time = osGetTime();
     u64 elapsed = time - downloadData->lastBytesPerSecondUpdate;
     if(elapsed >= 1000) {
-        data->bytesPerSecond = (u32) (downloadData->bytesSinceUpdate / (elapsed / 1000.0f));
+        // Downloads come in bursts (several connections, segments): an average
+        // over the last seconds reads steadier than the last second alone.
+        u32 now = (u32) (downloadData->bytesSinceUpdate / (elapsed / 1000.0f));
+        data->bytesPerSecond = data->bytesPerSecond == 0 ? now : (u32) (data->bytesPerSecond * 0.75f + now * 0.25f);
 
         if(downloadData->ioStartTime != 0) {
             data->estimatedRemainingSeconds = (u32) ((data->currTotal - data->currProcessed) / (data->currProcessed / ((time - downloadData->ioStartTime) / 1000.0f)));

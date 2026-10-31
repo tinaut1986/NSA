@@ -146,6 +146,112 @@ static files_kind files_kind_of(file_info* info) {
     return files_is_dir(info) ? KIND_DIR : info->isCia ? KIND_CIA : info->isTicket ? KIND_TICKET : KIND_FILE;
 }
 
+
+// What a file is by its extension: its icon and the name shown for its type.
+typedef enum {
+    TYPE_GENERIC,
+    TYPE_TEXT,
+    TYPE_CODE,
+    TYPE_DATA,
+    TYPE_IMAGE,
+    TYPE_AUDIO,
+    TYPE_VIDEO,
+    TYPE_ARCHIVE,
+    TYPE_PROGRAM,
+    TYPE_ROM,
+    TYPE_SAVE,
+    TYPE_BINARY,
+    TYPE_PDF
+} files_type;
+
+static files_type files_type_of(file_info* info) {
+    const char* n = info->name;
+    if(viewers_has_ext(n, "png jpg jpeg bmp gif tga mpo psd webp")) return TYPE_IMAGE;
+    if(viewers_has_ext(n, "mp3 wav flac ogg oga bcstm bcwav bfstm m4a aac opus wma mid midi")) return TYPE_AUDIO;
+    if(viewers_has_ext(n, "mp4 avi mkv mov wmv webm")) return TYPE_VIDEO;
+    if(viewers_has_ext(n, "zip 7z rar gz tar bz2 xz")) return TYPE_ARCHIVE;
+    if(viewers_has_ext(n, "3dsx elf")) return TYPE_PROGRAM;
+    if(viewers_has_ext(n, "nds dsi gba gb gbc nes sfc smc gen md pce n64 z64 v64 3ds cci")) return TYPE_ROM;
+    if(viewers_has_ext(n, "sav srm dsv eep fla mpk")) return TYPE_SAVE;
+    if(viewers_has_ext(n, "pdf")) return TYPE_PDF;
+    if(viewers_has_ext(n, "c h cpp hpp py lua sh js css html htm xml bat cmake")) return TYPE_CODE;
+    if(viewers_has_ext(n, "ini cfg conf json yml yaml toml properties inf csv tsv")) return TYPE_DATA;
+    if(viewers_has_ext(n, "txt md log nfo rtf srt") || viewers_kind_of(n) == VIEWER_TEXT) return TYPE_TEXT;
+    if(viewers_has_ext(n, "firm bin cdc dat img nand")) return TYPE_BINARY;
+    return TYPE_GENERIC;
+}
+
+static u32 files_type_icon(files_type type) {
+    switch(type) {
+        case TYPE_TEXT: return ICON_FILE_TEXT;
+        case TYPE_CODE: return ICON_FILE_CODE;
+        case TYPE_DATA: return ICON_FILE_SETTINGS;
+        case TYPE_IMAGE: return ICON_PHOTO;
+        case TYPE_AUDIO: return ICON_MUSIC;
+        case TYPE_VIDEO: return ICON_MOVIE;
+        case TYPE_ARCHIVE: return ICON_FILE_ZIP;
+        case TYPE_PROGRAM: return ICON_APPS;
+        case TYPE_ROM: return ICON_DEVICE_GAMEPAD_2;
+        case TYPE_SAVE: return ICON_DEVICE_FLOPPY;
+        case TYPE_BINARY: return ICON_CPU;
+        case TYPE_PDF: return ICON_FILE_TYPE_PDF;
+        default: return ICON_FILE;
+    }
+}
+
+static const char* files_type_label(files_type type) {
+    switch(type) {
+        case TYPE_TEXT: return _("Text");
+        case TYPE_CODE: return _("Code");
+        case TYPE_DATA: return _("Data");
+        case TYPE_IMAGE: return _("Picture");
+        case TYPE_AUDIO: return _("Sound");
+        case TYPE_VIDEO: return _("Video");
+        case TYPE_ARCHIVE: return _("Compressed");
+        case TYPE_PROGRAM: return _("Program");
+        case TYPE_ROM: return _("Game ROM");
+        case TYPE_SAVE: return _("Save file");
+        case TYPE_BINARY: return _("Binary");
+        case TYPE_PDF: return _("PDF");
+        default: return _("File");
+    }
+}
+
+// Folders the console and its tools make: their own icon.
+static u32 files_folder_icon(const char* name) {
+    static const struct { const char* names; u32 icon; } table[] = {
+            {"3ds", ICON_APPS},
+            {"nsa|fbi", ICON_3DS},
+            {"cias", ICON_PACKAGE},
+            {"roms|_nds|_gba|retroarch", ICON_DEVICE_GAMEPAD_2},
+            {"dcim|photos", ICON_PHOTO},
+            {"music", ICON_MUSIC},
+            {"luma|boot9strap|gm9", ICON_CPU},
+            {"saves", ICON_DEVICE_FLOPPY},
+            {"themes|splashes", ICON_PALETTE},
+            {"config", ICON_SETTINGS},
+            {"nintendo 3ds|private", ICON_SHIELD_LOCK}
+    };
+
+    size_t len = strlen(name);
+    for(u32 i = 0; i < sizeof(table) / sizeof(*table); i++) {
+        const char* p = table[i].names;
+        while(*p != '\0') {
+            size_t n = strcspn(p, "|");
+            if(n == len && strncasecmp(p, name, n) == 0) {
+                return table[i].icon;
+            }
+
+            p += n;
+            if(*p == '|') {
+                p++;
+            }
+        }
+    }
+
+    return ICON_FOLDER;
+}
+
 static void files_draw_icon(file_info* info, float x, float y, float size) {
     const theme_current* t = theme();
     files_kind kind = files_kind_of(info);
@@ -164,7 +270,7 @@ static void files_draw_icon(file_info* info, float x, float y, float size) {
 
     u32 back = kind == KIND_FILE ? t->palette->background : t->accentSoft;
     u32 ink = kind == KIND_FILE ? t->palette->textMuted : t->accent;
-    u32 icon = kind == KIND_DIR ? ICON_FOLDER : kind == KIND_CIA ? ICON_PACKAGE : kind == KIND_TICKET ? ICON_TICKET : ICON_FILE;
+    u32 icon = kind == KIND_DIR ? files_folder_icon(info->name) : kind == KIND_CIA ? ICON_PACKAGE : kind == KIND_TICKET ? ICON_TICKET : files_type_icon(files_type_of(info));
     screen_fill_round_rect(x, y, size, size, size / 6, back);
     screen_draw_icon(icon, x + size * 0.2f, y + size * 0.2f, size * 0.6f, ink);
 }
@@ -192,7 +298,7 @@ static void files_subtitle(char* out, size_t size, file_info* info) {
             snprintf(out, size, "%s   %s", _("Ticket"), bytes);
             break;
         default:
-            snprintf(out, size, "%s   %s", _("File"), bytes);
+            snprintf(out, size, "%s   %s", files_type_label(files_type_of(info)), bytes);
             break;
     }
 }
@@ -349,10 +455,11 @@ static void files_draw_file(file_info* info, const char* name, float x, float y,
     }
 
     bool ticket = files_kind_of(info) == KIND_TICKET;
-    files_draw_card(info, name, info->path, "", ticket ? _("Ticket") : _("File"), x, y, w, 76);
+    const char* typeName = ticket ? _("Ticket") : files_type_label(files_type_of(info));
+    files_draw_card(info, name, info->path, "", typeName, x, y, w, 76);
 
     files_draw_cell(x, row1, cellW, _("Size"), size);
-    files_draw_cell(x + cellW + gap, row1, cellW, _("Type"), ticket ? _("Ticket") : _("File"));
+    files_draw_cell(x + cellW + gap, row1, cellW, _("Type"), typeName);
     files_draw_cell(x + 2 * (cellW + gap), row1, cellW, _("Hidden file"), (info->attributes & FS_ATTRIBUTE_HIDDEN) ? _("Yes") : _("No"));
     if(ticket && info->ticketInfo.loaded) {
         char id[32];

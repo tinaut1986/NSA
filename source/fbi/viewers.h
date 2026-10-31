@@ -29,3 +29,6 @@ void textview_open(FS_Archive archive, const char* path, const char* name, bool 
 // Reads up to `maxSize` bytes of a file into a new buffer (NUL after the data, free() it).
 // `fullSize` is the file's real size when longer than what was read.
 Result viewers_read_file(FS_Archive archive, const char* path, u32 maxSize, u8** data, u32* size, u64* fullSize);
+
+// True when the file's extension (case does not matter) is one of the space-separated `list`.
+bool viewers_has_ext(const char* name, const char* list);

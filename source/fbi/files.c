@@ -731,7 +731,9 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
 
     if(viewer == VIEWER_TEXT) {
         actions[count++] = (sheet_action) {ICON_FILE_TEXT, _("Open text"), false, files_open_text};
-    } else if(viewer == VIEWER_NONE && !info->isCia && !info->isTicket) {
+    } else if(viewer == VIEWER_NONE && files_type_of(info) == TYPE_GENERIC && !info->isCia && !info->isTicket) {
+        // Only for what could still be text (no known extension, like README): never on pictures,
+        // programs, ROMs, archives and the rest.
         actions[count++] = (sheet_action) {ICON_FILE_TEXT, _("Open as text"), false, files_open_text};
     }
 

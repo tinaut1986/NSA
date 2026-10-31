@@ -139,7 +139,7 @@ dates). The owner will go through them one by one; tick each only when they say 
 - [ ] Memory on an Old 3DS with a 4-5 megapixel JPEG.
 
 **Files: text**
-- [ ] Open `.txt`/`.json`/...; "Open as text" on any file; binary files refuse.
+- [ ] Open `.txt`/`.json`/...; "Open as text" on a file with no known extension; binary files refuse.
 - [ ] Edit with the custom keyboard: letters, shift/caps, symbols, accents, backspace/arrows
       repeat, D-Pad cursor, X/Y/A shortcuts, START saves, close with changes asks.
 - [ ] CRLF kept; a Latin-1 file is read and saved as UTF-8; a file over 256 KB is read only.
@@ -169,8 +169,8 @@ the owner: folder icons, the CIA size cell and the Modified cell)
 - [ ] **Run program** on a real .3dsx: the owner's NSA is a CIA and they have a Homebrew Launcher CIA.
       Possible failures: its title ID is not `000400000D921E00` (write it in `sdmc:/nsa/hbl_title.txt`),
       or NSA's exheader does not allow `svcConnectToPort` ("hb:ldr", error shown). Also from a 3DSX build.
-- [ ] File type names and icons on files of each kind; "Open as text" is still offered on programs
-      and ROMs (could be hidden).
+- [ ] File type names and icons on files of each kind; "Open as text" is now offered only on
+      files with no known extension (README...), not on programs, ROMs, pictures, archives.
 
 **Next, item 3 (Pending titles, System save data, Dump NAND on the Titles pattern)**
 - [ ] The owner thinks they tried it once but does not remember. The code on `release` still
@@ -347,7 +347,7 @@ current, this list is the summary. What only the owner can test (local wireless)
     - Hex viewer for files that are not text, and a file's SHA-256 (the FTP DEBUG command exists).
     - Browse and extract `.zip`; previews of `.smdh`, `.bcstm`/`.bcwav` audio, a `.cia`'s icon already exists.
     - More sound: the held repeat of a list, text-editor keys, a tone per kind of action.
-    - Hide "Open as text" on programs, ROMs, archives; open `.3dsx` by tap instead of through the sheet.
+    - ~~Hide "Open as text" on programs, ROMs, archives~~ done; open `.3dsx` by tap instead of through the sheet.
     - The NSA icon and banner (item 6) show now in every 3DSX preview: still FBI's.
     - A mini player that keeps the song playing while browsing (the audio view stops it on B).
     - Date of creation: not available (the 3DS only gives the last change); NSA could record its own.

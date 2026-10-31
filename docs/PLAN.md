@@ -103,6 +103,12 @@ dates). The owner will go through them one by one; tick each only when they say 
       Receive screens); `ui_wake()` exists but nobody calls it yet.
 - [ ] `SITE CPU` (DEBUG) answers per core without disturbing the FTP server.
 
+**NSA icon and banner** (`tools/make_branding.py` draws `meta/icon_3ds.png` and `banner_3ds.png`)
+- [ ] After installing the CIA the HOME menu shows the new icon and the banner (the CIA's
+      version is still 0.3.1 for every dev build; if HOME keeps the old art, bump the version).
+- [ ] Banner on the console (3D rotation, tiny text readable). The boot logo and the banner sound
+      are still FBI's.
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.

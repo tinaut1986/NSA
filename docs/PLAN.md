@@ -114,6 +114,8 @@ What `release` holds, in the order it was built:
 ## Pending tests on the console (2026-10-31)
 
 **Web server** (item 10; `source/fbi/webserver.c`; tested only in Azahar with `tools/web_tests.py` and the page in a browser)
+- [ ] Screen tab on a real console: frames per second over the Wi-Fi on the New 3DS XL and the 2DS (and what it costs the console: UI, music, a transfer meanwhile); if too slow, try a smaller frame.
+- [ ] The buttons, keys, taps and drags from the page drive the console (a tap on a row, scrolling a list, A/B on a prompt); a stuck press does not stay held.
 - [ ] Import a backup from the page (an NSA export and a Checkpoint backup): the red question appears on the console, and accepting replaces the data (with the backup first and the rollback if it fails).
 - [ ] Launch and delete (with and without ticket) a title from the page: the console asks first; a second request while the first question is open says the console is busy.
 - [ ] Install from URLs from the page (and from the history): the console asks, downloads and installs; the URL is in Remote Install's history on the console.
@@ -484,8 +486,16 @@ current, this list is the summary. What only the owner can test (local wireless)
       `webserver_poll_main`; a second request meanwhile gets 409. The page never changes the console's data on its own: every import,
       launch, delete and install is confirmed on the console. Launch and delete keep a small title item alive for the question (not freed).
     - **Left of phase 2**: tickets and ext save data lists (and their actions), the Files tab's long actions (copy, move), editing a text file.
-    - **Phase 3**: the screens live (repeat `screen_capture`, now a BMP on the SD: a PNG/JPEG in memory would be better) and
-      sending buttons and touches (`SITE PRESS` / `TAP` already exist in `ftpserver.c`: move them to a shared module).
+    - **Phase 3** (built): a *Screen* tab. `GET /api/screens` returns both screens as raw RGB565 (the top's 400x240, then the bottom's
+      320x240: 345,600 bytes); the main thread reads the framebuffers in `webserver_poll_main` (`screen_capture_rgb565`, the left eye
+      only) and the page paints two canvases, asking for the next frame as soon as the last arrives (10-12 fps in Azahar; the real
+      speed is a test to do). Buttons: `POST /api/input/press?keys=A+R&frames=` (the names of SITE PRESS), `input/tap?x=&y=`, `input/drag?x=&y1=&y2=`
+      (`input_inject_*`, the same as the FTP server's remote control). The page has an on-screen pad, keys (arrows, X=A, Z=B, S=X, A=Y,
+      Q=L, W=R, Enter=Start, Backspace=Select), a click on the bottom canvas as a tap and a drag up or down as a scroll. The live view stops
+      when the tab is left or the browser tab is hidden. **No `remote.flag` needed here**: turning the web server on and the PIN
+      are the permission (whoever has the PIN can already install CIAs and delete files); the FTP server's flag is unchanged.
+    - **Phase 3 left**: sound is not sent; the 3D right eye; a smaller or JPEG frame if the Wi-Fi is slow (RGB565 at 345 KB is the first try);
+      a text box that types into the console's keyboard; holding a button (press is a tap of N frames).
     - **Ideas**: a `remote.flag`-like switch for the destructive calls; drag whole folders (`webkitGetAsEntry`); download a folder
       as a zip; a QR code of the address on the console's top screen; HEAD and keep-alive; serving two requests at once.
 

@@ -69,6 +69,16 @@ textarea{font:inherit;width:100%;min-height:90px;color:var(--ink);background:var
 .hist .u{flex:1;min-width:0;word-break:break-all;font-size:13px}
 pre.log{max-height:300px;overflow:auto;background:var(--bg);border:var(--bw) solid var(--line);border-radius:var(--rs);padding:8px;font-size:12px;white-space:pre-wrap;word-break:break-all}
 h2{font-size:15px;margin:14px 0 6px}
+.screens{display:flex;flex-direction:column;align-items:center;gap:10px}
+.screens canvas{background:#000;image-rendering:pixelated;border:var(--bw) solid var(--line);max-width:100%;touch-action:none}
+#cv_top{width:800px;aspect-ratio:400/240}
+#cv_bottom{width:640px;aspect-ratio:320/240;cursor:pointer}
+.pad{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;align-items:center;margin-top:6px}
+.pad .grp{display:grid;gap:4px}
+.pad button{min-width:44px;padding:8px 10px;user-select:none}
+.dpad{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,40px)}
+.abxy{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,40px)}
+.pad .sp{visibility:hidden}
 </style>
 </head>
 <body>
@@ -86,7 +96,7 @@ h2{font-size:15px;margin:14px 0 6px}
   <span class="info" id="space"></span>
 </header>
 <main>
-  <nav><button id="tab_files" class="on"></button><button id="tab_titles"></button><button id="tab_install"></button></nav>
+  <nav><button id="tab_files" class="on"></button><button id="tab_titles"></button><button id="tab_install"></button><button id="tab_screen"></button></nav>
 
   <div class="card" id="files">
     <div class="bar">
@@ -103,6 +113,16 @@ h2{font-size:15px;margin:14px 0 6px}
     <div class="msg" id="empty"></div>
     <div class="drop" id="drop"></div>
     <div id="uploads"></div>
+  </div>
+
+  <div class="card hide" id="screen">
+    <div class="bar"><label><input type="checkbox" id="live" checked> <span id="t_live"></span></label><span class="note" id="fps"></span></div>
+    <div class="screens">
+      <canvas id="cv_top" width="400" height="240"></canvas>
+      <canvas id="cv_bottom" width="320" height="240"></canvas>
+    </div>
+    <div class="pad" id="pad"></div>
+    <div class="note" id="padnote" style="text-align:center"></div>
   </div>
 
   <div class="card hide" id="install">
@@ -139,12 +159,14 @@ const T = {
     files:'Files',titles:'Titles',search:'Search…',k_game:'Games and demos',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',sendpkg:'Send a save package to the console',
     note:'Saves, extra data and SpotPass data download as a .nsasave package; a package you send is unpacked on the console, which asks there before replacing anything.',
     save:'Save',ext:'Extra data',boss:'SpotPass',packing:'Packing…',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and saved on the console (this title or its data is not there, so it cannot be imported).',notitles:'No titles.',loading:'Loading titles…',version:'v',
+    screen:'Screen',live:'Live view',padnote:'Click the bottom screen to touch it (drag up or down to scroll). Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',nolive:'The console does not answer.',
     install:'Install',h_urls:'Install from URLs (one per line)',installurls:'Send to the console',urlsnote:'The console asks there before installing.',h_hist:'Remote Install history',h_log:'Transfer log',reload:'Reload',again:'Install again',nohist:'Nothing yet.',nolog:'(no log)',
     launch:'Launch',delete:'Delete',delticket:'Delete with ticket',import:'Import',close:'Close',importtitle:'Import %s',nobackups:'No backups of this data (NSA\'s exports or Checkpoint\'s).',asked:'Look at the console: it asks there.',confirmlaunch:'Launch "%s" on the console? (NSA closes.)',confirmdelete:'Ask the console to delete "%s"? It asks again there.'},
   es:{pin:'Escribe el PIN que sale en Ajustes de la consola (Servidor web).',enter:'Entrar',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',up:'Subir nivel',mkdir:'Nueva carpeta',upload:'Subir archivos',name:'Nombre',size:'Tamaño',date:'Modificado',download:'Descargar',rename:'Renombrar',del:'Borrar',install:'Instalar',empty:'Carpeta vacía.',drop:'Suelta aquí archivos para subirlos a esta carpeta',free:'libres de',newname:'Nombre de la carpeta nueva:',renameto:'Nombre nuevo:',confirmdel:'¿Borrar "%s"? No se puede deshacer.',confirminst:'¿Instalar "%s" en la consola?',done:'Hecho.',installed:'Instalado.',restarting:'Instalado. NSA se reinicia en unos segundos.',failed:'Error: ',uploading:'Subiendo',lost:'No se puede contactar con la consola.',
     files:'Archivos',titles:'Títulos',search:'Buscar…',k_game:'Juegos y demos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',sendpkg:'Enviar un paquete de partida a la consola',
     note:'Las partidas, los datos extra y los datos SpotPass se descargan como un paquete .nsasave; un paquete que envíes se desempaqueta en la consola, que pregunta allí antes de reemplazar nada.',
     save:'Partida',ext:'Datos extra',boss:'SpotPass',packing:'Empaquetando…',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están, así que no se puede importar).',notitles:'Sin títulos.',loading:'Cargando títulos…',version:'v',
+    screen:'Pantalla',live:'Ver en vivo',padnote:'Pulsa la pantalla de abajo para tocarla (arrastra arriba o abajo para desplazar). Teclas: flechas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Intro = Start, Retroceso = Select.',nolive:'La consola no responde.',
     install:'Instalar',h_urls:'Instalar desde URLs (una por línea)',installurls:'Enviar a la consola',urlsnote:'La consola pregunta allí antes de instalar.',h_hist:'Historial de Remote Install',h_log:'Registro de transferencias',reload:'Recargar',again:'Instalar otra vez',nohist:'Nada todavía.',nolog:'(sin registro)',
     launch:'Lanzar',delete:'Borrar',delticket:'Borrar con ticket',import:'Importar',close:'Cerrar',importtitle:'Importar %s',nobackups:'No hay copias de estos datos (exportaciones de NSA ni de Checkpoint).',asked:'Mira la consola: pregunta allí.',confirmlaunch:'¿Lanzar "%s" en la consola? (NSA se cierra.)',confirmdelete:'¿Pedir a la consola que borre "%s"? Pregunta otra vez allí.'}
 }[L];
@@ -154,7 +176,7 @@ let pin = '', cwd = '/';
 
 function setText(){ $('t_pin').textContent=T.pin; $('enter').textContent=T.enter; $('up').textContent=T.up; $('mkdir').textContent=T.mkdir;
   $('uploadbtn').textContent=T.upload; $('h_name').textContent=T.name; $('h_size').textContent=T.size; $('h_date').textContent=T.date; $('drop').textContent=T.drop;
-  $('tab_files').textContent=T.files; $('tab_titles').textContent=T.titles; $('tab_install').textContent=T.install; $('h_urls').textContent=T.h_urls; $('installurls').textContent=T.installurls; $('urlsnote').textContent=T.urlsnote; $('h_hist').textContent=T.h_hist; $('h_log').textContent=T.h_log; $('reloadlog').textContent=T.reload; $('dlgclose').textContent=T.close; $('filter').placeholder=T.search; $('sendpkg').textContent=T.sendpkg; $('titlesnote').textContent=T.note;
+  $('tab_files').textContent=T.files; $('tab_titles').textContent=T.titles; $('tab_install').textContent=T.install; $('tab_screen').textContent=T.screen; $('t_live').textContent=T.live; $('padnote').textContent=T.padnote; $('h_urls').textContent=T.h_urls; $('installurls').textContent=T.installurls; $('urlsnote').textContent=T.urlsnote; $('h_hist').textContent=T.h_hist; $('h_log').textContent=T.h_log; $('reloadlog').textContent=T.reload; $('dlgclose').textContent=T.close; $('filter').placeholder=T.search; $('sendpkg').textContent=T.sendpkg; $('titlesnote').textContent=T.note;
   const sel=$('kind'); sel.textContent=''; [['game',T.k_game],['update',T.k_update],['dlc',T.k_dlc],['system',T.k_system],['all',T.k_all]].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; sel.appendChild(o); }); }
 setText();
 
@@ -210,11 +232,13 @@ async function run(fn){ try { await fn(); } catch(e){ if(e.auth) showLogin(e.mes
 
 // ---- tabs ----
 function tab(name){
-  for(const n of ['files','titles','install']){ $(n).classList.toggle('hide', name!==n); $('tab_'+n).classList.toggle('on', name===n); }
+  for(const n of ['files','titles','install','screen']){ $(n).classList.toggle('hide', name!==n); $('tab_'+n).classList.toggle('on', name===n); }
   if(name==='titles' && !titlesLoaded) loadTitles();
   if(name==='install') loadInstall();
+  current = name; if(name==='screen') startLive();
 }
-$('tab_files').onclick = () => tab('files'); $('tab_titles').onclick = () => tab('titles'); $('tab_install').onclick = () => tab('install');
+let current = 'files';
+$('tab_files').onclick = () => tab('files'); $('tab_titles').onclick = () => tab('titles'); $('tab_install').onclick = () => tab('install'); $('tab_screen').onclick = () => tab('screen');
 
 // ---- files ----
 function crumbs(){
@@ -426,6 +450,56 @@ async function loadLog(){
   } catch(e){ $('log').textContent = T.nolog; }
 }
 $('reloadlog').onclick = loadLog;
+
+// ---- the console's screens, live, and its buttons ----
+const ctxTop = $('cv_top').getContext('2d'), ctxBottom = $('cv_bottom').getContext('2d');
+const imgTop = ctxTop.createImageData(400,240), imgBottom = ctxBottom.createImageData(320,240);
+let liveBusy = false;
+function paint(img, ctx, u16, offset, count){
+  const d = img.data;
+  for(let i=0, j=0; i<count; i++, j+=4){ const c = u16[offset+i];
+    d[j]=((c>>11)&31)*255/31; d[j+1]=((c>>5)&63)*255/63; d[j+2]=(c&31)*255/31; d[j+3]=255; }
+  ctx.putImageData(img, 0, 0);
+}
+async function frame(){
+  const r = await fetch('/api/screens', {headers:{'X-Pin':pin}});
+  if(r.status===401) { const e=new Error(T.wrong); e.auth=true; throw e; }
+  if(!r.ok) throw new Error(T.nolive);
+  const u16 = new Uint16Array(await r.arrayBuffer());
+  paint(imgTop, ctxTop, u16, 0, 400*240); paint(imgBottom, ctxBottom, u16, 400*240, 320*240);
+}
+async function startLive(){
+  if(liveBusy) return; liveBusy = true;
+  let n = 0, t0 = performance.now();
+  while(current==='screen' && $('live').checked && !document.hidden){
+    try { await frame(); n++; const dt = performance.now()-t0; if(dt>2000){ $('fps').textContent=(n*1000/dt).toFixed(1)+' fps'; n=0; t0=performance.now(); } }
+    catch(e){ if(e.auth){ showLogin(e.message); break; } $('fps').textContent=e.message; await new Promise(r=>setTimeout(r,1500)); }
+  }
+  liveBusy = false;
+}
+$('live').onchange = startLive;
+document.addEventListener('visibilitychange', () => { if(current==='screen') startLive(); });
+async function press(keys, frames){ run(async()=>{ await api('POST','input/press', q('keys',keys)+(frames?'&frames='+frames:'')); if(!$('live').checked) frame(); }); }
+const pad = $('pad');
+function grid(cls, cells){ const g=document.createElement('div'); g.className='grp '+cls;
+  cells.forEach(c => { if(!c){ const e=document.createElement('span'); e.className='sp'; g.appendChild(e); } else g.appendChild(btn(c[0],'',()=>press(c[1]))); }); return g; }
+pad.append(
+  grid('', [['L','L'],['ZL','ZL']].map(x=>x)),
+  grid('dpad', [null,['▲','UP'],null,['◀','LEFT'],null,['▶','RIGHT'],null,['▼','DOWN'],null]),
+  grid('', [['Select','SELECT'],['Start','START']]),
+  grid('abxy', [null,['X','X'],null,['Y','Y'],null,['A','A'],null,['B','B'],null]),
+  grid('', [['R','R'],['ZR','ZR']]));
+// A click is a tap; a drag mostly up or down scrolls.
+const cvb = $('cv_bottom'); let down = null;
+function pos(e){ const b=cvb.getBoundingClientRect(); return {x:Math.max(0,Math.min(319,Math.floor((e.clientX-b.left)*320/b.width))), y:Math.max(0,Math.min(239,Math.floor((e.clientY-b.top)*240/b.height)))}; }
+cvb.onpointerdown = e => { down = pos(e); cvb.setPointerCapture(e.pointerId); };
+cvb.onpointerup = e => { if(!down) return; const p = pos(e), d = down; down = null;
+  if(Math.abs(p.y-d.y) > 12) run(async()=>{ await api('POST','input/drag', 'x='+d.x+'&y1='+d.y+'&y2='+p.y+'&frames=20'); });
+  else run(async()=>{ await api('POST','input/tap', 'x='+p.x+'&y='+p.y); }); };
+const keymap = {ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',x:'A',z:'B',s:'X',a:'Y',q:'L',w:'R',Enter:'START',Backspace:'SELECT'};
+document.addEventListener('keydown', e => {
+  if(current!=='screen' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test((document.activeElement||{}).tagName||'')) return;
+  const k = keymap[e.key.length===1 ? e.key.toLowerCase() : e.key]; if(k){ e.preventDefault(); press(k); } });
 
 const saved = sessionStorage.getItem('pin');
 if(saved){ $('pin').value = saved; login(); } else showLogin();

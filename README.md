@@ -50,8 +50,8 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 - **Tickets**, **Ext Save Data** and **Pending titles** (interrupted installs and downloads) on the
   same pattern: pictures, filters, search, and actions in a sheet, with what deletes in red.
 - Export, import and erase the save data of DS cartridges.
-- **Web page** (off until you turn it on in Settings): manage the SD card from your computer's browser (download, upload,
-  rename, delete, install CIAs), protected by a PIN shown on the console. Plain HTTP, for your own network only.
+- **Web page** (off until you turn it on in Settings): manage the console from your computer's browser (the SD card, titles with icons, saves,
+  installing from files or URLs, and the console's screens live with its buttons), in the console's own theme, protected by a PIN shown on the console. Plain HTTP, for your own network only.
 
 ### Files
 

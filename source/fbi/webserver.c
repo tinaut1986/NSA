@@ -24,6 +24,7 @@
 #include "action/action.h"
 #include "task/uitask.h"
 #include "../core/core.h"
+#include "../core/input.h"
 #include "../core/data/smdh.h"
 
 #define WEB_PATH_MAX 512
@@ -934,6 +935,126 @@ static void web_api_save_pack(web_request* r) {
     web_send_json(r, 200, json_pack("{s:b,s:s,s:I}", "ok", 1, "path", path, "size", (json_int_t) size));
 }
 
+// ---- the screens, live, and the buttons ----
+
+#define WEB_TOP_W 400
+#define WEB_BOTTOM_W 320
+#define WEB_SCREEN_H 240
+#define WEB_FRAME_BYTES ((WEB_TOP_W + WEB_BOTTOM_W) * WEB_SCREEN_H * 2)
+
+static u16* web_frame = NULL;
+static volatile int web_frame_state = 0;   // 0 nothing asked, 1 asked, 2 made, 3 failed
+
+// Both screens as RGB565 (the top's 400x240, then the bottom's 320x240), as the last frame drawn. The
+// main thread reads the framebuffers (webserver_poll_main).
+static void web_api_screens(web_request* r) {
+    if(web_frame == NULL) {
+        web_frame = (u16*) malloc(WEB_FRAME_BYTES);
+        if(web_frame == NULL) {
+            web_send_error(r, 500, "out of memory");
+            return;
+        }
+    }
+
+    web_frame_state = 1;
+    for(int waited = 0; web_frame_state == 1 && web_run; waited += WEB_NAP_MS) {
+        if(waited > 1500) {
+            web_frame_state = 0;
+            web_send_error(r, 503, "the console did not answer in time");
+            return;
+        }
+
+        svcSleepThread((s64) WEB_NAP_MS * 1000000);
+    }
+
+    if(web_frame_state != 2) {
+        web_send_error(r, 503, "no frame");
+        return;
+    }
+
+    if(web_send_head(r, 200, "application/octet-stream", WEB_FRAME_BYTES, NULL)) {
+        web_send_all(r->fd, (const char*) web_frame, WEB_FRAME_BYTES);
+    }
+}
+
+static u32 web_key_from_name(const char* name) {
+    static const struct {
+        const char* name;
+        u32 key;
+    } names[] = {
+            {"A", KEY_A}, {"B", KEY_B}, {"X", KEY_X}, {"Y", KEY_Y}, {"L", KEY_L}, {"R", KEY_R},
+            {"ZL", KEY_ZL}, {"ZR", KEY_ZR}, {"START", KEY_START}, {"SELECT", KEY_SELECT},
+            {"UP", KEY_DUP}, {"DOWN", KEY_DDOWN}, {"LEFT", KEY_DLEFT}, {"RIGHT", KEY_DRIGHT}
+    };
+
+    for(u32 i = 0; i < sizeof(names) / sizeof(*names); i++) {
+        if(strcasecmp(names[i].name, name) == 0) {
+            return names[i].key;
+        }
+    }
+
+    return 0;
+}
+
+static u32 web_number(web_request* r, const char* key, u32 fallback) {
+    char text[16];
+    return web_query_get(r->query, key, text, sizeof(text)) ? (u32) strtoul(text, NULL, 10) : fallback;
+}
+
+// Holds buttons ("A", "A+R", "UP") for some frames: the same as the FTP server's SITE PRESS.
+static void web_api_press(web_request* r) {
+    char text[64] = "";
+    web_query_get(r->query, "keys", text, sizeof(text));
+
+    u32 keys = 0;
+    char* save = NULL;
+    for(char* k = strtok_r(text, "+ ", &save); k != NULL; k = strtok_r(NULL, "+ ", &save)) {
+        u32 key = web_key_from_name(k);
+        if(key == 0) {
+            web_send_error(r, 400, "unknown button");
+            return;
+        }
+
+        keys |= key;
+    }
+
+    u32 frames = web_number(r, "frames", 4);
+    if(keys == 0 || frames == 0 || frames > 600) {
+        web_send_error(r, 400, "keys and frames (1 to 600)");
+        return;
+    }
+
+    input_inject_keys(keys, frames);
+    web_send_ok(r);
+}
+
+static void web_api_tap(web_request* r) {
+    u32 x = web_number(r, "x", 999);
+    u32 y = web_number(r, "y", 999);
+    u32 frames = web_number(r, "frames", 4);
+    if(x >= WEB_BOTTOM_W || y >= WEB_SCREEN_H || frames == 0 || frames > 600) {
+        web_send_error(r, 400, "x 0-319, y 0-239");
+        return;
+    }
+
+    input_inject_tap((u16) x, (u16) y, frames);
+    web_send_ok(r);
+}
+
+static void web_api_drag(web_request* r) {
+    u32 x = web_number(r, "x", 999);
+    u32 y1 = web_number(r, "y1", 999);
+    u32 y2 = web_number(r, "y2", 999);
+    u32 frames = web_number(r, "frames", 20);
+    if(x >= WEB_BOTTOM_W || y1 >= WEB_SCREEN_H || y2 >= WEB_SCREEN_H || frames == 0 || frames > 600) {
+        web_send_error(r, 400, "x 0-319, y1 and y2 0-239");
+        return;
+    }
+
+    input_inject_drag((u16) x, (u16) y1, (u16) y2, frames);
+    web_send_ok(r);
+}
+
 // ---- what has to happen on the main thread ----
 //
 // Anything that opens a question or a screen on the console is done by the main thread (webserver_poll_main),
@@ -1269,6 +1390,14 @@ static void web_handle(web_request* r) {
         web_api_title_launch(r);
     } else if(post && strcmp(api, "title/delete") == 0) {
         web_api_title_delete(r);
+    } else if(get && strcmp(api, "screens") == 0) {
+        web_api_screens(r);
+    } else if(post && strcmp(api, "input/press") == 0) {
+        web_api_press(r);
+    } else if(post && strcmp(api, "input/tap") == 0) {
+        web_api_tap(r);
+    } else if(post && strcmp(api, "input/drag") == 0) {
+        web_api_drag(r);
     } else if(post && strcmp(api, "install-url") == 0) {
         web_api_install_url(r);
     } else {
@@ -1389,6 +1518,9 @@ static void web_shutdown() {
     web_close_socket(&web_listen);
     free(web_io);
     web_io = NULL;
+    free(web_frame);
+    web_frame = NULL;
+    web_frame_state = 0;
     web_pin[0] = '\0';
     snprintf(web_status, sizeof(web_status), "%s", _("Off"));
 }
@@ -1421,6 +1553,15 @@ void webserver_resume_later() {
 }
 
 void webserver_poll_main() {
+    // A frame asked for by the page: both screens, now that this frame is drawn.
+    if(web_frame_state == 1 && web_frame != NULL) {
+        u32 w = 0;
+        u32 h = 0;
+        bool ok = screen_capture_rgb565(GFX_TOP, web_frame, &w, &h) && w == WEB_TOP_W && h == WEB_SCREEN_H
+                  && screen_capture_rgb565(GFX_BOTTOM, web_frame + WEB_TOP_W * WEB_SCREEN_H, &w, &h) && w == WEB_BOTTOM_W && h == WEB_SCREEN_H;
+        web_frame_state = ok ? 2 : 3;
+    }
+
     // A package uploaded by the page: unpacked (and imported, behind the red question) like one that was sent.
     if(web_job.pending) {
         web_job_run();

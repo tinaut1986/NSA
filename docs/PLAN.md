@@ -124,6 +124,7 @@ What `release` holds, in the order it was built:
 - [ ] Download a save, extra data and SpotPass data of a game as a package; send that package back from the page: the console unpacks it and asks about the import (red) there.
 - [ ] Settings -> Web server: On/Off; the row's top screen shows `http://IP:8080  PIN nnnnnn`; the PIN changes each time it starts; it starts at launch when it was left on.
 - [ ] From the PC: open the address, the PIN screen, wrong PIN (and the lock after 10), browse the SD card, download, upload (a big file, several at once), new folder, rename, delete.
+- [ ] Files tab: copy a big folder (the page waits; the console stays usable?), move to another folder, edit and save a text file (UTF-8, CRLF kept as typed).
 - [ ] Install a `.cia` from the page (an SD title; NSA itself restarts); the toast on the bottom screen shows it.
 - [ ] Speed of a big download and upload on the New 3DS XL and the 2DS (the FTP server's for comparison); the console stays usable meanwhile (UI, music).
 - [ ] The local wireless (Send / Receive without a router) stops the web server and brings it back after; nothing else breaks while it serves.
@@ -485,7 +486,9 @@ current, this list is the summary. What only the owner can test (local wireless)
     - **How a request that opens something on the console works**: `webserver.c` keeps one slot (`web_job`) that the main thread runs in
       `webserver_poll_main`; a second request meanwhile gets 409. The page never changes the console's data on its own: every import,
       launch, delete and install is confirmed on the console. Launch and delete keep a small title item alive for the question (not freed).
-    - **Left of phase 2**: tickets and ext save data lists (and their actions), the Files tab's long actions (copy, move), editing a text file.
+    - **Files tab extras** (built): *Copy* (`POST /api/copy?path=&to=`, recursive, 409 if the name is taken, 400 into itself), *Move* (the page uses
+      `rename` with a path in another folder), *Edit* on text-like extensions up to 256 KB (a dialog; reads and writes with the existing `file` GET / PUT).
+    - **Left of phase 2**: tickets and ext save data lists (and their actions).
     - **Phase 3** (built): a *Screen* tab. `GET /api/screens` returns both screens as raw RGB565 (the top's 400x240, then the bottom's
       320x240: 345,600 bytes); the main thread reads the framebuffers in `webserver_poll_main` (`screen_capture_rgb565`, the left eye
       only) and the page paints two canvases, asking for the next frame as soon as the last arrives (10-12 fps in Azahar; the real

@@ -149,20 +149,21 @@ h2{font-size:15px;margin:14px 0 6px}
   </div>
 </main>
 </div>
+<dialog id="ed"><h3 id="edtitle"></h3><textarea id="edtext" spellcheck="false" style="width:100%;height:50vh;box-sizing:border-box;font-family:monospace;background:var(--bg);color:var(--ink);border:var(--bw) solid var(--line);border-radius:var(--r);padding:6px"></textarea><div class="bar"><button id="edsave"></button><button id="edcancel"></button></div></dialog>
 <dialog id="dlg"><h3 id="dlgtitle"></h3><div class="choices" id="dlgbody"></div><div class="bar"><button id="dlgclose"></button></div></dialog>
 <div id="toast"></div>
 
 <script>
 const L = (navigator.language||'en').startsWith('es') ? 'es' : 'en';
 const T = {
-  en:{pin:'Type the PIN shown in the console\'s Settings (Web server).',enter:'Enter',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',up:'Up',mkdir:'New folder',upload:'Upload',name:'Name',size:'Size',date:'Modified',download:'Download',rename:'Rename',del:'Delete',install:'Install',empty:'Empty folder.',drop:'Drop files here to upload them to this folder',free:'free of',newname:'Name of the new folder:',renameto:'New name:',confirmdel:'Delete "%s"? This cannot be undone.',confirminst:'Install "%s" on the console?',done:'Done.',installed:'Installed.',restarting:'Installed. NSA restarts in a few seconds.',failed:'Failed: ',uploading:'Uploading',lost:'Cannot reach the console.',
+  en:{pin:'Type the PIN shown in the console\'s Settings (Web server).',enter:'Enter',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',up:'Up',mkdir:'New folder',upload:'Upload',name:'Name',size:'Size',date:'Modified',download:'Download',rename:'Rename',copy:'Copy',move:'Move',edit:'Edit',save_:'Save',cancel:'Cancel',copyto:'Copy to (full path):',moveto:'Move to (full path):',toobig:'Too big to edit here (over 256 KB).',saved:'Saved.',del:'Delete',install:'Install',empty:'Empty folder.',drop:'Drop files here to upload them to this folder',free:'free of',newname:'Name of the new folder:',renameto:'New name:',confirmdel:'Delete "%s"? This cannot be undone.',confirminst:'Install "%s" on the console?',done:'Done.',installed:'Installed.',restarting:'Installed. NSA restarts in a few seconds.',failed:'Failed: ',uploading:'Uploading',lost:'Cannot reach the console.',
     files:'Files',titles:'Titles',search:'Search…',k_game:'Games and demos',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',sendpkg:'Send a save package to the console',
     note:'Saves, extra data and SpotPass data download as a .nsasave package; a package you send is unpacked on the console, which asks there before replacing anything.',
     save:'Save',ext:'Extra data',boss:'SpotPass',packing:'Packing…',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and saved on the console (this title or its data is not there, so it cannot be imported).',notitles:'No titles.',loading:'Loading titles…',version:'v',
     screen:'Screen',live:'Live view',padnote:'Click the bottom screen to touch it (drag up or down to scroll). Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',nolive:'The console does not answer.',
     install:'Install',h_urls:'Install from URLs (one per line)',installurls:'Send to the console',urlsnote:'The console asks there before installing.',h_hist:'Remote Install history',h_log:'Transfer log',reload:'Reload',again:'Install again',nohist:'Nothing yet.',nolog:'(no log)',
     launch:'Launch',delete:'Delete',delticket:'Delete with ticket',import:'Import',close:'Close',importtitle:'Import %s',nobackups:'No backups of this data (NSA\'s exports or Checkpoint\'s).',asked:'Look at the console: it asks there.',confirmlaunch:'Launch "%s" on the console? (NSA closes.)',confirmdelete:'Ask the console to delete "%s"? It asks again there.'},
-  es:{pin:'Escribe el PIN que sale en Ajustes de la consola (Servidor web).',enter:'Entrar',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',up:'Subir nivel',mkdir:'Nueva carpeta',upload:'Subir archivos',name:'Nombre',size:'Tamaño',date:'Modificado',download:'Descargar',rename:'Renombrar',del:'Borrar',install:'Instalar',empty:'Carpeta vacía.',drop:'Suelta aquí archivos para subirlos a esta carpeta',free:'libres de',newname:'Nombre de la carpeta nueva:',renameto:'Nombre nuevo:',confirmdel:'¿Borrar "%s"? No se puede deshacer.',confirminst:'¿Instalar "%s" en la consola?',done:'Hecho.',installed:'Instalado.',restarting:'Instalado. NSA se reinicia en unos segundos.',failed:'Error: ',uploading:'Subiendo',lost:'No se puede contactar con la consola.',
+  es:{pin:'Escribe el PIN que sale en Ajustes de la consola (Servidor web).',enter:'Entrar',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',up:'Subir nivel',mkdir:'Nueva carpeta',upload:'Subir archivos',name:'Nombre',size:'Tamaño',date:'Modificado',download:'Descargar',rename:'Renombrar',copy:'Copiar',move:'Mover',edit:'Editar',save_:'Guardar',cancel:'Cancelar',copyto:'Copiar a (ruta completa):',moveto:'Mover a (ruta completa):',toobig:'Demasiado grande para editar aquí (más de 256 KB).',saved:'Guardado.',del:'Borrar',install:'Instalar',empty:'Carpeta vacía.',drop:'Suelta aquí archivos para subirlos a esta carpeta',free:'libres de',newname:'Nombre de la carpeta nueva:',renameto:'Nombre nuevo:',confirmdel:'¿Borrar "%s"? No se puede deshacer.',confirminst:'¿Instalar "%s" en la consola?',done:'Hecho.',installed:'Instalado.',restarting:'Instalado. NSA se reinicia en unos segundos.',failed:'Error: ',uploading:'Subiendo',lost:'No se puede contactar con la consola.',
     files:'Archivos',titles:'Títulos',search:'Buscar…',k_game:'Juegos y demos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',sendpkg:'Enviar un paquete de partida a la consola',
     note:'Las partidas, los datos extra y los datos SpotPass se descargan como un paquete .nsasave; un paquete que envíes se desempaqueta en la consola, que pregunta allí antes de reemplazar nada.',
     save:'Partida',ext:'Datos extra',boss:'SpotPass',packing:'Empaquetando…',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están, así que no se puede importar).',notitles:'Sin títulos.',loading:'Cargando títulos…',version:'v',
@@ -176,7 +177,7 @@ let pin = '', cwd = '/';
 
 function setText(){ $('t_pin').textContent=T.pin; $('enter').textContent=T.enter; $('up').textContent=T.up; $('mkdir').textContent=T.mkdir;
   $('uploadbtn').textContent=T.upload; $('h_name').textContent=T.name; $('h_size').textContent=T.size; $('h_date').textContent=T.date; $('drop').textContent=T.drop;
-  $('tab_files').textContent=T.files; $('tab_titles').textContent=T.titles; $('tab_install').textContent=T.install; $('tab_screen').textContent=T.screen; $('t_live').textContent=T.live; $('padnote').textContent=T.padnote; $('h_urls').textContent=T.h_urls; $('installurls').textContent=T.installurls; $('urlsnote').textContent=T.urlsnote; $('h_hist').textContent=T.h_hist; $('h_log').textContent=T.h_log; $('reloadlog').textContent=T.reload; $('dlgclose').textContent=T.close; $('filter').placeholder=T.search; $('sendpkg').textContent=T.sendpkg; $('titlesnote').textContent=T.note;
+  $('tab_files').textContent=T.files; $('tab_titles').textContent=T.titles; $('tab_install').textContent=T.install; $('tab_screen').textContent=T.screen; $('t_live').textContent=T.live; $('padnote').textContent=T.padnote; $('h_urls').textContent=T.h_urls; $('installurls').textContent=T.installurls; $('urlsnote').textContent=T.urlsnote; $('h_hist').textContent=T.h_hist; $('h_log').textContent=T.h_log; $('reloadlog').textContent=T.reload; $('dlgclose').textContent=T.close; $('edsave').textContent=T.save_; $('edcancel').textContent=T.cancel; $('filter').placeholder=T.search; $('sendpkg').textContent=T.sendpkg; $('titlesnote').textContent=T.note;
   const sel=$('kind'); sel.textContent=''; [['game',T.k_game],['update',T.k_update],['dlc',T.k_dlc],['system',T.k_system],['all',T.k_all]].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; sel.appendChild(o); }); }
 setText();
 
@@ -274,6 +275,9 @@ function row(f){
   const d = document.createElement('td'); d.className='num'; d.textContent = fmtDate(f.mtime);
   const act = document.createElement('td'); act.className='act';
   if(!f.dir && /\.cia$/i.test(f.name)) act.appendChild(btn(T.install,'',()=>install(f)));
+  if(!f.dir && /\.(txt|json|ini|cfg|conf|md|log|xml|csv|lua|py|js|html|css|c|h|cpp|sh|yml|yaml|toml)$/i.test(f.name)) act.appendChild(btn(T.edit,'',()=>edit(f)));
+  act.appendChild(btn(T.copy,'',()=>copy(f,false)));
+  act.appendChild(btn(T.move,'',()=>copy(f,true)));
   act.appendChild(btn(T.rename,'',()=>rename(f)));
   act.appendChild(btn(T.del,'danger',()=>del(f)));
   tr.append(n,s,d,act); return tr;
@@ -282,6 +286,16 @@ async function del(f){ if(!confirm(T.confirmdel.replace('%s',f.name))) return;
   run(async()=>{ await api('DELETE','file',q('path',full(f))); toast(T.done); go(cwd); }); }
 async function rename(f){ const to = prompt(T.renameto, f.name); if(!to || to===f.name) return;
   run(async()=>{ await api('POST','rename',q('path',full(f))+'&'+q('to',cwd+to)); go(cwd); }); }
+async function copy(f, move){ const to = prompt(move?T.moveto:T.copyto, cwd+f.name); if(!to || to===full(f)) return;
+  run(async()=>{ toast('…'); await api('POST',move?'rename':'copy',q('path',full(f))+'&'+q('to',to)); toast(T.done); go(cwd); }); }
+let editing = '';
+async function edit(f){
+  if(f.size>262144){ toast(T.toobig); return; }
+  run(async()=>{ const r = await fetch('/api/file?'+q('path',full(f)),{headers:{'X-Pin':pin}}); if(!r.ok) throw new Error(r.statusText);
+    editing = full(f); $('edtitle').textContent = f.name; $('edtext').value = await r.text(); $('ed').showModal(); });
+}
+$('edcancel').onclick = () => $('ed').close();
+$('edsave').onclick = () => run(async()=>{ await api('PUT','file',q('path',editing),new Blob([$('edtext').value],{type:'text/plain'})); $('ed').close(); toast(T.saved); go(cwd); });
 async function install(f){ if(!confirm(T.confirminst.replace('%s',f.name))) return;
   run(async()=>{ toast('…'); const j = await api('POST','install',q('path',full(f))); toast(j.restarting?T.restarting:T.installed); }); }
 $('mkdir').onclick = () => { const n = prompt(T.newname); if(!n) return;

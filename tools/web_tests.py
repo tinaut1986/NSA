@@ -46,6 +46,12 @@ s, b = req('GET', '/api/list?path=/webtest', a.pin); check('list', s == 200 and 
 s, b = req('GET', '/api/list?path=/../nsa', a.pin); check('.. refused', s == 400)
 s, b = req('POST', '/api/rename?path=/webtest/big.bin&to=/webtest/b2.bin', a.pin); check('rename', s == 200)
 s, b = req('DELETE', '/api/file?path=/', a.pin); check('root not deletable', s == 403)
+s, b = req('POST', '/api/mkdir?path=/webtest/d', a.pin); s2, b2 = req('PUT', '/api/file?path=/webtest/d/f.txt', a.pin, b'hello')
+s3, b3 = req('POST', '/api/copy?path=/webtest/d&to=/webtest/d2', a.pin); check('copy a folder', s3 == 200)
+s, b = req('GET', '/api/file?path=/webtest/d2/f.txt', a.pin); check('copied content', s == 200 and b == b'hello')
+s, b = req('POST', '/api/copy?path=/webtest/d&to=/webtest/d2', a.pin); check('copy onto an existing name is 409', s == 409)
+s, b = req('POST', '/api/copy?path=/webtest/d&to=/webtest/d/in', a.pin); check('copy into itself is 400', s == 400)
+s, b = req('POST', '/api/copy?path=/webtest/nope&to=/webtest/n2', a.pin); check('copy of a missing file is 404', s == 404)
 s, b = req('DELETE', '/api/file?path=/webtest', a.pin); check('delete folder', s == 200)
 s, b = req('GET', '/theme.json'); t = json.loads(b) if s == 200 else {}
 check('theme is public and has colours', s == 200 and t.get('theme') in ('cards', 'pixel', 'home') and t['colors']['accent'].startswith('#'))

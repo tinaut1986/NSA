@@ -19,6 +19,7 @@
 //   DELETE /api/file?path=/f               a file, or a folder with everything in it
 //   POST   /api/mkdir?path=/dir
 //   POST   /api/rename?path=/a&to=/b
+//   POST   /api/copy?path=/a&to=/b         copies a file or a folder tree
 //   POST   /api/install?path=/f.cia        installs a CIA from the SD card (SD titles only)
 //   GET    /theme.json                     (public) the console's theme, for the page to wear
 //   GET    /font.ttf                       (public) the Pixel theme's font

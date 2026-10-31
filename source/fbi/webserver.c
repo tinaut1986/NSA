@@ -600,6 +600,106 @@ static void web_api_rename(web_request* r) {
     web_send_ok(r);
 }
 
+// Copies a file or a folder tree (stdio, on the web thread). `depth` stops a runaway tree.
+static bool web_copy_tree(const char* from, const char* to, int depth) {
+    struct stat st;
+    if(depth > 24 || stat(from, &st) != 0) {
+        return false;
+    }
+
+    if(S_ISDIR(st.st_mode)) {
+        if(mkdir(to, 0777) != 0 && errno != EEXIST) {
+            return false;
+        }
+
+        DIR* dir = opendir(from);
+        if(dir == NULL) {
+            return false;
+        }
+
+        bool ok = true;
+        struct dirent* ent;
+        while(ok && (ent = readdir(dir)) != NULL) {
+            if(strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
+                continue;
+            }
+
+            char a[WEB_PATH_MAX + 8];
+            char b[WEB_PATH_MAX + 8];
+            if(snprintf(a, sizeof(a), "%s/%s", from, ent->d_name) >= (int) sizeof(a) || snprintf(b, sizeof(b), "%s/%s", to, ent->d_name) >= (int) sizeof(b)) {
+                ok = false;
+            } else {
+                ok = web_copy_tree(a, b, depth + 1);
+            }
+        }
+
+        closedir(dir);
+        return ok;
+    }
+
+    FILE* in = fopen(from, "rb");
+    if(in == NULL) {
+        return false;
+    }
+
+    FILE* out = fopen(to, "wb");
+    if(out == NULL) {
+        fclose(in);
+        return false;
+    }
+
+    u8* buf = (u8*) malloc(64 * 1024);
+    bool ok = buf != NULL;
+    size_t n;
+    while(ok && (n = fread(buf, 1, 64 * 1024, in)) > 0) {
+        ok = fwrite(buf, 1, n, out) == n;
+    }
+
+    free(buf);
+    fclose(in);
+    ok = (fclose(out) == 0) && ok;
+    if(!ok) {
+        remove(to);
+    }
+
+    return ok;
+}
+
+static void web_api_copy(web_request* r) {
+    char vpath[WEB_PATH_MAX];
+    char rpath[WEB_PATH_MAX + 8];
+    char vto[WEB_PATH_MAX];
+    char rto[WEB_PATH_MAX + 8];
+    if(!web_path_param(r, "path", vpath, sizeof(vpath), rpath, sizeof(rpath)) || !web_path_param(r, "to", vto, sizeof(vto), rto, sizeof(rto))) {
+        return;
+    }
+
+    struct stat st;
+    if(stat(rpath, &st) != 0) {
+        web_send_error(r, 404, "no such file");
+        return;
+    }
+
+    if(stat(rto, &st) == 0) {
+        web_send_error(r, 409, "that name is taken");
+        return;
+    }
+
+    // A folder cannot be copied into itself.
+    size_t len = strlen(vpath);
+    if(strncmp(vto, vpath, len) == 0 && (vto[len] == '/' || vto[len] == '\0')) {
+        web_send_error(r, 400, "cannot copy a folder into itself");
+        return;
+    }
+
+    if(!web_copy_tree(rpath, rto, 0)) {
+        web_send_error(r, 500, "the copy failed");
+        return;
+    }
+
+    web_send_ok(r);
+}
+
 static void web_api_install(web_request* r) {
     char vpath[WEB_PATH_MAX];
     char rpath[WEB_PATH_MAX + 8];
@@ -1370,6 +1470,8 @@ static void web_handle(web_request* r) {
         web_api_mkdir(r);
     } else if(post && strcmp(api, "rename") == 0) {
         web_api_rename(r);
+    } else if(post && strcmp(api, "copy") == 0) {
+        web_api_copy(r);
     } else if(post && strcmp(api, "install") == 0) {
         web_api_install(r);
     } else if(get && strcmp(api, "titles") == 0) {

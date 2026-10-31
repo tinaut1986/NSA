@@ -93,7 +93,7 @@ static const char* settingsmenu_value(settings_option option) {
             snprintf(volume, sizeof(volume), "%lu%%", settings->soundVolume);
             return volume;
         }
-        case OPTION_MUSIC: return settings->music == BGMUSIC_LIFT ? _("Lift") : settings->music == BGMUSIC_CALM ? _("Calm") : _("Off");
+        case OPTION_MUSIC: return settings->music == BGMUSIC_LIFT ? _("Lift") : settings->music == BGMUSIC_CALM ? _("Calm") : settings->music == BGMUSIC_SHOP ? _("Shop") : _("Off");
         case OPTION_MUSIC_VOLUME: {
             static char musicVolume[8];
             snprintf(musicVolume, sizeof(musicVolume), "%lu%%", settings->musicVolume);
@@ -333,6 +333,7 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_MUSIC:
             return settings->music == BGMUSIC_LIFT ? _("Lift: soft lift music, made by the console as it plays, in a loop of half a minute.")
                    : settings->music == BGMUSIC_CALM ? _("Calm: slower and sparser, in a loop of about forty seconds.")
+                   : settings->music == BGMUSIC_SHOP ? _("Shop: a soft bossa with marimba, electric piano and bass, in a loop of about forty seconds.")
                                                      : _("Off: no music. It needs the DSP firmware (dspfirm.cdc) and takes a moment to start.");
         case OPTION_MUSIC_VOLUME: return _("How loud the background music is.");
         case OPTION_CHANNEL:

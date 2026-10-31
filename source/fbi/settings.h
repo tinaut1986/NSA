@@ -47,6 +47,11 @@ typedef struct {
 } extsave_settings;
 
 typedef struct {
+    bool sd;
+    bool nand;
+} pending_settings;
+
+typedef struct {
     update_channel channel;
     bool autoUpdate;
     bool ftpServer;
@@ -65,6 +70,7 @@ typedef struct {
     tickets_settings tickets;
     files_settings files;
     extsave_settings extsave;
+    pending_settings pending;
 } settings_data;
 
 // Pushes the appearance settings to the theme and the translation layer.

@@ -114,6 +114,14 @@ dates). The owner will go through them one by one; tick each only when they say 
 - [ ] On the console: the Advanced button, its top card and the warning prompt in red, day and
       night, in several accents (seen only in Azahar, night mode, blue accent).
 
+**Pending titles and System save data on the Titles pattern**
+- [ ] Pending titles: rows (kind, ID, SD/NAND tag, version), SD/NAND filter remembered, search, sheet
+      with both deletes in red, long press, X refreshes. Only seen empty in Azahar (no pending titles).
+- [ ] System save data: rows with the ID, search, sheet (browse, delete in red), the delete
+      confirmation in the red warning. Azahar crashes on this screen (also on the previous
+      `release`, before this change): not seen even once; readable names of the modules were not
+      added (no source found for the IDs).
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.

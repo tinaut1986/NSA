@@ -25,6 +25,11 @@ static void task_populate_system_save_data_thread(void* arg) {
     u32 systemSaveDataCount = 0;
     u32 systemSaveDataIds[MAX_SYSTEM_SAVE_DATA];
     if(R_SUCCEEDED(res = FSUSER_EnumerateSystemSaveData(&systemSaveDataCount, MAX_SYSTEM_SAVE_DATA * sizeof(u32), systemSaveDataIds))) {
+        // Never more than the buffer holds, whatever the system says.
+        if(systemSaveDataCount > MAX_SYSTEM_SAVE_DATA) {
+            systemSaveDataCount = MAX_SYSTEM_SAVE_DATA;
+        }
+
         qsort(systemSaveDataIds, systemSaveDataCount, sizeof(u32), task_populate_system_save_data_compare_ids);
 
         for(u32 i = 0; i < systemSaveDataCount && R_SUCCEEDED(res); i++) {

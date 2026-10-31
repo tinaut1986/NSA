@@ -105,7 +105,7 @@ static void task_wide(task_cell* cell) {
     cell->weight = 1.5f;
 }
 
-static const char* task_kind_name(u64 titleId) {
+const char* task_kind_name(u64 titleId) {
     switch(title_kind_of(titleId)) {
         case TITLE_KIND_GAME: return _("Game");
         case TITLE_KIND_UPDATE: return _("Update");
@@ -120,7 +120,7 @@ static const char* task_media_name(FS_MediaType mediaType) {
     return mediaType == MEDIATYPE_NAND ? "NAND" : mediaType == MEDIATYPE_SD ? "SD" : _("Game card");
 }
 
-static void task_version_text(char* out, size_t size, u16 version) {
+void task_version_text(char* out, size_t size, u16 version) {
     snprintf(out, size, "%d.%d.%d (%hu)", (version >> 10) & 0x3F, (version >> 4) & 0x3F, version & 0xF, version);
 }
 

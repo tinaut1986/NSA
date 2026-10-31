@@ -111,7 +111,7 @@ What `release` holds, in the order it was built:
 
 - **Import from Checkpoint's backups**: *Import save / extra data* also lists the backups Checkpoint keeps in
   `sdmc:/3ds/Checkpoint/saves|extdata/0x<unique ID, 5 digits> <game>/<backup>/` (the archive's tree directly in the folder, no
-  manifest, so no version warning), tagged `[Checkpoint]`; NSA's are tagged `[NSA]` and their manifest has `source=NSA`. Format
+  manifest, so no version warning), tagged `[Checkpoint]` (a scrolling list with no cap, not a sheet); NSA's are tagged `[NSA]` and their manifest has `source=NSA`. Format
   checked against Checkpoint's source, not against a real backup. Export still writes only NSA's layout.
 
 - **Send saves and extra data to another 3DS (3b)**: Titles sheet rows *Send save / extra data to another 3DS*. The data

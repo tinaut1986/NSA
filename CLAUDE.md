@@ -44,6 +44,14 @@ SendUserFile; installing it on a console still waits for them to ask (they usual
   the release workflow on the tag promotes it to stable (`.github/workflows/build-release.yml`).
   Write `docs/release-notes/<tag>.md` first (`docs/release-notes/README.md`).
 
+## Branches in use
+
+- `release`: the working line; `master`: stable (only moves by merging `release`).
+- `advanced`: the risky tools (Dump NAND, Pending titles, System save data, Advanced's red look). Merge `release`
+  into it after changing `release` (`git merge release`), and the owner's call decides when it goes into `release`.
+- When installing a DEBUG build on the owner's consoles pass `VERSION_MICRO=N` above their current title version
+  (see `docs/PLAN.md`, Decisions) after a `make clean`.
+
 ## Build
 
 ```sh
@@ -74,6 +82,10 @@ version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in 
   floating layers `overlay.c` (popover, action sheet), dialogs `prompt.c`/`info.c`/`error.c`.
   Titles, Tickets and Ext Save Data are the model for a screen (placeholders, live sort,
   remembered filters in `settings.json`): see `docs/PLAN.md`, Decisions.
+- Background music: `source/core/bgmusic.c` (circular synthesis on a low-priority thread, DSP channels 14 and 15,
+  cache per style on the SD, crossfade); DEBUG builds log how long a loop took to `sdmc:/nsa/music-log.txt` and write the
+  loop as `music-style-N.wav`. The pixel font is baked by `tools/make_pixelfont.py`, the icon and banner by
+  `tools/make_branding.py`.
 - Sound: `source/core/sound.c` (interface tones, Settings "Sounds"/"Sound volume"; a dialog named
   "Success" / "Failure" / "Error" plays its tune by itself); the DSP is started only through
   `sound_dsp_start`. The audio player (`source/fbi/audioview.c`) owns DSP channel 0.

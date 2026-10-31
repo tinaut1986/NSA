@@ -84,7 +84,11 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
   (big icon tiles and dialogs as a sheet from the bottom), in day and night colours with eight
   accent colours and a yellow one. Settings → Theme.
 - English and Spanish, stereoscopic 3D on the top screen, touch and button controls everywhere
-  (pressed look, long press for an item's actions, flick scrolling), and optional interface sounds.
+  (pressed look, long press for an item's actions, flick scrolling, draggable scrollbars), and optional
+  interface sounds with their own volume.
+- Optional **background music** made by the console itself, with no files: soft lift music, a calm
+  variation, or a bossa with marimba. The last song of each style is kept and plays at once next time
+  while a new one is made, and they crossfade.
 - A **System** page with the console's model, versions, network, battery and storage.
 
 <p align="center">

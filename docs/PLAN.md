@@ -12,9 +12,10 @@ start. Merged topic branches are kept on the remote and can be deleted.
 
 | Branch / tag | State |
 |---|---|
-| `release` | The working line. Holds everything below. |
+| `release` | The working line. Holds everything below, but "Advanced". |
+| `advanced` | **The risky tools**: Dump NAND as its own screen (space, progress, SHA-256 and a `.sha256`), Pending titles and System save data on the Titles pattern, Advanced's red look. Cut from `release` on 2026-10-31; the owner wants what is about the console's own data merged there first. Keep `release` merged into it (`git merge release`). |
 | `master` | Stable. Moves only by merging `release`. |
-| tag `v0.3.0` | **Stable**, published 2026-10-28 (notes: `docs/release-notes/v0.3.0.md`). `v0.1.0` and `v0.2.0` were betas. |
+| tag `v0.4.1` | **Stable**, published 2026-10-31 (notes: `docs/release-notes/v0.4.1.md`). `v0.4.0` (stable the same day) and `v0.3.0` came before; `v0.1.0` and `v0.2.0` were betas. |
 
 What `release` holds, in the order it was built:
 
@@ -86,6 +87,25 @@ What `release` holds, in the order it was built:
       NSA runs as a 3DSX (`launch3dsx.c`). Says what is missing when the loader or the title is
       not there. **Not tried on a console yet.**
 
+17. **Themes Pixel and HOME** (`feat/theme-pixel`, `feat/theme-home`): Pixel draws every text from Pixelify Sans
+    (SIL OFL, `tools/fonts/`) baked at 10, 12 and 16 px by `tools/make_pixelfont.py` into `romfs/pixelfont.png`
+    and `source/core/pixelfont.c` (the button glyphs fall back to the system font; the acute i is built from a
+    dotless i), square corners, block bars, a Yellow accent with dark text on light accents. HOME draws the main menu as
+    four big tiles per row and dialogs as a sheet from the bottom (`theme_def.sheetPrompts`, `menuLayout`).
+    Icon grids in pages with dots (HOME) are **not done**.
+18. **NSA icon and banner** (`tools/make_branding.py`): drawn in code (48x48 and a 256x128 PNG banner). The boot logo
+    is now the generic one of `buildtools` and the banner jingle is still FBI's (issue #15). An old title version in HOME
+    keeps its icon until the CIA's version number goes up (see Decisions).
+19. **FTP and remote use**: the server is on by default; outside DEBUG builds the `SITE` commands (screenshot, press, tap,
+    drag, install) work only while `sdmc:/nsa/remote.flag` exists (`ftp_remote_allowed` in `ftpserver.c`).
+20. **Background music** (`source/core/bgmusic.c`): Off / Lift / Calm / Shop, rendered at run time into a seamless loop
+    (circular synthesis) on a low-priority thread, played from memory on DSP channels 14 and 15; a cache per style on the SD
+    card (`music-cache-N.pcm`) plays at once next time while a new song is made, and the two crossfade over 3.5 s; a note blinks
+    in the status bar and Settings shows progress and an equalizer. The seed comes from the clock: another melody each time.
+    Measured: 4 to 5 s per loop on the New 3DS XL, 15 s on the 2DS (`music-log.txt` in DEBUG builds).
+21. **Settings**: a volume slider under Sounds and Background music (one box each), draggable scrollbars in lists, Settings,
+    action sheets and popovers, "Open as text" only on files with no known extension.
+22. **README with pictures** taken on a real console (`docs/images/`), v0.4.0 and v0.4.1 published.
 
 ## Pending tests on the console (2026-10-31)
 
@@ -373,7 +393,7 @@ current, this list is the summary. What only the owner can test (local wireless)
    - ~~Sound when a transfer ends~~ done with the interface sounds (see Pending tests); the 3DS has no vibration.
 1. ~~Publish v0.2.0 beta~~ done; **v0.3.0 stable published**.
 2. ~~**Remote install**~~ done (four cards, receive screen, history; see Status 14).
-3. **Pending titles, System save data, Dump NAND** on the same pattern (Dump NAND as
+3. ~~**Pending titles, System save data, Dump NAND**~~ done on the `advanced` branch (not in `release`), on the same pattern (Dump NAND as
    its own screen: space needed against free on the SD card, progress with ETA, where
    the file ends up). Pending titles and System save data still have FBI's action lists
    and English item names ("Delete Pending Title"...); System save data would show
@@ -409,7 +429,7 @@ current, this list is the summary. What only the owner can test (local wireless)
    in pages, modals as a sheet from the bottom; Pixel = bundled pixel font (OFL), square
    corners, thick borders, block progress bars, yellow highlight. Then **themes from the
    SD card** (`sdmc:/nsa/themes/`), data only.
-6. **NSA icon and banner** (HOME menu and in-app): still FBI's. Ask the owner for a
+6. ~~**NSA icon and banner**~~ done (the boot logo and the banner sound are left in issue #15). It was: still FBI's. Ask the owner for a
    direction first.
 7. **Top-screen information**: the owner wants to restructure what the top screen shows
    in general; ask before designing it.
@@ -517,6 +537,19 @@ current, this list is the summary. What only the owner can test (local wireless)
 - New icons: add the Tabler name to `tools/icons.txt` and run `python3 tools/make_icons.py` (needs
   network for Tabler's CSS; it can take two minutes: run it again if it times out). New ones are
   appended, so existing icon IDs do not move.
+
+- **Updating a console during development**: HOME keeps a title's old icon until its version number goes up, and a
+  console refuses a lower one. Every DEBUG build between tags has the version of the last tag plus one patch, so the
+  consoles got `make DEBUG=1 VERSION_MICRO=3` (title version 0.3.3, above the 0.3.2 they first got); a published tag
+  (CI sets `VERSION`) is always above. `make clean` before changing it (`make` does not rebuild on a version change).
+- **Publishing a stable**: write `docs/release-notes/vX.Y.Z.md` (since the previous stable), merge it into `release`,
+  `git merge --ff-only release` into `master` and push `master`, then tag `release`'s tip and push the tag: with
+  `master` already containing the commit the workflow publishes it as stable straight away.
+- **Pictures for the README** are taken on a real console through the FTP remote control (Settings in English and
+  Sounds off, restored afterwards; the consoles' own names, IPs and Wi-Fi are painted over, and only a demo folder on the SD
+  is shown). `docs/images/` is 800x960, both screens, 160 colours.
+- **Music is generated, not shipped** (no assets in the CIA); the loop is made circular so its join is silent; what
+  was planned and not done: endless music without a loop (it needs streaming synthesis, measure the 2DS first).
 
 ## Known issues
 

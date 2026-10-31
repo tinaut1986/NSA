@@ -22,7 +22,8 @@ static settings_data settings = {
         .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false},
         .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false},
         .files = {.directories = true, .files = true, .cias = true, .tickets = true, .hidden = false, .sort = 0},
-        .extsave = {.sd = true, .nand = true, .byId = false, .grid = false}
+        .extsave = {.sd = true, .nand = true, .byId = false, .grid = false},
+        .pending = {.sd = true, .nand = true}
 };
 
 static const char* night_ids[] = {"off", "on", "auto"};
@@ -137,6 +138,12 @@ void settings_load() {
         settings.extsave.grid = settings_get_bool(extsave, "grid", settings.extsave.grid);
     }
 
+    json_t* pending = json_object_get(json, "pending");
+    if(json_is_object(pending)) {
+        settings.pending.sd = settings_get_bool(pending, "sd", settings.pending.sd);
+        settings.pending.nand = settings_get_bool(pending, "nand", settings.pending.nand);
+    }
+
     json_decref(json);
 }
 
@@ -159,7 +166,7 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
@@ -194,7 +201,10 @@ Result settings_save() {
                              "sd", settings.extsave.sd,
                              "nand", settings.extsave.nand,
                              "by_id", settings.extsave.byId,
-                             "grid", settings.extsave.grid);
+                             "grid", settings.extsave.grid,
+                             "pending",
+                             "sd", settings.pending.sd,
+                             "nand", settings.pending.nand);
     if(json == NULL) {
         return R_APP_OUT_OF_MEMORY;
     }

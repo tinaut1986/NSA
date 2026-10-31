@@ -58,5 +58,5 @@ void action_delete_system_save_data(linked_list* items, list_item* selected) {
     data->items = items;
     data->selected = selected;
 
-    prompt_display_yes_no("Confirmation", "Delete the selected system save data?", COLOR_TEXT, data, action_delete_system_save_data_draw_top, action_delete_system_save_data_onresponse);
+    prompt_display_warning("Confirmation", "Delete the selected system save data?", COLOR_TEXT, data, action_delete_system_save_data_draw_top, action_delete_system_save_data_onresponse);
 }

@@ -130,6 +130,7 @@ What `release` holds, in the order it was built:
 - [ ] Speed of a big download and upload on the New 3DS XL and the 2DS (the FTP server's for comparison); the console stays usable meanwhile (UI, music).
 - [ ] The local wireless (Send / Receive without a router) stops the web server and brings it back after; nothing else breaks while it serves.
 - [ ] The page in a phone's browser and in Firefox / Chrome (dark and light).
+- [ ] The redesigned page (`feat/web-ux`): Settings from the page change the console at once (theme, accent, night, language, sounds, music and volumes) and stay after a restart; dragging rows onto folders and breadcrumbs moves them; dropping a folder from the PC uploads the tree; *Install a CIA from this PC*; how the titles list feels with many titles on a real console.
 
 **Saves, extra data and SpotPass data** (item 3b; code in `source/fbi/action/savetransfer.c`; none of it tried on a console)
 - [ ] Export a save (Titles sheet) to `sdmc:/nsa/saves/<TITLEID>/<date>/save/` with `manifest.txt` (`source=NSA`): with subfolders, an empty save, a big one; cancel with B midway.
@@ -508,6 +509,18 @@ current, this list is the summary. What only the owner can test (local wireless)
       Q=L, W=R, Enter=Start, Backspace=Select), a click on the bottom canvas as a tap and a drag up or down as a scroll. The live view stops
       when the tab is left or the browser tab is hidden. **No `remote.flag` needed here**: turning the web server on and the PIN
       are the permission (whoever has the PIN can already install CIAs and delete files); the FTP server's flag is unchanged.
+    - **Page redesign** (`feat/web-ux`, 2026-11-01; the owner asked for it to look and behave like the console): a menu on the left (a bar
+      at the bottom on a phone), a status bar (console, SD space, battery from `info`, clock), screens by the URL's hash (`#titles`,
+      `#files/dir/`, so the browser's back works). Lists are plain rows (or an icon grid) built once and filtered, sorted and filled in
+      place; names and icons load one request at a time, the rows on screen first, icons kept as blobs. A click opens the item's
+      **sheet** (its card with cells, then the actions, as on the console; a bottom sheet on a phone). Install is four tiles (URLs, a CIA
+      from the PC: uploaded to `/nsa/web-install/`, installed, deleted; history; log). Files: selection (Ctrl/Shift click, the icon),
+      right-click menus, a clipboard (copy / cut, paste bar), **drag rows onto a folder or a breadcrumb to move** (Ctrl copies), drop
+      files or whole folders from the computer (on a folder row: into it), upload panel with speed, picture viewer, audio player, text
+      editor (Ctrl+S), keys (Del, F2, Ctrl+A/C/X/V, Backspace). **Settings** tab: theme, accent, night mode, language, sounds and music
+      with volumes, changed on the console (`GET/POST /api/settings`, applied and saved by the main thread), plus this page's own sounds
+      (the console's tones played by WebAudio, as the console's setting says) and animations. The icons are the console's atlas
+      (`/icons.png` and `/icons.js`, made by `tools/make_icons.py`) tinted with CSS masks. Checked in Azahar with the built-in browser.
     - **Phase 3 left**: sound is not sent; the 3D right eye; a smaller or JPEG frame if the Wi-Fi is slow (RGB565 at 345 KB is the first try);
       a text box that types into the console's keyboard; holding a button (press is a tap of N frames).
     - **Ideas**: a `remote.flag`-like switch for the destructive calls; drag whole folders (`webkitGetAsEntry`); download a folder

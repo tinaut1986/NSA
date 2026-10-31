@@ -17,12 +17,14 @@
 #include <jansson.h>
 
 #include "ftpserver.h"
+#include "settings.h"
 #include "section.h"
 #include "relaunch.h"
 #include "transfer.h"
 #include "webserver.h"
 #include "action/action.h"
 #include "task/uitask.h"
+#include "../core/bgmusic.h"
 #include "../core/core.h"
 #include "../core/input.h"
 #include "../core/data/smdh.h"
@@ -382,7 +384,13 @@ static void web_api_info(web_request* r) {
         free_ = (u64) resource.freeClusters * resource.clusterSize;
     }
 
-    web_send_json(r, 200, json_pack("{s:b,s:s,s:s,s:I,s:I}", "ok", 1, "console", name, "version", VERSION_STRING, "free", (json_int_t) free_, "total", (json_int_t) total));
+    u8 battery = 0;
+    u8 charging = 0;
+    PTMU_GetBatteryLevel(&battery);
+    PTMU_GetBatteryChargeState(&charging);
+
+    web_send_json(r, 200, json_pack("{s:b,s:s,s:s,s:I,s:I,s:i,s:b}", "ok", 1, "console", name, "version", VERSION_STRING,
+                                    "free", (json_int_t) free_, "total", (json_int_t) total, "battery", (int) battery, "charging", charging != 0));
 }
 
 static void web_api_list(web_request* r) {
@@ -723,7 +731,8 @@ static void web_api_install(web_request* r) {
 
 // ---- the page ----
 
-static void web_send_romfs(web_request* r, const char* path, const char* type) {
+// `cache`: the browser may keep it for an hour (icons and the font only change with a new build).
+static void web_send_romfs(web_request* r, const char* path, const char* type, bool cache) {
     FILE* f = fopen(path, "rb");
     if(f == NULL) {
         web_send_text(r, 404, "text/plain", "missing from this build");
@@ -733,7 +742,7 @@ static void web_send_romfs(web_request* r, const char* path, const char* type) {
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    if(size < 0 || !web_send_head(r, 200, type, size, NULL)) {
+    if(size < 0 || !web_send_head(r, 200, type, size, cache ? "Cache-Control: max-age=3600\r\n" : NULL)) {
         fclose(f);
         return;
     }
@@ -1557,6 +1566,154 @@ static void web_api_install_url(web_request* r) {
     web_send_ok(r);
 }
 
+// ---- the console's settings: appearance, sounds and music ----
+//
+// Read here; changed by the main thread (webserver_poll_main), which applies and saves them as the Settings screen does.
+
+static const char* web_night_ids[] = {"off", "on", "auto"};
+static const char* web_language_ids[] = {"system", "en", "es"};
+
+static struct {
+    volatile int state;    // 0 nothing, 1 asked, 2 applied.
+    settings_data values;
+} web_settings;
+
+static json_t* web_settings_json() {
+    settings_data* s = settings_get();
+
+    json_t* themes = json_array();
+    for(u32 i = 0; i < theme_count(); i++) {
+        json_array_append_new(themes, json_pack("{s:s,s:s}", "id", theme_get(i)->id, "name", theme_get(i)->name));
+    }
+
+    json_t* accents = json_array();
+    for(u32 i = 0; i < theme_accent_count(); i++) {
+        const theme_accent* a = theme_accent_get(i);
+        char day[8];
+        char night[8];
+        web_color(day, a->day);
+        web_color(night, a->night);
+        json_array_append_new(accents, json_pack("{s:s,s:s,s:s,s:s}", "id", a->id, "name", a->name, "day", day, "night", night));
+    }
+
+    return json_pack("{s:b,s:s,s:o,s:s,s:o,s:s,s:s,s:i,s:i,s:i,s:i}", "ok", 1,
+                     "theme", theme_get(s->theme)->id, "themes", themes,
+                     "accent", theme_accent_get(s->accent)->id, "accents", accents,
+                     "night", web_night_ids[s->night < 3 ? s->night : 0],
+                     "language", web_language_ids[s->language < LANGUAGE_COUNT ? s->language : 0],
+                     "sounds", (int) s->sounds, "soundVolume", (int) s->soundVolume,
+                     "music", (int) s->music, "musicVolume", (int) s->musicVolume);
+}
+
+static void web_api_settings(web_request* r) {
+    web_send_json(r, 200, web_settings_json());
+}
+
+// Only what the query names changes; an unknown value is refused before anything changes.
+static void web_api_settings_set(web_request* r) {
+    if(web_settings.state == 1) {
+        web_send_error(r, 409, "the console is still applying the last change");
+        return;
+    }
+
+    settings_data values = *settings_get();
+    char text[32];
+
+    if(web_query_get(r->query, "theme", text, sizeof(text))) {
+        u32 i = 0;
+        while(i < theme_count() && strcmp(theme_get(i)->id, text) != 0) {
+            i++;
+        }
+
+        if(i == theme_count()) {
+            web_send_error(r, 400, "unknown theme");
+            return;
+        }
+
+        values.theme = i;
+    }
+
+    if(web_query_get(r->query, "accent", text, sizeof(text))) {
+        u32 i = 0;
+        while(i < theme_accent_count() && strcmp(theme_accent_get(i)->id, text) != 0) {
+            i++;
+        }
+
+        if(i == theme_accent_count()) {
+            web_send_error(r, 400, "unknown accent");
+            return;
+        }
+
+        values.accent = i;
+    }
+
+    if(web_query_get(r->query, "night", text, sizeof(text))) {
+        u32 i = 0;
+        while(i < 3 && strcmp(web_night_ids[i], text) != 0) {
+            i++;
+        }
+
+        if(i == 3) {
+            web_send_error(r, 400, "night is off, on or auto");
+            return;
+        }
+
+        values.night = (theme_night_mode) i;
+    }
+
+    if(web_query_get(r->query, "language", text, sizeof(text))) {
+        u32 i = 0;
+        while(i < LANGUAGE_COUNT && strcmp(web_language_ids[i], text) != 0) {
+            i++;
+        }
+
+        if(i == LANGUAGE_COUNT) {
+            web_send_error(r, 400, "unknown language");
+            return;
+        }
+
+        values.language = (language_id) i;
+    }
+
+    values.sounds = web_number(r, "sounds", values.sounds);
+    values.soundVolume = web_number(r, "soundVolume", values.soundVolume);
+    values.music = web_number(r, "music", values.music);
+    values.musicVolume = web_number(r, "musicVolume", values.musicVolume);
+    if(values.sounds > SOUNDS_ALL || values.music >= BGMUSIC_COUNT || values.soundVolume < 25 || values.soundVolume > 100
+       || values.musicVolume < 25 || values.musicVolume > 100) {
+        web_send_error(r, 400, "sounds 0-2, music 0-3, volumes 25-100");
+        return;
+    }
+
+    web_settings.values = values;
+    web_settings.state = 1;
+    for(int waited = 0; web_settings.state == 1 && web_run; waited += WEB_NAP_MS) {
+        if(waited > 2000) {
+            break;
+        }
+
+        svcSleepThread((s64) WEB_NAP_MS * 1000000);
+    }
+
+    web_send_json(r, 200, web_settings_json());
+}
+
+// Main thread.
+static void web_settings_apply() {
+    settings_data* s = settings_get();
+    s->theme = web_settings.values.theme;
+    s->accent = web_settings.values.accent;
+    s->night = web_settings.values.night;
+    s->language = web_settings.values.language;
+    s->sounds = web_settings.values.sounds;
+    s->soundVolume = web_settings.values.soundVolume;
+    s->music = web_settings.values.music;
+    s->musicVolume = web_settings.values.musicVolume;
+    settings_apply();
+    settings_save();
+    web_settings.state = 2;
+}
+
 // ---- serving ----
 
 static void web_handle(web_request* r) {
@@ -1566,14 +1723,19 @@ static void web_handle(web_request* r) {
 
     web_parse_head(r);
 
-    if(strcmp(r->path, "/") == 0 || strcmp(r->path, "/index.html") == 0 || strcmp(r->path, "/theme.json") == 0 || strcmp(r->path, "/font.ttf") == 0) {
+    if(strcmp(r->path, "/") == 0 || strcmp(r->path, "/index.html") == 0 || strcmp(r->path, "/theme.json") == 0 || strcmp(r->path, "/font.ttf") == 0
+       || strcmp(r->path, "/icons.png") == 0 || strcmp(r->path, "/icons.js") == 0) {
         if(strcmp(r->method, "GET") == 0) {
             if(strcmp(r->path, "/theme.json") == 0) {
                 web_send_theme(r);
             } else if(strcmp(r->path, "/font.ttf") == 0) {
-                web_send_romfs(r, "romfs:/web/PixelifySans.ttf", "font/ttf");
+                web_send_romfs(r, "romfs:/web/PixelifySans.ttf", "font/ttf", true);
+            } else if(strcmp(r->path, "/icons.png") == 0) {
+                web_send_romfs(r, "romfs:/icons32.png", "image/png", true);
+            } else if(strcmp(r->path, "/icons.js") == 0) {
+                web_send_romfs(r, "romfs:/web/icons.js", "text/javascript; charset=utf-8", true);
             } else {
-                web_send_romfs(r, "romfs:/web/index.html", "text/html; charset=utf-8");
+                web_send_romfs(r, "romfs:/web/index.html", "text/html; charset=utf-8", false);
             }
         } else {
             web_send_error(r, 405, "method not allowed");
@@ -1655,6 +1817,10 @@ static void web_handle(web_request* r) {
         web_api_tap(r);
     } else if(post && strcmp(api, "input/drag") == 0) {
         web_api_drag(r);
+    } else if(get && strcmp(api, "settings") == 0) {
+        web_api_settings(r);
+    } else if(post && strcmp(api, "settings") == 0) {
+        web_api_settings_set(r);
     } else if(post && strcmp(api, "install-url") == 0) {
         web_api_install_url(r);
     } else {
@@ -1822,6 +1988,11 @@ void webserver_poll_main() {
     // A package uploaded by the page: unpacked (and imported, behind the red question) like one that was sent.
     if(web_job.pending) {
         web_job_run();
+    }
+
+    // Settings changed from the page.
+    if(web_settings.state == 1) {
+        web_settings_apply();
     }
 
     if(web_retry && osGetTime() >= web_retry_next) {

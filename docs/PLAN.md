@@ -130,6 +130,13 @@ dates). The owner will go through them one by one; tick each only when they say 
 - [ ] Cards is unchanged (same positions as before the text layer was split in two).
 - Bundled font: Pixelify Sans, SIL OFL 1.1 (`tools/fonts/OFL-PixelifySans.txt`). HOME theme next.
 
+**HOME theme** (Settings -> Theme)
+- [ ] On a console: the main menu as four big tiles per row with the name under each (two lines
+      fit), D-Pad moves through the grid, a tap on the name opens too; dialogs rise as a sheet from
+      the bottom (red for Advanced and deletes), day and night, every accent. Seen only in Azahar.
+- [ ] Not done yet from the mockup: icon grids (Titles, Tickets, Ext Save Data) **in pages with dots**
+      (they still scroll), and the sheet's drag-to-dismiss (it has the handle only).
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.
@@ -359,7 +366,7 @@ current, this list is the summary. What only the owner can test (local wireless)
    Program ID at 0x200) instead of the ID heuristics. The file path type for the exheader
    on `ARCHIVE_SAVEDATA_AND_CONTENT` is not confirmed: probe it on the console and write
    the result to a file the FTP server can fetch, since Azahar cannot answer it.
-5. **Themes "Pixel" (done, see Pending tests) and "HOME"** (mockups were shown and liked): HOME = big icon tiles
+5. **Themes "Pixel" and "HOME" (both built, see Pending tests; HOME lacks paged grids)** (mockups were shown and liked): HOME = big icon tiles
    in pages, modals as a sheet from the bottom; Pixel = bundled pixel font (OFL), square
    corners, thick borders, block progress bars, yellow highlight. Then **themes from the
    SD card** (`sdmc:/nsa/themes/`), data only.

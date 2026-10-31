@@ -23,6 +23,7 @@ typedef struct {
 
 typedef enum {
     THEME_MENU_GRID2,  // Main menu as buttons in two columns.
+    THEME_MENU_TILES   // Main menu as big icon tiles, four to a row, with the name under each.
 } theme_menu_layout;
 
 typedef struct {
@@ -35,6 +36,7 @@ typedef struct {
     float border;         // Outline width.
     bool pixelFont;       // Text in the bundled pixel font (pixelfont.c) instead of the system's.
     bool blockBars;       // Progress bars as blocks instead of a smooth fill.
+    bool sheetPrompts;    // Dialogs rise from the bottom as a full-width sheet.
     theme_menu_layout menuLayout;
 } theme_def;
 

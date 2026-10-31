@@ -85,10 +85,24 @@ static bool mainmenu_can_open(const mainmenu_entry* entry) {
     return entry->open != NULL || entry->children != NULL;
 }
 
-// Tiles across the top, then two columns of buttons.
+// The HOME theme: every entry a big tile, four to a row, its name under it.
+#define HOME_COLUMNS 4
+#define HOME_TILE 58
+
+static bool mainmenu_home() {
+    return theme()->def->menuLayout == THEME_MENU_TILES;
+}
+
+// Tiles across the top, then two columns of buttons (or, in HOME, the grid of tiles).
 static void mainmenu_button_rect(u32 index, float x1, float y1, float x2, float* x, float* y, float* w, float* h) {
     float area = x2 - x1 - 2 * PAD;
-    if(index < TILE_COUNT) {
+    if(mainmenu_home()) {
+        float label = widget_text_height(WIDGET_SMALL_SCALE);
+        *w = (area - (HOME_COLUMNS - 1) * GAP) / HOME_COLUMNS;
+        *h = HOME_TILE + 4 + 2 * label;
+        *x = x1 + PAD + (index % HOME_COLUMNS) * (*w + GAP);
+        *y = y1 + PAD + (index / HOME_COLUMNS) * (*h + 5);
+    } else if(index < TILE_COUNT) {
         *w = (area - (TILE_COUNT - 1) * GAP) / TILE_COUNT;
         *h = TILE_HEIGHT;
         *x = x1 + PAD + index * (*w + GAP);
@@ -105,6 +119,27 @@ static void mainmenu_button_rect(u32 index, float x1, float y1, float x2, float*
 // The D-Pad over tiles and buttons: Up and Down move between rows (a tile
 // row of three over rows of two), Left and Right go through them in order.
 static u32 mainmenu_move(u32 selected, u32 key) {
+    if(mainmenu_home()) {
+        if(key == KEY_RIGHT) {
+            return (selected + 1) % ENTRY_COUNT;
+        } else if(key == KEY_LEFT) {
+            return selected > 0 ? selected - 1 : ENTRY_COUNT - 1;
+        } else if(key == KEY_DOWN) {
+            if(selected + HOME_COLUMNS < ENTRY_COUNT) {
+                return selected + HOME_COLUMNS;
+            }
+
+            // The last row has fewer: down from the row above lands on its last one.
+            return selected < HOME_COLUMNS ? ENTRY_COUNT - 1 : selected % HOME_COLUMNS;
+        } else {
+            if(selected >= HOME_COLUMNS) {
+                return selected - HOME_COLUMNS;
+            }
+
+            return selected + HOME_COLUMNS < ENTRY_COUNT ? selected + HOME_COLUMNS : ENTRY_COUNT - 1;
+        }
+    }
+
     u32 buttons = ENTRY_COUNT - TILE_COUNT;
     u32 lastRow = (buttons - 1) / 2;
     if(key == KEY_RIGHT) {
@@ -464,6 +499,49 @@ static void mainmenu_draw_tile(float x, float y, float w, float h, u32 icon, con
     }
 }
 
+// HOME: a big square tile with the icon, and the name in up to two lines under it.
+static void mainmenu_draw_home_tile(const mainmenu_entry* entry, float x, float y, float w, bool selected, widget_press* press, int index) {
+    const theme_current* t = theme();
+    bool danger = entry->warn;
+    float tx = x + (w - HOME_TILE) / 2;
+    u32 fill = selected ? (danger ? t->palette->danger : t->accent) : danger ? theme_mix(t->palette->surface, t->palette->danger, 0x26) : t->palette->surface;
+    u32 edge = selected ? fill : danger ? t->palette->danger : t->palette->border;
+    u32 onDanger = t->night ? t->palette->background : t->onAccent;
+    u32 ink = selected ? (danger ? onDanger : t->onAccent) : danger ? t->palette->danger : t->accent;
+    screen_frame_round_rect(tx, y, HOME_TILE, HOME_TILE, t->def->radius, danger ? 2 : t->def->border, edge, fill);
+    screen_draw_icon(entry->icon, tx + (HOME_TILE - 32) / 2, y + (HOME_TILE - 32) / 2, 32, ink);
+    widget_press_draw(press, index, tx, y, HOME_TILE, HOME_TILE, t->def->radius, ink, false);
+
+    // The name: one line, or two split at the space nearest the middle.
+    const char* label = _(entry->name);
+    char line1[64];
+    char line2[64];
+    string_copy(line1, label, sizeof(line1));
+    line2[0] = '\0';
+    if(widget_text_width(label, WIDGET_SMALL_SCALE) > w) {
+        const char* best = NULL;
+        size_t len = strlen(label);
+        for(const char* c = label; *c; c++) {
+            if(*c == ' ' && (best == NULL || abs((int) (c - label) - (int) len / 2) < abs((int) (best - label) - (int) len / 2))) {
+                best = c;
+            }
+        }
+
+        if(best != NULL && (size_t) (best - label) < sizeof(line1)) {
+            memcpy(line1, label, best - label);
+            line1[best - label] = '\0';
+            string_copy(line2, best + 1, sizeof(line2));
+        }
+    }
+
+    u32 textColor = danger ? t->palette->danger : t->palette->text;
+    float lineH = widget_text_height(WIDGET_SMALL_SCALE);
+    widget_text_centered(line1, x - 2, x + w + 2, y + HOME_TILE + 4, WIDGET_SMALL_SCALE, textColor);
+    if(line2[0] != '\0') {
+        widget_text_centered(line2, x - 2, x + w + 2, y + HOME_TILE + 4 + lineH, WIDGET_SMALL_SCALE, textColor);
+    }
+}
+
 static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     mainmenu_data* menu = (mainmenu_data*) data;
     const theme_current* t = theme();
@@ -473,6 +551,11 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
         mainmenu_button_rect(i, x1, y1, x2, &x, &y, &w, &h);
 
         bool selected = i == menu->selected;
+        if(mainmenu_home()) {
+            mainmenu_draw_home_tile(&entries[i], x, y, w, selected, &menu->press, (int) i);
+            continue;
+        }
+
         if(i < TILE_COUNT) {
             mainmenu_draw_tile(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
         } else {

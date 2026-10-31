@@ -6,6 +6,7 @@
 
 #include "settings.h"
 #include "../core/core.h"
+#include "../core/bgmusic.h"
 
 #define SETTINGS_PATH "sdmc:" APP_DATA_DIR "settings.json"
 
@@ -18,6 +19,8 @@ static settings_data settings = {
         .night = THEME_NIGHT_OFF,
         .sounds = SOUNDS_ALL,
         .soundVolume = 60,
+        .music = 0,
+        .musicVolume = 50,
         .language = LANGUAGE_SYSTEM,
         .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false},
         .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false},
@@ -89,6 +92,8 @@ void settings_load() {
 
     settings.sounds = settings_get_uint(json, "sounds", settings.sounds, SOUNDS_ALL);
     settings.soundVolume = settings_get_uint(json, "sound_volume", settings.soundVolume, 100);
+    settings.music = settings_get_uint(json, "music", settings.music, BGMUSIC_COUNT - 1);
+    settings.musicVolume = settings_get_uint(json, "music_volume", settings.musicVolume, 100);
 
     json_t* night = json_object_get(json, "night_mode");
     if(json_is_string(night)) {
@@ -151,6 +156,7 @@ void settings_apply() {
     theme_select(settings.theme, settings.accent, settings.night);
     i18n_set_language(settings.language);
     sound_set((sound_mode) settings.sounds, settings.soundVolume);
+    bgmusic_set((bgmusic_style) settings.music, settings.musicVolume);
 }
 
 Result settings_save() {
@@ -166,7 +172,7 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
@@ -176,6 +182,8 @@ Result settings_save() {
                              "language", language_ids[settings.language < LANGUAGE_COUNT ? settings.language : 0],
                              "sounds", (int) settings.sounds,
                              "sound_volume", (int) settings.soundVolume,
+                             "music", (int) settings.music,
+                             "music_volume", (int) settings.musicVolume,
                              "titles",
                              "media", (int) settings.titles.media,
                              "kinds", (int) settings.titles.kinds,

@@ -7,6 +7,7 @@
 #include "ftpserver.h"
 #include "section.h"
 #include "settings.h"
+#include "../core/bgmusic.h"
 #include "update.h"
 #include "../core/core.h"
 
@@ -20,6 +21,8 @@ typedef enum {
     OPTION_LANGUAGE,
     OPTION_SOUNDS,
     OPTION_SOUND_VOLUME,
+    OPTION_MUSIC,
+    OPTION_MUSIC_VOLUME,
     OPTION_CHANNEL,
     OPTION_AUTO_UPDATE,
     OPTION_FTP,
@@ -60,6 +63,8 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_LANGUAGE: return _("Language");
         case OPTION_SOUNDS: return _("Sounds");
         case OPTION_SOUND_VOLUME: return _("Sound volume");
+        case OPTION_MUSIC: return _("Background music");
+        case OPTION_MUSIC_VOLUME: return _("Music volume");
         case OPTION_CHANNEL: return _("Update channel");
         case OPTION_AUTO_UPDATE: return _("Check at start");
         case OPTION_FTP: return _("FTP server");
@@ -87,6 +92,12 @@ static const char* settingsmenu_value(settings_option option) {
             static char volume[8];
             snprintf(volume, sizeof(volume), "%lu%%", settings->soundVolume);
             return volume;
+        }
+        case OPTION_MUSIC: return settings->music == BGMUSIC_LIFT ? _("Lift") : settings->music == BGMUSIC_CALM ? _("Calm") : _("Off");
+        case OPTION_MUSIC_VOLUME: {
+            static char musicVolume[8];
+            snprintf(musicVolume, sizeof(musicVolume), "%lu%%", settings->musicVolume);
+            return musicVolume;
         }
         case OPTION_CHANNEL: return settings->channel == UPDATE_CHANNEL_BETA ? _("Beta") : _("Stable");
         case OPTION_AUTO_UPDATE: return settingsmenu_on_off(settings->autoUpdate);
@@ -133,6 +144,17 @@ static void settingsmenu_change(settings_option option, int direction) {
             settings->soundVolume = step > 0 ? (volume >= 100 ? 25 : (volume / 25 + 1) * 25) : (volume <= 25 ? 100 : ((volume - 1) / 25) * 25);
             sound_set((sound_mode) settings->sounds, settings->soundVolume);
             sound_play(SOUND_SUCCESS);
+            break;
+        }
+        case OPTION_MUSIC:
+            settings->music = settingsmenu_step(settings->music, BGMUSIC_COUNT, step);
+            bgmusic_set((bgmusic_style) settings->music, settings->musicVolume);
+            break;
+        case OPTION_MUSIC_VOLUME: {
+            // 25, 50, 75, 100 %, from wherever it is.
+            u32 volume = settings->musicVolume;
+            settings->musicVolume = step > 0 ? (volume >= 100 ? 25 : (volume / 25 + 1) * 25) : (volume <= 25 ? 100 : ((volume - 1) / 25) * 25);
+            bgmusic_set((bgmusic_style) settings->music, settings->musicVolume);
             break;
         }
         case OPTION_CHANNEL:
@@ -308,6 +330,11 @@ static const char* settingsmenu_help(settings_option option) {
                    : settings->sounds == SOUNDS_ALERTS ? _("Alerts: only when something ends well or fails (a transfer, an install).")
                                                        : _("Off: no sounds. They need the DSP firmware (dspfirm.cdc).");
         case OPTION_SOUND_VOLUME: return _("How loud the interface sounds are.");
+        case OPTION_MUSIC:
+            return settings->music == BGMUSIC_LIFT ? _("Lift: soft lift music, made by the console as it plays, in a loop of half a minute.")
+                   : settings->music == BGMUSIC_CALM ? _("Calm: slower and sparser, in a loop of about forty seconds.")
+                                                     : _("Off: no music. It needs the DSP firmware (dspfirm.cdc) and takes a moment to start.");
+        case OPTION_MUSIC_VOLUME: return _("How loud the background music is.");
         case OPTION_CHANNEL:
             return settings->channel == UPDATE_CHANNEL_BETA
                    ? _("Beta: the newest release, beta or stable. The changelog lists every release since yours.")

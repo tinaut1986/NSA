@@ -142,6 +142,13 @@ dates). The owner will go through them one by one; tick each only when they say 
       the SD card `SITE SCREENSHOT/PRESS/TAP/DRAG/INSTALL` work; delete it and they stop (checked in
       Azahar only). DEBUG builds always allow them.
 
+**Background music** (Settings -> Background music: Off / Lift / Calm, own volume; `source/core/bgmusic.c`)
+- [ ] On both consoles: it starts a few seconds after turning it on (DEBUG builds write how long the loop
+      took to `sdmc:/nsa/music-log.txt`; Azahar: 6.4 s), the join of the loop cannot be heard, it is
+      soft enough under the interface sounds, it goes quiet while the audio player plays and comes back,
+      nothing stutters in a heavy screen (Titles loading, a transfer) on the Old 3DS/2DS. The chords and timbre are the
+      Python sketch's; the melody notes are other ones (another random generator).
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.

@@ -137,6 +137,11 @@ dates). The owner will go through them one by one; tick each only when they say 
 - [ ] Not done yet from the mockup: icon grids (Titles, Tickets, Ext Save Data) **in pages with dots**
       (they still scroll), and the sheet's drag-to-dismiss (it has the handle only).
 
+**Remote use of the FTP server** (`sdmc:/nsa/remote.flag`)
+- [ ] In a production build the FTP server serves files but `SITE ...` answers 502; with the file on
+      the SD card `SITE SCREENSHOT/PRESS/TAP/DRAG/INSTALL` work; delete it and they stop (checked in
+      Azahar only). DEBUG builds always allow them.
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.

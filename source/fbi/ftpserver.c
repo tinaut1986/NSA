@@ -583,6 +583,26 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
     ftp_reply(s, ok ? "226 Done." : "451 Transfer failed.");
 }
 
+// Driving the console from a computer (screenshots, key presses and touches, installing a CIA) is
+// always on in DEBUG builds. In the others the FTP server only serves files, and these SITE
+// commands work only while this file exists on the SD card: the owner turns remote use on by
+// creating it, and off by deleting it.
+#define FTP_REMOTE_FLAG "/nsa/remote.flag"
+
+static bool ftp_remote_allowed() {
+    if(NSA_DEBUG) {
+        return true;
+    }
+
+    Handle file = 0;
+    if(R_SUCCEEDED(FSUSER_OpenFileDirectly(&file, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, FTP_REMOTE_FLAG), FS_OPEN_READ, 0))) {
+        FSFILE_Close(file);
+        return true;
+    }
+
+    return false;
+}
+
 static void ftp_cmd_site(ftp_session* s, char* arg) {
     char* sub = arg;
     char* path = strchr(sub, ' ');
@@ -594,6 +614,11 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         if(*c >= 'a' && *c <= 'z') {
             *c = (char) (*c - 32);
         }
+    }
+
+    if(!ftp_remote_allowed()) {
+        ftp_reply(s, "502 Remote use is off: create sdmc:" FTP_REMOTE_FLAG " on the SD card to turn it on.");
+        return;
     }
 
     if(strcmp(sub, "SCREENSHOT") == 0) {

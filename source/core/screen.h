@@ -47,6 +47,14 @@ bool screen_get_shapes_hidden();
 void screen_set_offset(float x, float y);
 void screen_draw_texture(u32 id, float x, float y, float width, float height);
 void screen_draw_texture_crop(u32 id, float x, float y, float width, float height);
+// The Pixel theme's font on or off (the theme sets it); sizes then come from the text scale.
+void screen_set_pixel_font(bool on);
+// Every rounded rectangle drawn square (a theme without rounding sets it).
+void screen_set_square_corners(bool on);
+bool screen_get_pixel_font();
+// The line's baseline and a character's advance for text drawn at `scale`.
+float screen_get_font_baseline(float scale);
+float screen_get_char_width(char c, float scale);
 float screen_get_font_height(float scaleY);
 void screen_get_string_size(float* width, float* height, const char* text, float scaleX, float scaleY);
 void screen_get_string_size_wrap(float* width, float* height, const char* text, float scaleX, float scaleY, float wrapWidth);

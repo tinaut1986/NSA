@@ -11,6 +11,7 @@
 #include "icons.h"
 #include "screen.h"
 #include "../libs/stb_image/stb_image.h"
+#include "pixelfont.h"
 
 #include "default_shbin.h"
 
@@ -44,6 +45,11 @@ static u32 current_width = TOP_SCREEN_WIDTH;
 static C3D_Tex* glyph_sheets;
 static u32 glyph_count;
 static float font_scale;
+
+// The Pixel theme's own font (pixelfont.c): fixed sizes picked from the text scale. What it lacks
+// (the button glyphs) comes from the system font, sized to match.
+static bool pixel_font_on = false;
+static u32 pixel_atlas = 0;
 
 static u8 base_alpha = 0xFF;
 
@@ -620,8 +626,76 @@ void screen_draw_texture_crop(u32 id, float x, float y, float width, float heigh
     base_alpha = savedAlpha;
 }
 
+void screen_set_pixel_font(bool on) {
+    pixel_font_on = on;
+}
+
+bool screen_get_pixel_font() {
+    return pixel_font_on;
+}
+
+static const pixelfont_size* pixel_size_for(float scaleY) {
+    return &pixelfont_sizes[scaleY < 0.46f ? 0 : scaleY < 0.56f ? 1 : 2];
+}
+
+static const pixelfont_glyph* pixel_find(const pixelfont_size* size, u32 code) {
+    int low = 0;
+    int high = (int) size->count - 1;
+    while(low <= high) {
+        int mid = (low + high) / 2;
+        u32 found = size->glyphs[mid].code;
+        if(found == code) {
+            return &size->glyphs[mid];
+        }
+
+        if(found < code) {
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    return NULL;
+}
+
+// The system font's scale that makes its line as tall as the pixel font's.
+static float pixel_fallback_scale(const pixelfont_size* size) {
+    return (float) size->lineHeight / (float) fontGetInfo(NULL)->lineFeed;
+}
+
+// How far the pen moves for `code`, and the height of a line, in pixels.
+static float font_char_width(u32 code, float scaleX, float scaleY) {
+    if(pixel_font_on) {
+        const pixelfont_size* size = pixel_size_for(scaleY);
+        const pixelfont_glyph* glyph = pixel_find(size, code);
+        if(glyph != NULL) {
+            return glyph->advance;
+        }
+
+        return pixel_fallback_scale(size) * fontGetCharWidthInfo(NULL, fontGlyphIndexFromCodePoint(NULL, code))->charWidth;
+    }
+
+    return scaleX * font_scale * fontGetCharWidthInfo(NULL, fontGlyphIndexFromCodePoint(NULL, code))->charWidth;
+}
+
+static float font_line_feed(float scaleY) {
+    if(pixel_font_on) {
+        return pixel_size_for(scaleY)->lineHeight;
+    }
+
+    return scaleY * font_scale * fontGetInfo(NULL)->lineFeed;
+}
+
 float screen_get_font_height(float scaleY) {
-    return scaleY * fontGetInfo(NULL)->lineFeed;
+    return pixel_font_on ? pixel_size_for(scaleY)->lineHeight : scaleY * fontGetInfo(NULL)->lineFeed;
+}
+
+float screen_get_font_baseline(float scale) {
+    return pixel_font_on ? pixel_size_for(scale)->ascent : fontGetGlyphInfo(NULL)->baselinePos * scale;
+}
+
+float screen_get_char_width(char c, float scale) {
+    return font_char_width((u8) c, scale, scale);
 }
 
 #define MAX_LINES 64
@@ -659,9 +733,6 @@ inline static void screen_wrap_string_finish_line(float* w, float* h, float* lw,
 
 static void screen_wrap_string(u32* lines, float* lineWidths, float* lineHeights, u32* numLines, float* totalWidth, float* totalHeight,
                                const char* text, u32 maxLines, float maxWidth, float scaleX, float scaleY, bool wordWrap) {
-    scaleX *= font_scale;
-    scaleY *= font_scale;
-
     float w = 0;
     float h = 0;
 
@@ -688,12 +759,12 @@ static void screen_wrap_string(u32* lines, float* lineWidths, float* lineHeights
             lastAlignPos = linePos;
         }
 
-        charWidth *= scaleX * fontGetCharWidthInfo(NULL, fontGlyphIndexFromCodePoint(NULL, code))->charWidth;
+        charWidth *= font_char_width(code, scaleX, scaleY);
 
         if(code == '\n' || (wordWrap && lw + charWidth >= maxWidth)) {
             if(code == '\n') {
                 linePos++;
-                lh = scaleY * fontGetInfo(NULL)->lineFeed;
+                lh = font_line_feed(scaleY);
             }
 
             u32 oldLinePos = linePos;
@@ -730,7 +801,7 @@ static void screen_wrap_string(u32* lines, float* lineWidths, float* lineHeights
             }
 
             lw += charWidth;
-            lh = scaleY * fontGetInfo(NULL)->lineFeed;
+            lh = font_line_feed(scaleY);
 
             linePos++;
         }
@@ -797,6 +868,11 @@ static void screen_draw_string_internal(const char* text, float x, float y, floa
     u32 lastAlignPos = 0;
     int lastSheet = -1;
 
+    // The system font's scale (for the pixel font, only for what it lacks).
+    const pixelfont_size* pixelSize = pixel_font_on ? pixel_size_for(scaleY) : NULL;
+    float sysScaleX = pixelSize != NULL ? pixel_fallback_scale(pixelSize) : scaleX * font_scale;
+    float sysScaleY = pixelSize != NULL ? pixel_fallback_scale(pixelSize) : scaleY * font_scale;
+
     const uint8_t* p = (const uint8_t*) text;
     u32 code = 0;
     ssize_t units = -1;
@@ -819,11 +895,41 @@ static void screen_draw_string_internal(const char* text, float x, float y, floa
                     lastAlignPos = linePos;
                 }
 
+                const pixelfont_glyph* pixelGlyph = pixelSize != NULL ? pixel_find(pixelSize, code) : NULL;
+                if(pixelGlyph != NULL && textures[pixel_atlas].tex.data != NULL) {
+                    if(lastSheet != -2) {
+                        lastSheet = -2;
+                        C3D_TexBind(0, &textures[pixel_atlas].tex);
+                    }
+
+                    // Whole pixels, one texel each.
+                    float uScale = (float) textures[pixel_atlas].width / textures[pixel_atlas].tex.width;
+                    float vScale = (float) textures[pixel_atlas].height / textures[pixel_atlas].tex.height;
+                    float gx = (float) (int) (currX + 0.5f) + pixelGlyph->xoff;
+                    float gy = (float) (int) (currY + 0.5f) + pixelGlyph->yoff;
+                    float u1 = (float) pixelGlyph->x / pixelfont_atlas_width * uScale;
+                    float u2 = (float) (pixelGlyph->x + pixelGlyph->w) / pixelfont_atlas_width * uScale;
+                    float v1 = (float) pixelGlyph->y / pixelfont_atlas_height;
+                    float v2 = (float) (pixelGlyph->y + pixelGlyph->h) / pixelfont_atlas_height;
+
+                    for(u32 j = 0; j < num; j++) {
+                        if(pixelGlyph->w > 0) {
+                            screen_draw_quad(gx, gy, gx + pixelGlyph->w, gy + pixelGlyph->h, u1, 1.0f - v2 * vScale, u2, 1.0f - v1 * vScale);
+                        }
+
+                        currX += pixelGlyph->advance;
+                        gx += pixelGlyph->advance;
+                    }
+
+                    linePos++;
+                    continue;
+                }
+
                 fontGlyphPos_s data;
-                fontCalcGlyphPos(&data, NULL, fontGlyphIndexFromCodePoint(NULL, code), GLYPH_POS_CALC_VTXCOORD, scaleX * font_scale, scaleY * font_scale);
+                fontCalcGlyphPos(&data, NULL, fontGlyphIndexFromCodePoint(NULL, code), GLYPH_POS_CALC_VTXCOORD, sysScaleX, sysScaleY);
 
                 if(data.sheetIndex >= glyph_count) {
-                    fontCalcGlyphPos(&data, NULL, fontGlyphIndexFromCodePoint(NULL, 0xFFFD), GLYPH_POS_CALC_VTXCOORD, scaleX * font_scale, scaleY * font_scale);
+                    fontCalcGlyphPos(&data, NULL, fontGlyphIndexFromCodePoint(NULL, 0xFFFD), GLYPH_POS_CALC_VTXCOORD, sysScaleX, sysScaleY);
                 }
 
                 if(data.sheetIndex < glyph_count && data.sheetIndex != lastSheet) {
@@ -980,6 +1086,8 @@ static void screen_init_shapes() {
     screen_load_texture_path(shape_icons16, "romfs:/icons16.png", true);
     shape_icons32 = screen_allocate_free_texture();
     screen_load_texture_path(shape_icons32, "romfs:/icons32.png", true);
+    pixel_atlas = screen_allocate_free_texture();
+    screen_load_texture_path(pixel_atlas, "romfs:/pixelfont.png", false);
 }
 
 static u32 screen_apply_base_alpha(u32 color) {
@@ -1019,7 +1127,17 @@ void screen_fill_rect(float x, float y, float width, float height, u32 color) {
     screen_draw_mask(shape_white, x, y, x + width, y + height, 0.25f, 0.25f, 0.75f, 0.75f, color);
 }
 
+static bool square_corners = false;
+
+void screen_set_square_corners(bool on) {
+    square_corners = on;
+}
+
 void screen_fill_round_rect(float x, float y, float width, float height, float radius, u32 color) {
+    if(square_corners) {
+        radius = 0;
+    }
+
     float max = (width < height ? width : height) / 2;
     if(radius > max) {
         radius = max;

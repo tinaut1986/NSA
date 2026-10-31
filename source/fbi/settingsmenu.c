@@ -299,7 +299,7 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
 static const char* settingsmenu_help(settings_option option) {
     settings_data* settings = settings_get();
     switch(option) {
-        case OPTION_THEME: return _("How the menus look. More themes are on the way.");
+        case OPTION_THEME: return _("How the menus look.");
         case OPTION_ACCENT: return _("The colour of buttons, selections and bars.");
         case OPTION_NIGHT: return _("Dark colours. Automatic: from 20:00 to 8:00.");
         case OPTION_LANGUAGE: return _("System: the console's language when NSA has it, else English.");

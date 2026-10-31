@@ -188,6 +188,27 @@ void widget_progress(float x, float y, float width, float height, float progress
         progress = 1;
     }
 
+    if(t->def->blockBars) {
+        // Blocks, 2 px apart, from the left: the theme's look for a bar.
+        float block = height >= 8 ? 4 : 3;
+        u32 count = (u32) ((width + 2) / (block + 2));
+        if(count == 0) {
+            count = 1;
+        }
+
+        float pitch = (width + 2) / count;
+        u32 on = (u32) (count * progress + 0.5f);
+        if(progress > 0 && on == 0) {
+            on = 1;
+        }
+
+        for(u32 i = 0; i < count; i++) {
+            screen_fill_rect((float) (int) (x + i * pitch), y, pitch - 2 >= 1 ? pitch - 2 : 1, height, i < on ? t->accent : t->palette->border);
+        }
+
+        return;
+    }
+
     screen_fill_round_rect(x, y, width, height, height / 2, t->palette->border);
     if(progress > 0) {
         float filled = width * progress;
@@ -445,8 +466,7 @@ static void widget_text_packed(const char* text, float x1, float x2, float y, fl
     u32 count = 0;
     float total = 0;
     for(const char* c = text; *c != '\0' && count < 16; c++, count++) {
-        charWidthInfo_s* info = fontGetCharWidthInfo(NULL, fontGlyphIndexFromCodePoint(NULL, (u8) *c));
-        advances[count] = info->charWidth * scale;
+        advances[count] = screen_get_char_width(*c, scale);
         cells[count] = *c == '1' ? advances[count] * 0.6f : advances[count];
         total += cells[count];
     }
@@ -524,7 +544,7 @@ float widget_battery(float right, float y, float height) {
         // baseline goes on the second-last inner row. (The console's system
         // font; Azahar's stand-in sits differently.)
         float scale = 0.41f;
-        float baseline = fontGetGlyphInfo(NULL)->baselinePos * scale;
+        float baseline = screen_get_font_baseline(scale);
         widget_text_packed(text, x, x + w, y + height - 2 - baseline, scale, t->palette->text);
     }
 

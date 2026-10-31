@@ -67,3 +67,15 @@ device-desktop
 keyboard
 history
 3ds
+scissors
+file-text
+zoom-in
+zoom-out
+box
+arrows-maximize
+player-pause
+player-track-prev
+player-track-next
+rewind-backward-10
+rewind-forward-10
+volume

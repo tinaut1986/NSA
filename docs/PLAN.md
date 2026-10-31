@@ -37,6 +37,17 @@ What `release` holds, in the order it was built:
 10. **Export an installed title as a CIA** (Titles' sheet; by another session, validated).
 11. **Console to console** (below): send and receive files and titles, over the Wi-Fi or
     with no router, install on arrival, resume, log.
+12. **Files: cut/move, pictures and text** (branch `feat/file-viewers`, not merged until the owner
+    validates): "Cut (move)" on files and folders (renamed when pasted on the same medium,
+    else copied then deleted); tapping a picture (PNG, JPEG, BMP, GIF, TGA, camera MPO in 3D)
+    opens `imageview.c` (zoom, drag, L/R through the folder; decoded up to 5 megapixels and
+    shrunk to a 1024 px texture); text files (and "Open as text" for any file) open
+    `textview.c`, which edits with its own keyboard on the bottom screen (the system one hides
+    the text), keeps CRLF, reads non-UTF-8 as Latin-1, up to 256 KB (longer: read only).
+13. **Audio player** (branch `feat/audio-player`, cut from `feat/file-viewers`): MP3, WAV, FLAC and
+    Ogg Vorbis from Files (`audioview.c`). dr_mp3/dr_flac/dr_wav (vendored in `source/libs/dr_libs`,
+    public domain) and Tremor decode on a thread into four DSP buffers; the next file of the
+    folder follows, seek bar, volume, +-10 s. Needs `sdmc:/3ds/dspfirm.cdc`. Tested only on Azahar.
 
 ## Export an installed title as a CIA (`source/fbi/action/exportcia.c`)
 

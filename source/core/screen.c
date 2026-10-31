@@ -470,7 +470,14 @@ void screen_select(gfxScreen_t screen) {
     screen_select_eye(screen, GFX_LEFT, 0);
 }
 
+static gfx3dSide_t current_eye = GFX_LEFT;
+
+gfx3dSide_t screen_get_eye() {
+    return current_eye;
+}
+
 void screen_select_eye(gfxScreen_t screen, gfx3dSide_t side, float shift) {
+    current_eye = screen == GFX_TOP ? side : GFX_LEFT;
     C3D_RenderTarget* target = screen == GFX_TOP ? (side == GFX_RIGHT ? target_top_right : target_top) : target_bottom;
     current_width = screen == GFX_TOP ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
     stereo_shift = screen == GFX_TOP ? shift : 0;

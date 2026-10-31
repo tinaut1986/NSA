@@ -32,7 +32,11 @@ typedef struct {
     void (*onResponse)(ui_view* view, void* data, u32 response);
     widget_press press;   // Touched button, answered on release over it.
     u64 opened;           // For the card's entrance.
+    bool danger;          // A warning: the card, icon and first button in a soft red.
 } prompt_data;
+
+// Set by prompt_display_warning for the prompt it is about to create.
+static bool prompt_next_danger = false;
 
 #define PROMPT_WIDTH 288
 #define PROMPT_PAD 12
@@ -195,7 +199,11 @@ static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, fl
     screen_set_offset(0, (1 - e) * 14);
     screen_set_base_alpha((u8) (0x40 + e * 0xBF));
 
-    screen_frame_round_rect(cardX, cardY, PROMPT_WIDTH, cardH, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
+    if(promptData->danger) {
+        screen_frame_round_rect(cardX, cardY, PROMPT_WIDTH, cardH, t->def->radius, t->def->border, t->palette->danger, theme_mix(t->palette->surface, t->palette->danger, 0x1A));
+    } else {
+        screen_frame_round_rect(cardX, cardY, PROMPT_WIDTH, cardH, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
+    }
 
     // Header: what kind of dialog it is, by icon and colour.
     screen_draw_icon(promptData->icon, cardX + PROMPT_PAD, cardY + PROMPT_PAD - 1, 16, promptData->iconColor);
@@ -214,8 +222,13 @@ static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, fl
         snprintf(label, sizeof(label), "%s  %s", button, promptData->options[i]);
 
         // The first option (Yes, OK) is the one that goes ahead.
-        widget_button_centered(x, y, w, PROMPT_BUTTON_HEIGHT, label, i == 0);
-        widget_press_draw(&promptData->press, (int) i, x, y, w, PROMPT_BUTTON_HEIGHT, t->def->radiusSmall, i == 0 ? t->onAccent : t->palette->text, false);
+        if(promptData->danger && i == 0) {
+            widget_button_centered_danger(x, y, w, PROMPT_BUTTON_HEIGHT, label, true);
+        } else {
+            widget_button_centered(x, y, w, PROMPT_BUTTON_HEIGHT, label, i == 0);
+        }
+
+        widget_press_draw(&promptData->press, (int) i, x, y, w, PROMPT_BUTTON_HEIGHT, t->def->radiusSmall, i == 0 ? (promptData->danger ? (t->night ? t->palette->background : t->onAccent) : t->onAccent) : t->palette->text, false);
     }
 
     screen_set_offset(0, 0);
@@ -271,6 +284,13 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
     promptData->drawTop = drawTop;
     promptData->onResponse = onResponse;
 
+    promptData->danger = prompt_next_danger;
+    prompt_next_danger = false;
+    if(promptData->danger) {
+        promptData->icon = ICON_ALERT_TRIANGLE;
+        promptData->iconColor = t->palette->danger;
+    }
+
     ui_view* view = ui_create();
     view->name = i18n_translate_text(name);
     view->id = name;
@@ -313,4 +333,12 @@ bool prompt_describe(ui_view* view, ui_description* out) {
     }
 
     return true;
+}
+
+ui_view* prompt_display_warning(const char* name, const char* text, u32 color, void* data, void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2),
+                                                                                          void (*onResponse)(ui_view* view, void* data, u32 response)) {
+    prompt_next_danger = true;
+    ui_view* view = prompt_display_yes_no(name, text, color, data, drawTop, onResponse);
+    prompt_next_danger = false;
+    return view;
 }

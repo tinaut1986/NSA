@@ -29,6 +29,9 @@ void widget_badge(float x, float y, const char* text, u32 background, u32 foregr
 
 // A button: icon (or -1) and label; `selected` fills it with the accent.
 void widget_button(float x, float y, float width, float height, int icon, const char* label, bool selected);
+// The same in a soft red, for what can harm the console.
+void widget_button_danger(float x, float y, float width, float height, int icon, const char* label, bool selected);
+void widget_button_centered_danger(float x, float y, float width, float height, const char* label, bool selected);
 // A button with its label centred (modal buttons).
 void widget_button_centered(float x, float y, float width, float height, const char* label, bool selected);
 // A list row: icon (or -1), label on the left and, if given, a value on the

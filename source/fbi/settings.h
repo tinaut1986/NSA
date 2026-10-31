@@ -57,6 +57,10 @@ typedef struct {
     theme_night_mode night;
     language_id language;
 
+    // Interface sounds: a sound_mode and a volume in percent.
+    u32 sounds;
+    u32 soundVolume;
+
     titles_settings titles;
     tickets_settings tickets;
     files_settings files;

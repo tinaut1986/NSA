@@ -4,6 +4,7 @@
 
 #include <3ds.h>
 
+#include "../sound.h"
 #include "error.h"
 #include "prompt.h"
 #include "ui.h"
@@ -244,9 +245,11 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
 
     const theme_current* t = theme();
     if(name != NULL && (strcmp(name, "Success") == 0)) {
+        sound_play(SOUND_SUCCESS);
         promptData->icon = ICON_CHECK;
         promptData->iconColor = t->palette->success;
     } else if(name != NULL && (strcmp(name, "Error") == 0 || strcmp(name, "Failure") == 0)) {
+        sound_play(SOUND_ERROR);
         promptData->icon = ICON_ALERT_TRIANGLE;
         promptData->iconColor = t->palette->danger;
     } else {

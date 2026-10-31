@@ -79,3 +79,8 @@ player-track-next
 rewind-backward-10
 rewind-forward-10
 volume
+file-zip
+file-code
+movie
+file-settings
+file-type-pdf

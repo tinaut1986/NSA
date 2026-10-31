@@ -638,6 +638,19 @@ const i18n_entry i18n_es[] = {
         {"Alerts: only when something ends well or fails (a transfer, an install).", "Avisos: solo cuando algo termina bien o falla (una transferencia, una instalación)."},
         {"Off: no sounds. They need the DSP firmware (dspfirm.cdc).", "No: sin sonidos. Necesitan el firmware del DSP (dspfirm.cdc)."},
         {"How loud the interface sounds are.", "Lo fuerte que suenan los sonidos de la interfaz."},
+        // File types
+        {"Text", "Texto"},
+        {"Code", "Código"},
+        {"Data", "Datos"},
+        {"Picture", "Imagen"},
+        {"Sound", "Sonido"},
+        {"Video", "Vídeo"},
+        {"Program", "Programa"},
+        {"Game ROM", "ROM de juego"},
+        {"Save file", "Partida"},
+        {"Binary", "Binario"},
+        {"PDF", "PDF"},
+        {"Compressed", "Comprimido"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

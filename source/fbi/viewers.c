@@ -27,6 +27,11 @@ static bool viewers_ext_in(const char* ext, const char* list) {
     return false;
 }
 
+bool viewers_has_ext(const char* name, const char* list) {
+    const char* dot = strrchr(name, '.');
+    return dot != NULL && dot != name && viewers_ext_in(dot + 1, list);
+}
+
 viewer_kind viewers_kind_of(const char* name) {
     const char* dot = strrchr(name, '.');
     if(dot == NULL || dot == name) {

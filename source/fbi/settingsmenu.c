@@ -68,6 +68,7 @@ typedef struct {
     bool touching;
     bool dragged;
     int sliding;         // The row whose slider a finger is on, or -1.
+    bool barDrag;        // A finger holds the scrollbar.
     widget_press press;
     u16 touchStartY;
     u16 lastTouchY;
@@ -300,7 +301,11 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         menu->touchStartY = menu->lastTouchY = pos.py;
         widget_press_end(&menu->press);
         menu->sliding = -1;
-        if(pos.py >= by1 + PAD && pos.py < by2 - PAD) {
+        menu->barDrag = widget_scrollbar_touched(&pos, bx2 - PAD - WIDGET_SCROLLBAR_WIDTH, by1 + PAD, viewHeight, viewHeight, settingsmenu_total_height());
+        if(menu->barDrag) {
+            menu->scroll = widget_scrollbar_offset(by1 + PAD, viewHeight, viewHeight, settingsmenu_total_height(), pos.py);
+            settingsmenu_clamp_scroll(menu, viewHeight);
+        } else if(pos.py >= by1 + PAD && pos.py < by2 - PAD) {
             float offset = pos.py - by1 - PAD + menu->scroll;
             for(u32 index = 0; index < OPTION_COUNT; index++) {
                 float top = settingsmenu_row_top(index);
@@ -321,7 +326,10 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         }
     }
 
-    if(menu->touching && menu->sliding >= 0 && (hidKeysHeld() & KEY_TOUCH)) {
+    if(menu->touching && menu->barDrag && (hidKeysHeld() & KEY_TOUCH)) {
+        menu->scroll = widget_scrollbar_offset(by1 + PAD, viewHeight, viewHeight, settingsmenu_total_height(), pos.py);
+        settingsmenu_clamp_scroll(menu, viewHeight);
+    } else if(menu->touching && menu->sliding >= 0 && (hidKeysHeld() & KEY_TOUCH)) {
         float trackX, trackWidth, centerY;
         widget_row_slider_track(bx1 + PAD, 0, bx2 - bx1 - 2 * PAD - WIDGET_SCROLLBAR_WIDTH - 4, &trackX, &trackWidth, &centerY);
         float fraction = ((float) pos.px - trackX) / trackWidth;
@@ -342,6 +350,11 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         menu->lastTouchY = pos.py;
     } else if(menu->touching && (hidKeysUp() & KEY_TOUCH)) {
         menu->touching = false;
+        if(menu->barDrag) {
+            menu->barDrag = false;
+            return;
+        }
+
         if(menu->sliding >= 0) {
             menu->sliding = -1;
             settings_apply();

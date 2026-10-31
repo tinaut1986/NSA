@@ -156,6 +156,10 @@ dates). The owner will go through them one by one; tick each only when they say 
       bar with its percentage under it (they replace the two "volume" rows); a finger anywhere along the bar sets the
       volume in steps of 5 and it applies while dragging; X / Y change it with the buttons.
 
+**Draggable scrollbars** (lists, Settings, action sheets, filter popovers)
+- [ ] On a console: a finger on the bar on the right (a wide area, not only the 4 px) makes the screen follow it, a
+      tap on the bar jumps there, and dragging the content still works as before. Seen in Azahar with SITE DRAG.
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.

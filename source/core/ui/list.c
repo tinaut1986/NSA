@@ -62,6 +62,7 @@ typedef struct {
     list_item* pressPrevious;
     bool revealPending;   // Scroll the selection into view on the next update.   // Selected before the touch, back when it turns into a drag.
     bool barTouching;
+    bool scrollbarTouching;   // A finger holds the scrollbar.
     int barTarget;
     void (*longPress)(ui_view* view, void* data, linked_list* items, list_item* item);
 
@@ -482,10 +483,20 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
     if(hidKeysDown() & KEY_TOUCH) {
         listData->touching = false;
         listData->barTouching = false;
+        listData->scrollbarTouching = false;
         int target = list_title_bar_target(listData, &pos);
+        float barTotal = list_total_height(listData, &l);
         if(pos.py < WIDGET_TITLE_BAR_HEIGHT) {
             listData->barTouching = view->drawTitleBar != NULL && target != -2;
             listData->barTarget = target;
+        } else if(widget_scrollbar_touched(&pos, l.x2 + 4, l.y1, l.y2 - l.y1, l.y2 - l.y1, barTotal)) {
+            // The scrollbar: the list follows the finger along it.
+            listData->scrollbarTouching = true;
+            listData->scrollVelocity = 0;
+            listData->scrollGliding = false;
+            listData->scrollPos = widget_scrollbar_offset(l.y1, l.y2 - l.y1, l.y2 - l.y1, barTotal, pos.py);
+            listData->scrollTarget = listData->scrollPos;
+            list_clamp_scroll(listData, &l);
         } else {
             listData->touching = true;
             listData->dragged = false;
@@ -506,6 +517,13 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
                 }
             }
         }
+    } else if(listData->scrollbarTouching && (hidKeysHeld() & KEY_TOUCH)) {
+        listData->scrollPos = widget_scrollbar_offset(l.y1, l.y2 - l.y1, l.y2 - l.y1, list_total_height(listData, &l), pos.py);
+        listData->scrollTarget = listData->scrollPos;
+        listData->scrollVelocity = 0;
+        list_clamp_scroll(listData, &l);
+    } else if(listData->scrollbarTouching && (hidKeysUp() & KEY_TOUCH)) {
+        listData->scrollbarTouching = false;
     } else if(listData->barTouching && (hidKeysHeld() & KEY_TOUCH)) {
         if(list_title_bar_target(listData, &pos) != listData->barTarget) {
             listData->barTarget = -2;

@@ -156,6 +156,10 @@ static void history_add(const char* urls) {
     history_save();
 }
 
+void remoteinstall_note_urls(const char* urls) {
+    history_add(urls);
+}
+
 // How many links, from where, and the first few of them.
 static u32 history_describe(const history_entry* entry, char* host, size_t hostSize, char shown[][DOWNLOAD_URL_MAX], u32 shownMax) {
     u32 count = 0;

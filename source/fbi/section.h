@@ -12,6 +12,8 @@ void files_open_twl_photo();
 void files_open_twl_sound();
 void pendingtitles_open();
 void remoteinstall_open();
+// Adds URLs to the history of Remote Install (the web page installs through the same screens).
+void remoteinstall_note_urls(const char* urls);
 void systemsavedata_open();
 void tickets_open();
 void titles_open();

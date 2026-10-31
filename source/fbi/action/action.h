@@ -75,6 +75,9 @@ void action_import_save_files(title_info* title, const char* name, save_kind kin
 // Sent as one file (a package, see savetransfer.c) over the console to console transfer.
 void action_send_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
 bool action_find_ext_data(title_info* info, u32* extId);
+// For the web server: the package of a save made at once, and whether the data exists.
+Result action_save_pack_sync(title_info* title, const char* name, save_kind kind, u32 extId, char* outPath, size_t outSize, u64* size);
+bool action_save_data_exists(title_info* title, save_kind kind, u32* extId);
 bool action_find_boss_data(title_info* info, u32* extId);
 // The receiving side: a package's file name tells what it is; `path` is inside the SD archive.
 bool action_save_package_name(const char* fileName, u64* titleId, save_kind* kind, char* name, size_t nameSize);

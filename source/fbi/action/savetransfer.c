@@ -1371,6 +1371,72 @@ void action_send_save_files(title_info* title, const char* name, save_kind kind,
     worker_start(w, "Packing");
 }
 
+// The same package, made at once on the calling thread (the web server's), without a screen. The package
+// is at `outPath` (inside the SD archive) and `size` bytes long.
+Result action_save_pack_sync(title_info* title, const char* name, save_kind kind, u32 extId, char* outPath, size_t outSize, u64* size) {
+    worker w;
+    memset(&w, 0, sizeof(w));
+    pack_job* job = (pack_job*) calloc(1, sizeof(pack_job));
+    if(job == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    job->title = *title;
+    string_copy(job->name, name, sizeof(job->name));
+    job->kind = kind;
+    job->extId = extId;
+    job->buffer = (u8*) malloc(PACK_BUFFER);
+
+    Result res = job->buffer != NULL ? 0 : R_APP_OUT_OF_MEMORY;
+    if(R_SUCCEEDED(res)) {
+        res = save_open_target(&job->src, title, kind, extId);
+    }
+
+    if(R_SUCCEEDED(res)) {
+        char clean[PACK_NAME_MAX];
+        size_t n = 0;
+        for(const char* c = name; *c != '\0' && n + 1 < sizeof(clean); c++) {
+            bool plain = (*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') || (*c >= '0' && *c <= '9') || *c == ' ' || *c == '.' || *c == '(' || *c == ')';
+            clean[n++] = plain ? *c : '_';
+        }
+
+        clean[n] = '\0';
+        snprintf(job->fileName, sizeof(job->fileName), "%016llX-%s-%s" PACK_EXT, (unsigned long long) title->titleId, save_kind_dir(kind), clean);
+        snprintf(job->sdPath, sizeof(job->sdPath), PACK_DIR "%s", job->fileName);
+        snprintf(job->path, sizeof(job->path), "sdmc:%s", job->sdPath);
+
+        FS_Archive sd = 0;
+        if(R_SUCCEEDED(save_open_sd(&sd))) {
+            save_make_dirs(sd, PACK_DIR);
+            fs_close_archive(sd);
+        }
+
+        w.arg = job;
+        res = pack_work(&w);
+        fs_close_archive(job->src);
+    }
+
+    if(R_SUCCEEDED(res)) {
+        string_copy(outPath, job->sdPath, outSize);
+        *size = 0;
+        FILE* f = fopen(job->path, "rb");
+        if(f != NULL) {
+            fseek(f, 0, SEEK_END);
+            *size = (u64) ftell(f);
+            fclose(f);
+        }
+    }
+
+    free(job->buffer);
+    free(job);
+    return res;
+}
+
+// Is there data of `kind` for this installed title? Fills `extId` for extra and SpotPass data.
+bool action_save_data_exists(title_info* title, save_kind kind, u32* extId) {
+    return save_find_kind(title, kind, extId);
+}
+
 // ---- receiving one ----
 
 // Reads "<TITLEID>-<save|ext>-<name>.nsasave"; false for any other name.

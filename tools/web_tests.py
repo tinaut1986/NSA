@@ -47,4 +47,17 @@ s, b = req('GET', '/api/list?path=/../nsa', a.pin); check('.. refused', s == 400
 s, b = req('POST', '/api/rename?path=/webtest/big.bin&to=/webtest/b2.bin', a.pin); check('rename', s == 200)
 s, b = req('DELETE', '/api/file?path=/', a.pin); check('root not deletable', s == 403)
 s, b = req('DELETE', '/api/file?path=/webtest', a.pin); check('delete folder', s == 200)
+s, b = req('GET', '/theme.json'); t = json.loads(b) if s == 200 else {}
+check('theme is public and has colours', s == 200 and t.get('theme') in ('cards', 'pixel', 'home') and t['colors']['accent'].startswith('#'))
+s, b = req('GET', '/font.ttf'); check('pixel font', s == 200 and len(b) > 10000)
+s, b = req('GET', '/api/titles', a.pin); titles = json.loads(b)['titles'] if s == 200 else []
+check('titles list', s == 200 and isinstance(titles, list))
+if titles:
+    t0 = titles[0]; q = f"id={t0['id']}&media={t0['media']}"
+    s, b = req('GET', '/api/title?' + q, a.pin); check('title details', s == 200 and 'name' in json.loads(b))
+    s, b = req('POST', '/api/save/pack?' + q + '&kind=nope', a.pin); check('bad kind is 400', s == 400)
+    s, b = req('GET', '/api/icon?' + q, a.pin); check('icon is a 48x48 BMP', s == 200 and b[:2] == b'BM' and len(b) == 54 + 48 * 48 * 3 or s == 404)
+s, b = req('GET', '/api/title?id=0004000000000000&media=sd', a.pin); check('unknown title is 404', s == 404)
+s, b = req('POST', '/api/save/pack?id=0004000000000000&media=sd&kind=save', a.pin); check('save of an unknown title is 404', s == 404)
+s, b = req('POST', '/api/save/receive?path=/webtest/x.nsasave', a.pin); check('receive only from /nsa/received', s == 400)
 print('failures:', fails); sys.exit(1 if fails else 0)

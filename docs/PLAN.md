@@ -343,7 +343,9 @@ current, this list is the summary. What only the owner can test (local wireless)
    - **Receiving**, in the same Receive screen: *Import now* (red; only if the title or archive is
      there) / *Save in a folder* / *Reject*; with no title or archive, only *Save in a folder* / *Reject*
      and the text says why. Mockup: `saves-mock.png` (owner's chat, 2026-10-31).
-   - Open: warn when the versions differ; ext data to the right game depends on the exact ext data link (4).
+   - When the sender's game version differs from the installed one (same title ID), the receiver shows
+     both versions and asks whether to import anyway (the owner's choice, never blocked or forced).
+   - Open: ext data to the right game depends on the exact ext data link (4).
 4. **Exact ext data link**: read the ExtData ID from each game's exheader (NCCH
    `ExHeader`, ARM11 local system capabilities, offset 0x230 by 3dbrew; check with the
    Program ID at 0x200) instead of the ID heuristics. The file path type for the exheader

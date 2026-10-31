@@ -67,6 +67,11 @@ void action_erase_twl_save(linked_list* items, list_item* selected);
 void action_export_twl_save(linked_list* items, list_item* selected);
 void action_import_twl_save(linked_list* items, list_item* selected);
 void action_browse_title_save_data(linked_list* items, list_item* selected);
+
+// Save data and extra data as plain folders on the SD card (savetransfer.c). `extId` is for SAVE_KIND_EXT.
+typedef enum { SAVE_KIND_SAVE, SAVE_KIND_EXT } save_kind;
+void action_export_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
+void action_import_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
 void action_import_secure_value(linked_list* items, list_item* selected);
 void action_export_secure_value(linked_list* items, list_item* selected);
 void action_delete_secure_value(linked_list* items, list_item* selected);

@@ -114,6 +114,9 @@ What `release` holds, in the order it was built:
 ## Pending tests on the console (2026-10-31)
 
 **Web server** (item 10; `source/fbi/webserver.c`; tested only in Azahar with `tools/web_tests.py` and the page in a browser)
+- [ ] The page wears the console's theme: change theme (Cards, Pixel, HOME), accent and night mode on the console and see the page follow within seconds.
+- [ ] Titles tab on a real console: the list, names and icons arrive (a console has many more titles than Azahar: how long, and does the console stay usable), filters.
+- [ ] Download a save, extra data and SpotPass data of a game as a package; send that package back from the page: the console unpacks it and asks about the import (red) there.
 - [ ] Settings -> Web server: On/Off; the row's top screen shows `http://IP:8080  PIN nnnnnn`; the PIN changes each time it starts; it starts at launch when it was left on.
 - [ ] From the PC: open the address, the PIN screen, wrong PIN (and the lock after 10), browse the SD card, download, upload (a big file, several at once), new folder, rename, delete.
 - [ ] Install a `.cia` from the page (an SD title; NSA itself restarts); the toast on the bottom screen shows it.
@@ -454,9 +457,22 @@ current, this list is the summary. What only the owner can test (local wireless)
       It is plain HTTP: anyone who can watch the Wi-Fi sees the PIN (no HTTPS on the 3DS in practice). Not for untrusted networks.
     - **Tests**: `tools/web_tests.py --host 127.0.0.1` (Azahar with `"web_server": true`; PIN from `/nsa/web-pin.txt`) checks the page,
       the PIN rules, upload/download/range/list/rename/delete and the path rules. Last run 2026-10-31: all pass in Azahar.
-    - **Phase 2 (next)**: the Titles list in the page (icons, sizes, kinds, filters), and from there export, import and download or upload
-      of saves, extra data and SpotPass data (the same code as `savetransfer.c`; a download is the `.nsasave` package, an upload is
-      received like a transfer), launch, delete, install from a URL; the history of Remote Install; the transfer log.
+    - **Theme in the page** (built): `GET /theme.json` (public, only colours and shapes) gives the console's current theme resolved for
+      day or night: palette, accent, radii, border width, `pixel`. The page sets CSS variables from it and re-reads it every 5 s, so
+      changing the theme, accent or night mode on the console changes the page. Pixel also loads the bundled font
+      (`romfs/web/PixelifySans.ttf`, OFL, served at `/font.ttf`), square corners and thick borders. The HOME theme's big tiles
+      are not copied (its colours and radii are). Checked in Azahar with Cards (night, blue) and Pixel (day, yellow).
+    - **Phase 2** (built): a *Titles* tab beside *Files*. `GET /api/titles` is fast (ids, kind, version, size of the SD and NAND titles,
+      no DSiWare); the page asks `GET /api/title` for each card's name, publisher, product code and which of save / extra /
+      SpotPass data it has, one at a time (the server answers one request at a time), and `GET /api/icon` (the 48x48 icon as a BMP,
+      untiled from the SMDH). Filters: text and kind (games and demos by default). Per title, *Download save / extra data /
+      SpotPass*: `POST /api/save/pack` makes the same `.nsasave` package as sending (`action_save_pack_sync`, on the web
+      thread) and the page downloads it from `/nsa/saves/send/`. *Send a save package to the console* uploads a package to
+      `/nsa/received/` and `POST /api/save/receive?import=1` hands it to the main thread (`webserver_poll_main`), which runs
+      `action_save_package_received` as if it had been sent: unpacked into `nsa/saves/<TITLEID>/<date>/`, and, if the title or
+      its data is here, the red *import* question appears **on the console** (nothing is replaced from the page alone).
+    - **Phase 2 left**: import from the page an export already on the SD card (list `nsa/saves/<TITLEID>/` and Checkpoint's, ask on the
+      console); launch and delete a title; install from a URL; Remote Install's history; the transfer log; tickets and ext save data.
     - **Phase 3**: the screens live (repeat `screen_capture`, now a BMP on the SD: a PNG/JPEG in memory would be better) and
       sending buttons and touches (`SITE PRESS` / `TAP` already exist in `ftpserver.c`: move them to a shared module).
     - **Ideas**: a `remote.flag`-like switch for the destructive calls; drag whole folders (`webkitGetAsEntry`); download a folder

@@ -20,7 +20,10 @@
 #include "relaunch.h"
 #include "transfer.h"
 #include "webserver.h"
+#include "action/action.h"
+#include "task/uitask.h"
 #include "../core/core.h"
+#include "../core/data/smdh.h"
 
 #define WEB_PATH_MAX 512
 #define WEB_HEAD_MAX 8192
@@ -134,7 +137,11 @@ static const char* web_status_text(int status) {
 // The head of a response. `length` < 0 sends none (the connection closing ends the body).
 static bool web_send_head(web_request* r, int status, const char* type, s64 length, const char* extra) {
     char head[512];
-    int n = snprintf(head, sizeof(head), "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nCache-Control: no-store\r\nConnection: close\r\n", status, web_status_text(status), type);
+    int n = snprintf(head, sizeof(head), "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nConnection: close\r\n", status, web_status_text(status), type);
+    if(extra == NULL || strstr(extra, "Cache-Control") == NULL) {
+        n += snprintf(head + n, sizeof(head) - n, "Cache-Control: no-store\r\n");
+    }
+
     if(length >= 0) {
         n += snprintf(head + n, sizeof(head) - n, "Content-Length: %lld\r\n", (long long) length);
     }
@@ -614,17 +621,17 @@ static void web_api_install(web_request* r) {
 
 // ---- the page ----
 
-static void web_send_page(web_request* r) {
-    FILE* f = fopen("romfs:/web/index.html", "rb");
+static void web_send_romfs(web_request* r, const char* path, const char* type) {
+    FILE* f = fopen(path, "rb");
     if(f == NULL) {
-        web_send_text(r, 404, "text/plain", "the page is missing from this build");
+        web_send_text(r, 404, "text/plain", "missing from this build");
         return;
     }
 
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    if(size < 0 || !web_send_head(r, 200, "text/html; charset=utf-8", size, NULL)) {
+    if(size < 0 || !web_send_head(r, 200, type, size, NULL)) {
         fclose(f);
         return;
     }
@@ -638,6 +645,328 @@ static void web_send_page(web_request* r) {
     fclose(f);
 }
 
+// ---- the console's theme, for the page to look the same ----
+
+static void web_color(char* out, u32 color) {
+    snprintf(out, 8, "#%02x%02x%02x", (unsigned) (color & 0xFF), (unsigned) ((color >> 8) & 0xFF), (unsigned) ((color >> 16) & 0xFF));
+}
+
+// Public: only colours and shapes, and the login page wears them too.
+static void web_send_theme(web_request* r) {
+    const theme_current* t = theme();
+    char background[8], surface[8], border[8], text[8], muted[8], success[8], danger[8], warning[8], accent[8], onAccent[8], soft[8];
+    web_color(background, t->palette->background);
+    web_color(surface, t->palette->surface);
+    web_color(border, t->palette->border);
+    web_color(text, t->palette->text);
+    web_color(muted, t->palette->textMuted);
+    web_color(success, t->palette->success);
+    web_color(danger, t->palette->danger);
+    web_color(warning, t->palette->warning);
+    web_color(accent, t->accent);
+    web_color(onAccent, t->onAccent);
+    web_color(soft, t->accentSoft);
+
+    web_send_json(r, 200, json_pack("{s:s,s:b,s:b,s:f,s:f,s:f,s:{s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s}}",
+                                    "theme", t->def->id, "night", t->night, "pixel", t->def->pixelFont,
+                                    "radius", (double) t->def->radius, "radiusSmall", (double) t->def->radiusSmall, "border", (double) t->def->border,
+                                    "colors", "background", background, "surface", surface, "border", border, "text", text, "muted", muted,
+                                    "success", success, "danger", danger, "warning", warning, "accent", accent, "onAccent", onAccent, "accentSoft", soft));
+}
+
+// ---- titles ----
+
+static bool web_parse_title(web_request* r, title_info* title) {
+    char id[32] = "";
+    char media[8] = "";
+    if(!web_query_get(r->query, "id", id, sizeof(id)) || !web_query_get(r->query, "media", media, sizeof(media)) || strlen(id) != 16) {
+        web_send_error(r, 400, "bad title");
+        return false;
+    }
+
+    memset(title, 0, sizeof(*title));
+    title->titleId = strtoull(id, NULL, 16);
+    title->mediaType = strcmp(media, "nand") == 0 ? MEDIATYPE_NAND : strcmp(media, "card") == 0 ? MEDIATYPE_GAME_CARD : MEDIATYPE_SD;
+
+    AM_TitleEntry entry;
+    if(R_FAILED(AM_GetTitleInfo(title->mediaType, 1, &title->titleId, &entry))) {
+        web_send_error(r, 404, "no such title");
+        return false;
+    }
+
+    title->version = entry.version;
+    title->installedSize = entry.size;
+    return true;
+}
+
+static const char* web_kind_name(u64 id) {
+    switch(title_kind_of(id)) {
+        case TITLE_KIND_GAME: return "game";
+        case TITLE_KIND_UPDATE: return "update";
+        case TITLE_KIND_DLC: return "dlc";
+        case TITLE_KIND_DEMO: return "demo";
+        case TITLE_KIND_DSIWARE: return "dsiware";
+        default: return "system";
+    }
+}
+
+static const char* web_media_name(FS_MediaType media) {
+    return media == MEDIATYPE_NAND ? "nand" : media == MEDIATYPE_GAME_CARD ? "card" : "sd";
+}
+
+static int web_compare_ids(const void* a, const void* b) {
+    u64 x = *(const u64*) a;
+    u64 y = *(const u64*) b;
+    return x < y ? -1 : x > y ? 1 : 0;
+}
+
+// Fast: ids, kind, version and size only. The names and icons come title by title.
+static void web_api_titles(web_request* r) {
+    json_t* list = json_array();
+    static const FS_MediaType media[2] = {MEDIATYPE_SD, MEDIATYPE_NAND};
+    for(u32 m = 0; m < 2; m++) {
+        u32 count = 0;
+        if(R_FAILED(AM_GetTitleCount(media[m], &count)) || count == 0) {
+            continue;
+        }
+
+        u64* ids = (u64*) calloc(count, sizeof(u64));
+        if(ids == NULL) {
+            continue;
+        }
+
+        if(R_SUCCEEDED(AM_GetTitleList(&count, media[m], count, ids))) {
+            qsort(ids, count, sizeof(u64), web_compare_ids);
+            for(u32 i = 0; i < count; i++) {
+                if(((ids[i] >> 32) & 0x8000) != 0) {
+                    continue;   // DSiWare: its own screens.
+                }
+
+                AM_TitleEntry entry;
+                if(R_FAILED(AM_GetTitleInfo(media[m], 1, &ids[i], &entry))) {
+                    continue;
+                }
+
+                char id[17];
+                snprintf(id, sizeof(id), "%016llX", (unsigned long long) ids[i]);
+                json_array_append_new(list, json_pack("{s:s,s:s,s:s,s:i,s:I}", "id", id, "media", web_media_name(media[m]), "kind", web_kind_name(ids[i]),
+                                                      "version", (int) entry.version, "size", (json_int_t) entry.size));
+            }
+        }
+
+        free(ids);
+    }
+
+    web_send_json(r, 200, json_pack("{s:b,s:o}", "ok", 1, "titles", list));
+}
+
+// The title's SMDH, or NULL.
+static SMDH* web_read_smdh(title_info* title) {
+    static const u32 filePath[5] = {0x00000000, 0x00000000, 0x00000002, 0x6E6F6369, 0x00000000};
+    u32 archivePath[4] = {(u32) (title->titleId & 0xFFFFFFFF), (u32) ((title->titleId >> 32) & 0xFFFFFFFF), title->mediaType, 0x00000000};
+
+    SMDH* smdh = (SMDH*) calloc(1, sizeof(SMDH));
+    if(smdh == NULL) {
+        return NULL;
+    }
+
+    Handle file = 0;
+    bool ok = false;
+    if(R_SUCCEEDED(FSUSER_OpenFileDirectly(&file, ARCHIVE_SAVEDATA_AND_CONTENT, fs_make_path_binary(archivePath, sizeof(archivePath)),
+                                           fs_make_path_binary(filePath, sizeof(filePath)), FS_OPEN_READ, 0))) {
+        u32 got = 0;
+        ok = R_SUCCEEDED(FSFILE_Read(file, &got, 0, smdh, sizeof(SMDH))) && got == sizeof(SMDH)
+             && smdh->magic[0] == 'S' && smdh->magic[1] == 'M' && smdh->magic[2] == 'D' && smdh->magic[3] == 'H';
+        FSFILE_Close(file);
+    }
+
+    if(!ok) {
+        free(smdh);
+        return NULL;
+    }
+
+    return smdh;
+}
+
+// One title's details: name, publisher, product code and which kinds of data it has.
+static void web_api_title(web_request* r) {
+    title_info title;
+    if(!web_parse_title(r, &title)) {
+        return;
+    }
+
+    char name[0x100] = "";
+    char publisher[0x100] = "";
+    SMDH* smdh = web_read_smdh(&title);
+    if(smdh != NULL) {
+        SMDH_title* names = smdh_select_title(smdh);
+        utf16_to_utf8((uint8_t*) name, names->shortDescription, sizeof(name) - 1);
+        utf16_to_utf8((uint8_t*) publisher, names->publisher, sizeof(publisher) - 1);
+        free(smdh);
+    }
+
+    char code[0x10] = "";
+    AM_GetTitleProductCode(title.mediaType, title.titleId, code);
+
+    bool game = title_kind_of(title.titleId) == TITLE_KIND_GAME || title_kind_of(title.titleId) == TITLE_KIND_DEMO;
+    u32 extId = 0;
+    bool save = game && action_save_data_exists(&title, SAVE_KIND_SAVE, &extId);
+    bool ext = game && action_save_data_exists(&title, SAVE_KIND_EXT, &extId);
+    bool boss = game && action_save_data_exists(&title, SAVE_KIND_BOSS, &extId);
+
+    web_send_json(r, 200, json_pack("{s:b,s:s,s:s,s:s,s:b,s:b,s:b}", "ok", 1, "name", name, "publisher", publisher, "code", code, "save", save, "ext", ext, "boss", boss));
+}
+
+// The large icon as a 48x48 BMP.
+static void web_api_icon(web_request* r) {
+    title_info title;
+    if(!web_parse_title(r, &title)) {
+        return;
+    }
+
+    SMDH* smdh = web_read_smdh(&title);
+    if(smdh == NULL) {
+        web_send_error(r, 404, "no icon");
+        return;
+    }
+
+    enum { SIZE = 48, ROW = SIZE * 3, DATA = ROW * SIZE, HEAD = 54 };
+    u8* bmp = (u8*) calloc(1, HEAD + DATA);
+    if(bmp == NULL) {
+        free(smdh);
+        web_send_error(r, 500, "out of memory");
+        return;
+    }
+
+    bmp[0] = 'B';
+    bmp[1] = 'M';
+    u32 fileSize = HEAD + DATA;
+    memcpy(bmp + 2, &fileSize, 4);
+    u32 offset = HEAD;
+    memcpy(bmp + 10, &offset, 4);
+    u32 header = 40;
+    memcpy(bmp + 14, &header, 4);
+    s32 width = SIZE;
+    s32 height = SIZE;   // Positive: rows from the bottom.
+    memcpy(bmp + 18, &width, 4);
+    memcpy(bmp + 22, &height, 4);
+    u16 planes = 1;
+    u16 bits = 24;
+    memcpy(bmp + 26, &planes, 2);
+    memcpy(bmp + 28, &bits, 2);
+    u32 dataSize = DATA;
+    memcpy(bmp + 34, &dataSize, 4);
+
+    // The icon is RGB565 in 8x8 tiles, each in Morton order.
+    const u16* pixels = (const u16*) smdh->largeIcon;
+    for(u32 tile = 0; tile < (SIZE / 8) * (SIZE / 8); tile++) {
+        u32 tx = (tile % (SIZE / 8)) * 8;
+        u32 ty = (tile / (SIZE / 8)) * 8;
+        for(u32 i = 0; i < 64; i++) {
+            u32 x = tx + ((i & 1) | ((i >> 1) & 2) | ((i >> 2) & 4));
+            u32 y = ty + (((i >> 1) & 1) | ((i >> 2) & 2) | ((i >> 3) & 4));
+            u16 c = pixels[tile * 64 + i];
+            u8* out = bmp + HEAD + (SIZE - 1 - y) * ROW + x * 3;
+            out[0] = (u8) (((c & 0x1F) * 255) / 31);
+            out[1] = (u8) ((((c >> 5) & 0x3F) * 255) / 63);
+            out[2] = (u8) ((((c >> 11) & 0x1F) * 255) / 31);
+        }
+    }
+
+    free(smdh);
+    if(web_send_head(r, 200, "image/bmp", HEAD + DATA, "Cache-Control: max-age=3600\r\n")) {
+        web_send_all(r->fd, (const char*) bmp, HEAD + DATA);
+    }
+
+    free(bmp);
+}
+
+// ---- saves ----
+
+static bool web_parse_kind(web_request* r, save_kind* kind) {
+    char text[8] = "";
+    web_query_get(r->query, "kind", text, sizeof(text));
+    if(strcmp(text, "save") == 0) {
+        *kind = SAVE_KIND_SAVE;
+    } else if(strcmp(text, "ext") == 0) {
+        *kind = SAVE_KIND_EXT;
+    } else if(strcmp(text, "boss") == 0) {
+        *kind = SAVE_KIND_BOSS;
+    } else {
+        web_send_error(r, 400, "bad kind");
+        return false;
+    }
+
+    return true;
+}
+
+// Makes the package of a title's save, extra or SpotPass data: the page then downloads it as a file.
+static void web_api_save_pack(web_request* r) {
+    title_info title;
+    save_kind kind;
+    if(!web_parse_title(r, &title) || !web_parse_kind(r, &kind)) {
+        return;
+    }
+
+    char name[0x100] = "";
+    web_query_get(r->query, "name", name, sizeof(name));
+    if(name[0] == '\0') {
+        string_copy(name, "title", sizeof(name));
+    }
+
+    u32 extId = 0;
+    if(!action_save_data_exists(&title, kind, &extId)) {
+        web_send_error(r, 404, "this title has no such data (or it was never started)");
+        return;
+    }
+
+    char path[WEB_PATH_MAX];
+    u64 size = 0;
+    Result res = action_save_pack_sync(&title, name, kind, extId, path, sizeof(path), &size);
+    if(R_FAILED(res)) {
+        char text[48];
+        snprintf(text, sizeof(text), "packing failed (%08lX)", res);
+        web_send_error(r, 500, text);
+        return;
+    }
+
+    web_send_json(r, 200, json_pack("{s:b,s:s,s:I}", "ok", 1, "path", path, "size", (json_int_t) size));
+}
+
+// A package the page uploaded: the console takes it as if it had been sent, and asks there what to do.
+static char web_receive_path[WEB_PATH_MAX];
+static volatile bool web_receive_pending = false;
+static bool web_receive_import = false;
+
+static void web_api_save_receive(web_request* r) {
+    char vpath[WEB_PATH_MAX];
+    char rpath[WEB_PATH_MAX + 8];
+    if(!web_path_param(r, "path", vpath, sizeof(vpath), rpath, sizeof(rpath))) {
+        return;
+    }
+
+    u64 id = 0;
+    save_kind kind = SAVE_KIND_SAVE;
+    char name[64];
+    const char* file = strrchr(vpath, '/');
+    if(strncmp(vpath, "/nsa/received/", 14) != 0 || !action_save_package_name(file + 1, &id, &kind, name, sizeof(name))) {
+        web_send_error(r, 400, "not a save package in /nsa/received/");
+        return;
+    }
+
+    if(web_receive_pending) {
+        web_send_error(r, 409, "the console is still asking about the last one");
+        return;
+    }
+
+    string_copy(web_receive_path, vpath, sizeof(web_receive_path));
+    char want[8] = "";
+    web_query_get(r->query, "import", want, sizeof(want));
+    web_receive_import = strcmp(want, "1") == 0 && action_save_package_can_import(id, kind);
+    web_receive_pending = true;
+    web_send_json(r, 200, json_pack("{s:b,s:b}", "ok", 1, "import", web_receive_import));
+}
+
 // ---- serving ----
 
 static void web_handle(web_request* r) {
@@ -647,9 +976,15 @@ static void web_handle(web_request* r) {
 
     web_parse_head(r);
 
-    if(strcmp(r->path, "/") == 0 || strcmp(r->path, "/index.html") == 0) {
+    if(strcmp(r->path, "/") == 0 || strcmp(r->path, "/index.html") == 0 || strcmp(r->path, "/theme.json") == 0 || strcmp(r->path, "/font.ttf") == 0) {
         if(strcmp(r->method, "GET") == 0) {
-            web_send_page(r);
+            if(strcmp(r->path, "/theme.json") == 0) {
+                web_send_theme(r);
+            } else if(strcmp(r->path, "/font.ttf") == 0) {
+                web_send_romfs(r, "romfs:/web/PixelifySans.ttf", "font/ttf");
+            } else {
+                web_send_romfs(r, "romfs:/web/index.html", "text/html; charset=utf-8");
+            }
         } else {
             web_send_error(r, 405, "method not allowed");
         }
@@ -694,6 +1029,16 @@ static void web_handle(web_request* r) {
         web_api_rename(r);
     } else if(post && strcmp(api, "install") == 0) {
         web_api_install(r);
+    } else if(get && strcmp(api, "titles") == 0) {
+        web_api_titles(r);
+    } else if(get && strcmp(api, "title") == 0) {
+        web_api_title(r);
+    } else if(get && strcmp(api, "icon") == 0) {
+        web_api_icon(r);
+    } else if(post && strcmp(api, "save/pack") == 0) {
+        web_api_save_pack(r);
+    } else if(post && strcmp(api, "save/receive") == 0) {
+        web_api_save_receive(r);
     } else {
         web_send_error(r, 404, "unknown request");
     }
@@ -844,6 +1189,12 @@ void webserver_resume_later() {
 }
 
 void webserver_poll_main() {
+    // A package uploaded by the page: unpacked (and imported, behind the red question) like one that was sent.
+    if(web_receive_pending) {
+        action_save_package_received(web_receive_path, web_receive_import);
+        web_receive_pending = false;
+    }
+
     if(web_retry && osGetTime() >= web_retry_next) {
         if(webserver_start() || osGetTime() > web_retry_end) {
             web_retry = false;

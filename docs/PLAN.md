@@ -111,8 +111,11 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- **Import rollback**: not tried: make an import fail (cancel with B midway, or a full save) and check the old data is back and
+  the `-before-import` folder is gone; a failed rollback keeps the folder.
+
 - **SpotPass data export/import/send**: not tried on a console. The BOSS archive may refuse to create files or to be emptied
-  (permissions of the boss service); if import fails midway the `-before-import` folder has the old data.
+  (permissions of the boss service); if the import fails midway the old data is put back (and if that fails too, the `-before-import` folder has it).
 
 - **Import from Checkpoint's backups**: *Import save / extra data* also lists the backups Checkpoint keeps in
   `sdmc:/3ds/Checkpoint/saves|extdata/0x<unique ID, 5 digits> <game>/<backup>/` (the archive's tree directly in the folder, no
@@ -424,7 +427,8 @@ current, this list is the summary. What only the owner can test (local wireless)
      Checkpoint's backups tagged `[Checkpoint]` (`sdmc:/3ds/Checkpoint/saves|extdata/0x<unique ID, 5 digits> <game>/<backup>/`,
      the tree directly in the folder, no manifest). It first exports the current data to `<date>-before-import`
      (a suffix, not the `before-import-<date>` prefix first planned, so names still sort by date), empties the
-     archive, copies the tree and commits. Warns when the export's game version differs from the installed one
+     archive, copies the tree and commits. **If the copy fails or is cancelled, the old data is put back from that folder, and the
+     folder is deleted once it is back**; if it cannot be put back, the folder stays and the message says so. Warns when the export's game version differs from the installed one
      (NSA's exports only). Only offered when the archive opens (title started once; ext data found).
    - **Send** (*Send save/extra data to another 3DS*): no protocol change. The data is packed on a worker thread into one
      file `sdmc:/nsa/saves/send/<TITLEID>-<save|ext>-<name>.nsasave` (format in `savetransfer.c`) and goes through the

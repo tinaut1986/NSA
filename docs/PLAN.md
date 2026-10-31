@@ -324,6 +324,26 @@ current, this list is the summary. What only the owner can test (local wireless)
    the file ends up). Pending titles and System save data still have FBI's action lists
    and English item names ("Delete Pending Title"...); System save data would show
    readable names of the known modules.
+3b. **Send saves and extra data** (design agreed with the owner 2026-10-31, not started). A save is
+   whole: it cannot be merged, only replaced or kept apart. Today a 3DS title only has "Save data"
+   (browse the files) and "Browse extra data"; export/import exists for DS cartridge saves only.
+   - **Local first**, on the Titles sheet, flat rows (no nested menus): *Export save*, *Import save*,
+     *Send save to another 3DS*, and the same three for *extra data*. Export copies the archive's
+     files to `sdmc:/nsa/saves/<TITLEID>/<date>/` (extra data under `ext/`, SpotPass under `boss/`)
+     with a small manifest (title ID, version, name, date, kind); it is a plain folder the owner can
+     browse and copy to a PC. Import picks one of those folders (newest first).
+   - **Import replaces the whole archive** (delete its contents, copy the tree, commit), behind the
+     red warning, and **first copies the current save to `before-import-<date>/`** next to the
+     exports. It is only offered when the archive can be opened (title installed and started once;
+     for extra data, the archive exists).
+   - **Sending**: folders cannot be sent today, so a save/ext data goes as a package like the title
+     package: a header (kind 2 save / 3 extra data, title ID, version, name, file count) and the files
+     as read; protocol version up. The receiver unpacks into a folder under `sdmc:/nsa/saves/` first,
+     whatever the choice, and "Import now" is the same local import over that folder.
+   - **Receiving**, in the same Receive screen: *Import now* (red; only if the title or archive is
+     there) / *Save in a folder* / *Reject*; with no title or archive, only *Save in a folder* / *Reject*
+     and the text says why. Mockup: `saves-mock.png` (owner's chat, 2026-10-31).
+   - Open: warn when the versions differ; ext data to the right game depends on the exact ext data link (4).
 4. **Exact ext data link**: read the ExtData ID from each game's exheader (NCCH
    `ExHeader`, ARM11 local system capabilities, offset 0x230 by 3dbrew; check with the
    Program ID at 0x200) instead of the ID heuristics. The file path type for the exheader

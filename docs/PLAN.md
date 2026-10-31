@@ -151,6 +151,11 @@ dates). The owner will go through them one by one; tick each only when they say 
       piano, bass, shaker; 37 s) was written from `shopmusic.py`; DEBUG builds also write the loop to
       `sdmc:/nsa/music-style-N.wav` to listen to it on a computer.
 
+**Volume sliders in Settings** (a trial the owner asked for to see how it looks)
+- [ ] On a console: Sounds and Background music are one box each, the selector on top and a draggable
+      bar with its percentage under it (they replace the two "volume" rows); a finger anywhere along the bar sets the
+      volume in steps of 5 and it applies while dragging; X / Y change it with the buttons.
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.

@@ -20,9 +20,7 @@ typedef enum {
     OPTION_NIGHT,
     OPTION_LANGUAGE,
     OPTION_SOUNDS,
-    OPTION_SOUND_VOLUME,
     OPTION_MUSIC,
-    OPTION_MUSIC_VOLUME,
     OPTION_CHANNEL,
     OPTION_AUTO_UPDATE,
     OPTION_FTP,
@@ -33,6 +31,34 @@ typedef enum {
 
 #define ROW_PITCH (WIDGET_ROW_HEIGHT + WIDGET_ROW_GAP)
 #define PAD 8
+#define VOLUME_STEP 5
+
+// Sounds and Music carry a volume slider under their selector, in the same box.
+static u32* settingsmenu_slider_value(settings_option option) {
+    settings_data* settings = settings_get();
+    return option == OPTION_SOUNDS ? &settings->soundVolume : option == OPTION_MUSIC ? &settings->musicVolume : NULL;
+}
+
+static float settingsmenu_row_height(u32 index) {
+    return settingsmenu_slider_value((settings_option) index) != NULL ? widget_row_slider_height() : WIDGET_ROW_HEIGHT;
+}
+
+// Where a row starts, from the top of the list.
+static float settingsmenu_row_top(u32 index) {
+    float top = 0;
+    for(u32 i = 0; i < index; i++) {
+        top += settingsmenu_row_height(i) + WIDGET_ROW_GAP;
+    }
+
+    return top;
+}
+
+// The volume applies as it moves; saving waits for the finger to lift.
+static void settingsmenu_apply_volumes() {
+    settings_data* settings = settings_get();
+    sound_set((sound_mode) settings->sounds, settings->soundVolume);
+    bgmusic_set((bgmusic_style) settings->music, settings->musicVolume);
+}
 
 typedef struct {
     u32 selected;
@@ -41,6 +67,7 @@ typedef struct {
 
     bool touching;
     bool dragged;
+    int sliding;         // The row whose slider a finger is on, or -1.
     widget_press press;
     u16 touchStartY;
     u16 lastTouchY;
@@ -48,7 +75,7 @@ typedef struct {
 
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
-            ICON_PALETTE, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_VOLUME, ICON_GIT_BRANCH,
+            ICON_PALETTE, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_GIT_BRANCH,
             ICON_REFRESH, ICON_SERVER, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS
     };
 
@@ -62,9 +89,7 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_NIGHT: return _("Night mode");
         case OPTION_LANGUAGE: return _("Language");
         case OPTION_SOUNDS: return _("Sounds");
-        case OPTION_SOUND_VOLUME: return _("Sound volume");
         case OPTION_MUSIC: return _("Background music");
-        case OPTION_MUSIC_VOLUME: return _("Music volume");
         case OPTION_CHANNEL: return _("Update channel");
         case OPTION_AUTO_UPDATE: return _("Check at start");
         case OPTION_FTP: return _("FTP server");
@@ -88,17 +113,7 @@ static const char* settingsmenu_value(settings_option option) {
             return settings->night == THEME_NIGHT_ON ? _("On") : settings->night == THEME_NIGHT_AUTO ? _("Automatic") : _("Off");
         case OPTION_LANGUAGE: return i18n_language_name(settings->language);
         case OPTION_SOUNDS: return settings->sounds == SOUNDS_ALL ? _("All") : settings->sounds == SOUNDS_ALERTS ? _("Alerts") : _("Off");
-        case OPTION_SOUND_VOLUME: {
-            static char volume[8];
-            snprintf(volume, sizeof(volume), "%lu%%", settings->soundVolume);
-            return volume;
-        }
         case OPTION_MUSIC: return settings->music == BGMUSIC_LIFT ? _("Lift") : settings->music == BGMUSIC_CALM ? _("Calm") : settings->music == BGMUSIC_SHOP ? _("Shop") : _("Off");
-        case OPTION_MUSIC_VOLUME: {
-            static char musicVolume[8];
-            snprintf(musicVolume, sizeof(musicVolume), "%lu%%", settings->musicVolume);
-            return musicVolume;
-        }
         case OPTION_CHANNEL: return settings->channel == UPDATE_CHANNEL_BETA ? _("Beta") : _("Stable");
         case OPTION_AUTO_UPDATE: return settingsmenu_on_off(settings->autoUpdate);
         case OPTION_FTP: return settingsmenu_on_off(ftpserver_running());
@@ -138,25 +153,10 @@ static void settingsmenu_change(settings_option option, int direction) {
         case OPTION_SOUNDS:
             settings->sounds = settingsmenu_step(settings->sounds, 3, step);
             break;
-        case OPTION_SOUND_VOLUME: {
-            // 25, 50, 75, 100 %, from wherever it is.
-            u32 volume = settings->soundVolume;
-            settings->soundVolume = step > 0 ? (volume >= 100 ? 25 : (volume / 25 + 1) * 25) : (volume <= 25 ? 100 : ((volume - 1) / 25) * 25);
-            sound_set((sound_mode) settings->sounds, settings->soundVolume);
-            sound_play(SOUND_SUCCESS);
-            break;
-        }
         case OPTION_MUSIC:
             settings->music = settingsmenu_step(settings->music, BGMUSIC_COUNT, step);
             bgmusic_set((bgmusic_style) settings->music, settings->musicVolume);
             break;
-        case OPTION_MUSIC_VOLUME: {
-            // 25, 50, 75, 100 %, from wherever it is.
-            u32 volume = settings->musicVolume;
-            settings->musicVolume = step > 0 ? (volume >= 100 ? 25 : (volume / 25 + 1) * 25) : (volume <= 25 ? 100 : ((volume - 1) / 25) * 25);
-            bgmusic_set((bgmusic_style) settings->music, settings->musicVolume);
-            break;
-        }
         case OPTION_CHANNEL:
             settings->channel = settings->channel == UPDATE_CHANNEL_BETA ? UPDATE_CHANNEL_STABLE : UPDATE_CHANNEL_BETA;
             break;
@@ -192,7 +192,7 @@ static void settingsmenu_change(settings_option option, int direction) {
 }
 
 static float settingsmenu_total_height() {
-    return OPTION_COUNT * ROW_PITCH - WIDGET_ROW_GAP;
+    return settingsmenu_row_top(OPTION_COUNT) - WIDGET_ROW_GAP;
 }
 
 static void settingsmenu_clamp_scroll(settingsmenu_data* menu, float viewHeight) {
@@ -207,11 +207,12 @@ static void settingsmenu_clamp_scroll(settingsmenu_data* menu, float viewHeight)
 }
 
 static void settingsmenu_reveal(settingsmenu_data* menu, float viewHeight) {
-    float top = menu->selected * ROW_PITCH;
+    float top = settingsmenu_row_top(menu->selected);
+    float height = settingsmenu_row_height(menu->selected);
     if(top < menu->scroll) {
         menu->scroll = top;
-    } else if(top + WIDGET_ROW_HEIGHT > menu->scroll + viewHeight) {
-        menu->scroll = top + WIDGET_ROW_HEIGHT - viewHeight;
+    } else if(top + height > menu->scroll + viewHeight) {
+        menu->scroll = top + height - viewHeight;
     }
 
     settingsmenu_clamp_scroll(menu, viewHeight);
@@ -236,7 +237,7 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
     float viewHeight = by2 - by1 - 2 * PAD;
 
     view->name = _("Settings");
-    view->info = _(" change    back");
+    view->info = settingsmenu_slider_value((settings_option) menu->selected) != NULL ? _(" change     volume    back") : _(" change    back");
 
     if(hidKeysDown() & KEY_B) {
         ui_pop();
@@ -254,15 +255,29 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         // Left and Right change the option, so L and R turn a page: the first row
         // that was not shown (or the one a page above) becomes the top one.
         u32 page = (u32) ((viewHeight - WIDGET_ROW_HEIGHT) / ROW_PITCH) + 1;
-        u32 first = (u32) ((menu->scroll + ROW_PITCH - 1) / ROW_PITCH);
+        u32 first = 0;
+        while(first + 1 < OPTION_COUNT && settingsmenu_row_top(first) < menu->scroll) {
+            first++;
+        }
         if(hidKeysDown() & KEY_R) {
             menu->selected = first + page < OPTION_COUNT ? first + page : OPTION_COUNT - 1;
         } else {
             menu->selected = first > page ? first - page : 0;
         }
 
-        menu->scroll = menu->selected * ROW_PITCH;
+        menu->scroll = settingsmenu_row_top(menu->selected);
         settingsmenu_clamp_scroll(menu, viewHeight);
+    } else if(settingsmenu_slider_value((settings_option) menu->selected) != NULL && (settingsmenu_repeat(menu, KEY_X) || settingsmenu_repeat(menu, KEY_Y))) {
+        u32* volume = settingsmenu_slider_value((settings_option) menu->selected);
+        if(hidKeysDown() & KEY_X || hidKeysHeld() & KEY_X) {
+            *volume = *volume + VOLUME_STEP > 100 ? 100 : *volume + VOLUME_STEP;
+        } else {
+            *volume = *volume < VOLUME_STEP ? 0 : *volume - VOLUME_STEP;
+        }
+
+        settingsmenu_apply_volumes();
+        settings_apply();
+        settingsmenu_save();
     } else if(hidKeysDown() & KEY_RIGHT) {
         settingsmenu_change((settings_option) menu->selected, 1);
     } else if(hidKeysDown() & KEY_LEFT) {
@@ -284,14 +299,36 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         menu->dragged = false;
         menu->touchStartY = menu->lastTouchY = pos.py;
         widget_press_end(&menu->press);
+        menu->sliding = -1;
         if(pos.py >= by1 + PAD && pos.py < by2 - PAD) {
             float offset = pos.py - by1 - PAD + menu->scroll;
-            u32 index = (u32) (offset / ROW_PITCH);
-            if(index < OPTION_COUNT && offset - index * ROW_PITCH < WIDGET_ROW_HEIGHT) {
-                widget_press_begin(&menu->press, (int) index, true, pos.px, pos.py);
+            for(u32 index = 0; index < OPTION_COUNT; index++) {
+                float top = settingsmenu_row_top(index);
+                if(offset < top || offset >= top + settingsmenu_row_height(index)) {
+                    continue;
+                }
+
+                if(settingsmenu_slider_value((settings_option) index) != NULL && offset - top >= WIDGET_ROW_HEIGHT - 2) {
+                    // A finger on a slider takes it, wherever along the bar.
+                    menu->sliding = (int) index;
+                    menu->selected = index;
+                } else if(offset - top < WIDGET_ROW_HEIGHT) {
+                    widget_press_begin(&menu->press, (int) index, true, pos.px, pos.py);
+                }
+
+                break;
             }
         }
-    } else if(menu->touching && (hidKeysHeld() & KEY_TOUCH)) {
+    }
+
+    if(menu->touching && menu->sliding >= 0 && (hidKeysHeld() & KEY_TOUCH)) {
+        float trackX, trackWidth, centerY;
+        widget_row_slider_track(bx1 + PAD, 0, bx2 - bx1 - 2 * PAD - WIDGET_SCROLLBAR_WIDTH - 4, &trackX, &trackWidth, &centerY);
+        float fraction = ((float) pos.px - trackX) / trackWidth;
+        fraction = fraction < 0 ? 0 : fraction > 1 ? 1 : fraction;
+        *settingsmenu_slider_value((settings_option) menu->sliding) = ((u32) (fraction * 100 / VOLUME_STEP + 0.5f)) * VOLUME_STEP;
+        settingsmenu_apply_volumes();
+    } else if(menu->touching && (hidKeysHeld() & KEY_TOUCH) && !(hidKeysDown() & KEY_TOUCH)) {
         if(abs((int) pos.py - (int) menu->touchStartY) > 6) {
             menu->dragged = true;
             menu->press.cancelled = true;
@@ -305,6 +342,14 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         menu->lastTouchY = pos.py;
     } else if(menu->touching && (hidKeysUp() & KEY_TOUCH)) {
         menu->touching = false;
+        if(menu->sliding >= 0) {
+            menu->sliding = -1;
+            settings_apply();
+            settingsmenu_save();
+            sound_play(SOUND_TICK);
+            return;
+        }
+
         int index = menu->press.index;
         bool released = widget_press_on(&menu->press, index);
         widget_press_end(&menu->press);
@@ -329,13 +374,11 @@ static const char* settingsmenu_help(settings_option option) {
             return settings->sounds == SOUNDS_ALL ? _("All: a tick for buttons and touches, and a tune when something ends or fails.")
                    : settings->sounds == SOUNDS_ALERTS ? _("Alerts: only when something ends well or fails (a transfer, an install).")
                                                        : _("Off: no sounds. They need the DSP firmware (dspfirm.cdc).");
-        case OPTION_SOUND_VOLUME: return _("How loud the interface sounds are.");
         case OPTION_MUSIC:
             return settings->music == BGMUSIC_LIFT ? _("Lift: soft lift music, made by the console as it plays, in a loop of half a minute.")
                    : settings->music == BGMUSIC_CALM ? _("Calm: slower and sparser, in a loop of about forty seconds.")
                    : settings->music == BGMUSIC_SHOP ? _("Shop: a soft bossa with marimba, electric piano and bass, in a loop of about forty seconds.")
                                                      : _("Off: no music. It needs the DSP firmware (dspfirm.cdc) and takes a moment to start.");
-        case OPTION_MUSIC_VOLUME: return _("How loud the background music is.");
         case OPTION_CHANNEL:
             return settings->channel == UPDATE_CHANNEL_BETA
                    ? _("Beta: the newest release, beta or stable. The changelog lists every release since yours.")
@@ -428,13 +471,21 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
 
     screen_set_clip(x1, y1 + PAD / 2, x2 - x1, y2 - y1 - PAD);
     for(u32 i = 0; i < OPTION_COUNT; i++) {
-        float y = y1 + PAD + i * ROW_PITCH - menu->scroll;
-        if(y + WIDGET_ROW_HEIGHT < y1 || y > y2) {
+        float y = y1 + PAD + settingsmenu_row_top(i) - menu->scroll;
+        if(y + settingsmenu_row_height(i) < y1 || y > y2) {
             continue;
         }
 
         settings_option option = (settings_option) i;
-        widget_row(rowX, y, rowW, WIDGET_ROW_HEIGHT, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, settingsmenu_value(option), i == menu->selected);
+        u32* volume = settingsmenu_slider_value(option);
+        if(volume != NULL) {
+            char percent[8];
+            snprintf(percent, sizeof(percent), "%lu%%", *volume);
+            widget_row_with_slider(rowX, y, rowW, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, settingsmenu_value(option), i == menu->selected, (float) *volume / 100.0f, percent);
+        } else {
+            widget_row(rowX, y, rowW, WIDGET_ROW_HEIGHT, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, settingsmenu_value(option), i == menu->selected);
+        }
+
         widget_press_draw(&menu->press, (int) i, rowX, y, rowW, WIDGET_ROW_HEIGHT, theme()->def->radiusSmall, i == menu->selected ? theme()->onAccent : theme()->palette->text, false);
     }
     screen_clear_clip();
@@ -450,6 +501,7 @@ void settingsmenu_open() {
     }
 
     data->press.index = -1;
+    data->sliding = -1;
 
     ui_view* view = ui_create();
     view->name = _("Settings");

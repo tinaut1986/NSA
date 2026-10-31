@@ -37,6 +37,12 @@ void widget_button_centered(float x, float y, float width, float height, const c
 // A list row: icon (or -1), label on the left and, if given, a value on the
 // right between ‹ › (an option that changes in place).
 void widget_row(float x, float y, float width, float height, int icon, const char* label, u32 labelColor, const char* value, bool selected);
+// The same with a slider under the selector, in one box: `fraction` 0..1, `sliderText` at its right.
+#define WIDGET_SLIDER_EXTRA 20
+float widget_row_slider_height();
+void widget_row_with_slider(float x, float y, float width, int icon, const char* label, u32 labelColor, const char* value, bool selected, float fraction, const char* sliderText);
+// Where its bar is (to take a finger on it): x and width of the track, and the y of its centre.
+void widget_row_slider_track(float x, float y, float width, float* trackX, float* trackWidth, float* centerY);
 
 void widget_progress(float x, float y, float width, float height, float progress);
 void widget_scrollbar(float x, float y, float height, float offset, float visible, float total);

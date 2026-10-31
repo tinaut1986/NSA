@@ -12,7 +12,7 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 
 <p align="center">
   <img src="docs/images/main-menu.png" width="360" alt="Main menu">
-  <img src="docs/images/files.png" width="360" alt="The SD card">
+  <img src="docs/images/titles-grid.png" width="360" alt="Titles as a grid of icons">
 </p>
 
 ## What it does
@@ -31,10 +31,13 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 <p align="center">
   <img src="docs/images/remote-install.png" width="360" alt="Remote install">
   <img src="docs/images/receive-3ds.png" width="360" alt="Receiving from another 3DS">
-  <img src="docs/images/scan-qr.png" width="360" alt="Scanning a QR code">
 </p>
 
 ### Titles, tickets and data
+
+<p align="center">
+  <img src="docs/images/title-actions.png" width="360" alt="A title's actions">
+</p>
 
 - **Titles**: rows or a grid of icons, filters by memory, kind and region, search and sorting;
   updates and DLC are grouped under their game. Launch, delete (with or without its ticket),
@@ -53,6 +56,7 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 - Run a `.3dsx` from the list (needs Luma3DS).
 
 <p align="center">
+  <img src="docs/images/files.png" width="360" alt="Browsing the SD card">
   <img src="docs/images/files-photos.png" width="360" alt="A folder of pictures">
   <img src="docs/images/file-actions.png" width="360" alt="A file's actions">
   <img src="docs/images/image-viewer.png" width="360" alt="The picture viewer">
@@ -94,9 +98,9 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
   and `SITE INSTALL` to update NSA itself. See [CLAUDE.md](CLAUDE.md).
 - Plans, decisions and what is still to test on a console are in [docs/PLAN.md](docs/PLAN.md).
 
-> Some of the newer features have so far run only in an emulator, not on every console; the
-> "Pending tests" list in `docs/PLAN.md` says which. Report what does not work as an
-> [issue](https://github.com/tinaut1986/NSA/issues).
+> The pictures are from a New 3DS XL. Some of the newer features have so far run only in an
+> emulator, not on every console; the "Pending tests" list in `docs/PLAN.md` says which. Report
+> what does not work as an [issue](https://github.com/tinaut1986/NSA/issues).
 
 ## Building
 

@@ -9,6 +9,7 @@
 #include "action/action.h"
 #include "task/uitask.h"
 #include "../core/core.h"
+#include "thumbs.h"
 #include "viewers.h"
 #include "../core/data/smdh.h"
 #include "settings.h"
@@ -151,6 +152,14 @@ static void files_draw_icon(file_info* info, float x, float y, float size) {
     if(kind == KIND_CIA && info->ciaInfo.loaded && info->ciaInfo.hasMeta && info->ciaInfo.meta.texture != 0) {
         screen_draw_texture(info->ciaInfo.meta.texture, x, y, size, size);
         return;
+    }
+
+    if(kind == KIND_FILE && viewers_kind_of(info->name) == VIEWER_IMAGE) {
+        u32 preview = thumbs_get(info->archive, info->path, info->size);
+        if(preview != 0) {
+            screen_draw_texture(preview, x, y, size, size);
+            return;
+        }
     }
 
     u32 back = kind == KIND_FILE ? t->palette->background : t->accentSoft;

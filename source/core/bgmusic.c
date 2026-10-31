@@ -22,14 +22,13 @@ typedef struct {
     float bpm;
     bg_chord chords[4];
     int scale[8];
-    u32 seed;
     float density;   // How often a melody note falls on a beat.
     float wet;       // How much echo.
 } bg_style;
 
 static const bg_style bg_styles[BGMUSIC_COUNT - 1] = {
-        {66, {{60, 4, {0, 4, 7, 11}}, {57, 4, {0, 3, 7, 10}}, {53, 4, {0, 4, 7, 11}}, {55, 4, {0, 4, 7, 9}}}, {60, 62, 64, 67, 69, 72, 74, 76}, 7, 0.55f, 0.32f},
-        {52, {{53, 5, {0, 4, 7, 11, 14}}, {50, 5, {0, 3, 7, 10, 14}}, {58, 4, {0, 4, 7, 11}}, {48, 4, {0, 4, 7, 9}}}, {53, 55, 57, 60, 62, 65, 67, 69}, 3, 0.30f, 0.40f}
+        {66, {{60, 4, {0, 4, 7, 11}}, {57, 4, {0, 3, 7, 10}}, {53, 4, {0, 4, 7, 11}}, {55, 4, {0, 4, 7, 9}}}, {60, 62, 64, 67, 69, 72, 74, 76}, 0.55f, 0.32f},
+        {52, {{53, 5, {0, 4, 7, 11, 14}}, {50, 5, {0, 3, 7, 10, 14}}, {58, 4, {0, 4, 7, 11}}, {48, 4, {0, 4, 7, 9}}}, {53, 55, 57, 60, 62, 65, 67, 69}, 0.30f, 0.40f}
 };
 
 typedef enum {
@@ -60,6 +59,12 @@ static u32 bg_random(u32* state) {
     x ^= x << 5;
     *state = x;
     return x;
+}
+
+// A seed that is different every time the music starts: the melody is never the same twice.
+static u32 bg_fresh_seed() {
+    u32 seed = (u32) osGetTime() * 2654435761u ^ (u32) svcGetSystemTick() ^ 0x9E3779B9u;
+    return seed != 0 ? seed : 1;
 }
 
 static float bg_hz(float midi) {
@@ -198,7 +203,7 @@ static bool bg_render(const bg_style* style, s16** outData, u32* outFrames) {
         return false;
     }
 
-    u32 seed = style->seed * 2654435761u + 1;
+    u32 seed = bg_fresh_seed();
     u32 lastNote = bg_random(&seed) % 8;
     static const int steps[7] = {-2, -1, -1, 0, 1, 1, 2};
     u32 beatsInChord = (u32) (chordFrames / (beat * BG_RATE / 2.0f) + 0.5f);
@@ -325,7 +330,7 @@ static bool bg_render_shop(s16** outData, u32* outFrames) {
     static const bg_partial bassNote[] = {{1.0f, 1.0f, 3.5f}, {2.0f, 0.35f, 8.0f}, {3.0f, 0.08f, 14.0f}};
     static const bg_partial click[] = {{1.0f, 1.0f, 90.0f}, {1.4727f, 0.5f, 90.0f}};
 
-    u32 seed = 0x5EED1234u;
+    u32 seed = bg_fresh_seed();
 
     // The two-bar-long idea, as (beat, step in the scale, unused length): said, varied, turned over, resolved.
     static const float motifBeat[4] = {0.0f, 1.5f, 2.0f, 3.5f};
@@ -402,6 +407,7 @@ static bool bg_render_shop(s16** outData, u32* outFrames) {
         for(u32 pair = 0; pair < 4; pair++) {
             u32 bar = p * 8 + pair * 2;
             u32 notes = pair == 3 ? 3 : 4;
+            int pairShift = 0;
             for(u32 k = 0; k < notes; k++) {
                 float beat = motifBeat[k];
                 int step = motifStep[k];
@@ -416,7 +422,14 @@ static bool bg_render_shop(s16** outData, u32* outFrames) {
                     step = endStep[k];
                 }
 
-                int index = pairBase[pair] + step;
+                // Never quite the same: the start of each phrase moves a step, and some notes move one.
+                if(k == 0) {
+                    pairShift = (int) (bg_random(&seed) % 3) - 1;
+                } else if(bg_random(&seed) % 10 < 3) {
+                    step += (int) (bg_random(&seed) % 3) - 1;
+                }
+
+                int index = pairBase[pair] + pairShift + step;
                 index = index < 0 ? 0 : index > 11 ? 11 : index;
                 u32 n = (u32) (1.4f * BG_RATE);
                 bg_note(tmp, n, bg_hz((float) bg_shop_scale[index]), marimba, 3, 0.6f, 0.002f);

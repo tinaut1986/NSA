@@ -129,6 +129,21 @@ dates). The owner will go through them one by one; tick each only when they say 
       half file, a full SD card shows the red "not enough space" screen. Seen in Azahar only with a
       fake source of zeros (UI and hash).
 
+**Pixel theme** (Settings -> Theme, `tools/make_pixelfont.py`)
+- [ ] On a console: the pixel font (Pixelify Sans 10/12/16 px, `romfs/pixelfont.png`) is readable on
+      both screens, Spanish accents included (the acute i is built from a dotless i), the button
+      glyphs come out of the system font, texts fit in tiles, rows, prompts and the top card; day and
+      night, every accent (the new Yellow gets dark text). Seen only in Azahar.
+- [ ] Cards is unchanged (same positions as before the text layer was split in two).
+- Bundled font: Pixelify Sans, SIL OFL 1.1 (`tools/fonts/OFL-PixelifySans.txt`). HOME theme next.
+
+**HOME theme** (Settings -> Theme)
+- [ ] On a console: the main menu as four big tiles per row with the name under each (two lines
+      fit), D-Pad moves through the grid, a tap on the name opens too; dialogs rise as a sheet from
+      the bottom (red for Advanced and deletes), day and night, every accent. Seen only in Azahar.
+- [ ] Not done yet from the mockup: icon grids (Titles, Tickets, Ext Save Data) **in pages with dots**
+      (they still scroll), and the sheet's drag-to-dismiss (it has the handle only).
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.
@@ -146,7 +161,7 @@ dates). The owner will go through them one by one; tick each only when they say 
 - [ ] Memory on an Old 3DS with a 4-5 megapixel JPEG.
 
 **Files: text**
-- [ ] Open `.txt`/`.json`/...; "Open as text" on any file; binary files refuse.
+- [ ] Open `.txt`/`.json`/...; "Open as text" on a file with no known extension; binary files refuse.
 - [ ] Edit with the custom keyboard: letters, shift/caps, symbols, accents, backspace/arrows
       repeat, D-Pad cursor, X/Y/A shortcuts, START saves, close with changes asks.
 - [ ] CRLF kept; a Latin-1 file is read and saved as UTF-8; a file over 256 KB is read only.
@@ -176,8 +191,8 @@ the owner: folder icons, the CIA size cell and the Modified cell)
 - [ ] **Run program** on a real .3dsx: the owner's NSA is a CIA and they have a Homebrew Launcher CIA.
       Possible failures: its title ID is not `000400000D921E00` (write it in `sdmc:/nsa/hbl_title.txt`),
       or NSA's exheader does not allow `svcConnectToPort` ("hb:ldr", error shown). Also from a 3DSX build.
-- [ ] File type names and icons on files of each kind; "Open as text" is still offered on programs
-      and ROMs (could be hidden).
+- [ ] File type names and icons on files of each kind; "Open as text" is now offered only on
+      files with no known extension (README...), not on programs, ROMs, pictures, archives.
 
 **Next, item 3 (Pending titles, System save data, Dump NAND on the Titles pattern)**
 - [ ] The owner thinks they tried it once but does not remember. The code on `release` still
@@ -331,12 +346,34 @@ current, this list is the summary. What only the owner can test (local wireless)
    the file ends up). Pending titles and System save data still have FBI's action lists
    and English item names ("Delete Pending Title"...); System save data would show
    readable names of the known modules.
+3b. **Send saves and extra data** (design agreed with the owner 2026-10-31, not started). A save is
+   whole: it cannot be merged, only replaced or kept apart. Today a 3DS title only has "Save data"
+   (browse the files) and "Browse extra data"; export/import exists for DS cartridge saves only.
+   - **Local first**, on the Titles sheet, flat rows (no nested menus): *Export save*, *Import save*,
+     *Send save to another 3DS*, and the same three for *extra data*. Export copies the archive's
+     files to `sdmc:/nsa/saves/<TITLEID>/<date>/` (extra data under `ext/`, SpotPass under `boss/`)
+     with a small manifest (title ID, version, name, date, kind); it is a plain folder the owner can
+     browse and copy to a PC. Import picks one of those folders (newest first).
+   - **Import replaces the whole archive** (delete its contents, copy the tree, commit), behind the
+     red warning, and **first copies the current save to `before-import-<date>/`** next to the
+     exports. It is only offered when the archive can be opened (title installed and started once;
+     for extra data, the archive exists).
+   - **Sending**: folders cannot be sent today, so a save/ext data goes as a package like the title
+     package: a header (kind 2 save / 3 extra data, title ID, version, name, file count) and the files
+     as read; protocol version up. The receiver unpacks into a folder under `sdmc:/nsa/saves/` first,
+     whatever the choice, and "Import now" is the same local import over that folder.
+   - **Receiving**, in the same Receive screen: *Import now* (red; only if the title or archive is
+     there) / *Save in a folder* / *Reject*; with no title or archive, only *Save in a folder* / *Reject*
+     and the text says why. Mockup: `saves-mock.png` (owner's chat, 2026-10-31).
+   - When the sender's game version differs from the installed one (same title ID), the receiver shows
+     both versions and asks whether to import anyway (the owner's choice, never blocked or forced).
+   - Open: ext data to the right game depends on the exact ext data link (4).
 4. **Exact ext data link**: read the ExtData ID from each game's exheader (NCCH
    `ExHeader`, ARM11 local system capabilities, offset 0x230 by 3dbrew; check with the
    Program ID at 0x200) instead of the ID heuristics. The file path type for the exheader
    on `ARCHIVE_SAVEDATA_AND_CONTENT` is not confirmed: probe it on the console and write
    the result to a file the FTP server can fetch, since Azahar cannot answer it.
-5. **Themes "Pixel" and "HOME"** (mockups were shown and liked): HOME = big icon tiles
+5. **Themes "Pixel" and "HOME" (both built, see Pending tests; HOME lacks paged grids)** (mockups were shown and liked): HOME = big icon tiles
    in pages, modals as a sheet from the bottom; Pixel = bundled pixel font (OFL), square
    corners, thick borders, block progress bars, yellow highlight. Then **themes from the
    SD card** (`sdmc:/nsa/themes/`), data only.
@@ -354,7 +391,7 @@ current, this list is the summary. What only the owner can test (local wireless)
     - Hex viewer for files that are not text, and a file's SHA-256 (the FTP DEBUG command exists).
     - Browse and extract `.zip`; previews of `.smdh`, `.bcstm`/`.bcwav` audio, a `.cia`'s icon already exists.
     - More sound: the held repeat of a list, text-editor keys, a tone per kind of action.
-    - Hide "Open as text" on programs, ROMs, archives; open `.3dsx` by tap instead of through the sheet.
+    - ~~Hide "Open as text" on programs, ROMs, archives~~ done; open `.3dsx` by tap instead of through the sheet.
     - The NSA icon and banner (item 6) show now in every 3DSX preview: still FBI's.
     - A mini player that keeps the song playing while browsing (the audio view stops it on B).
     - Date of creation: not available (the 3DS only gives the last change); NSA could record its own.

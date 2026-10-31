@@ -38,6 +38,75 @@ static const theme_def themes[] = {
                 .radiusSmall = 8,
                 .border = 1,
                 .menuLayout = THEME_MENU_GRID2
+        },
+        {
+                // Square corners, thick outlines, a pixel font and bars in blocks.
+                .id = "pixel",
+                .name = "Pixel",
+                .day = {
+                        .background = THEME_RGB(0xF2EEDC),
+                        .surface = THEME_RGB(0xFFFCF0),
+                        .border = THEME_RGB(0x3C3858),
+                        .text = THEME_RGB(0x181624),
+                        .textMuted = THEME_RGB(0x645F7A),
+                        .scrim = THEME_ALPHA(THEME_RGB(0x181624), 0x80),
+                        .success = THEME_RGB(0x0B7A43),
+                        .successSoft = THEME_RGB(0xD6F2E2),
+                        .danger = THEME_RGB(0xB3261E),
+                        .warning = THEME_RGB(0x8A5A00)
+                },
+                .night = {
+                        .background = THEME_RGB(0x0E1016),
+                        .surface = THEME_RGB(0x1A1E2A),
+                        .border = THEME_RGB(0x586078),
+                        .text = THEME_RGB(0xECECE4),
+                        .textMuted = THEME_RGB(0x969CB0),
+                        .scrim = THEME_ALPHA(THEME_RGB(0x000000), 0xB0),
+                        .success = THEME_RGB(0x50DC8C),
+                        .successSoft = THEME_RGB(0x0C3A24),
+                        .danger = THEME_RGB(0xFF6E6E),
+                        .warning = THEME_RGB(0xFFC63C)
+                },
+                .radius = 0,
+                .radiusSmall = 0,
+                .border = 2,
+                .pixelFont = true,
+                .blockBars = true,
+                .menuLayout = THEME_MENU_GRID2
+        },
+        {
+                // Big rounded icon tiles and dialogs as a sheet from the bottom.
+                .id = "home",
+                .name = "HOME",
+                .day = {
+                        .background = THEME_RGB(0xE2E6EE),
+                        .surface = THEME_RGB(0xFFFFFF),
+                        .border = THEME_RGB(0xC8CFDC),
+                        .text = THEME_RGB(0x1E2432),
+                        .textMuted = THEME_RGB(0x646E82),
+                        .scrim = THEME_ALPHA(THEME_RGB(0x1E2432), 0x70),
+                        .success = THEME_RGB(0x0F7A56),
+                        .successSoft = THEME_RGB(0xDDF3EA),
+                        .danger = THEME_RGB(0xC83232),
+                        .warning = THEME_RGB(0x9A6200)
+                },
+                .night = {
+                        .background = THEME_RGB(0x12151C),
+                        .surface = THEME_RGB(0x1E232E),
+                        .border = THEME_RGB(0x363E50),
+                        .text = THEME_RGB(0xE6EAF2),
+                        .textMuted = THEME_RGB(0x98A2B8),
+                        .scrim = THEME_ALPHA(THEME_RGB(0x000000), 0xA0),
+                        .success = THEME_RGB(0x5DCAA5),
+                        .successSoft = THEME_RGB(0x0C3A2C),
+                        .danger = THEME_RGB(0xF09595),
+                        .warning = THEME_RGB(0xEF9F27)
+                },
+                .radius = 16,
+                .radiusSmall = 12,
+                .border = 1,
+                .sheetPrompts = true,
+                .menuLayout = THEME_MENU_TILES
         }
 };
 
@@ -49,7 +118,8 @@ static const theme_accent accents[] = {
         {"coral", "Coral", THEME_RGB(0xB04A24), THEME_RGB(0xD85A30)},
         {"amber", "Amber", THEME_RGB(0x8A5A10), THEME_RGB(0xBA7517)},
         {"graphite", "Graphite", THEME_RGB(0x5F5E5A), THEME_RGB(0x888780)},
-        {"red", "Red", THEME_RGB(0xA32D2D), THEME_RGB(0xE24B4A)}
+        {"red", "Red", THEME_RGB(0xA32D2D), THEME_RGB(0xE24B4A)},
+        {"yellow", "Yellow", THEME_RGB(0xC79000), THEME_RGB(0xFFCC00)}
 };
 
 #define THEME_COUNT (sizeof(themes) / sizeof(*themes))
@@ -139,8 +209,14 @@ static void theme_resolve() {
     current.night = theme_is_night();
     current.palette = current.night ? &current.def->night : &current.def->day;
     current.accent = current.night ? accents[selected_accent].night : accents[selected_accent].day;
-    current.onAccent = THEME_RGB(0xFFFFFF);
+    // White on the accent, or near black when the accent is a light one (yellow).
+    u32 r = current.accent & 0xFF;
+    u32 g = (current.accent >> 8) & 0xFF;
+    u32 b = (current.accent >> 16) & 0xFF;
+    current.onAccent = (r * 299 + g * 587 + b * 114) / 1000 > 160 ? THEME_RGB(0x14120A) : THEME_RGB(0xFFFFFF);
     current.accentSoft = theme_mix(current.palette->surface, current.accent, current.night ? 0x40 : 0x24);
+    screen_set_pixel_font(current.def->pixelFont);
+    screen_set_square_corners(current.def->radius < 1);
     theme_apply_legacy_colors();
 }
 

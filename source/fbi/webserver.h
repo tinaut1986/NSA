@@ -27,6 +27,12 @@
 //   GET    /api/icon?id=&media=            the 48x48 icon as a BMP
 //   POST   /api/save/pack?id=&media=&kind=save|ext|boss&name=   makes the .nsasave package: {path, size}
 //   POST   /api/save/receive?path=/nsa/received/x.nsasave&import=1   the console takes it like a sent one and asks there
+//   GET    /api/save/backups?id=&media=&kind=   [{path, label, checkpoint}]: NSA's exports and Checkpoint's
+//   POST   /api/save/import?id=&media=&kind=&path=&name=   the console asks (red) whether to replace the data with that backup
+//   POST   /api/title/launch?id=&media=    the console asks, then launches it
+//   POST   /api/title/delete?id=&media=&ticket=0|1   the console asks, then deletes it
+//   POST   /api/install-url                the body is http(s) URLs, one per line: the console asks, then installs (and notes them in Remote Install's history)
+// What opens a question on the console runs on the main thread, one request at a time (409 while the last one is open).
 //
 // Port 8080 (the ports 5000-5085 are Remote Install, the transfers and the FTP server).
 

@@ -16,3 +16,12 @@ void bgmusic_set(bgmusic_style style, u32 volumePercent);
 // From the UI loop, once a frame: starts, stops and ducks the music.
 void bgmusic_update();
 void bgmusic_exit();
+
+// What the music is doing, for the animation: a song is being made (progress 0..100) and/or one is playing.
+typedef struct {
+    bool generating;
+    u32 progress;
+    bool playing;
+} bgmusic_status;
+
+void bgmusic_get_status(bgmusic_status* out);

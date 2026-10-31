@@ -160,6 +160,15 @@ dates). The owner will go through them one by one; tick each only when they say 
 - [ ] On a console: a finger on the bar on the right (a wide area, not only the 4 px) makes the screen follow it, a
       tap on the bar jumps there, and dragging the content still works as before. Seen in Azahar with SITE DRAG.
 
+**Music cache and crossfade** (`bgmusic.c`)
+- [ ] On both consoles: the second time the music starts it plays the last song of that style at once (from
+      `sdmc:/nsa/music-cache-N.pcm`, 1.3 to 1.6 MB each), a new one is made meanwhile (about 15 s on the 2DS) and it
+      replaces it with a 3.5 s fade-out/fade-in; the new one is what is kept. Changing style fades the old one out
+      and plays the cache of the new one if there is one. Turning it off cancels a song being made.
+- [ ] The animation: a note blinks in the status bar while a song is made, and Settings shows the progress,
+      a progress bar and an equalizer (quick while making, slow while playing). Seen in Azahar only; the fade
+      cannot be heard there.
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.

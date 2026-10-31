@@ -679,6 +679,7 @@ const i18n_entry i18n_es[] = {
         {"Run program", "Ejecutar programa"},
         {"File / installed size", "Tamaño archivo / instalado"},
         {"Modified", "Modificado"},
+        {"Nothing to import: there are no exports of this title in sdmc:%s, nor Checkpoint backups", "Nada que importar: no hay exportaciones de este título en sdmc:%s ni copias de Checkpoint"},
         {"Send save to another 3DS", "Enviar partida a otra 3DS"},
         {"Send extra data to another 3DS", "Enviar datos extra a otra 3DS"},
         {"Counting...", "Contando..."},

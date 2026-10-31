@@ -277,6 +277,43 @@ static void ui_draw_bottom(ui_view* ui) {
     screen_set_base_alpha(0xFF);
 }
 
+// Drawing every frame costs the app core much of its time (on an Old 3DS over
+// half, with nothing moving), time a download or an install could use. So a
+// frame is drawn while something happens (input, a view opening or closing,
+// the 3D slider) and for a while after, for the animations to finish; past
+// that, a few times a second, enough for progress and clocks.
+#define UI_ACTIVE_TIME 1500
+#define UI_IDLE_FRAME 100
+
+static u64 ui_last_active = 0;
+static u64 ui_last_draw = 0;
+static ui_view* ui_last_view = NULL;
+static u32 ui_last_depth = 0;
+static float ui_last_slider = 0;
+
+void ui_wake() {
+    ui_last_active = osGetTime();
+}
+
+static bool ui_should_draw(ui_view* ui) {
+    u64 now = osGetTime();
+    float slider = osGet3DSliderState();
+    if((hidKeysHeld() | hidKeysDown() | hidKeysUp()) != 0 || ui != ui_last_view || ui_depth() != ui_last_depth
+       || slider != ui_last_slider || ui_last_active == 0) {
+        ui_last_active = now;
+        ui_last_view = ui;
+        ui_last_depth = ui_depth();
+        ui_last_slider = slider;
+    }
+
+    if(now - ui_last_active < UI_ACTIVE_TIME || now - ui_last_draw >= UI_IDLE_FRAME) {
+        ui_last_draw = now;
+        return true;
+    }
+
+    return false;
+}
+
 bool ui_update() {
     ui_view* ui = NULL;
 
@@ -298,10 +335,15 @@ bool ui_update() {
 
     ui = ui_top();
     if(ui != NULL) {
-        screen_begin_frame();
-        ui_draw_top(ui);
-        ui_draw_bottom(ui);
-        screen_end_frame();
+        if(ui_should_draw(ui)) {
+            screen_begin_frame();
+            ui_draw_top(ui);
+            ui_draw_bottom(ui);
+            screen_end_frame();
+        } else {
+            // The screens keep the last frame; wait for the next one as drawing would.
+            gspWaitForVBlank();
+        }
     }
 
     return ui != NULL;

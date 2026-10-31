@@ -650,6 +650,24 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    if(NSA_DEBUG && strcmp(sub, "CPU") == 0) {
+        unsigned ms = 2000;
+        if(path != NULL && strcasecmp(path, "OFF") == 0) {
+            selftest_cpu_stop();
+            ftp_reply(s, "200 CPU counting stopped.");
+            return;
+        }
+
+        if(path != NULL) {
+            sscanf(path, "%u", &ms);
+        }
+
+        char text[128];
+        selftest_cpu_measure(ms < 100 ? 100 : ms > 10000 ? 10000 : ms, text, sizeof(text));
+        ftp_reply(s, "200 %s", text);
+        return;
+    }
+
     if(NSA_DEBUG && strcmp(sub, "SHA256") == 0) {
         char vpath[FTP_PATH_MAX];
         char rpath[FTP_PATH_MAX + 8];

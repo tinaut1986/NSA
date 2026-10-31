@@ -26,6 +26,8 @@ u32 ui_depth();
 bool ui_push(ui_view* view);
 void ui_pop();
 bool ui_update();
+// Draws every frame again for a moment: for what moves without input.
+void ui_wake();
 
 // Background status drawn over every view, set by the app (the FTP server):
 // `corner` fills a short line for the top screen's bottom bar (empty: none);

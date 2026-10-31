@@ -32,6 +32,7 @@ typedef struct {
     void (*onResponse)(ui_view* view, void* data, u32 response);
     widget_press press;   // Touched button, answered on release over it.
     u64 opened;           // For the card's entrance.
+    float width;          // Set by the layout: the card, or the whole screen for a sheet.
     bool danger;          // A warning: the card, icon and first button in a soft red.
 } prompt_data;
 
@@ -46,21 +47,25 @@ static bool prompt_next_danger = false;
 
 // Where the modal's buttons are; the same for drawing and touch.
 static void prompt_layout(prompt_data* promptData, float bx1, float by1, float bx2, float by2, float* cardX, float* cardY, float* cardH, float* textH) {
+    // A sheet (HOME) is as wide as the screen and sits on its bottom; a card floats in the middle.
+    bool sheet = theme()->def->sheetPrompts;
+    promptData->width = sheet ? bx2 - bx1 : PROMPT_WIDTH;
+
     float textWidth = 0;
-    screen_get_string_size_wrap(&textWidth, textH, promptData->text, PROMPT_TEXT_SCALE, PROMPT_TEXT_SCALE, PROMPT_WIDTH - 2 * PROMPT_PAD);
-    *cardH = PROMPT_PAD + PROMPT_HEADER + *textH + PROMPT_PAD + PROMPT_BUTTON_HEIGHT + PROMPT_PAD;
+    screen_get_string_size_wrap(&textWidth, textH, promptData->text, PROMPT_TEXT_SCALE, PROMPT_TEXT_SCALE, promptData->width - 2 * PROMPT_PAD);
+    *cardH = PROMPT_PAD + PROMPT_HEADER + *textH + PROMPT_PAD + PROMPT_BUTTON_HEIGHT + PROMPT_PAD + (sheet ? 8 : 0);
     float maxH = by2 - by1 - 8;
     if(*cardH > maxH) {
         *cardH = maxH;
     }
 
-    *cardX = bx1 + (bx2 - bx1 - PROMPT_WIDTH) / 2;
-    *cardY = by1 + (by2 - by1 - *cardH) / 2;
+    *cardX = bx1 + (bx2 - bx1 - promptData->width) / 2;
+    *cardY = sheet ? by2 - *cardH : by1 + (by2 - by1 - *cardH) / 2;
 }
 
 static void prompt_button_rect(prompt_data* promptData, u32 i, float cardX, float cardY, float cardH, float* x, float* y, float* w) {
     float gap = 8;
-    *w = (PROMPT_WIDTH - 2 * PROMPT_PAD - gap * (promptData->numOptions - 1)) / promptData->numOptions;
+    *w = (promptData->width - 2 * PROMPT_PAD - gap * (promptData->numOptions - 1)) / promptData->numOptions;
     *x = cardX + PROMPT_PAD + (*w + gap) * i;
     *y = cardY + cardH - PROMPT_PAD - PROMPT_BUTTON_HEIGHT;
 }
@@ -196,21 +201,29 @@ static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, fl
     // The scrim darkens in while the card rises into place.
     float e = widget_ease(promptData->opened, 180);
     screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->scrim, (u32) (((t->palette->scrim >> 24) & 0xFF) * e)));
-    screen_set_offset(0, (1 - e) * 14);
+    bool sheet = t->def->sheetPrompts;
+    screen_set_offset(0, (1 - e) * (sheet ? cardH : 14));
     screen_set_base_alpha((u8) (0x40 + e * 0xBF));
 
+    // A sheet is drawn taller than it is, so its bottom corners are off the screen.
+    float frameH = sheet ? cardH + t->def->radius * 2 : cardH;
     if(promptData->danger) {
-        screen_frame_round_rect(cardX, cardY, PROMPT_WIDTH, cardH, t->def->radius, t->def->border, t->palette->danger, theme_mix(t->palette->surface, t->palette->danger, 0x1A));
+        screen_frame_round_rect(cardX, cardY, promptData->width, frameH, t->def->radius, t->def->border, t->palette->danger, theme_mix(t->palette->surface, t->palette->danger, 0x1A));
     } else {
-        screen_frame_round_rect(cardX, cardY, PROMPT_WIDTH, cardH, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
+        screen_frame_round_rect(cardX, cardY, promptData->width, frameH, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
+    }
+
+    if(sheet) {
+        // The handle that says it can be put away.
+        screen_fill_round_rect(cardX + promptData->width / 2 - 14, cardY + 5, 28, 3, 1, promptData->danger ? t->palette->danger : t->palette->border);
     }
 
     // Header: what kind of dialog it is, by icon and colour.
     screen_draw_icon(promptData->icon, cardX + PROMPT_PAD, cardY + PROMPT_PAD - 1, 16, promptData->iconColor);
-    widget_text_fit(promptData->title, cardX + PROMPT_PAD + 22, cardY + PROMPT_PAD, WIDGET_TEXT_SCALE, t->palette->text, PROMPT_WIDTH - 2 * PROMPT_PAD - 22);
+    widget_text_fit(promptData->title, cardX + PROMPT_PAD + 22, cardY + PROMPT_PAD, WIDGET_TEXT_SCALE, t->palette->text, promptData->width - 2 * PROMPT_PAD - 22);
 
     u32 textColor = promptData->color == COLOR_TEXT ? t->palette->text : screen_get_color(promptData->color);
-    screen_draw_text_wrap(promptData->text, cardX + PROMPT_PAD, cardY + PROMPT_PAD + PROMPT_HEADER, PROMPT_TEXT_SCALE, textColor, cardX + PROMPT_WIDTH - PROMPT_PAD);
+    screen_draw_text_wrap(promptData->text, cardX + PROMPT_PAD, cardY + PROMPT_PAD + PROMPT_HEADER, PROMPT_TEXT_SCALE, textColor, cardX + promptData->width - PROMPT_PAD);
 
     char button[64];
     char label[PROMPT_OPTION_TEXT_MAX + 65];

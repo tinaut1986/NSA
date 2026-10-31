@@ -73,6 +73,40 @@ static const theme_def themes[] = {
                 .pixelFont = true,
                 .blockBars = true,
                 .menuLayout = THEME_MENU_GRID2
+        },
+        {
+                // Big rounded icon tiles and dialogs as a sheet from the bottom.
+                .id = "home",
+                .name = "HOME",
+                .day = {
+                        .background = THEME_RGB(0xE2E6EE),
+                        .surface = THEME_RGB(0xFFFFFF),
+                        .border = THEME_RGB(0xC8CFDC),
+                        .text = THEME_RGB(0x1E2432),
+                        .textMuted = THEME_RGB(0x646E82),
+                        .scrim = THEME_ALPHA(THEME_RGB(0x1E2432), 0x70),
+                        .success = THEME_RGB(0x0F7A56),
+                        .successSoft = THEME_RGB(0xDDF3EA),
+                        .danger = THEME_RGB(0xC83232),
+                        .warning = THEME_RGB(0x9A6200)
+                },
+                .night = {
+                        .background = THEME_RGB(0x12151C),
+                        .surface = THEME_RGB(0x1E232E),
+                        .border = THEME_RGB(0x363E50),
+                        .text = THEME_RGB(0xE6EAF2),
+                        .textMuted = THEME_RGB(0x98A2B8),
+                        .scrim = THEME_ALPHA(THEME_RGB(0x000000), 0xA0),
+                        .success = THEME_RGB(0x5DCAA5),
+                        .successSoft = THEME_RGB(0x0C3A2C),
+                        .danger = THEME_RGB(0xF09595),
+                        .warning = THEME_RGB(0xEF9F27)
+                },
+                .radius = 16,
+                .radiusSmall = 12,
+                .border = 1,
+                .sheetPrompts = true,
+                .menuLayout = THEME_MENU_TILES
         }
 };
 

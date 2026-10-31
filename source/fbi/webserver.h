@@ -32,6 +32,10 @@
 //   POST   /api/title/launch?id=&media=    the console asks, then launches it
 //   POST   /api/title/delete?id=&media=&ticket=0|1   the console asks, then deletes it
 //   POST   /api/install-url                the body is http(s) URLs, one per line: the console asks, then installs (and notes them in Remote Install's history)
+//   GET    /api/screens                    both screens as raw RGB565: the top 400x240, then the bottom 320x240
+//   POST   /api/input/press?keys=A+R&frames=4   hold buttons (A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT)
+//   POST   /api/input/tap?x=&y=&frames=    touch the bottom screen
+//   POST   /api/input/drag?x=&y1=&y2=&frames=   slide a finger up or down
 // What opens a question on the console runs on the main thread, one request at a time (409 while the last one is open).
 //
 // Port 8080 (the ports 5000-5085 are Remote Install, the transfers and the FTP server).

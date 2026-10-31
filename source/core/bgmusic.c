@@ -37,18 +37,40 @@ typedef enum {
     BG_DONE
 } bg_state;
 
+#define BG_CHANNELS 2
+static const int bg_channel_of[BG_CHANNELS] = {14, 15};   // 0 is the audio player's, 8 to 11 the interface sounds'.
+
+// A song that plays, or fades in or out, on one DSP channel. Two of them make the crossfade.
+typedef struct {
+    s16* data;
+    u32 frames;
+    bgmusic_style style;
+    bool playing;
+    ndspWaveBuf wave;
+    float gain;      // 0..1 now,
+    float target;    // and where it is going,
+    float fadeTime;  // in this many seconds from 0 to 1.
+} bg_slot;
+
+static bg_slot bg_slots[BG_CHANNELS];
+
 static bgmusic_style bg_wanted = BGMUSIC_OFF;
 static u32 bg_volume = 50;
+static bgmusic_style bg_session = BGMUSIC_OFF;   // The style a new song was already asked for in this go.
 
+// The thread that makes a song.
 static volatile bg_state bg_render_state = BG_IDLE;
-static bgmusic_style bg_render_style = BGMUSIC_OFF;   // What the thread is making.
-static s16* bg_data = NULL;                           // What it made (linear memory).
+static bgmusic_style bg_render_style = BGMUSIC_OFF;
+static s16* bg_data = NULL;                      // What it made (linear memory).
 static u32 bg_frames = 0;
+static volatile u32 bg_progress = 0;             // 0..100, for the animation.
+static volatile bool bg_cancel = false;
 
-static bgmusic_style bg_playing = BGMUSIC_OFF;
-static ndspWaveBuf bg_wave;
-static bool bg_channel_ready = false;
 static bool bg_ducked = false;
+static bool bg_channels_ready = false;
+static u64 bg_last_update = 0;
+
+#define BG_CACHE_MAGIC 0x4D41534Eu   // "NSAM"
 
 // ---- the synthesis (cheap operations only: adds, multiplies, one recurrence per partial) ----
 
@@ -209,6 +231,15 @@ static bool bg_render(const bg_style* style, s16** outData, u32* outFrames) {
     u32 beatsInChord = (u32) (chordFrames / (beat * BG_RATE / 2.0f) + 0.5f);
 
     for(u32 c = 0; c < 4; c++) {
+        if(bg_cancel) {
+            free(mix);
+            free(tmp);
+            free(filtered);
+            linearFree(data);
+            return false;
+        }
+
+        bg_progress = c * 85 / 4;
         const bg_chord* chord = &style->chords[c];
         u32 start = c * chordFrames;
 
@@ -231,6 +262,7 @@ static bool bg_render(const bg_style* style, s16** outData, u32* outFrames) {
         }
     }
 
+    bg_progress = 90;
     bool ok = bg_finish(mix, length, style->wet, 0.28f, 0.42f, filtered, data);
     free(mix);
     free(tmp);
@@ -339,7 +371,16 @@ static bool bg_render_shop(s16** outData, u32* outFrames) {
 
     for(u32 p = 0; p < passes; p++) {
         for(u32 b = 0; b < 8; b++) {
+            if(bg_cancel) {
+                free(mix);
+                free(tmp);
+                free(filtered);
+                linearFree(data);
+                return false;
+            }
+
             u32 bar = p * 8 + b;
+            bg_progress = (p * 8 + b) * 85 / bars;
             const bg_shop_chord* chord = &bg_shop_chords[b];
             int next = bg_shop_chords[(b + 1) % 8].bass;
 
@@ -438,6 +479,7 @@ static bool bg_render_shop(s16** outData, u32* outFrames) {
         }
     }
 
+    bg_progress = 90;
     bool ok = bg_finish(mix, length, 0.62f, 0.45f, 0.45f, filtered, data);
     free(mix);
     free(tmp);
@@ -452,17 +494,86 @@ static bool bg_render_shop(s16** outData, u32* outFrames) {
     return true;
 }
 
+// ---- the cache: the last song of each style, to play at once next time ----
+
+typedef struct {
+    u32 magic;
+    u32 version;
+    u32 style;
+    u32 frames;
+    u32 rate;
+} bg_cache_header;
+
+static void bg_cache_path(bgmusic_style style, char* out, size_t size) {
+    snprintf(out, size, "sdmc:/nsa/music-cache-%d.pcm", (int) style);
+}
+
+static void bg_cache_save(bgmusic_style style, const s16* data, u32 frames) {
+    char path[64];
+    bg_cache_path(style, path, sizeof(path));
+    FILE* f = fopen(path, "wb");
+    if(f == NULL) {
+        return;
+    }
+
+    bg_cache_header header = {BG_CACHE_MAGIC, 1, (u32) style, frames, BG_RATE};
+    bool ok = fwrite(&header, sizeof(header), 1, f) == 1 && fwrite(data, sizeof(s16), frames, f) == frames;
+    fclose(f);
+    if(!ok) {
+        remove(path);
+    }
+}
+
+// The last song of this style, in linear memory; false when there is none or it is not whole.
+static bool bg_cache_load(bgmusic_style style, s16** outData, u32* outFrames) {
+    char path[64];
+    bg_cache_path(style, path, sizeof(path));
+    FILE* f = fopen(path, "rb");
+    if(f == NULL) {
+        return false;
+    }
+
+    bg_cache_header header;
+    bool ok = fread(&header, sizeof(header), 1, f) == 1 && header.magic == BG_CACHE_MAGIC && header.version == 1
+              && header.style == (u32) style && header.rate == BG_RATE && header.frames > BG_RATE && header.frames < BG_RATE * 120;
+    s16* data = NULL;
+    if(ok) {
+        data = (s16*) linearAlloc(header.frames * sizeof(s16));
+        ok = data != NULL && fread(data, sizeof(s16), header.frames, f) == header.frames;
+    }
+
+    fclose(f);
+    if(!ok) {
+        if(data != NULL) {
+            linearFree(data);
+        }
+
+        remove(path);
+        return false;
+    }
+
+    DSP_FlushDataCache(data, header.frames * sizeof(s16));
+    *outData = data;
+    *outFrames = header.frames;
+    return true;
+}
+
 static void bg_render_thread(void* arg) {
     bgmusic_style style = (bgmusic_style) (uintptr_t) arg;
     s16* data = NULL;
     u32 frames = 0;
     u64 started = osGetTime();
     bool ok = style == BGMUSIC_SHOP ? bg_render_shop(&data, &frames) : bg_render(&bg_styles[style - 1], &data, &frames);
+    if(ok) {
+        // Kept for next time (not when it was cancelled half way: then there is nothing).
+        bg_cache_save(style, data, frames);
+    }
+
 #if NSA_DEBUG
     // How long the loop took to make, for tuning on each console.
     FILE* log = fopen("sdmc:/nsa/music-log.txt", "a");
     if(log != NULL) {
-        fprintf(log, "style %d: %s in %lu ms (%lu frames)\n", (int) style, ok ? "rendered" : "FAILED", (u32) (osGetTime() - started), frames);
+        fprintf(log, "style %d: %s in %lu ms (%lu frames)\n", (int) style, ok ? "rendered" : "stopped", (u32) (osGetTime() - started), frames);
         fclose(log);
     }
 
@@ -483,6 +594,7 @@ static void bg_render_thread(void* arg) {
     if(ok) {
         bg_data = data;
         bg_frames = frames;
+        bg_progress = 100;
     } else {
         bg_data = NULL;
         bg_frames = 0;
@@ -491,100 +603,245 @@ static void bg_render_thread(void* arg) {
     bg_render_state = BG_DONE;
 }
 
-// ---- playing ----
+// ---- playing and crossfading ----
 
-static void bg_apply_volume() {
-    float gain = bg_ducked ? 0.0f : (float) bg_volume / 100.0f * 0.8f;
+static void bg_channels_init() {
+    if(bg_channels_ready) {
+        return;
+    }
+
+    for(u32 i = 0; i < BG_CHANNELS; i++) {
+        ndspChnReset(bg_channel_of[i]);
+        ndspChnSetInterp(bg_channel_of[i], NDSP_INTERP_LINEAR);
+        ndspChnSetFormat(bg_channel_of[i], NDSP_FORMAT_MONO_PCM16);
+        ndspChnSetRate(bg_channel_of[i], (float) BG_RATE);
+    }
+
+    bg_channels_ready = true;
+}
+
+static void bg_slot_mix(u32 i) {
+    float gain = bg_ducked ? 0.0f : bg_slots[i].gain * (float) bg_volume / 100.0f * 0.8f;
     float mix[12] = {gain, gain};
-    ndspChnSetMix(BG_CHANNEL, mix);
+    ndspChnSetMix(bg_channel_of[i], mix);
 }
 
-static void bg_stop() {
-    if(bg_playing != BGMUSIC_OFF) {
-        ndspChnWaveBufClear(BG_CHANNEL);
-        bg_playing = BGMUSIC_OFF;
+// Starts a song on a free slot, silent, and sets it fading towards `target`.
+static bool bg_slot_start(bgmusic_style style, s16* data, u32 frames, float fadeSeconds) {
+    for(u32 i = 0; i < BG_CHANNELS; i++) {
+        bg_slot* slot = &bg_slots[i];
+        if(slot->playing) {
+            continue;
+        }
+
+        bg_channels_init();
+        memset(slot, 0, sizeof(*slot));
+        slot->data = data;
+        slot->frames = frames;
+        slot->style = style;
+        slot->gain = 0.0f;
+        slot->target = 1.0f;
+        slot->fadeTime = fadeSeconds;
+        slot->wave.data_vaddr = data;
+        slot->wave.nsamples = frames;
+        slot->wave.looping = true;
+        bg_slot_mix(i);
+        ndspChnWaveBufAdd(bg_channel_of[i], &slot->wave);
+        slot->playing = true;
+        return true;
     }
 
-    if(bg_data != NULL && bg_render_state != BG_RENDERING) {
-        linearFree(bg_data);
-        bg_data = NULL;
-    }
+    return false;
 }
 
-static void bg_play(bgmusic_style style) {
-    if(!bg_channel_ready) {
-        ndspChnReset(BG_CHANNEL);
-        ndspChnSetInterp(BG_CHANNEL, NDSP_INTERP_LINEAR);
-        ndspChnSetFormat(BG_CHANNEL, NDSP_FORMAT_MONO_PCM16);
-        ndspChnSetRate(BG_CHANNEL, (float) BG_RATE);
-        bg_channel_ready = true;
+static void bg_slot_stop(u32 i) {
+    bg_slot* slot = &bg_slots[i];
+    if(!slot->playing) {
+        return;
     }
 
-    bg_apply_volume();
-    memset(&bg_wave, 0, sizeof(bg_wave));
-    bg_wave.data_vaddr = bg_data;
-    bg_wave.nsamples = bg_frames;
-    bg_wave.looping = true;
-    ndspChnWaveBufAdd(BG_CHANNEL, &bg_wave);
-    bg_playing = style;
+    ndspChnWaveBufClear(bg_channel_of[i]);
+    if(slot->data != NULL) {
+        linearFree(slot->data);
+    }
+
+    memset(slot, 0, sizeof(*slot));
+}
+
+static void bg_fade(u32 i, float seconds) {
+    bg_slots[i].target = 0.0f;
+    bg_slots[i].fadeTime = seconds;
 }
 
 void bgmusic_set(bgmusic_style style, u32 volumePercent) {
     bg_wanted = style < BGMUSIC_COUNT ? style : BGMUSIC_OFF;
     bg_volume = volumePercent > 100 ? 100 : volumePercent;
-    if(bg_channel_ready) {
-        bg_apply_volume();
+    if(bg_channels_ready) {
+        for(u32 i = 0; i < BG_CHANNELS; i++) {
+            if(bg_slots[i].playing) {
+                bg_slot_mix(i);
+            }
+        }
+    }
+}
+
+void bgmusic_get_status(bgmusic_status* out) {
+    out->generating = bg_render_state == BG_RENDERING;
+    out->progress = bg_progress > 100 ? 100 : bg_progress;
+    out->playing = false;
+    for(u32 i = 0; i < BG_CHANNELS; i++) {
+        if(bg_slots[i].playing && bg_slots[i].gain > 0.05f) {
+            out->playing = true;
+        }
     }
 }
 
 void bgmusic_update() {
-    // Another style or off: stop what plays.
-    if(bg_playing != BGMUSIC_OFF && bg_playing != bg_wanted) {
-        bg_stop();
+    u64 now = osGetTime();
+    float dt = bg_last_update == 0 ? 0.0f : (float) (now - bg_last_update) / 1000.0f;
+    bg_last_update = now;
+    if(dt > 0.2f) {
+        dt = 0.2f;
     }
 
+    // A finished song: it replaces the one playing, with a crossfade, or starts the music.
     if(bg_render_state == BG_DONE) {
         bg_render_state = BG_IDLE;
-        if(bg_data != NULL && bg_render_style == bg_wanted && bg_playing == BGMUSIC_OFF && sound_dsp_start()) {
-            bg_play(bg_render_style);
-        } else if(bg_data != NULL) {
-            linearFree(bg_data);
-            bg_data = NULL;
+        s16* data = bg_data;
+        bg_data = NULL;
+        if(data != NULL) {
+            bool used = false;
+            if(bg_render_style == bg_wanted && sound_dsp_start()) {
+                bool another = false;
+                for(u32 i = 0; i < BG_CHANNELS; i++) {
+                    if(bg_slots[i].playing && bg_slots[i].style == bg_wanted && bg_slots[i].target > 0) {
+                        another = true;
+                    }
+                }
+
+                // The one that was playing goes out while the new one comes in.
+                if(bg_slot_start(bg_render_style, data, bg_frames, another ? 3.5f : 2.0f)) {
+                    used = true;
+                    if(another) {
+                        for(u32 i = 0; i < BG_CHANNELS; i++) {
+                            if(bg_slots[i].playing && bg_slots[i].style == bg_wanted && bg_slots[i].data != data) {
+                                bg_fade(i, 3.5f);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if(!used) {
+                linearFree(data);
+            }
         }
     }
 
-    if(bg_wanted != BGMUSIC_OFF && bg_playing == BGMUSIC_OFF && bg_render_state == BG_IDLE && bg_data == NULL && sound_dsp_start()) {
-        bg_render_state = BG_RENDERING;
-        bg_render_style = bg_wanted;
-        // The lowest priority, on the system core: it must never get in the UI's way.
-        if(threadCreate(bg_render_thread, (void*) (uintptr_t) bg_wanted, 0x10000, 0x3F, 1, true) == NULL) {
-            bg_render_state = BG_IDLE;
-            bg_wanted = BGMUSIC_OFF;
+    if(bg_wanted == BGMUSIC_OFF) {
+        bg_session = BGMUSIC_OFF;
+        if(bg_render_state == BG_RENDERING) {
+            bg_cancel = true;
+        }
+
+        for(u32 i = 0; i < BG_CHANNELS; i++) {
+            if(bg_slots[i].playing && bg_slots[i].target > 0) {
+                bg_fade(i, 0.8f);
+            }
+        }
+    } else if(sound_dsp_start()) {
+        // Songs of another style go out quickly.
+        for(u32 i = 0; i < BG_CHANNELS; i++) {
+            if(bg_slots[i].playing && bg_slots[i].style != bg_wanted && bg_slots[i].target > 0) {
+                bg_fade(i, 1.2f);
+            }
+        }
+
+        bool playingWanted = false;
+        for(u32 i = 0; i < BG_CHANNELS; i++) {
+            if(bg_slots[i].playing && bg_slots[i].style == bg_wanted && bg_slots[i].target > 0) {
+                playingWanted = true;
+            }
+        }
+
+        // The last song of this style, from the SD card, so there is music at once.
+        if(!playingWanted && bg_session != bg_wanted) {
+            s16* data = NULL;
+            u32 frames = 0;
+            if(bg_cache_load(bg_wanted, &data, &frames)) {
+                if(!bg_slot_start(bg_wanted, data, frames, 2.0f)) {
+                    linearFree(data);
+                }
+            }
+        }
+
+        // A new one is made meanwhile (once for each time the music is turned on or the style changes).
+        if(bg_session != bg_wanted) {
+            if(bg_render_state == BG_IDLE) {
+                bg_session = bg_wanted;
+                bg_cancel = false;
+                bg_progress = 0;
+                bg_render_state = BG_RENDERING;
+                bg_render_style = bg_wanted;
+                // The lowest priority, on the system core: it must never get in the UI's way.
+                if(threadCreate(bg_render_thread, (void*) (uintptr_t) bg_wanted, 0x10000, 0x3F, 1, true) == NULL) {
+                    bg_render_state = BG_IDLE;
+                    bg_wanted = BGMUSIC_OFF;
+                }
+            } else if(bg_render_state == BG_RENDERING && bg_render_style != bg_wanted) {
+                // A song of another style is being made: stop it, the right one starts after.
+                bg_cancel = true;
+            }
         }
     }
 
-    // The audio player (channel 0) has the speakers: the music waits quietly.
-    if(bg_playing != BGMUSIC_OFF) {
-        bool player = ndspChnIsPlaying(0);
-        if(player != bg_ducked) {
-            bg_ducked = player;
-            bg_apply_volume();
+    // Fades, volume and ducking (the audio player on channel 0 has the speakers).
+    bool player = bg_channels_ready && ndspChnIsPlaying(0);
+    bool duckChanged = player != bg_ducked;
+    bg_ducked = player;
+    for(u32 i = 0; i < BG_CHANNELS; i++) {
+        bg_slot* slot = &bg_slots[i];
+        if(!slot->playing) {
+            continue;
+        }
+
+        bool moved = false;
+        if(slot->gain != slot->target) {
+            float step = slot->fadeTime > 0 ? dt / slot->fadeTime : 1.0f;
+            if(slot->gain < slot->target) {
+                slot->gain = slot->gain + step > slot->target ? slot->target : slot->gain + step;
+            } else {
+                slot->gain = slot->gain - step < slot->target ? slot->target : slot->gain - step;
+            }
+
+            moved = true;
+        }
+
+        if(slot->target == 0.0f && slot->gain <= 0.0f) {
+            bg_slot_stop(i);
+        } else if(moved || duckChanged) {
+            bg_slot_mix(i);
         }
     }
 }
 
 void bgmusic_exit() {
     bg_wanted = BGMUSIC_OFF;
+    bg_cancel = true;
     for(u32 waited = 0; bg_render_state == BG_RENDERING && waited < 8000; waited += 10) {
         svcSleepThread(10 * 1000000LL);
     }
 
-    bg_stop();
+    for(u32 i = 0; i < BG_CHANNELS; i++) {
+        bg_slot_stop(i);
+    }
+
     if(bg_data != NULL) {
         linearFree(bg_data);
         bg_data = NULL;
     }
 
     bg_render_state = BG_IDLE;
-    bg_channel_ready = false;
+    bg_channels_ready = false;
+    bg_session = BGMUSIC_OFF;
 }

@@ -1,4 +1,5 @@
 #include <malloc.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -238,6 +239,14 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
     float viewHeight = by2 - by1 - 2 * PAD;
 
     view->name = _("Settings");
+    if(settings_get()->music != BGMUSIC_OFF) {
+        bgmusic_status music;
+        bgmusic_get_status(&music);
+        if(music.generating || music.playing) {
+            ui_wake();
+        }
+    }
+
     view->info = settingsmenu_slider_value((settings_option) menu->selected) != NULL ? _(" change     volume    back") : _(" change    back");
 
     if(hidKeysDown() & KEY_B) {
@@ -406,6 +415,18 @@ static const char* settingsmenu_help(settings_option option) {
     }
 }
 
+// A few bars that rise and fall: quick while a song is being made, slow while one plays.
+static void settingsmenu_draw_equalizer(float x, float y, float width, float maxHeight, u32 bars, bool busy, u32 color) {
+    float time = (float) (osGetTime() % 100000) / 1000.0f;
+    float speed = busy ? 9.0f : 3.0f;
+    float step = width / bars;
+    for(u32 i = 0; i < bars; i++) {
+        float h = 0.25f + 0.75f * (0.5f + 0.5f * sinf(time * speed + i * 1.7f) * sinf(time * speed * 0.37f + i * 0.9f + 1.0f));
+        float height = maxHeight * h;
+        screen_fill_rect(x + i * step, y + maxHeight - height, step > 3 ? step - 2 : step, height, color);
+    }
+}
+
 static void settingsmenu_draw_preview(settings_option option, float x, float y, float width) {
     const theme_current* t = theme();
     settings_data* settings = settings_get();
@@ -427,6 +448,29 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
             widget_text_centered(_(accent->name), cx - step / 2, cx + step / 2, cy + r + 4, WIDGET_SMALL_SCALE, t->palette->textMuted);
         }
 
+        return;
+    }
+
+    if(option == OPTION_MUSIC) {
+        bgmusic_status music;
+        bgmusic_get_status(&music);
+        char status[96] = "";
+        if(settings->music == BGMUSIC_OFF) {
+            return;
+        } else if(music.generating && music.playing) {
+            snprintf(status, sizeof(status), _("Playing the last song; a new one is being made: %lu%%"), music.progress);
+        } else if(music.generating) {
+            snprintf(status, sizeof(status), _("Making a song: %lu%%"), music.progress);
+        } else if(music.playing) {
+            snprintf(status, sizeof(status), "%s", _("Playing"));
+        }
+
+        screen_draw_text(status, x, y - 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
+        if(music.generating) {
+            widget_progress(x, y + 14, width, 4, (float) music.progress / 100.0f);
+        }
+
+        settingsmenu_draw_equalizer(x, y + 24, width, 28, 28, music.generating, t->accent);
         return;
     }
 
@@ -495,6 +539,15 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
             char percent[8];
             snprintf(percent, sizeof(percent), "%lu%%", *volume);
             widget_row_with_slider(rowX, y, rowW, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, settingsmenu_value(option), i == menu->selected, (float) *volume / 100.0f, percent);
+            if(option == OPTION_MUSIC && settings_get()->music != BGMUSIC_OFF) {
+                bgmusic_status music;
+                bgmusic_get_status(&music);
+                if(music.generating || music.playing) {
+                    // Left of the selector's value: its arrows and text take about this much.
+                    float valueBlock = widget_text_width(settingsmenu_value(option), WIDGET_SMALL_SCALE) + 2 * 12 + 4 * 2 + 8;
+                    settingsmenu_draw_equalizer(rowX + rowW - valueBlock - 28, y + 7, 20, 12, 5, music.generating, i == menu->selected ? theme()->onAccent : theme()->accent);
+                }
+            }
         } else {
             widget_row(rowX, y, rowW, WIDGET_ROW_HEIGHT, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, settingsmenu_value(option), i == menu->selected);
         }

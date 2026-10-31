@@ -12,7 +12,7 @@
 static settings_data settings = {
         .channel = UPDATE_CHANNEL_STABLE,
         .autoUpdate = true,
-        .ftpServer = NSA_DEBUG,
+        .ftpServer = true,   // Serving files is on by default; driving the console needs sdmc:/nsa/remote.flag.
         .theme = 0,
         .accent = 0,
         .night = THEME_NIGHT_OFF,

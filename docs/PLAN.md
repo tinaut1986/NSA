@@ -122,6 +122,14 @@ dates). The owner will go through them one by one; tick each only when they say 
       `release`, before this change): not seen even once; readable names of the modules were not
       added (no source found for the IDs).
 
+**Pixel theme** (Settings -> Theme, `tools/make_pixelfont.py`)
+- [ ] On a console: the pixel font (Pixelify Sans 10/12/16 px, `romfs/pixelfont.png`) is readable on
+      both screens, Spanish accents included (the acute i is built from a dotless i), the button
+      glyphs come out of the system font, texts fit in tiles, rows, prompts and the top card; day and
+      night, every accent (the new Yellow gets dark text). Seen only in Azahar.
+- [ ] Cards is unchanged (same positions as before the text layer was split in two).
+- Bundled font: Pixelify Sans, SIL OFL 1.1 (`tools/fonts/OFL-PixelifySans.txt`). HOME theme next.
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.
@@ -351,7 +359,7 @@ current, this list is the summary. What only the owner can test (local wireless)
    Program ID at 0x200) instead of the ID heuristics. The file path type for the exheader
    on `ARCHIVE_SAVEDATA_AND_CONTENT` is not confirmed: probe it on the console and write
    the result to a file the FTP server can fetch, since Azahar cannot answer it.
-5. **Themes "Pixel" and "HOME"** (mockups were shown and liked): HOME = big icon tiles
+5. **Themes "Pixel" (done, see Pending tests) and "HOME"** (mockups were shown and liked): HOME = big icon tiles
    in pages, modals as a sheet from the bottom; Pixel = bundled pixel font (OFL), square
    corners, thick borders, block progress bars, yellow highlight. Then **themes from the
    SD card** (`sdmc:/nsa/themes/`), data only.

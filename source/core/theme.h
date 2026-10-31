@@ -33,6 +33,8 @@ typedef struct {
     float radius;         // Cards and modals.
     float radiusSmall;    // Buttons and rows.
     float border;         // Outline width.
+    bool pixelFont;       // Text in the bundled pixel font (pixelfont.c) instead of the system's.
+    bool blockBars;       // Progress bars as blocks instead of a smooth fill.
     theme_menu_layout menuLayout;
 } theme_def;
 

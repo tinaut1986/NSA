@@ -106,8 +106,9 @@ dates). The owner will go through them one by one; tick each only when they say 
 **NSA icon and banner** (`tools/make_branding.py` draws `meta/icon_3ds.png` and `banner_3ds.png`)
 - [ ] After installing the CIA the HOME menu shows the new icon and the banner (the CIA's
       version is still 0.3.1 for every dev build; if HOME keeps the old art, bump the version).
-- [ ] Banner on the console (3D rotation, tiny text readable). The boot logo and the banner sound
-      are still FBI's.
+- [ ] Banner on the console (3D rotation, tiny text readable). The boot logo animation no longer
+      is FBI's (`LOGO := plain`: the CIA carries the generic logo of buildtools/makerom); look at what
+      shows on launch. A logo of NSA's own is left open in issue #15. The banner sound is still FBI's.
 
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.

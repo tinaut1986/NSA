@@ -47,7 +47,7 @@ ICON_FLAGS := --flags visible,ratingrequired,recordusage --cero 153 --esrb 153 -
 BANNER_AUDIO := meta/audio_3ds.wav
 BANNER_IMAGE := meta/banner_3ds.png
 ICON := meta/icon_3ds.png
-LOGO := meta/logo_3ds.bcma.lz
+LOGO := plain
 
 # INTERNAL #
 

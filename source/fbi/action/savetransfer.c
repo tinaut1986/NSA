@@ -21,7 +21,8 @@
 #define MAX_FILES 1024
 #define SAVES_DIR APP_DATA_DIR "saves/"
 #define BACKUP_SUFFIX "-before-import"
-#define PICK_MAX 16
+#define PICK_MAX 24
+#define CHECKPOINT_DIR "/3ds/Checkpoint/"
 
 static const char* save_kind_dir(save_kind kind) {
     return kind == SAVE_KIND_EXT ? "ext" : "save";
@@ -333,7 +334,7 @@ static void save_write_manifest(const char* dir, title_info* title, const char* 
 
     FILE* f = fopen(path, "wb");
     if(f != NULL) {
-        fprintf(f, "kind=%s\ntitleid=%016llX\nversion=%u\nname=%s\ndate=%s\n", save_kind_dir(kind),
+        fprintf(f, "source=NSA\nkind=%s\ntitleid=%016llX\nversion=%u\nname=%s\ndate=%s\n", save_kind_dir(kind),
                 (unsigned long long) title->titleId, (unsigned) title->version, name, stamp);
         fclose(f);
     }
@@ -455,7 +456,8 @@ typedef struct {
     char name[LIST_ITEM_NAME_MAX];
     save_kind kind;
     u32 extId;
-    char from[FILE_PATH_MAX];   // The export folder to import, with the trailing slash.
+    char from[FILE_PATH_MAX];   // The folder whose tree is copied in, with the trailing slash.
+    char manifest[FILE_PATH_MAX];   // The export folder with the manifest, or empty (Checkpoint's have none).
 } import_ctx;
 
 static void import_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -540,7 +542,7 @@ static void import_backed_up(void* ctx, bool ok) {
     job->commit = true;
     job->done = import_copied;
     job->ctx = imp;
-    snprintf(job->srcRoot, sizeof(job->srcRoot), "%s%s/", imp->from, save_kind_dir(imp->kind));
+    string_copy(job->srcRoot, imp->from, sizeof(job->srcRoot));
     string_copy(job->dstRoot, "/", sizeof(job->dstRoot));
 
     Result res = save_open_target(&job->dstArchive, imp->title, imp->kind, imp->extId);
@@ -579,22 +581,9 @@ static void import_onresponse(ui_view* view, void* data, u32 response) {
     }
 }
 
-// One choice per export folder, newest first: the sheet's actions carry no index, so each row has its own.
-typedef struct {
-    title_info* title;
-    char name[LIST_ITEM_NAME_MAX];
-    save_kind kind;
-    u32 extId;
-
-    u32 count;
-    char folder[PICK_MAX][FILE_NAME_MAX];
-    char label[PICK_MAX][96];
-} import_picks;
-
-static import_picks picks;
-
-// Asks, in red, whether to replace the current data with the export in `from`.
-static void import_ask(title_info* title, const char* name, save_kind kind, u32 extId, const char* from, const char* label) {
+// Asks, in red, whether to replace the current data with the tree in `from`. `manifest` is the export
+// folder with the manifest (the version it was taken at), or empty.
+static void import_ask(title_info* title, const char* name, save_kind kind, u32 extId, const char* manifest, const char* from, const char* label) {
     import_ctx* imp = (import_ctx*) calloc(1, sizeof(import_ctx));
     if(imp == NULL) {
         error_display(NULL, NULL, "Failed to allocate the import.");
@@ -607,9 +596,12 @@ static void import_ask(title_info* title, const char* name, save_kind kind, u32 
     imp->kind = kind;
     imp->extId = extId;
     string_copy(imp->from, from, sizeof(imp->from));
+    string_copy(imp->manifest, manifest, sizeof(imp->manifest));
 
-    char saved[16];
-    save_read_manifest(imp->from, "version", saved, sizeof(saved));
+    char saved[16] = {'\0'};
+    if(manifest[0] != '\0') {
+        save_read_manifest(manifest, "version", saved, sizeof(saved));
+    }
 
     char text[512];
     char versions[160] = {'\0'};
@@ -625,30 +617,91 @@ static void import_ask(title_info* title, const char* name, save_kind kind, u32 
     prompt_display_warning("Confirmation", text, COLOR_TEXT, imp, import_draw_top, import_onresponse);
 }
 
+// One choice per backup, NSA's first (newest first), then Checkpoint's: the sheet's actions carry no index,
+// so each row has its own function.
+typedef struct {
+    title_info* title;
+    char name[LIST_ITEM_NAME_MAX];
+    save_kind kind;
+    u32 extId;
+
+    u32 count;
+    char path[PICK_MAX][FILE_PATH_MAX];   // The backup's folder, with the trailing slash.
+    bool checkpoint[PICK_MAX];
+    char label[PICK_MAX][96];
+} import_picks;
+
+static import_picks picks;
+
 static void import_pick(u32 index) {
-    char from[FILE_PATH_MAX];
-    snprintf(from, sizeof(from), SAVES_DIR "%016llX/%s/", (unsigned long long) picks.title->titleId, picks.folder[index]);
-    import_ask(picks.title, picks.name, picks.kind, picks.extId, from, picks.label[index]);
+    if(picks.checkpoint[index]) {
+        // Checkpoint keeps the archive's tree right in the folder, and no manifest.
+        import_ask(picks.title, picks.name, picks.kind, picks.extId, "", picks.path[index], picks.label[index]);
+    } else {
+        char root[FILE_PATH_MAX];
+        snprintf(root, sizeof(root), "%s%s/", picks.path[index], save_kind_dir(picks.kind));
+        import_ask(picks.title, picks.name, picks.kind, picks.extId, picks.path[index], root, picks.label[index]);
+    }
 }
 
 #define PICK_FN(n) static void import_pick_##n(void* data) { import_pick(n); }
 PICK_FN(0) PICK_FN(1) PICK_FN(2) PICK_FN(3) PICK_FN(4) PICK_FN(5) PICK_FN(6) PICK_FN(7)
 PICK_FN(8) PICK_FN(9) PICK_FN(10) PICK_FN(11) PICK_FN(12) PICK_FN(13) PICK_FN(14) PICK_FN(15)
+PICK_FN(16) PICK_FN(17) PICK_FN(18) PICK_FN(19) PICK_FN(20) PICK_FN(21) PICK_FN(22) PICK_FN(23)
 
 static void (*const pick_fns[PICK_MAX])(void*) = {
     import_pick_0, import_pick_1, import_pick_2, import_pick_3, import_pick_4, import_pick_5, import_pick_6, import_pick_7,
     import_pick_8, import_pick_9, import_pick_10, import_pick_11, import_pick_12, import_pick_13, import_pick_14, import_pick_15,
+    import_pick_16, import_pick_17, import_pick_18, import_pick_19, import_pick_20, import_pick_21, import_pick_22, import_pick_23,
 };
 
+// The names of the folders inside `dir` (with the trailing slash), at most `max`; `prefix` (or NULL) keeps
+// only those that start with it.
+static u32 save_list_dirs(FS_Archive sd, const char* dir, const char* prefix, char names[][FILE_NAME_MAX], u32 max) {
+    u32 found = 0;
+    FS_Path* fsDir = fs_make_path_utf8(dir);
+    Handle handle = 0;
+    if(fsDir != NULL && R_SUCCEEDED(FSUSER_OpenDirectory(&handle, sd, *fsDir))) {
+        FS_DirectoryEntry* entries = (FS_DirectoryEntry*) calloc(MAX_FILES, sizeof(FS_DirectoryEntry));
+        u32 count = 0;
+        if(entries != NULL && R_SUCCEEDED(FSDIR_Read(handle, &count, MAX_FILES, entries))) {
+            for(u32 i = 0; i < count && found < max; i++) {
+                char entry[FILE_NAME_MAX] = {'\0'};
+                utf16_to_utf8((uint8_t*) entry, entries[i].name, sizeof(entry) - 1);
+                if((entries[i].attributes & FS_ATTRIBUTE_DIRECTORY) && (prefix == NULL || strncmp(entry, prefix, strlen(prefix)) == 0)) {
+                    string_copy(names[found++], entry, FILE_NAME_MAX);
+                }
+            }
+        }
+
+        free(entries);
+        FSDIR_Close(handle);
+    }
+
+    if(fsDir != NULL) {
+        fs_free_path_utf8(fsDir);
+    }
+
+    return found;
+}
+
 static int import_compare_names(const void* a, const void* b) {
-    // The folder names start with the date: newest first.
+    // Newest first (the NSA names start with the date; Checkpoint's usually do too).
     return strcmp((const char*) b, (const char*) a);
 }
 
-void action_import_save_files(title_info* title, const char* name, save_kind kind, u32 extId) {
-    char base[FILE_PATH_MAX];
-    snprintf(base, sizeof(base), SAVES_DIR "%016llX/", (unsigned long long) title->titleId);
+static void import_add_pick(const char* path, bool checkpoint, const char* label) {
+    if(picks.count >= PICK_MAX) {
+        return;
+    }
 
+    string_copy(picks.path[picks.count], path, FILE_PATH_MAX);
+    picks.checkpoint[picks.count] = checkpoint;
+    string_copy(picks.label[picks.count], label, sizeof(picks.label[0]));
+    picks.count++;
+}
+
+void action_import_save_files(title_info* title, const char* name, save_kind kind, u32 extId) {
     FS_Archive sd = 0;
     Result res = save_open_sd(&sd);
     if(R_FAILED(res)) {
@@ -656,69 +709,77 @@ void action_import_save_files(title_info* title, const char* name, save_kind kin
         return;
     }
 
-    static char names[64][FILE_NAME_MAX];
-    u32 found = 0;
-
-    FS_Path* fsBase = fs_make_path_utf8(base);
-    Handle dir = 0;
-    if(fsBase != NULL && R_SUCCEEDED(FSUSER_OpenDirectory(&dir, sd, *fsBase))) {
-        FS_DirectoryEntry* entries = (FS_DirectoryEntry*) calloc(MAX_FILES, sizeof(FS_DirectoryEntry));
-        u32 count = 0;
-        if(entries != NULL && R_SUCCEEDED(FSDIR_Read(dir, &count, MAX_FILES, entries))) {
-            for(u32 i = 0; i < count && found < 64; i++) {
-                if(!(entries[i].attributes & FS_ATTRIBUTE_DIRECTORY)) {
-                    continue;
-                }
-
-                char entry[FILE_NAME_MAX] = {'\0'};
-                utf16_to_utf8((uint8_t*) entry, entries[i].name, sizeof(entry) - 1);
-
-                char sub[FILE_PATH_MAX];
-                snprintf(sub, sizeof(sub), "%s%s/%s", base, entry, save_kind_dir(kind));
-                if(fs_is_dir(sd, sub)) {
-                    string_copy(names[found++], entry, FILE_NAME_MAX);
-                }
-            }
-        }
-
-        free(entries);
-        FSDIR_Close(dir);
-    }
-
-    if(fsBase != NULL) {
-        fs_free_path_utf8(fsBase);
-    }
-
-    fs_close_archive(sd);
-
-    if(found == 0) {
-        char text[FILE_PATH_MAX + 64];
-        snprintf(text, sizeof(text), _("Nothing to import: there are no exports of this title in sdmc:%s"), base);
-        prompt_display_notify("Failure", text, COLOR_TEXT, title, task_draw_title_info, NULL);
-        return;
-    }
-
-    qsort(names, found, FILE_NAME_MAX, import_compare_names);
-
     picks.title = title;
     string_copy(picks.name, name, sizeof(picks.name));
     picks.kind = kind;
     picks.extId = extId;
-    picks.count = found < PICK_MAX ? found : PICK_MAX;
+    picks.count = 0;
 
-    sheet_action actions[PICK_MAX];
-    for(u32 i = 0; i < picks.count; i++) {
-        string_copy(picks.folder[i], names[i], FILE_NAME_MAX);
+    static char names[48][FILE_NAME_MAX];
 
+    // NSA's own exports.
+    char base[FILE_PATH_MAX];
+    snprintf(base, sizeof(base), SAVES_DIR "%016llX/", (unsigned long long) title->titleId);
+    u32 listed = save_list_dirs(sd, base, NULL, names, 48);
+    u32 found = 0;
+    for(u32 i = 0; i < listed; i++) {
+        char sub[FILE_PATH_MAX];
+        snprintf(sub, sizeof(sub), "%s%s/%s", base, names[i], save_kind_dir(kind));
+        if(fs_is_dir(sd, sub)) {
+            string_copy(names[found++], names[i], FILE_NAME_MAX);
+        }
+    }
+
+    qsort(names, found, FILE_NAME_MAX, import_compare_names);
+    for(u32 i = 0; i < found; i++) {
         // 20261031-142530 -> 2026-10-31 14:25:30
         const char* n = names[i];
         bool backup = strstr(n, BACKUP_SUFFIX) != NULL;
+        char label[96];
         if(strlen(n) >= 15 && n[8] == '-') {
-            snprintf(picks.label[i], sizeof(picks.label[i]), "%.4s-%.2s-%.2s %.2s:%.2s:%.2s%s", n, n + 4, n + 6, n + 9, n + 11, n + 13, backup ? _("  (before an import)") : "");
+            snprintf(label, sizeof(label), "[NSA] %.4s-%.2s-%.2s %.2s:%.2s:%.2s%s", n, n + 4, n + 6, n + 9, n + 11, n + 13, backup ? _("  (before an import)") : "");
         } else {
-            string_copy(picks.label[i], n, sizeof(picks.label[i]));
+            snprintf(label, sizeof(label), "[NSA] %s", n);
         }
 
+        char path[FILE_PATH_MAX];
+        snprintf(path, sizeof(path), "%s%s/", base, n);
+        import_add_pick(path, false, label);
+    }
+
+    // Checkpoint's: <root>/saves|extdata/0x<unique ID, 5 digits> <game>/<backup>/ with the tree inside.
+    char idPrefix[16];
+    snprintf(idPrefix, sizeof(idPrefix), "0x%05X", (unsigned) ((u32) title->titleId >> 8));
+    char cpBase[FILE_PATH_MAX];
+    snprintf(cpBase, sizeof(cpBase), CHECKPOINT_DIR "%s/", kind == SAVE_KIND_EXT ? "extdata" : "saves");
+    u32 games = save_list_dirs(sd, cpBase, idPrefix, names, 8);
+    for(u32 g = 0; g < games; g++) {
+        static char backups[32][FILE_NAME_MAX];
+        char gameDir[FILE_PATH_MAX];
+        snprintf(gameDir, sizeof(gameDir), "%s%s/", cpBase, names[g]);
+
+        u32 n = save_list_dirs(sd, gameDir, NULL, backups, 32);
+        qsort(backups, n, FILE_NAME_MAX, import_compare_names);
+        for(u32 i = 0; i < n; i++) {
+            char label[96];
+            char path[FILE_PATH_MAX];
+            snprintf(label, sizeof(label), "[Checkpoint] %s", backups[i]);
+            snprintf(path, sizeof(path), "%s%s/", gameDir, backups[i]);
+            import_add_pick(path, true, label);
+        }
+    }
+
+    fs_close_archive(sd);
+
+    if(picks.count == 0) {
+        char text[FILE_PATH_MAX + 64];
+        snprintf(text, sizeof(text), _("Nothing to import: there are no exports of this title in sdmc:%s, nor Checkpoint backups"), base);
+        prompt_display_notify("Failure", text, COLOR_TEXT, title, task_draw_title_info, NULL);
+        return;
+    }
+
+    sheet_action actions[PICK_MAX];
+    for(u32 i = 0; i < picks.count; i++) {
         actions[i] = (sheet_action) {ICON_DOWNLOAD, picks.label[i], true, pick_fns[i], false};
     }
 
@@ -1344,7 +1405,9 @@ static void unpack_finished(worker* w, Result res) {
         title_info installed;
         u32 extId = 0;
         if(job->importNow && save_installed_title(job->titleId, &installed) && (job->kind == SAVE_KIND_SAVE || action_find_ext_data(&installed, &extId))) {
-            import_ask(&installed, job->name, job->kind, extId, job->dir, _("the other console"));
+            char root[FILE_PATH_MAX];
+            snprintf(root, sizeof(root), "%s%s/", job->dir, save_kind_dir(job->kind));
+            import_ask(&installed, job->name, job->kind, extId, job->dir, root, _("the other console"));
         } else {
             char text[FILE_PATH_MAX + 64];
             snprintf(text, sizeof(text), _("Saved in sdmc:%s"), job->dir);

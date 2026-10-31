@@ -55,6 +55,14 @@ s, b = req('POST', '/api/copy?path=/webtest/nope&to=/webtest/n2', a.pin); check(
 s, b = req('DELETE', '/api/file?path=/webtest', a.pin); check('delete folder', s == 200)
 s, b = req('GET', '/theme.json'); t = json.loads(b) if s == 200 else {}
 check('theme is public and has colours', s == 200 and t.get('theme') in ('cards', 'pixel', 'home') and t['colors']['accent'].startswith('#'))
+s, b = req('GET', '/icons.png'); check('icon atlas is public', s == 200 and b[:4] == b'\x89PNG')
+s, b = req('GET', '/icons.js'); check('icon names are public', s == 200 and b'ICON_NAMES' in b)
+s, b = req('GET', '/api/settings', a.pin); st = json.loads(b) if s == 200 else {}
+check('settings', s == 200 and st.get('theme') == t.get('theme') and len(st.get('accents', [])) > 1 and st.get('night') in ('off', 'on', 'auto'))
+s, b = req('POST', '/api/settings?theme=nope', a.pin); check('unknown theme refused', s == 400)
+s, b = req('POST', '/api/settings?musicVolume=5', a.pin); check('volume out of range refused', s == 400)
+s, b = req('POST', '/api/settings?night=' + st.get('night', 'off')); check('settings need the PIN', s == 401)
+s, b = req('POST', '/api/settings?night=' + st.get('night', 'off'), a.pin); check('settings set (unchanged)', s == 200 and json.loads(b)['night'] == st.get('night'))
 s, b = req('GET', '/font.ttf'); check('pixel font', s == 200 and len(b) > 10000)
 s, b = req('GET', '/api/titles', a.pin); titles = json.loads(b)['titles'] if s == 200 else []
 check('titles list', s == 200 and isinstance(titles, list))

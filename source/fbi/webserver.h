@@ -12,7 +12,7 @@
 //
 // Only the SD card is reachable ("/" is its root), never the NAND. One request at a time.
 //
-//   GET    /api/info                       {console, version, free, total}
+//   GET    /api/info                       {console, version, free, total, battery 0-5, charging}
 //   GET    /api/list?path=/dir             [{name, dir, size, mtime}]
 //   GET    /api/file?path=/f               the file (Range supported)
 //   PUT    /api/file?path=/f               the body is the file (written as .part, then renamed)
@@ -23,6 +23,7 @@
 //   POST   /api/install?path=/f.cia        installs a CIA from the SD card (SD titles only)
 //   GET    /theme.json                     (public) the console's theme, for the page to wear
 //   GET    /font.ttf                       (public) the Pixel theme's font
+//   GET    /icons.png, /icons.js           (public) the console's icon atlas (32 px cells) and the names in its order
 //   GET    /api/titles                     [{id, media, kind, version, size}]: SD and NAND, no DSiWare
 //   GET    /api/title?id=&media=           {name, publisher, code, save, ext, boss}
 //   GET    /api/tickets                    [{id, media: sd|nand|"" (where installed), kind}]
@@ -40,6 +41,9 @@
 //   POST   /api/input/press?keys=A+R&frames=4   hold buttons (A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT)
 //   POST   /api/input/tap?x=&y=&frames=    touch the bottom screen
 //   POST   /api/input/drag?x=&y1=&y2=&frames=   slide a finger up or down
+//   GET    /api/settings                   {theme, themes[{id,name}], accent, accents[{id,name,day,night}], night, language, sounds, soundVolume, music, musicVolume}
+//   POST   /api/settings?theme=&accent=&night=off|on|auto&language=system|en|es&sounds=0-2&soundVolume=25-100&music=0-3&musicVolume=25-100
+//                                           only the named ones change; applied and saved by the main thread, as the Settings screen does
 // What opens a question on the console runs on the main thread, one request at a time (409 while the last one is open).
 //
 // Port 8080 (the ports 5000-5085 are Remote Install, the transfers and the FTP server).

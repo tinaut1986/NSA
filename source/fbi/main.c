@@ -10,6 +10,7 @@
 #include "../core/http.h"
 #include "../core/screen.h"
 #include "../core/sound.h"
+#include "launch3dsx.h"
 #include "thumbs.h"
 #include "../core/task/task.h"
 #include "../core/ui/ui.h"
@@ -213,6 +214,11 @@ int main(int argc, const char* argv[]) {
 
         // A new NSA is in place (updater or SITE INSTALL): exit so libctru relaunches it.
         if(relaunch_poll()) {
+            break;
+        }
+
+        // A 3DSX was asked for: exit so libctru starts the loader's title.
+        if(launch3dsx_poll()) {
             break;
         }
     }

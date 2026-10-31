@@ -3,10 +3,12 @@
 Start every session here. It holds where things stand, what comes next and why
 things are the way they are. Keep it current in the same change that alters it.
 
-## Status (2026-10-28)
+## Status (2026-10-31)
 
-Everything the owner validated is merged into `release` and pushed; no topic branch is
-open. Merged topic branches are kept on the remote and can be deleted.
+`release` holds everything below and is pushed. On 2026-10-31 the owner asked to merge the work
+of that session into `release` **before testing it** (and to push directly): what is merged but
+not yet tried on a console is listed in "Pending tests on the console" below, which is where to
+start. Merged topic branches are kept on the remote and can be deleted.
 
 | Branch / tag | State |
 |---|---|
@@ -37,21 +39,59 @@ What `release` holds, in the order it was built:
 10. **Export an installed title as a CIA** (Titles' sheet; by another session, validated).
 11. **Console to console** (below): send and receive files and titles, over the Wi-Fi or
     with no router, install on arrival, resume, log.
-12. **Files: cut/move, pictures and text** (merged, see Pending tests): "Cut (move)" on files and folders (renamed when pasted on the same medium,
-    else copied then deleted); tapping a picture (PNG, JPEG, BMP, GIF, TGA, camera MPO in 3D)
-    opens `imageview.c` (zoom, drag, L/R through the folder; decoded up to 5 megapixels and
-    shrunk to a 1024 px texture); text files (and "Open as text" for any file) open
-    `textview.c`, which edits with its own keyboard on the bottom screen (the system one hides
-    the text), keeps CRLF, reads non-UTF-8 as Latin-1, up to 256 KB (longer: read only).
-13. **Audio player** (merged, see Pending tests): MP3, WAV, FLAC and
-    Ogg Vorbis from Files (`audioview.c`). dr_mp3/dr_flac/dr_wav (vendored in `source/libs/dr_libs`,
-    public domain) and Tremor decode on a thread into four DSP buffers; the next file of the
-    folder follows, seek bar, volume, +-10 s. Needs `sdmc:/3ds/dspfirm.cdc`. Tested only on Azahar.
+12. **Files: cut/move, pictures and text** (`feat/file-viewers`): "Cut (move)" on files and
+    folders (`clipboard_set_cut`; pasting on the same medium renames, `action_paste_contents_in`;
+    on another one copies then deletes the source). Tapping a picture (PNG, JPEG, BMP, GIF, TGA,
+    camera MPO in 3D) opens `imageview.c` (zoom, drag, L/R through the folder; up to 5
+    megapixels / 12 MB, shrunk to a 1024 px texture; the MPO's second picture is found through its
+    MP index and shown to the right eye, `screen_get_eye`). Text files (and "Open as text" for any
+    file) open `textview.c`: edits with its own keyboard on the bottom screen because the system
+    one hides the text; keeps CRLF, reads non-UTF-8 as Latin-1 (saved as UTF-8), up to 256 KB
+    (longer: read only). Tapping other files still opens the action sheet.
+13. **Audio player** (`feat/audio-player`): MP3, WAV, FLAC and Ogg Vorbis (`audioview.c`).
+    dr_mp3/dr_flac/dr_wav (vendored in `source/libs/dr_libs`, public domain or MIT-0) and Tremor
+    (`-lvorbisidec -logg`) decode on a thread into four DSP buffers; the folder's next file
+    follows, seek bar, volume, +-10 s. Needs `sdmc:/3ds/dspfirm.cdc`.
+14. **Downloads, history, idle drawing** (`feat/fast-downloads`; issue #19 has the review
+    points): curl on its own thread with a ring of buffers, big files in 512 KB segments over 8
+    connections (2 on an Old 3DS) when the server sends `Accept-Ranges`, the system's HTTP
+    service only as a fallback; `http:` speed lines in `transfer-log.txt`. Remote install keeps
+    a history (`sdmc:/nsa/history.json`, 100 requests). `ui_update` draws only while something
+    happens and for 1.5 s after, else ten times a second (`ui_wake()` exists, nobody calls it).
+    DEBUG: `SITE CPU [ms]` / `SITE CPU OFF` measure each core.
+15. **Interface sounds** (`feat/ui-sounds`, `source/core/sound.c`): tones made at run time (no
+    assets) and played on DSP channels 8-11: tick (D-Pad, touch), click (A), back (B) from
+    `ui_update`; success tune and error tones from any prompt named "Success" or
+    "Failure"/"Error" (`prompt_display_multi_choice`), which covers transfers and installs.
+    Settings: Sounds (Off / Alerts / All, default All) and Sound volume (25-100 %). Requests are
+    bits set from any thread and played by `sound_update` on the UI loop. The DSP is shared with
+    the audio player (`sound_dsp_start`; the player uses channel 0 and its own per-channel
+    mix as volume).
+16. **Files: previews and types** (`feat/image-thumbnails`, `feat/file-type-icons`,
+    `feat/3dsx-launch`, `feat/cia-size-cell`, `feat/file-dates`):
+    - `thumbs.c`: a worker thread decodes pictures (up to 8 MB / 3 megapixels) into a 96 px
+      square cropped from the centre, and a .3dsx's SMDH (found through its header, usually at the
+      END of the file) into its 48 px icon, name and author; the UI thread makes the texture;
+      48 slots, least recently used first, never one drawn in the last 1.5 s.
+    - `files.c` `files_type_of`: each extension has a type (text, code, data, picture, sound,
+      video, compressed, program, ROM, save, binary, PDF) with its icon and name; usual folders
+      (`3ds`, `roms`, `DCIM`, `luma`, `Nintendo 3DS`...) have their own icon (`files_folder_icon`).
+    - A CIA's card shows file size / installed size in one cell and a **Modified** cell (also
+      tickets and other files, SD only): libctru's `stat` leaves `st_mtime` at 0 but
+      `archive_getmtime("sdmc:/path")` reads the date the file system keeps (last change only;
+      the 3DS gives no creation date).
+    - "Run program" on a .3dsx (SD): sets it as the target of Luma3DS's 3DSX loader (`hb:ldr`,
+      commands 2 and 3, as hbmenu does) and exits into the Homebrew Launcher placeholder title
+      (default `000400000D921E00`; `sdmc:/nsa/hbl_title.txt` can name another), or into itself when
+      NSA runs as a 3DSX (`launch3dsx.c`). Says what is missing when the loader or the title is
+      not there. **Not tried on a console yet.**
+
 
 ## Pending tests on the console (2026-10-31)
 
-Merged into `release` on the owner's word, **not yet tried on a console** (only built, and the
-viewers in Azahar). The owner will go through them one by one; tick each when validated.
+Merged into `release` on the owner's word, **not yet tried on a console** unless said otherwise
+(built, and the screens driven in Azahar, which shows layout but not sound, 3D, hb:ldr or real
+dates). The owner will go through them one by one; tick each only when they say it works.
 
 **Downloads** (issue #19 has the review points)
 - [ ] Big download (>= 4 MB) from a server with `Accept-Ranges`: New 3DS (8 connections) and
@@ -101,6 +141,17 @@ viewers in Azahar). The owner will go through them one by one; tick each when va
 - [ ] Are the tones pleasant and not tiring? Tune them in `sound_prepare` (tone tables).
 - [ ] Possible next steps: sound on the held repeat of a list, on text-editor keys, a different
       tone per kind of action (delete, install).
+
+**Files: previews, types, dates, 3DSX** (seen working on the New 3DS on 2026-10-31 and approved by
+the owner: folder icons, the CIA size cell and the Modified cell)
+- [ ] Picture previews in the rows and on the card: speed while scrolling a big folder, nothing
+      freezes, Old 3DS memory.
+- [ ] A .3dsx's preview, name and author on both consoles; a .3dsx without SMDH keeps the generic icon.
+- [ ] **Run program** on a real .3dsx: the owner's NSA is a CIA and they have a Homebrew Launcher CIA.
+      Possible failures: its title ID is not `000400000D921E00` (write it in `sdmc:/nsa/hbl_title.txt`),
+      or NSA's exheader does not allow `svcConnectToPort` ("hb:ldr", error shown). Also from a 3DSX build.
+- [ ] File type names and icons on files of each kind; "Open as text" is still offered on programs
+      and ROMs (could be hidden).
 
 **Next, item 3 (Pending titles, System save data, Dump NAND on the Titles pattern)**
 - [ ] The owner thinks they tried it once but does not remember. The code on `release` still
@@ -248,12 +299,7 @@ current, this list is the summary. What only the owner can test (local wireless)
    - The root certificate fix means CIAs made before it (in `/nsa/cias/`) may carry a wrong chain.
    - ~~Sound when a transfer ends~~ done with the interface sounds (see Pending tests); the 3DS has no vibration.
 1. ~~Publish v0.2.0 beta~~ done; **v0.3.0 stable published**.
-2. **Remote install**, the owner agreed it needs the same treatment. Proposal, to show as
-   a mockup first: three big cards (QR code, enter URLs, receive from a computer), the
-   receive screen with the console's IP and port large and what has arrived, the last
-   request as a history row, progress like the new dialogs. Translate its list items.
-   Four cards: "Receive from another 3DS" is the fourth. (The FTP server moved off
-   port 5000 so Receive URLs no longer pauses it.)
+2. ~~**Remote install**~~ done (four cards, receive screen, history; see Status 14).
 3. **Pending titles, System save data, Dump NAND** on the same pattern (Dump NAND as
    its own screen: space needed against free on the SD card, progress with ETA, where
    the file ends up). Pending titles and System save data still have FBI's action lists
@@ -277,6 +323,15 @@ current, this list is the summary. What only the owner can test (local wireless)
    screen listing keys and notes, per-screen entries, hints ending in "SELECT help".
 9. Tickets: rows show the title name only for installed titles; an update or DLC ticket has
    no icon. Fine for now.
+
+10. **Ideas the owner liked or that came up on 2026-10-31** (none started):
+    - Hex viewer for files that are not text, and a file's SHA-256 (the FTP DEBUG command exists).
+    - Browse and extract `.zip`; previews of `.smdh`, `.bcstm`/`.bcwav` audio, a `.cia`'s icon already exists.
+    - More sound: the held repeat of a list, text-editor keys, a tone per kind of action.
+    - Hide "Open as text" on programs, ROMs, archives; open `.3dsx` by tap instead of through the sheet.
+    - The NSA icon and banner (item 6) show now in every 3DSX preview: still FBI's.
+    - A mini player that keeps the song playing while browsing (the audio view stops it on B).
+    - Date of creation: not available (the 3DS only gives the last change); NSA could record its own.
 
 ## Decisions
 
@@ -339,6 +394,35 @@ current, this list is the summary. What only the owner can test (local wireless)
 - Receive and send show the state of the radio in their own screens; buttons under an info
   card are `info_set_button` (touch or X).
 
+- **Sounds** (`sound.c`): synthesized at the first use, mono 22 kHz, on DSP channels 8-11 (the
+  audio player owns channel 0); one sound per frame, an alert wins over clicks; `sound_play` is
+  safe from any thread (an atomic bit mask), playing happens in `sound_update` on the UI loop.
+  Alerts are tied to the dialog titles "Success" / "Failure" / "Error": a new success or failure
+  dialog gets its sound by using those names. Default mode All, volume 60 %.
+- **DSP** is started once (`sound_dsp_start`) and ended by `sound_exit`; never call `ndspInit` or
+  `ndspExit` elsewhere. Without `dspfirm.cdc` everything audio is silent and says so.
+- **Viewers** are opened from Files by extension (`viewers_kind_of`: picture, text, audio);
+  other files keep the action sheet, which also has "View picture", "Play", "Open text", "Open as
+  text" (any file; binaries refuse) and, for a .3dsx, "Run program". Text and pictures are read
+  through `viewers_read_file` (limits in each viewer).
+- **Previews** never block the UI: decode on `thumbs.c`'s thread, textures on the UI thread,
+  slots reused only when not drawn for 1.5 s (a texture freed while a frame still uses it is a
+  crash). Pictures over 8 MB / 3 megapixels keep the icon.
+- **File dates** come from `archive_getmtime` (SD only); `stat` is useless on the 3DS.
+- **Starting a 3DSX** goes through Luma3DS's `hb:ldr` (as devkitPro's hbmenu does: SetTarget, SetArgv,
+  then the placeholder title starts and loads it) and the libctru chainloader
+  (`aptSetChainloader` / `aptSetChainloaderToSelf`) once NSA exits through the main loop
+  (`launch3dsx_poll`); the loader forgets the target after one load.
+- **Downloads**: one connection carries only what a 3DS keeps in flight (~50 KB/s at 130 ms
+  from far away), hence segments over several connections; an Old 3DS starves with more than 2.
+- **Drawing** only while something happens (`ui_should_draw`): CPU left to downloads and
+  installs; animations that run with no input need `ui_wake()`.
+- Vendored libraries: `source/libs/stb_image`, `source/libs/dr_libs` (dr_mp3, dr_flac, dr_wav),
+  `source/libs/quirc`. Tremor and libogg come from devkitPro's portlibs.
+- New icons: add the Tabler name to `tools/icons.txt` and run `python3 tools/make_icons.py` (needs
+  network for Tabler's CSS; it can take two minutes: run it again if it times out). New ones are
+  appended, so existing icon IDs do not move.
+
 ## Known issues
 
 - `SITE SCREENSHOT` on the console answers "not taken in time", yet the files appear a few
@@ -374,3 +458,16 @@ current, this list is the summary. What only the owner can test (local wireless)
   signature patches on the **installing** one.
 - Checking a big title after it arrives (SHA-256 of every content, "Checking the contents")
   takes a while on an Old 3DS; the sender waits for it ("Waiting for ... to finish").
+- **Azahar and the 2026-10-31 features**: it has no `hb:ldr` (Run program answers `D88007FA`), no
+  file dates (a fixed 2000 date), plays audio and sounds silently (the position moves), has no 3DS
+  camera MPO sample, and its SD (`~/.var/app/org.azahar_emu.Azahar/data/azahar-emu/sdmc`) holds
+  test folders from this session (`/viewtest`, `/viewtest/types`, `/viewtest/snd`).
+- Opening a software keyboard (`kbd_display`) in Azahar blocks its window; a test script that
+  presses A on "New folder" must not.
+- The SD card's root of the owner's console held CTR 3D debug dumps (`atlas_*`, `vramdump_*`,
+  `cachemeta_*`, `tridump_*`, `ctr*.log`): deleted on 2026-10-31 at the owner's request. CTR 3D is
+  their Crash Team Racing port; `/3ds/ctr_native` is its folder (left alone).
+- The console that answered on the network on 2026-10-31 was the New 3DS XL at `192.168.1.133`
+  (the 2DS was not on); a subnet scan of port 5021 (`/dev/tcp`) finds the open ones.
+- `make` does not rebuild when only the version string changes: the screens show the commit of the
+  last full build, not of `HEAD`.

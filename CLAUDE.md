@@ -26,6 +26,15 @@ topic branch until the owner validates it; PLAN says which.
 If a branch the owner is still testing is needed by the next change, cut the new one
 from it and say so.
 
+**Since 2026-10-31** the owner lets finished work be merged into `release` and **pushed straight
+away** (commit on the topic branch, `merge --no-ff` into `release`, push both) without waiting
+for their test, as long as it builds. What was not tried on a console then goes in
+`docs/PLAN.md` -> "Pending tests on the console"; tick an item only when the owner says it
+works (and they may say not to note something they already tested). The build's CIA is sent with
+SendUserFile; installing it on a console still waits for them to ask (they usually say
+"envía el cia" / "instálalo"). If the main checkout has uncommitted work of another task, make a
+`git worktree` for yours (it needs `git submodule update --init` for `buildtools`).
+
 ## Git and GitHub
 
 - `origin` = `tinaut1986/NSA` (a fork of `Steveice10/FBI`), `upstream` = Steveice10/FBI.
@@ -65,6 +74,14 @@ version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in 
   floating layers `overlay.c` (popover, action sheet), dialogs `prompt.c`/`info.c`/`error.c`.
   Titles, Tickets and Ext Save Data are the model for a screen (placeholders, live sort,
   remembered filters in `settings.json`): see `docs/PLAN.md`, Decisions.
+- Sound: `source/core/sound.c` (interface tones, Settings "Sounds"/"Sound volume"; a dialog named
+  "Success" / "Failure" / "Error" plays its tune by itself); the DSP is started only through
+  `sound_dsp_start`. The audio player (`source/fbi/audioview.c`) owns DSP channel 0.
+- Files screen: `files.c` (list, card, sheets, `files_type_of` / `files_folder_icon`), viewers opened
+  by extension from `viewers.c`: `imageview.c`, `textview.c` (own keyboard), `audioview.c`;
+  `thumbs.c` makes picture and .3dsx previews on a worker thread; `launch3dsx.c` starts a .3dsx
+  through Luma's `hb:ldr`. Cut/move is `clipboard_set_cut` + `action_paste_contents_in`.
+  Dates: `archive_getmtime("sdmc:/...")` (libctru's `stat` gives 0).
 - The system font has the 3DS button glyphs (`\uE000` A, `\uE001` B, `\uE002` X,
   `\uE003` Y, `\uE004` L, `\uE005` R) but not "·": use the glyphs in hints.
 
@@ -80,6 +97,12 @@ from y1 to y2, to scroll). For example:
 To look at the real console, wait a few seconds after `SITE SCREENSHOT` (it answers
 "not taken in time" but the files appear) and measure on that image: Azahar's font and
 data differ (see `docs/PLAN.md`, Known issues).
+
+A handy driver (not in the repo): for each `SITE PRESS`/`TAP` wait about a second, finish with
+`SITE SCREENSHOT`, wait 2 s (Azahar) or 6 s (console), fetch `/nsa/screenshots/top.bmp` and
+`bottom.bmp`, paste them into one 400x480 image (bottom at x=40, y=240) and scale x2 to read it. A
+long press is `SITE PRESS A 60`. The list's first row is index 0; check the screen before
+assuming where the selection is. To find a console: scan port 5021 on the subnet.
 
 **Azahar** (flatpak `org.azahar_emu.Azahar`) runs the 3DSX for UI work without the
 console: `flatpak run org.azahar_emu.Azahar "$PWD/output/3ds-arm/3ds/NSA/NSA.3dsx"`, then the
@@ -98,12 +121,16 @@ Ask before installing while the owner is using the console.
   this PC and send the URL with FBI's protocol (4-byte big-endian length, then the
   URL). The owner confirms on the console. Do not probe the port with an empty
   connection: FBI shows "Failed to read payload length".
-- The owner's console was at `192.168.1.133` (2026-10-27).
+- The owner's consoles: a New 3DS XL and a 2DS; `192.168.1.133` was the New 3DS XL on 2026-10-31
+  (and a console of theirs on 2026-10-27); the addresses change, scan for port 5021.
 - A helper loop used in sessions: upload with `ALLO` and `SITE INSTALL` in one curl
   call, then `DELE` the uploaded file:
   `curl -Q "+ALLO $(stat -c %s output/3ds-arm/NSA.cia)" -Q "-SITE INSTALL /nsa/update.cia" -Q "-DELE /nsa/update.cia" -T output/3ds-arm/NSA.cia ftp://IP:5021/nsa/update.cia`
 - Screenshots: `curl -Q "SITE SCREENSHOT" ftp://IP:5021/` (allow 20 s), then fetch
   `/nsa/screenshots/top.bmp` and `bottom.bmp`.
+
+Delete test files from the console's SD afterwards; the SD root is the owner's (Luma, boot9strap,
+`boot.3dsx`, `retroarch`, `roms` ... are theirs: never touch what is not NSA's or a test's).
 
 ## Console to console: testing
 

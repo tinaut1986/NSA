@@ -2002,7 +2002,7 @@ static void transfer_receive_ask_action(transfer_receive_data* receive) {
         char what[LIST_ITEM_NAME_MAX];
         action_save_package_name(receive->file, &id, &kind, what, sizeof(what));
         snprintf(receive->message, sizeof(receive->message), receive->canImport ? _("%s of %s (%s)\nWhat do you want to do with it?") : _("%s of %s (%s)\nThis title or its data is not here: it can only be kept.\nWhat do you want to do with it?"),
-                 kind == SAVE_KIND_EXT ? _("Extra data") : _("Save data"), what, size);
+                 kind == SAVE_KIND_EXT ? _("Extra data") : kind == SAVE_KIND_BOSS ? _("SpotPass data") : _("Save data"), what, size);
         if(receive->canImport) {
             prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, saveOptions, ciaButtons, 3, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
         } else {

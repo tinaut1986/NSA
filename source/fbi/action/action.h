@@ -68,13 +68,14 @@ void action_export_twl_save(linked_list* items, list_item* selected);
 void action_import_twl_save(linked_list* items, list_item* selected);
 void action_browse_title_save_data(linked_list* items, list_item* selected);
 
-// Save data and extra data as plain folders on the SD card (savetransfer.c). `extId` is for SAVE_KIND_EXT.
-typedef enum { SAVE_KIND_SAVE, SAVE_KIND_EXT } save_kind;
+// Save data and extra data as plain folders on the SD card (savetransfer.c). `extId` is for SAVE_KIND_EXT and SAVE_KIND_BOSS (SpotPass).
+typedef enum { SAVE_KIND_SAVE, SAVE_KIND_EXT, SAVE_KIND_BOSS } save_kind;
 void action_export_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
 void action_import_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
 // Sent as one file (a package, see savetransfer.c) over the console to console transfer.
 void action_send_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
 bool action_find_ext_data(title_info* info, u32* extId);
+bool action_find_boss_data(title_info* info, u32* extId);
 // The receiving side: a package's file name tells what it is; `path` is inside the SD archive.
 bool action_save_package_name(const char* fileName, u64* titleId, save_kind* kind, char* name, size_t nameSize);
 bool action_save_package_can_import(u64 titleId, save_kind kind);

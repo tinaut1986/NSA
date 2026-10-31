@@ -111,6 +111,9 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- **SpotPass data export/import/send**: not tried on a console. The BOSS archive may refuse to create files or to be emptied
+  (permissions of the boss service); if import fails midway the `-before-import` folder has the old data.
+
 - **Import from Checkpoint's backups**: *Import save / extra data* also lists the backups Checkpoint keeps in
   `sdmc:/3ds/Checkpoint/saves|extdata/0x<unique ID, 5 digits> <game>/<backup>/` (the archive's tree directly in the folder, no
   manifest, so no version warning), tagged `[Checkpoint]` (a scrolling list with no cap, not a sheet); NSA's are tagged `[NSA]` and their manifest has `source=NSA`. Format
@@ -429,7 +432,10 @@ current, this list is the summary. What only the owner can test (local wireless)
      overwrites it. The receiver recognises the name: *Import now* (only if the title, or the ext data archive, is
      installed) / *Save in a folder* / *Reject*; either way it unpacks into `sdmc:/nsa/saves/<TITLEID>/<date>/` (the same
      folder the import list shows) and deletes the package. Unpacking refuses paths with `..`, a leading `/`, `\` or `:`.
-   - Not built: SpotPass (`boss/`) in the exports; exporting in Checkpoint's layout (the owner said it is not needed now);
+   - **SpotPass data** (the BOSS extra data archive, same ID as the extra data) works the same as the extra data: rows
+     *Export/Import/Send SpotPass data* when the game has it, `boss/` in the export folder, `boss-` in the package name (kind 2),
+     no Checkpoint equivalent so no Checkpoint backups are listed. Written like extra data: no commit is required.
+   - Not built: exporting in Checkpoint's layout (the owner said it is not needed now);
      ext data to the right game still rests on the ID heuristics (4).
 4. **Exact ext data link**: read the ExtData ID from each game's exheader (NCCH
    `ExHeader`, ARM11 local system capabilities, offset 0x230 by 3dbrew; check with the

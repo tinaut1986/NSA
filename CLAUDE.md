@@ -88,7 +88,7 @@ version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in 
 ## Seeing and driving the app (FTP remote control)
 
 With the FTP server on (always in DEBUG builds), port 5021 (5000 until v0.3.0). In a production build
-the FTP server only serves files; the `SITE` commands below (and installing with `SITE INSTALL`) answer
+the FTP server (on by default) only serves files; the `SITE` commands below (and installing with `SITE INSTALL`) answer
 `502` unless the file `sdmc:/nsa/remote.flag` exists (create it to turn remote use on, delete it to
 turn it off; DEBUG builds ignore it):
 `SITE SCREENSHOT` (both screens to `/nsa/screenshots/top.bmp` and `bottom.bmp`),

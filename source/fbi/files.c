@@ -449,8 +449,10 @@ static void files_draw_file(file_info* info, const char* name, float x, float y,
         files_draw_cell(x, row1, idW, _("Title ID"), id);
         files_draw_cell(x + idW + gap, row1, smallW, _("Version"), version);
         files_draw_cell(x + idW + gap + smallW + gap, row1, smallW, _("Region"), region);
-        files_draw_cell(x, row2, cellW, _("File size"), size);
-        files_draw_cell(x + cellW + gap, row2, cellW, _("Installed size"), installed);
+        // File size and what it takes once installed, in one cell.
+        char sizes[80];
+        snprintf(sizes, sizeof(sizes), "%s / %s", size, installed);
+        files_draw_cell(x, row2, 2 * cellW + gap, _("File / installed size"), sizes);
         files_draw_cell(x + 2 * (cellW + gap), row2, cellW, _("Type"), "CIA");
         return;
     }

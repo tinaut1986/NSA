@@ -657,6 +657,7 @@ const i18n_entry i18n_es[] = {
         {"Start this program? NSA closes first.", "¿Iniciar este programa? NSA se cierra antes."},
         {"Failed to start the program.", "No se pudo iniciar el programa."},
         {"Run program", "Ejecutar programa"},
+        {"File / installed size", "Tamaño archivo / instalado"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

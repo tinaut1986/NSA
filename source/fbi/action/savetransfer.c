@@ -378,7 +378,7 @@ typedef struct {
     save_kind kind;
     char dir[FILE_PATH_MAX];   // The export folder, with the trailing slash.
 
-    void (*then)(void* ctx, bool ok);   // NULL: tell the owner where it went.
+    void (*then)(void* ctx, bool ok, const char* dir);   // NULL: tell the owner where it went.
     void* thenCtx;
 } export_ctx;
 
@@ -386,7 +386,7 @@ static void export_done(void* ctx, Result res) {
     export_ctx* exp = (export_ctx*) ctx;
 
     if(exp->then != NULL) {
-        exp->then(exp->thenCtx, R_SUCCEEDED(res));
+        exp->then(exp->thenCtx, R_SUCCEEDED(res), exp->dir);
     } else if(R_SUCCEEDED(res)) {
         char text[FILE_PATH_MAX + 64];
         snprintf(text, sizeof(text), _("Saved in sdmc:%s"), exp->dir);
@@ -396,7 +396,7 @@ static void export_done(void* ctx, Result res) {
     free(exp);
 }
 
-static void save_export(title_info* title, const char* name, save_kind kind, u32 extId, bool backup, void (*then)(void* ctx, bool ok), void* thenCtx) {
+static void save_export(title_info* title, const char* name, save_kind kind, u32 extId, bool backup, void (*then)(void* ctx, bool ok, const char* dir), void* thenCtx) {
     export_ctx* exp = (export_ctx*) calloc(1, sizeof(export_ctx));
     tree_copy* job = (tree_copy*) calloc(1, sizeof(tree_copy));
     if(exp == NULL || job == NULL) {
@@ -404,7 +404,7 @@ static void save_export(title_info* title, const char* name, save_kind kind, u32
         free(job);
         error_display(NULL, NULL, "Failed to allocate the export.");
         if(then != NULL) {
-            then(thenCtx, false);
+            then(thenCtx, false, "");
         }
 
         return;
@@ -464,10 +464,58 @@ typedef struct {
     u32 extId;
     char from[FILE_PATH_MAX];   // The folder whose tree is copied in, with the trailing slash.
     char manifest[FILE_PATH_MAX];   // The export folder with the manifest, or empty (Checkpoint's have none).
+    char backupDir[FILE_PATH_MAX];  // Where the data replaced was exported first, with the trailing slash.
 } import_ctx;
 
 static void import_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     task_draw_title_info(view, ((import_ctx*) data)->title, x1, y1, x2, y2);
+}
+
+static Result import_run(import_ctx* imp, const char* srcRoot, void (*done)(void* ctx, Result res));
+
+// The data that was in the archive could not be put back: its export is the only copy left.
+static void import_keep_backup(import_ctx* imp) {
+    prompt_display_notify("Failure", "The import failed and the previous data could not be put back. It is in the folder ending in -before-import.", COLOR_TEXT, imp->title, task_draw_title_info, NULL);
+    free(imp);
+}
+
+static void import_rolled_back(void* ctx, Result res) {
+    import_ctx* imp = (import_ctx*) ctx;
+    if(R_FAILED(res)) {
+        import_keep_backup(imp);
+        return;
+    }
+
+    // Back as it was: the copy made before is of no use now.
+    FS_Archive sd = 0;
+    if(R_SUCCEEDED(save_open_sd(&sd))) {
+        char dir[FILE_PATH_MAX];
+        string_copy(dir, imp->backupDir, sizeof(dir));
+        size_t len = strlen(dir);
+        if(len > 1 && dir[len - 1] == '/') {
+            dir[len - 1] = '\0';
+        }
+
+        FS_Path* fsPath = fs_make_path_utf8(dir);
+        if(fsPath != NULL) {
+            FSUSER_DeleteDirectoryRecursively(sd, *fsPath);
+            fs_free_path_utf8(fsPath);
+        }
+
+        fs_close_archive(sd);
+    }
+
+    prompt_display_notify("Failure", "The import failed. The previous data was put back.", COLOR_TEXT, imp->title, task_draw_title_info, NULL);
+    free(imp);
+}
+
+// Empties the archive and puts back what was exported before the import.
+static void import_roll_back(import_ctx* imp) {
+    char root[FILE_PATH_MAX];
+    snprintf(root, sizeof(root), "%s%s/", imp->backupDir, save_kind_dir(imp->kind));
+    if(imp->backupDir[0] == '\0' || R_FAILED(import_run(imp, root, import_rolled_back))) {
+        import_keep_backup(imp);
+    }
 }
 
 static void import_copied(void* ctx, Result res) {
@@ -475,12 +523,11 @@ static void import_copied(void* ctx, Result res) {
 
     if(R_SUCCEEDED(res)) {
         prompt_display_notify("Success", imp->kind == SAVE_KIND_EXT ? "Extra data imported." : imp->kind == SAVE_KIND_BOSS ? "SpotPass data imported." : "Save imported.", COLOR_TEXT, imp->title, task_draw_title_info, NULL);
+        free(imp);
     } else {
-        // The archive was emptied before: the copy of what was there is in the -before-import folder.
-        prompt_display_notify("Failure", "The import did not finish. What was there before is in the folder ending in -before-import.", COLOR_TEXT, imp->title, task_draw_title_info, NULL);
+        // Half of the new data is in the archive: the old one goes back.
+        import_roll_back(imp);
     }
-
-    free(imp);
 }
 
 // Empties the archive's root: the files and folders of the old save.
@@ -529,27 +576,20 @@ static Result import_wipe(FS_Archive archive) {
     return res;
 }
 
-// After the old data was exported: empty the archive and copy the chosen folder into it.
-static void import_backed_up(void* ctx, bool ok) {
-    import_ctx* imp = (import_ctx*) ctx;
-    if(!ok) {
-        free(imp);
-        return;
-    }
-
+// Empties the archive and copies the tree in `srcRoot` (on the SD card) into it; `done` gets the result.
+// A failure before the copy starts is returned (and nothing is left open).
+static Result import_run(import_ctx* imp, const char* srcRoot, void (*done)(void* ctx, Result res)) {
     tree_copy* job = (tree_copy*) calloc(1, sizeof(tree_copy));
     if(job == NULL) {
-        error_display(NULL, NULL, "Failed to allocate the import.");
-        free(imp);
-        return;
+        return R_APP_OUT_OF_MEMORY;
     }
 
     job->title = imp->title;
     job->commit = true;
     job->commitFatal = imp->kind == SAVE_KIND_SAVE;
-    job->done = import_copied;
+    job->done = done;
     job->ctx = imp;
-    string_copy(job->srcRoot, imp->from, sizeof(job->srcRoot));
+    string_copy(job->srcRoot, srcRoot, sizeof(job->srcRoot));
     string_copy(job->dstRoot, "/", sizeof(job->dstRoot));
 
     Result res = save_open_target(&job->dstArchive, imp->title, imp->kind, imp->extId);
@@ -562,7 +602,6 @@ static void import_backed_up(void* ctx, bool ok) {
     }
 
     if(R_FAILED(res)) {
-        error_display_res(imp->title, import_draw_top, res, "Failed to empty the current data.");
         if(job->dstArchive != 0) {
             fs_close_archive(job->dstArchive);
         }
@@ -572,11 +611,30 @@ static void import_backed_up(void* ctx, bool ok) {
         }
 
         free(job);
+        return res;
+    }
+
+    tree_copy_start(job);
+    return 0;
+}
+
+// After the old data was exported: empty the archive and copy the chosen folder into it.
+static void import_backed_up(void* ctx, bool ok, const char* dir) {
+    import_ctx* imp = (import_ctx*) ctx;
+    if(!ok) {
         free(imp);
         return;
     }
 
-    tree_copy_start(job);
+    string_copy(imp->backupDir, dir, sizeof(imp->backupDir));
+
+    Result res = import_run(imp, imp->from, import_copied);
+    if(R_FAILED(res)) {
+        error_display_res(imp->title, import_draw_top, res, "Failed to empty the current data.");
+
+        // The archive may be half emptied.
+        import_roll_back(imp);
+    }
 }
 
 static void import_onresponse(ui_view* view, void* data, u32 response) {

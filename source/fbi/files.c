@@ -1,6 +1,7 @@
 #include <malloc.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include <3ds.h>
 
@@ -416,7 +417,36 @@ static void files_draw_folder(files_data* data, linked_list* items, list_item* b
     }
 }
 
-static void files_draw_file(file_info* info, const char* name, float x, float y, float w, float h) {
+// When the file on the SD card was last changed ("28/10/26 21:40"), or "" when it is not known:
+// the file system keeps it, libctru reads it through the sdmc: device. Remembered for the file shown.
+static void files_modified_text(file_info* info, bool onSd, char* out, size_t size) {
+    static char cachedPath[FILE_PATH_MAX];
+    static u64 cachedTime = 0;
+    static bool cachedKnown = false;
+
+    out[0] = '\0';
+    if(!onSd) {
+        return;
+    }
+
+    if(strncmp(cachedPath, info->path, FILE_PATH_MAX) != 0) {
+        char full[FILE_PATH_MAX + 8];
+        snprintf(full, sizeof(full), "sdmc:%s", info->path);
+        cachedTime = 0;
+        cachedKnown = R_SUCCEEDED(archive_getmtime(full, &cachedTime)) && cachedTime > 0;
+        string_copy(cachedPath, info->path, FILE_PATH_MAX);
+    }
+
+    if(cachedKnown) {
+        time_t when = (time_t) cachedTime;
+        struct tm* t = gmtime(&when);
+        snprintf(out, size, "%02d/%02d/%02d %02d:%02d", t->tm_mday, t->tm_mon + 1, t->tm_year % 100, t->tm_hour, t->tm_min);
+    }
+}
+
+static void files_draw_file(file_info* info, const char* name, float x, float y, float w, float h, bool onSd) {
+    char modified[32];
+    files_modified_text(info, onSd, modified, sizeof(modified));
     char size[32];
     files_size_text(size, sizeof(size), info->size);
 
@@ -453,7 +483,7 @@ static void files_draw_file(file_info* info, const char* name, float x, float y,
         char sizes[80];
         snprintf(sizes, sizeof(sizes), "%s / %s", size, installed);
         files_draw_cell(x, row2, 2 * cellW + gap, _("File / installed size"), sizes);
-        files_draw_cell(x + 2 * (cellW + gap), row2, cellW, _("Type"), "CIA");
+        files_draw_cell(x + 2 * (cellW + gap), row2, cellW, modified[0] != '\0' ? _("Modified") : _("Type"), modified[0] != '\0' ? modified : "CIA");
         return;
     }
 
@@ -469,10 +499,16 @@ static void files_draw_file(file_info* info, const char* name, float x, float y,
     files_draw_cell(x, row1, cellW, _("Size"), size);
     files_draw_cell(x + cellW + gap, row1, cellW, _("Type"), typeName);
     files_draw_cell(x + 2 * (cellW + gap), row1, cellW, _("Hidden file"), (info->attributes & FS_ATTRIBUTE_HIDDEN) ? _("Yes") : _("No"));
+    float modifiedX = x;
     if(ticket && info->ticketInfo.loaded) {
         char id[32];
         snprintf(id, sizeof(id), "%016llX", info->ticketInfo.titleId);
         files_draw_cell(x, row2, cellW * 1.4f, _("Title ID"), id);
+        modifiedX = x + cellW * 1.4f + gap;
+    }
+
+    if(modified[0] != '\0') {
+        files_draw_cell(modifiedX, row2, ticket && info->ticketInfo.loaded ? w - (modifiedX - x) : cellW * 1.4f, _("Modified"), modified);
     }
 }
 
@@ -519,7 +555,7 @@ static void files_draw_top(ui_view* view, void* data, float x1, float y1, float 
     if(files_is_dir(info)) {
         files_draw_card(info, selected->name, info->path, "", _("Folder"), x, y, w, 76);
     } else {
-        files_draw_file(info, selected->name, x, y, w, h);
+        files_draw_file(info, selected->name, x, y, w, h, listData->archiveId == ARCHIVE_SDMC);
     }
 }
 

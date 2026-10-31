@@ -80,13 +80,17 @@ static void bg_add_sine(float* out, u32 n, float freq, float amplitude, float ph
     }
 }
 
-// Adds `sig` at `start`, wrapping past the end of the loop: the join cannot be heard.
-static void bg_add_circular(float* mix, u32 length, u32 start, const float* sig, u32 n) {
+// Adds gain * `sig` at `start`, wrapping past the end of the loop: the join cannot be heard.
+static void bg_put(float* mix, u32 length, u32 start, const float* sig, u32 n, float gain) {
     start %= length;
     for(u32 i = 0; i < n; i++) {
         u32 at = start + i;
-        mix[at >= length ? at % length : at] += sig[i];
+        mix[at >= length ? at % length : at] += gain * sig[i];
     }
+}
+
+static void bg_add_circular(float* mix, u32 length, u32 start, const float* sig, u32 n) {
+    bg_put(mix, length, start, sig, n, 1.0f);
 }
 
 static void bg_pad(float* mix, u32 length, float* tmp, u32 start, const float* freqs, u32 count, float seconds, float gain) {
@@ -133,6 +137,44 @@ static void bg_bell(float* mix, u32 length, float* tmp, u32 start, float freq, f
     }
 
     bg_add_circular(mix, length, start, tmp, n);
+}
+
+// Echo (three circular taps), a one-pole low-pass that has already seen the end of the loop when it
+// starts (so the start and the end agree), a level and the conversion to 16 bits.
+static bool bg_finish(const float* mix, u32 length, float wet, float alpha, float peakTarget, float* filtered, s16* data) {
+    static const u32 tapMs[3] = {283, 467, 719};
+    static const float tapGain[3] = {0.45f, 0.33f, 0.22f};
+    u32 tapFrames[3];
+    for(u32 t = 0; t < 3; t++) {
+        tapFrames[t] = tapMs[t] * BG_RATE / 1000;
+    }
+
+    #define BG_SAMPLE(i) ((mix)[i] + wet * (tapGain[0] * mix[((i) + length - tapFrames[0]) % length] + tapGain[1] * mix[((i) + length - tapFrames[1]) % length] + tapGain[2] * mix[((i) + length - tapFrames[2]) % length]))
+
+    float state = 0;
+    for(u32 i = length - 4096; i < length; i++) {
+        state += alpha * (BG_SAMPLE(i) - state);
+    }
+
+    float peak = 0.0001f;
+    for(u32 i = 0; i < length; i++) {
+        state += alpha * (BG_SAMPLE(i) - state);
+        filtered[i] = state;
+        float magnitude = fabsf(state);
+        if(magnitude > peak) {
+            peak = magnitude;
+        }
+    }
+
+    #undef BG_SAMPLE
+
+    float scale = peakTarget / peak * 32767.0f;
+    for(u32 i = 0; i < length; i++) {
+        data[i] = (s16) (filtered[i] * scale);
+    }
+
+    DSP_FlushDataCache(data, length * sizeof(s16));
+    return true;
 }
 
 // Renders one whole loop into linear memory; false if there is no memory for it.
@@ -184,42 +226,214 @@ static bool bg_render(const bg_style* style, s16** outData, u32* outFrames) {
         }
     }
 
-    // A circular echo (three taps), then a one-pole low-pass that has already seen the end of the
-    // loop when it starts, so the start and the end agree.
-    static const u32 tapMs[3] = {283, 467, 719};
-    static const float tapGain[3] = {0.45f, 0.33f, 0.22f};
-    u32 tapFrames[3];
-    for(u32 t = 0; t < 3; t++) {
-        tapFrames[t] = tapMs[t] * BG_RATE / 1000;
-    }
-
-    #define BG_SAMPLE(i) ((mix)[i] + style->wet * (tapGain[0] * mix[((i) + length - tapFrames[0]) % length] + tapGain[1] * mix[((i) + length - tapFrames[1]) % length] + tapGain[2] * mix[((i) + length - tapFrames[2]) % length]))
-
-    const float alpha = 0.28f;
-    float state = 0;
-    for(u32 i = length - 4096; i < length; i++) {
-        state += alpha * (BG_SAMPLE(i) - state);
-    }
-
-    float peak = 0.0001f;
-    for(u32 i = 0; i < length; i++) {
-        state += alpha * (BG_SAMPLE(i) - state);
-        filtered[i] = state;
-        float magnitude = fabsf(state);
-        if(magnitude > peak) {
-            peak = magnitude;
-        }
-    }
-
-    float scale = 0.42f / peak * 32767.0f;
-    for(u32 i = 0; i < length; i++) {
-        data[i] = (s16) (filtered[i] * scale);
-    }
-
-    DSP_FlushDataCache(data, length * sizeof(s16));
+    bool ok = bg_finish(mix, length, style->wet, 0.28f, 0.42f, filtered, data);
     free(mix);
     free(tmp);
     free(filtered);
+    if(!ok) {
+        linearFree(data);
+        return false;
+    }
+
+    *outData = data;
+    *outFrames = length;
+    return true;
+}
+
+// ---- the shop style: a bossa with a marimba melody ----
+
+typedef struct {
+    float ratio;
+    float amplitude;
+    float decay;   // Per second, on top of the note's own.
+} bg_partial;
+
+// One note: partials that each fade by themselves, an overall fade and a short attack.
+static void bg_note(float* out, u32 n, float freq, const bg_partial* parts, u32 count, float decay, float attack) {
+    memset(out, 0, n * sizeof(float));
+    for(u32 k = 0; k < count; k++) {
+        float w = 2.0f * BG_PI * freq * parts[k].ratio / BG_RATE;
+        float c = 2.0f * cosf(w);
+        float previous2 = sinf(-w);
+        float previous1 = 0.0f;
+        float level = parts[k].amplitude;
+        float fade = expf(-(parts[k].decay + decay) / BG_RATE);
+        for(u32 i = 0; i < n; i++) {
+            out[i] += level * previous1;
+            level *= fade;
+            float next = c * previous1 - previous2;
+            previous2 = previous1;
+            previous1 = next;
+        }
+    }
+
+    u32 ramp = (u32) (attack * BG_RATE);
+    for(u32 i = 0; i < ramp && i < n; i++) {
+        out[i] *= (float) i / (float) ramp;
+    }
+}
+
+#define SHOP_BPM 104.0f
+#define SHOP_SWING 0.58f
+
+// Where a beat of a bar falls, in frames, with the swing on the off-beat eighths.
+static u32 bg_when(u32 bar, float beat) {
+    float whole = floorf(beat);
+    float frac = beat - whole;
+    if(fabsf(frac - 0.5f) < 0.001f) {
+        frac = SHOP_SWING;
+    }
+
+    return (u32) (((float) bar * 4.0f + whole + frac) * 60.0f / SHOP_BPM * BG_RATE);
+}
+
+typedef struct {
+    int bass;
+    int comp[5];
+} bg_shop_chord;
+
+// C maj9, A min9, D min9, G 13, E min7, A 7, D min9, G 13.
+static const bg_shop_chord bg_shop_chords[8] = {
+        {48, {59, 62, 64, 67, 71}}, {45, {55, 60, 62, 64, 67}}, {50, {60, 64, 65, 69, 72}}, {43, {59, 62, 64, 65, 69}},
+        {52, {59, 62, 64, 67, 71}}, {45, {55, 59, 61, 64, 67}}, {50, {60, 64, 65, 69, 72}}, {43, {59, 62, 64, 65, 69}}
+};
+
+static const int bg_shop_scale[12] = {60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79};
+
+static bool bg_render_shop(s16** outData, u32* outFrames) {
+    const u32 passes = 2;
+    const u32 bars = 8 * passes;
+    u32 length = (u32) ((float) bars * 4.0f * 60.0f / SHOP_BPM * BG_RATE + 0.5f);
+
+    float* mix = (float*) calloc(length, sizeof(float));
+    float* tmp = (float*) malloc(BG_RATE * 2 * sizeof(float));
+    float* filtered = (float*) malloc(length * sizeof(float));
+    s16* data = (s16*) linearAlloc(length * sizeof(s16));
+    if(mix == NULL || tmp == NULL || filtered == NULL || data == NULL) {
+        free(mix);
+        free(tmp);
+        free(filtered);
+        if(data != NULL) {
+            linearFree(data);
+        }
+
+        return false;
+    }
+
+    static const bg_partial marimba[] = {{1.0f, 1.0f, 1.0f}, {3.98f, 0.35f, 9.0f}, {9.9f, 0.12f, 22.0f}};
+    static const bg_partial epiano[] = {{1.0f, 1.0f, 2.2f}, {2.0f, 0.28f, 4.0f}};
+    static const bg_partial bassNote[] = {{1.0f, 1.0f, 3.5f}, {2.0f, 0.35f, 8.0f}, {3.0f, 0.08f, 14.0f}};
+    static const bg_partial click[] = {{1.0f, 1.0f, 90.0f}, {1.4727f, 0.5f, 90.0f}};
+
+    u32 seed = 0x5EED1234u;
+
+    // The two-bar-long idea, as (beat, step in the scale, unused length): said, varied, turned over, resolved.
+    static const float motifBeat[4] = {0.0f, 1.5f, 2.0f, 3.5f};
+    static const int motifStep[4] = {0, 2, 1, -1};
+    static const int pairBase[4] = {7, 7, 5, 4};
+
+    for(u32 p = 0; p < passes; p++) {
+        for(u32 b = 0; b < 8; b++) {
+            u32 bar = p * 8 + b;
+            const bg_shop_chord* chord = &bg_shop_chords[b];
+            int next = bg_shop_chords[(b + 1) % 8].bass;
+
+            // The bass: a bossa figure.
+            const float bassBeat[4] = {0.0f, 1.5f, 2.5f, 3.5f};
+            const int bassMidi[4] = {chord->bass, chord->bass + 7, chord->bass, (b % 2) ? next - 1 : chord->bass + 7};
+            const float bassGain[4] = {0.9f, 0.6f, 0.7f, 0.5f};
+            for(u32 k = 0; k < 4; k++) {
+                u32 n = (u32) (0.55f * BG_RATE);
+                bg_note(tmp, n, bg_hz((float) bassMidi[k]), bassNote, 3, 0.0f, 0.006f);
+                bg_put(mix, length, bg_when(bar, bassBeat[k]), tmp, n, bassGain[k] * 0.55f);
+            }
+
+            // The comp: electric piano stabs on 1+, 2+ and 4, the chord rolled a little.
+            static const float compBeat[3] = {0.5f, 1.5f, 3.0f};
+            for(u32 k = 0; k < 3; k++) {
+                for(u32 i = 0; i < 5; i++) {
+                    u32 n = (u32) (0.9f * BG_RATE);
+                    bg_note(tmp, n, bg_hz((float) chord->comp[i]), epiano, 2, 0.2f, 0.006f);
+                    bg_put(mix, length, bg_when(bar, compBeat[k]) + (u32) (i * 0.012f * BG_RATE), tmp, n, 0.13f);
+                }
+            }
+
+            // A soft kick on 1 and 3.
+            for(u32 k = 0; k < 2; k++) {
+                u32 n = (u32) (0.22f * BG_RATE);
+                float level = 1.0f;
+                float drop = 60.0f;
+                float phase = 0.0f;
+                for(u32 i = 0; i < n; i++) {
+                    phase += 2.0f * BG_PI * (52.0f + drop) / BG_RATE;
+                    tmp[i] = sinf(phase) * level;
+                    level *= expf(-16.0f / BG_RATE);
+                    drop *= expf(-28.0f / BG_RATE);
+                }
+
+                bg_put(mix, length, bg_when(bar, k * 2.0f), tmp, n, 0.35f);
+            }
+
+            // The cross-stick on the clave.
+            static const float clickBeat[4] = {0.0f, 1.5f, 2.5f, 3.0f};
+            for(u32 k = 0; k < 4; k++) {
+                u32 n = (u32) (0.05f * BG_RATE);
+                bg_note(tmp, n, 1650.0f, click, 2, 0.0f, 0.0f);
+                bg_put(mix, length, bg_when(bar, clickBeat[k]), tmp, n, 0.14f);
+            }
+
+            // The shaker on every eighth, the off-beats a little louder.
+            for(u32 k = 0; k < 8; k++) {
+                u32 n = (u32) (0.06f * BG_RATE);
+                float previous = 0.0f;
+                float level = 1.0f;
+                for(u32 i = 0; i < n; i++) {
+                    float x = (float) (bg_random(&seed) & 0xFFFF) / 32768.0f - 1.0f;
+                    tmp[i] = (x - previous) * level;
+                    previous = x;
+                    level *= expf(-55.0f / BG_RATE);
+                }
+
+                bg_put(mix, length, bg_when(bar, k / 2.0f), tmp, n, k % 2 == 0 ? 0.06f : 0.10f);
+            }
+        }
+
+        // The melody, in marimba: the motif, the motif varied, turned over, and a resolution.
+        for(u32 pair = 0; pair < 4; pair++) {
+            u32 bar = p * 8 + pair * 2;
+            u32 notes = pair == 3 ? 3 : 4;
+            for(u32 k = 0; k < notes; k++) {
+                float beat = motifBeat[k];
+                int step = motifStep[k];
+                if(pair == 1 && k == 1) {
+                    step += 1;
+                } else if(pair == 2) {
+                    step = -step;
+                } else if(pair == 3) {
+                    static const float endBeat[3] = {0.0f, 2.0f, 3.0f};
+                    static const int endStep[3] = {0, -1, -2};
+                    beat = endBeat[k];
+                    step = endStep[k];
+                }
+
+                int index = pairBase[pair] + step;
+                index = index < 0 ? 0 : index > 11 ? 11 : index;
+                u32 n = (u32) (1.4f * BG_RATE);
+                bg_note(tmp, n, bg_hz((float) bg_shop_scale[index]), marimba, 3, 0.6f, 0.002f);
+                bg_put(mix, length, bg_when(bar, beat), tmp, n, 0.30f);
+            }
+        }
+    }
+
+    bool ok = bg_finish(mix, length, 0.62f, 0.45f, 0.45f, filtered, data);
+    free(mix);
+    free(tmp);
+    free(filtered);
+    if(!ok) {
+        linearFree(data);
+        return false;
+    }
+
     *outData = data;
     *outFrames = length;
     return true;
@@ -230,13 +444,27 @@ static void bg_render_thread(void* arg) {
     s16* data = NULL;
     u32 frames = 0;
     u64 started = osGetTime();
-    bool ok = bg_render(&bg_styles[style - 1], &data, &frames);
+    bool ok = style == BGMUSIC_SHOP ? bg_render_shop(&data, &frames) : bg_render(&bg_styles[style - 1], &data, &frames);
 #if NSA_DEBUG
     // How long the loop took to make, for tuning on each console.
     FILE* log = fopen("sdmc:/nsa/music-log.txt", "a");
     if(log != NULL) {
         fprintf(log, "style %d: %s in %lu ms (%lu frames)\n", (int) style, ok ? "rendered" : "FAILED", (u32) (osGetTime() - started), frames);
         fclose(log);
+    }
+
+    // The loop itself, to listen to it on a computer.
+    if(ok) {
+        char path[64];
+        snprintf(path, sizeof(path), "sdmc:/nsa/music-style-%d.wav", (int) style);
+        FILE* wav = fopen(path, "wb");
+        if(wav != NULL) {
+            u32 bytes = frames * 2;
+            u32 header[11] = {0x46464952u, 36 + bytes, 0x45564157u, 0x20746D66u, 16, 0x00010001u, BG_RATE, BG_RATE * 2, 0x00100002u, 0x61746164u, bytes};
+            fwrite(header, sizeof(header), 1, wav);
+            fwrite(data, 2, frames, wav);
+            fclose(wav);
+        }
     }
 #endif
     if(ok) {

@@ -8,6 +8,7 @@ typedef enum {
     BGMUSIC_OFF,
     BGMUSIC_LIFT,   // Cmaj7, Am7, Fmaj7, G6: the classic lift.
     BGMUSIC_CALM,   // Slower and sparser, in F.
+    BGMUSIC_SHOP,   // Soft bossa: marimba, electric piano, bass and a light beat, like a shop channel.
     BGMUSIC_COUNT
 } bgmusic_style;
 

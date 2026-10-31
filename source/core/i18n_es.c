@@ -643,6 +643,8 @@ const i18n_entry i18n_es[] = {
         {"Music volume", "Volumen de la música"},
         {"Lift", "Ascensor"},
         {"Calm", "Calma"},
+        {"Shop", "Tienda"},
+        {"Shop: a soft bossa with marimba, electric piano and bass, in a loop of about forty seconds.", "Tienda: una bossa suave con marimba, piano eléctrico y bajo, en un bucle de unos cuarenta segundos."},
         {"Lift: soft lift music, made by the console as it plays, in a loop of half a minute.", "Ascensor: música suave de ascensor que crea la propia consola, en un bucle de medio minuto."},
         {"Calm: slower and sparser, in a loop of about forty seconds.", "Calma: más lenta y con menos notas, en un bucle de unos cuarenta segundos."},
         {"Off: no music. It needs the DSP firmware (dspfirm.cdc) and takes a moment to start.", "No: sin música. Necesita el firmware del DSP (dspfirm.cdc) y tarda un momento en empezar."},

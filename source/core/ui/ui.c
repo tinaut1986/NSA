@@ -9,6 +9,7 @@
 #include "../error.h"
 #include "../screen.h"
 #include "../sound.h"
+#include "../bgmusic.h"
 #include "../appinfo.h"
 #include "../i18n.h"
 #include "../data/smdh.h"
@@ -331,6 +332,7 @@ bool ui_update() {
     }
 
     sound_update();
+    bgmusic_update();
 
     ui = ui_top();
     if(ui != NULL && ui->update != NULL) {

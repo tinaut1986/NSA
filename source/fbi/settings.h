@@ -65,6 +65,9 @@ typedef struct {
     // Interface sounds: a sound_mode and a volume in percent.
     u32 sounds;
     u32 soundVolume;
+    // Background music: a bgmusic_style and a volume in percent.
+    u32 music;
+    u32 musicVolume;
 
     titles_settings titles;
     tickets_settings tickets;

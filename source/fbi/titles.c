@@ -438,23 +438,7 @@ static void titles_delete_sv(void* data) { titles_run(data, action_delete_secure
 // its own ID, or under it without the last byte (Mario Kart 7, 00030700, keeps
 // its data as 307).
 static bool titles_ext_find(title_info* info, u32* extId) {
-    title_kind kind = title_kind_of(info->titleId);
-    if(info->twl || (kind != TITLE_KIND_GAME && kind != TITLE_KIND_DEMO)) {
-        return false;
-    }
-
-    u32 candidates[2] = {(u32) info->titleId, (u32) info->titleId >> 8};
-    for(u32 i = 0; i < 2; i++) {
-        u32 path[3] = {MEDIATYPE_SD, candidates[i], 0};
-        FS_Archive archive = 0;
-        if(R_SUCCEEDED(fs_open_archive(&archive, ARCHIVE_EXTDATA, fs_make_path_binary(path, sizeof(path))))) {
-            fs_close_archive(archive);
-            *extId = candidates[i];
-            return true;
-        }
-    }
-
-    return false;
+    return action_find_ext_data(info, extId);
 }
 
 // A list item for the game's ext save data, for the actions of that screen.
@@ -496,24 +480,29 @@ static void titles_delete_ext(void* data) {
     }
 }
 
-static void titles_save_files(titles_data* data, bool import, save_kind kind) {
+// `mode`: 0 export, 1 import, 2 send to another 3DS.
+static void titles_save_files(titles_data* data, int mode, save_kind kind) {
     title_info* info = (title_info*) data->actionSelected->data;
     u32 extId = 0;
     if(kind == SAVE_KIND_EXT && !titles_ext_find(info, &extId)) {
         return;
     }
 
-    if(import) {
+    if(mode == 1) {
         action_import_save_files(info, data->actionSelected->name, kind, extId);
+    } else if(mode == 2) {
+        action_send_save_files(info, data->actionSelected->name, kind, extId);
     } else {
         action_export_save_files(info, data->actionSelected->name, kind, extId);
     }
 }
 
-static void titles_export_save_files(void* data) { titles_save_files(data, false, SAVE_KIND_SAVE); }
-static void titles_import_save_files(void* data) { titles_save_files(data, true, SAVE_KIND_SAVE); }
-static void titles_export_ext_files(void* data) { titles_save_files(data, false, SAVE_KIND_EXT); }
-static void titles_import_ext_files(void* data) { titles_save_files(data, true, SAVE_KIND_EXT); }
+static void titles_export_save_files(void* data) { titles_save_files(data, 0, SAVE_KIND_SAVE); }
+static void titles_import_save_files(void* data) { titles_save_files(data, 1, SAVE_KIND_SAVE); }
+static void titles_export_ext_files(void* data) { titles_save_files(data, 0, SAVE_KIND_EXT); }
+static void titles_import_ext_files(void* data) { titles_save_files(data, 1, SAVE_KIND_EXT); }
+static void titles_send_save_files(void* data) { titles_save_files(data, 2, SAVE_KIND_SAVE); }
+static void titles_send_ext_files(void* data) { titles_save_files(data, 2, SAVE_KIND_EXT); }
 
 static void titles_actions_open(titles_data* data, linked_list* items, list_item* selected) {
     title_info* info = (title_info*) selected->data;
@@ -531,12 +520,14 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
         actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save data"), false, titles_browse_save};
         actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Export save"), false, titles_export_save_files};
         actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Import save"), true, titles_import_save_files};
+        actions[count++] = (sheet_action) {ICON_3DS, _("Send save to another 3DS"), false, titles_send_save_files};
         actions[count++] = (sheet_action) {ICON_PHOTO, _("Extract icon"), false, titles_extract_smdh};
         if(hasExt) {
             // Browsing leaves the sheet open under it: B comes back to the sheet.
             actions[count++] = (sheet_action) {ICON_DATABASE, _("Browse extra data"), false, titles_browse_ext, true};
             actions[count++] = (sheet_action) {ICON_DATABASE, _("Export extra data"), false, titles_export_ext_files};
             actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Import extra data"), true, titles_import_ext_files};
+            actions[count++] = (sheet_action) {ICON_3DS, _("Send extra data to another 3DS"), false, titles_send_ext_files};
         }
 
         if(!card) {

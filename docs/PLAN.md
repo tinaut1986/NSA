@@ -109,6 +109,14 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- **Send saves and extra data to another 3DS (3b)**: Titles sheet rows *Send save / extra data to another 3DS*. The data
+  is packed (worker thread) into one file `sdmc:/nsa/saves/send/<TITLEID>-<save|ext>-<name>.nsasave` and goes through the normal
+  file transfer (no protocol change; the package stays on the sender's SD, overwritten by the next one of that title). The receiver
+  recognises the name: *Import now* (only if the title, or the ext data archive, is installed) / *Save in a folder* / *Reject*;
+  either way it is unpacked into `sdmc:/nsa/saves/<TITLEID>/<date>/` and the same red import (with the backup first and the version
+  warning) follows. Not tried on a console: any of it, between the two consoles; a title not installed on the receiver; resume.
+  The package is deleted after unpacking. Unpacking refuses paths with `..`, `/` first, `\` or `:`.
+
 - **Export/import of 3DS saves and extra data (3b, local part)**: Titles sheet rows *Export save*, *Import save*,
   and the same for extra data. Exports go to `sdmc:/nsa/saves/<TITLEID>/<YYYYMMDD-HHMMSS>/{manifest.txt,save|ext/}`;
   import lists those folders (16 newest), asks in red, exports the current data to `<date>-before-import` first, empties the

@@ -1184,6 +1184,8 @@ typedef struct {
     char position[FILE_PATH_MAX];   // <name>.part.pos: how far it is whole.
     char dst[FILE_PATH_MAX];
     bool isCia;
+    bool isSave;        // A save package (savetransfer.c): "install" means import.
+    bool canImport;
     bool install;
 
     // The transfer itself.
@@ -1662,7 +1664,9 @@ static void transfer_receive_progress_update(ui_view* view, void* data, float* p
     }
 
     if(ok) {
-        if(receive->install) {
+        if(receive->isSave) {
+            action_save_package_received(receive->dst, receive->install && receive->canImport);
+        } else if(receive->install) {
             transfer_receive_install(receive->dst, receive->file, receive->size);
         } else {
             snprintf(receive->message, sizeof(receive->message), _("Saved in %s"), receive->dst);
@@ -1955,7 +1959,7 @@ static void transfer_receive_action_onresponse(ui_view* view, void* data, u32 re
     transfer_receive_data* receive = (transfer_receive_data*) data;
 
     // Without Install the choices are Save and Reject.
-    if(!receive->isCia) {
+    if(!receive->isCia && !(receive->isSave && receive->canImport)) {
         response++;
     }
 
@@ -1966,7 +1970,11 @@ static void transfer_receive_action_onresponse(ui_view* view, void* data, u32 re
     }
 
     receive->install = response == 0;
-    if(receive->install) {
+    if(receive->isSave) {
+        // Whatever the choice, it arrives in the default folder and is unpacked into a folder of saves.
+        string_copy(receive->dir, TRANSFER_RECEIVED_DIR, sizeof(receive->dir));
+        transfer_receive_start(receive);
+    } else if(receive->install) {
         // A CIA that installs right away goes to the default folder, and is deleted after.
         string_copy(receive->dir, TRANSFER_RECEIVED_DIR, sizeof(receive->dir));
         transfer_receive_start(receive);
@@ -1985,7 +1993,22 @@ static void transfer_receive_ask_action(transfer_receive_data* receive) {
     transfer_size_text(size, sizeof(size), receive->size);
     snprintf(receive->message, sizeof(receive->message), _("%s (%s)\nWhat do you want to do with it?"), receive->file, size);
 
-    if(receive->isCia) {
+    if(receive->isSave) {
+        // Importing needs the title (and for extra data, its archive) here: otherwise it is only kept.
+        static const char* saveOptions[3] = {"Import now", "Save in a folder", "Reject"};
+        static const char* keepOptions[2] = {"Save in a folder", "Reject"};
+        u64 id = 0;
+        save_kind kind = SAVE_KIND_SAVE;
+        char what[LIST_ITEM_NAME_MAX];
+        action_save_package_name(receive->file, &id, &kind, what, sizeof(what));
+        snprintf(receive->message, sizeof(receive->message), receive->canImport ? _("%s of %s (%s)\nWhat do you want to do with it?") : _("%s of %s (%s)\nThis title or its data is not here: it can only be kept.\nWhat do you want to do with it?"),
+                 kind == SAVE_KIND_EXT ? _("Extra data") : _("Save data"), what, size);
+        if(receive->canImport) {
+            prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, saveOptions, ciaButtons, 3, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
+        } else {
+            prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, keepOptions, fileButtons, 2, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
+        }
+    } else if(receive->isCia) {
         prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, ciaOptions, ciaButtons, 3, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
     } else {
         prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, fileOptions, fileButtons, 2, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
@@ -2024,6 +2047,12 @@ static void transfer_receive_hello_done(transfer_receive_data* data) {
 
     const char* ext = strrchr(data->file, '.');
     data->isCia = data->kind == TRANSFER_KIND_TITLE || (ext != NULL && strcasecmp(ext, ".cia") == 0);
+
+    u64 saveId = 0;
+    save_kind saveKind = SAVE_KIND_SAVE;
+    char saveName[LIST_ITEM_NAME_MAX];
+    data->isSave = data->kind == TRANSFER_KIND_FILE && action_save_package_name(data->file, &saveId, &saveKind, saveName, sizeof(saveName));
+    data->canImport = data->isSave && action_save_package_can_import(saveId, saveKind);
 
     if(data->size == 0) {
         transfer_receive_reset(data);

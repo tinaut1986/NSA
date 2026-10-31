@@ -58,6 +58,7 @@ typedef struct {
     float scroll;
     bool touching;
     bool dragged;
+    bool barDrag;     // A finger holds the scrollbar.
     u16 touchStartY;
     u16 lastTouchY;
     widget_press press;   // Index: group * POPOVER_OPTIONS_MAX + option.
@@ -207,7 +208,14 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
         p->dragged = false;
         p->touchStartY = p->lastTouchY = pos.py;
         widget_press_end(&p->press);
-        for(u32 g = 0; g < p->def.groupCount; g++) {
+        float barVisible = cardH - 2 * POPOVER_PAD;
+        p->barDrag = widget_scrollbar_touched(&pos, cardX + POPOVER_WIDTH - POPOVER_PAD / 2 - WIDGET_SCROLLBAR_WIDTH, cardY + POPOVER_PAD, barVisible, barVisible, p->contentHeight);
+        if(p->barDrag) {
+            p->scroll = widget_scrollbar_offset(cardY + POPOVER_PAD, barVisible, barVisible, p->contentHeight, pos.py);
+            popover_clamp_scroll(p, cardH);
+        }
+
+        for(u32 g = 0; g < p->def.groupCount && !p->barDrag; g++) {
             for(u32 o = 0; o < p->def.groups[g].count; o++) {
                 float x = cardX + POPOVER_PAD + p->optionX[g][o];
                 float y = contentTop + p->optionY[g][o];
@@ -216,6 +224,10 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
                 }
             }
         }
+    } else if(p->touching && p->barDrag && (hidKeysHeld() & KEY_TOUCH)) {
+        float barVisible = cardH - 2 * POPOVER_PAD;
+        p->scroll = widget_scrollbar_offset(cardY + POPOVER_PAD, barVisible, barVisible, p->contentHeight, pos.py);
+        popover_clamp_scroll(p, cardH);
     } else if(p->touching && (hidKeysHeld() & KEY_TOUCH)) {
         if(abs((int) pos.py - (int) p->touchStartY) > 6) {
             p->dragged = true;
@@ -238,6 +250,11 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
         p->lastTouchY = pos.py;
     } else if(p->touching && (hidKeysUp() & KEY_TOUCH)) {
         p->touching = false;
+        if(p->barDrag) {
+            p->barDrag = false;
+            return;
+        }
+
         if(widget_press_on(&p->press, p->press.index)) {
             u32 g = (u32) p->press.index / POPOVER_OPTIONS_MAX;
             u32 o = (u32) p->press.index % POPOVER_OPTIONS_MAX;
@@ -381,6 +398,7 @@ typedef struct {
     u32 selected;
     widget_press press;   // Touched action, run on release over it.
     bool dragged;         // The touch turned into a scroll (list).
+    bool barDrag;         // A finger holds the scrollbar (list).
     u16 touchStartY;
     u16 lastTouchY;
     u64 opened;           // For the slide up.
@@ -567,7 +585,8 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
             return;
         }
 
-        for(u32 i = 0; i < s->count; i++) {
+        s->barDrag = s->list && widget_scrollbar_touched(&pos, bx2 - SHEET_PAD - WIDGET_SCROLLBAR_WIDTH, listTop, sheet_visible_height(s), sheet_visible_height(s), sheet_content_height(s));
+        for(u32 i = 0; i < s->count && !s->barDrag; i++) {
             float x, y, w;
             sheet_button_rect(s, i, bx1, bx2, top, &x, &y, &w);
             if(pos.py >= listTop && widget_touched(&pos, x, y, w, sheet_button_height(s))) {
@@ -577,6 +596,12 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
         }
 
         s->touchStartY = pos.py;
+        if(s->barDrag) {
+            s->scroll = widget_scrollbar_offset(listTop, sheet_visible_height(s), sheet_visible_height(s), sheet_content_height(s), pos.py);
+        }
+    } else if(s->barDrag && (hidKeysHeld() & KEY_TOUCH)) {
+        // The scrollbar: the list follows the finger along it.
+        s->scroll = widget_scrollbar_offset(listTop, sheet_visible_height(s), sheet_visible_height(s), sheet_content_height(s), pos.py);
     } else if(hidKeysHeld() & KEY_TOUCH) {
         // A list scrolls under the finger; moving off an action cancels it.
         if(s->list && sheet_content_height(s) > sheet_room(s) && (s->dragged || abs((int) pos.py - (int) s->touchStartY) > 6)) {
@@ -598,6 +623,11 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
 
         s->lastTouchY = pos.py;
     } else if(hidKeysUp() & KEY_TOUCH) {
+        if(s->barDrag) {
+            s->barDrag = false;
+            return;
+        }
+
         int index = s->press.index;
         bool run = widget_press_on(&s->press, index);
         widget_press_end(&s->press);

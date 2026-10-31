@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -9,6 +10,7 @@
 #include "../error.h"
 #include "../screen.h"
 #include "../sound.h"
+#include "../bgmusic.h"
 #include "../appinfo.h"
 #include "../i18n.h"
 #include "../data/smdh.h"
@@ -165,6 +167,15 @@ static void ui_draw_top_bar() {
             x -= 15;
             screen_draw_icon(ICON_SERVER, x, (height - 14) / 2, 14, t->accent);
         }
+    }
+
+    // While a song is being made for the background music, a note that breathes.
+    bgmusic_status music;
+    bgmusic_get_status(&music);
+    if(music.generating) {
+        float pulse = 0.5f + 0.5f * sinf((float) (osGetTime() % 100000) / 1000.0f * 6.0f);
+        x -= 15;
+        screen_draw_icon(ICON_MUSIC, x, (height - 14) / 2, 14, THEME_ALPHA(t->accent, (u32) (0x50 + pulse * 0xAF)));
     }
 
     // Centre: date and time, or only the time when the date does not fit.
@@ -331,6 +342,7 @@ bool ui_update() {
     }
 
     sound_update();
+    bgmusic_update();
 
     ui = ui_top();
     if(ui != NULL && ui->update != NULL) {

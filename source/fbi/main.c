@@ -10,6 +10,7 @@
 #include "../core/http.h"
 #include "../core/screen.h"
 #include "../core/sound.h"
+#include "../core/bgmusic.h"
 #include "launch3dsx.h"
 #include "thumbs.h"
 #include "../core/task/task.h"
@@ -171,6 +172,7 @@ void cleanup() {
 
     task_exit();
     thumbs_exit();
+    bgmusic_exit();
     sound_exit();
     ui_exit();
     screen_exit();

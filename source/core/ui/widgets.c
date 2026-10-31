@@ -148,13 +148,14 @@ void widget_button_centered(float x, float y, float width, float height, const c
     widget_text_centered(label, x, x + width, y + (height - widget_text_height(scale)) / 2, scale, ink);
 }
 
-void widget_row(float x, float y, float width, float height, int icon, const char* label, u32 labelColor, const char* value, bool selected) {
+// A row whose box is `frameHeight` tall and whose selector line is `height` tall at its top.
+static void widget_row_draw(float x, float y, float width, float frameHeight, float height, int icon, const char* label, u32 labelColor, const char* value, bool selected) {
     const theme_current* t = theme();
     u32 fill = selected ? t->accent : t->palette->surface;
     u32 edge = selected ? t->accent : t->palette->border;
     u32 ink = selected ? t->onAccent : labelColor;
     u32 muted = selected ? t->onAccent : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    screen_frame_round_rect(x, y, width, frameHeight, t->def->radiusSmall, t->def->border, edge, fill);
 
     float textHeight = widget_text_height(WIDGET_TEXT_SCALE);
     float ty = y + (height - textHeight) / 2;
@@ -179,6 +180,50 @@ void widget_row(float x, float y, float width, float height, int icon, const cha
 
     widget_text_fit(label, tx, ty, WIDGET_TEXT_SCALE, ink, right - tx);
 }
+
+void widget_row(float x, float y, float width, float height, int icon, const char* label, u32 labelColor, const char* value, bool selected) {
+    widget_row_draw(x, y, width, height, height, icon, label, labelColor, value, selected);
+}
+
+float widget_row_slider_height() {
+    return WIDGET_ROW_HEIGHT + WIDGET_SLIDER_EXTRA;
+}
+
+void widget_row_slider_track(float x, float y, float width, float* trackX, float* trackWidth, float* centerY) {
+    *trackX = x + 12;
+    *trackWidth = width - 12 - 46;
+    *centerY = y + WIDGET_ROW_HEIGHT + WIDGET_SLIDER_EXTRA / 2 - 1;
+}
+
+void widget_row_with_slider(float x, float y, float width, int icon, const char* label, u32 labelColor, const char* value, bool selected, float fraction, const char* sliderText) {
+    const theme_current* t = theme();
+    widget_row_draw(x, y, width, widget_row_slider_height(), WIDGET_ROW_HEIGHT, icon, label, labelColor, value, selected);
+
+    float trackX, trackWidth, centerY;
+    widget_row_slider_track(x, y, width, &trackX, &trackWidth, &centerY);
+    if(fraction < 0) {
+        fraction = 0;
+    } else if(fraction > 1) {
+        fraction = 1;
+    }
+
+    // The track and what is filled, then a knob where a finger can take it.
+    u32 track = selected ? THEME_ALPHA(t->onAccent, 0x55) : t->palette->border;
+    u32 filled = selected ? t->onAccent : t->accent;
+    screen_fill_round_rect(trackX, centerY - 3, trackWidth, 6, 3, track);
+    if(fraction > 0) {
+        screen_fill_round_rect(trackX, centerY - 3, trackWidth * fraction, 6, 3, filled);
+    }
+
+    float knobX = trackX + trackWidth * fraction;
+    screen_fill_round_rect(knobX - 4, centerY - 7, 8, 14, 4, filled);
+
+    if(sliderText != NULL) {
+        float w = widget_text_width(sliderText, WIDGET_SMALL_SCALE);
+        screen_draw_text(sliderText, x + width - 8 - w, centerY - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, selected ? t->onAccent : t->palette->textMuted);
+    }
+}
+
 
 void widget_progress(float x, float y, float width, float height, float progress) {
     const theme_current* t = theme();
@@ -214,6 +259,21 @@ void widget_progress(float x, float y, float width, float height, float progress
         float filled = width * progress;
         screen_fill_round_rect(x, y, filled < height ? height : filled, height, height / 2, t->accent);
     }
+}
+
+bool widget_scrollbar_touched(const touchPosition* pos, float x, float y, float height, float visible, float total) {
+    return total > visible && total > 0 && pos->px >= x - 16 && pos->px <= x + WIDGET_SCROLLBAR_WIDTH + 10 && pos->py >= y - 4 && pos->py <= y + height + 4;
+}
+
+float widget_scrollbar_offset(float y, float height, float visible, float total, float py) {
+    float thumb = height * visible / total;
+    if(thumb < 12) {
+        thumb = 12;
+    }
+
+    float fraction = (py - y - thumb / 2) / (height - thumb);
+    fraction = fraction < 0 ? 0 : fraction > 1 ? 1 : fraction;
+    return fraction * (total - visible);
 }
 
 void widget_scrollbar(float x, float y, float height, float offset, float visible, float total) {

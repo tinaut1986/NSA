@@ -149,6 +149,33 @@ dates). The owner will go through them one by one; tick each only when they say 
       the SD card `SITE SCREENSHOT/PRESS/TAP/DRAG/INSTALL` work; delete it and they stop (checked in
       Azahar only). DEBUG builds always allow them.
 
+**Background music** (Settings -> Background music: Off / Lift / Calm / Shop, own volume; `source/core/bgmusic.c`)
+- [ ] On both consoles: it starts a few seconds after turning it on (DEBUG builds write how long the loop
+      took to `sdmc:/nsa/music-log.txt`; Azahar: 6.4 s), the join of the loop cannot be heard, it is
+      soft enough under the interface sounds, it goes quiet while the audio player plays and comes back,
+      nothing stutters in a heavy screen (Titles loading, a transfer) on the Old 3DS/2DS. The chords and timbre are the
+      Python sketch's; the melody notes are other ones (another random generator). Shop (a bossa: marimba, electric
+      piano, bass, shaker; 37 s) was written from `shopmusic.py`; DEBUG builds also write the loop to
+      `sdmc:/nsa/music-style-N.wav` to listen to it on a computer.
+
+**Volume sliders in Settings** (a trial the owner asked for to see how it looks)
+- [ ] On a console: Sounds and Background music are one box each, the selector on top and a draggable
+      bar with its percentage under it (they replace the two "volume" rows); a finger anywhere along the bar sets the
+      volume in steps of 5 and it applies while dragging; X / Y change it with the buttons.
+
+**Draggable scrollbars** (lists, Settings, action sheets, filter popovers)
+- [ ] On a console: a finger on the bar on the right (a wide area, not only the 4 px) makes the screen follow it, a
+      tap on the bar jumps there, and dragging the content still works as before. Seen in Azahar with SITE DRAG.
+
+**Music cache and crossfade** (`bgmusic.c`)
+- [ ] On both consoles: the second time the music starts it plays the last song of that style at once (from
+      `sdmc:/nsa/music-cache-N.pcm`, 1.3 to 1.6 MB each), a new one is made meanwhile (about 15 s on the 2DS) and it
+      replaces it with a 3.5 s fade-out/fade-in; the new one is what is kept. Changing style fades the old one out
+      and plays the cache of the new one if there is one. Turning it off cancels a song being made.
+- [ ] The animation: a note blinks in the status bar while a song is made, and Settings shows the progress,
+      a progress bar and an equalizer (quick while making, slow while playing). Seen in Azahar only; the fade
+      cannot be heard there.
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.

@@ -84,3 +84,10 @@ file-code
 movie
 file-settings
 file-type-pdf
+upload
+sun
+sun-moon
+square-check
+square
+external-link
+arrow-right

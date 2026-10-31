@@ -3,586 +3,1273 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>NSA</title>
 <style>
 /* Colours and shapes come from the console's theme (/theme.json); these are only what shows before it arrives. */
-:root{--bg:#f4f5f7;--card:#fff;--ink:#1d2330;--muted:#6b7385;--line:#dfe3ea;--accent:#2f6df6;--onaccent:#fff;--danger:#d63b3b;--hover:#eef2fb;--success:#1a7f4b;--r:10px;--rs:8px;--bw:1px}
+:root{--bg:#f2f3f5;--card:#fff;--ink:#1d2330;--muted:#6b7385;--line:#dfe3ea;--accent:#185fa5;--onaccent:#fff;--soft:#e3ecf7;--danger:#d63b3b;--success:#1a7f4b;--warning:#c58a00;
+  --r:12px;--rs:8px;--bw:1px;--ease:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.3,1.4,.5,1);--shadow:0 10px 30px rgba(0,0,0,.18);--fast:.16s;--mid:.28s}
 @font-face{font-family:NSAPixel;src:url(/font.ttf)}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,sans-serif}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+body,.card,.row,button,input,select,textarea,.rail,.topbar{transition:background-color .45s,color .45s,border-color .45s}
 body.pixel{font-family:NSAPixel,monospace;font-size:17px}
-body.pixel img{image-rendering:pixelated}
-header{display:flex;gap:12px;align-items:center;padding:12px 16px;background:var(--card);border-bottom:var(--bw) solid var(--line);flex-wrap:wrap}
-header h1{font-size:18px;margin:0}
-header .info{color:var(--muted);font-size:13px;margin-left:auto}
-nav{display:flex;gap:6px;margin:0 0 10px}
-nav button.on{background:var(--accent);color:var(--onaccent);border-color:var(--accent)}
-main{max-width:1000px;margin:16px auto;padding:0 16px}
-.card{background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);padding:12px}
-button{font:inherit;color:var(--ink);background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--rs);padding:6px 12px;cursor:pointer}
-button:hover{background:var(--hover)}
-button.primary{background:var(--accent);color:var(--onaccent);border-color:var(--accent)}
-button.danger{color:var(--danger)}
-input[type=text],input[type=password],select{font:inherit;color:var(--ink);background:var(--bg);border:var(--bw) solid var(--line);border-radius:var(--rs);padding:6px 10px}
-.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-.crumbs{flex:1;min-width:200px;word-break:break-all}
-.crumbs a{color:var(--accent);cursor:pointer;text-decoration:none}
-.crumbs a:hover{text-decoration:underline}
-table{width:100%;border-collapse:collapse}
-td,th{padding:7px 8px;border-bottom:var(--bw) solid var(--line);text-align:left}
-th{color:var(--muted);font-weight:500;font-size:13px}
-tr.row:hover{background:var(--hover)}
-td.name a{color:var(--ink);text-decoration:none;cursor:pointer;word-break:break-all}
-td.name a.dir{color:var(--accent);font-weight:500}
-td.num{text-align:right;white-space:nowrap;color:var(--muted)}
-td.act{text-align:right;white-space:nowrap}
-td.act button{padding:2px 8px;font-size:13px}
-.drop{border:2px dashed var(--line);border-radius:var(--r);padding:14px;text-align:center;color:var(--muted);margin-top:10px}
-.drop.over{border-color:var(--accent);background:var(--hover)}
-.login{max-width:340px;margin:12vh auto;text-align:center}
-.login input{width:100%;font-size:22px;letter-spacing:6px;text-align:center;margin:12px 0}
-.msg{color:var(--danger);min-height:1.4em}
-.prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px}
-.prog>div{height:100%;width:0;background:var(--accent)}
-body.pixel .prog{border-radius:0}
-#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:var(--rs);opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
-#toast.on{opacity:.95}
-.hide{display:none}
-/* titles */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px}
-.title{display:flex;gap:10px;border:var(--bw) solid var(--line);border-radius:var(--r);padding:10px;background:var(--card)}
-.title img{width:48px;height:48px;flex:none;border-radius:var(--rs);background:var(--bg)}
-.title .body{min-width:0;flex:1}
-.title .t{font-weight:600;word-break:break-word}
-.title .s{color:var(--muted);font-size:13px;word-break:break-word}
-.badge{display:inline-block;font-size:12px;padding:0 7px;border-radius:var(--rs);background:var(--hover);color:var(--accent);margin-right:4px}
-.title .acts{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.title .acts button{padding:2px 8px;font-size:13px}
-.note{color:var(--muted);font-size:13px;margin:6px 0}
-dialog{background:var(--card);color:var(--ink);border:var(--bw) solid var(--line);border-radius:var(--r);padding:14px;max-width:min(560px,92vw);width:100%}
-dialog::backdrop{background:rgba(0,0,0,.5)}
-dialog h3{margin:0 0 8px;font-size:16px}
-.choices{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow:auto;margin:8px 0}
-.choices button{text-align:left}
-textarea{font:inherit;width:100%;min-height:90px;color:var(--ink);background:var(--bg);border:var(--bw) solid var(--line);border-radius:var(--rs);padding:8px}
-.hist{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:var(--bw) solid var(--line)}
+body.pixel img,img.px{image-rendering:pixelated}
+body.nomotion *,body.nomotion *::before,body.nomotion *::after{animation-duration:1ms!important;transition-duration:1ms!important}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:1ms!important;transition-duration:1ms!important}}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:var(--bw) solid var(--line);border-radius:var(--rs);padding:8px 10px;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--soft)}
+::selection{background:var(--accent);color:var(--onaccent)}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;border:3px solid transparent;background-clip:padding-box}
+
+/* the console's own icons (romfs/icons32.png, tinted like the console does) */
+.ic{--s:20px;display:inline-block;flex:none;width:var(--s);height:var(--s);background:currentColor;
+  -webkit-mask:url(/icons.png) no-repeat;mask:url(/icons.png) no-repeat;
+  -webkit-mask-size:calc(var(--s)*16) auto;mask-size:calc(var(--s)*16) auto;
+  -webkit-mask-position:calc(var(--c)*var(--s)*-1) calc(var(--r)*var(--s)*-1);mask-position:calc(var(--c)*var(--s)*-1) calc(var(--r)*var(--s)*-1)}
+.ic.s16{--s:16px}.ic.s24{--s:24px}.ic.s32{--s:32px}.ic.s48{--s:48px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:var(--rs);background:var(--card);border:var(--bw) solid var(--line);white-space:nowrap;transition:transform var(--fast) var(--ease),background-color var(--fast),border-color var(--fast),box-shadow var(--fast)}
+.btn:hover{background:var(--soft);border-color:var(--accent)}
+.btn:active,.tool:active,.row:active,.tile:active,.act:active,.navi:active,.key:active{transform:scale(.96)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--onaccent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.45;pointer-events:none}
+.tool{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;min-width:36px;padding:0 9px;border-radius:var(--rs);color:var(--ink);transition:transform var(--fast) var(--ease),background-color var(--fast)}
+.tool:hover,.tool.on{background:var(--soft);color:var(--accent)}
+.tool .dot{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.tool{position:relative}
+
+/* the shell: status bar, menu, screen */
+.app{display:grid;grid-template-columns:220px 1fr;grid-template-rows:auto 1fr;height:100vh;height:100dvh}
+.topbar{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:8px 16px;background:var(--card);border-bottom:var(--bw) solid var(--line);font-size:13px;color:var(--muted);min-height:44px}
+.brand{display:flex;align-items:center;gap:8px;color:var(--ink);font-weight:700;font-size:16px}
+.brand .logo{width:26px;height:26px;border-radius:7px;background:var(--accent);color:var(--onaccent);display:grid;place-items:center;transition:background-color .45s}
+body.pixel .brand .logo{border-radius:0}
+.topbar .sp{flex:1}
+.status{display:flex;align-items:center;gap:12px}
+.status span{display:inline-flex;align-items:center;gap:5px}
+.sdbar{width:90px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.sdbar>i{display:block;height:100%;background:var(--accent);transition:width .6s var(--ease)}
+.rail{background:var(--card);border-right:var(--bw) solid var(--line);padding:10px;display:flex;flex-direction:column;gap:2px;overflow:auto}
+.rail .grp{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:12px 10px 4px}
+.navi{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:var(--rs);color:var(--ink);text-align:left;position:relative;transition:background-color var(--fast),color var(--fast),transform var(--fast) var(--ease)}
+.navi:hover{background:var(--soft)}
+.navi.on{background:var(--accent);color:var(--onaccent)}
+.navi .cnt{margin-left:auto;font-size:12px;opacity:.75}
+main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-width:0}
+.screen{display:flex;flex-direction:column;min-height:0;flex:1;animation:screenIn var(--mid) var(--ease)}
+@keyframes screenIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.titlebar{display:flex;align-items:center;gap:6px;padding:12px 18px 10px;flex-wrap:wrap}
+.titlebar h2{margin:0 auto 0 0;font-size:20px;display:flex;align-items:center;gap:10px;min-width:0}
+.titlebar h2 small{font-size:13px;color:var(--muted);font-weight:400}
+.search{position:relative;display:flex;align-items:center}
+.search .ic{position:absolute;left:9px;color:var(--muted);pointer-events:none}
+.search input{width:190px;padding-left:34px;transition:width var(--mid) var(--ease),border-color var(--fast),box-shadow var(--fast)}
+.search input:focus{width:260px}
+.scroll{flex:1;overflow:auto;padding:0 18px 90px;scroll-behavior:smooth}
+
+/* lists, in rows or in a grid, like the console's */
+.list{display:flex;flex-direction:column;gap:6px}
+.row{display:flex;align-items:center;gap:12px;padding:8px 12px;min-height:56px;background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--rs);text-align:left;width:100%;cursor:pointer;user-select:none;
+  transition:transform var(--fast) var(--ease),background-color var(--fast),border-color var(--fast),box-shadow var(--fast),opacity var(--fast)}
+.row:hover{border-color:var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.row.sel{background:var(--soft);border-color:var(--accent)}
+.row.cut{opacity:.5}
+.row.drop{background:var(--soft);border-color:var(--accent);box-shadow:0 0 0 3px var(--soft);transform:scale(1.01)}
+.row.dragging{opacity:.4}
+.anim .row{animation:rowIn .34s var(--ease) both;animation-delay:calc(min(var(--i,0),24)*18ms)}
+@keyframes rowIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.list.fwd .row{animation-name:rowFwd}.list.back .row{animation-name:rowBack}
+@keyframes rowFwd{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+@keyframes rowBack{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
+.row .pic{width:40px;height:40px;flex:none;border-radius:calc(var(--rs) - 2px);display:grid;place-items:center;background:var(--bg);color:var(--accent);overflow:hidden;position:relative}
+.row .pic img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s}
+.row .pic img.in{opacity:1}
+.row .chk{position:absolute;inset:0;display:grid;place-items:center;background:var(--accent);color:var(--onaccent);opacity:0;transform:scale(.6);transition:opacity var(--fast),transform var(--fast) var(--spring)}
+.row.sel .chk{opacity:1;transform:none}
+.row .pic:hover .chk{opacity:.55;transform:none}
+.row .txt{flex:1;min-width:0}
+.row .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .sub{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .meta{color:var(--muted);font-size:13px;text-align:right;white-space:nowrap}
+.row .chev{color:var(--muted);opacity:0;transform:translateX(-4px);transition:opacity var(--fast),transform var(--fast)}
+.row:hover .chev{opacity:1;transform:none}
+.badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:1px 7px;border-radius:20px;background:var(--soft);color:var(--accent);letter-spacing:.03em}
+.badge.n{background:var(--bg);color:var(--muted)}
+.list.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.list.grid .row{flex-direction:column;justify-content:flex-start;padding:12px 8px 10px;gap:8px;min-height:0;text-align:center}
+.list.grid .row .pic{width:64px;height:64px}
+.list.grid .row .nm{font-size:12px;font-weight:500;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25;height:2.5em}
+.list.grid .row .sub,.list.grid .row .meta,.list.grid .row .chev{display:none}
+.list.grid .row .txt{width:100%}
+.sk{display:inline-block;height:.85em;border-radius:5px;background:linear-gradient(90deg,var(--line) 25%,var(--bg) 50%,var(--line) 75%);background-size:300% 100%;animation:shimmer 1.3s linear infinite;vertical-align:middle}
+@keyframes shimmer{from{background-position:100% 0}to{background-position:0 0}}
+.empty{display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--muted);padding:60px 20px;text-align:center;animation:screenIn .4s var(--ease)}
+.empty .ic{--s:48px;opacity:.5}
+.note{color:var(--muted);font-size:13px}
+.crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:2px;font-size:20px;font-weight:700;min-width:0}
+.crumbs button{padding:2px 8px;border-radius:var(--rs);transition:background-color var(--fast)}
+.crumbs button:hover,.crumbs button.drop{background:var(--soft);color:var(--accent)}
+.crumbs .s{color:var(--muted);font-weight:400}
+.crumbs button:last-child{color:var(--ink)}
+
+/* the sheet (the console's action sheet), dialogs and the popover */
+dialog{padding:0;border:0;background:transparent;color:var(--ink);max-width:none;max-height:none;overflow:visible}
+dialog::backdrop{background:rgba(0,0,0,0);transition:background-color var(--mid)}
+dialog.open::backdrop{background:rgba(0,0,0,.45)}
+.sheet{position:fixed;inset:auto 0 0 0;margin:0 auto;width:min(520px,100vw)}
+.sheet .pane{background:var(--card);border:var(--bw) solid var(--line);border-bottom:0;border-radius:calc(var(--r) + 6px) calc(var(--r) + 6px) 0 0;box-shadow:var(--shadow);max-height:86vh;max-height:86dvh;display:flex;flex-direction:column;
+  transform:translateY(100%);transition:transform var(--mid) var(--ease)}
+.sheet.open .pane{transform:none}
+.sheet.wide{width:min(900px,100vw)}
+@media (min-width:760px){.sheet{inset:0;margin:auto;height:fit-content}.sheet .pane{border-radius:calc(var(--r) + 4px);border-bottom:var(--bw) solid var(--line);transform:translateY(24px) scale(.96);opacity:0;transition:transform var(--mid) var(--spring),opacity var(--fast)}.sheet.open .pane{transform:none;opacity:1}}
+.grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:8px auto 0;flex:none}
+@media (min-width:760px){.grab{display:none}}
+.sheet .head{display:flex;gap:14px;padding:16px 18px 10px;align-items:center}
+.sheet .head .big{width:72px;height:72px;flex:none;border-radius:var(--r);display:grid;place-items:center;background:var(--bg);color:var(--accent);overflow:hidden}
+.sheet .head .big img{width:100%;height:100%;object-fit:contain}
+.sheet .head h3{margin:0;font-size:18px;word-break:break-word}
+.sheet .head .sub{color:var(--muted);font-size:13px;word-break:break-word}
+.sheet .body{overflow:auto;padding:4px 18px 18px}
+.cells{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;margin:4px 0 12px}
+.cell{background:var(--bg);border-radius:var(--rs);padding:7px 10px;min-width:0}
+.cell b{display:block;font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.cell span{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all}
+.acts{display:flex;flex-direction:column;gap:2px}
+.acts .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 4px 4px}
+.act{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--rs);text-align:left;width:100%;transition:background-color var(--fast),transform var(--fast) var(--ease);animation:rowIn .3s var(--ease) both;animation-delay:calc(var(--i,0)*25ms + 60ms)}
+.act:hover{background:var(--soft);color:var(--accent)}
+.act.danger{color:var(--danger)}
+.act.danger:hover{background:color-mix(in srgb,var(--danger) 12%,transparent)}
+.act .ic{color:currentColor}
+.act small{margin-left:auto;color:var(--muted);font-size:12px}
+.foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px 18px;flex-wrap:wrap}
+.foot .sp{flex:1}
+.ask p{margin:4px 0 12px;color:var(--muted)}
+.ask input{width:100%}
+.menu{position:fixed;z-index:50;min-width:210px;background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:6px;transform-origin:top left;animation:pop .18s var(--spring)}
+@keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+.menu .act{padding:8px 10px;animation:none}
+.menu hr{border:0;border-top:var(--bw) solid var(--line);margin:4px 2px}
+.menu .seg{margin:4px}
+.menu .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 8px 2px}
+.toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:flex;flex-direction:column-reverse;gap:8px;align-items:center;z-index:60;pointer-events:none;max-width:92vw}
+.toast{display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:var(--r);box-shadow:var(--shadow);animation:toastIn .32s var(--spring);font-size:14px}
+.toast.out{animation:toastOut .25s var(--ease) forwards}
+.toast.ok .ic{color:var(--success)}.toast.err .ic{color:var(--danger)}
+@keyframes toastIn{from{opacity:0;transform:translateY(16px) scale(.95)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateY(10px) scale(.96)}}
+
+/* segmented choices, swatches, sliders, switches */
+.seg{display:inline-flex;background:var(--bg);border-radius:calc(var(--rs) + 2px);padding:3px;gap:2px;border:var(--bw) solid var(--line);flex-wrap:wrap}
+.seg button{padding:6px 12px;border-radius:var(--rs);display:inline-flex;align-items:center;gap:6px;color:var(--muted);transition:background-color var(--fast),color var(--fast),box-shadow var(--fast)}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--card);color:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.12);font-weight:600}
+.swatches{display:flex;flex-wrap:wrap;gap:10px}
+.sw{width:34px;height:34px;border-radius:50%;background:var(--c);display:grid;place-items:center;color:#fff;border:3px solid var(--card);box-shadow:0 0 0 var(--bw) var(--line);transition:transform var(--fast) var(--spring),box-shadow var(--fast)}
+.sw:hover{transform:scale(1.12)}
+.sw.on{box-shadow:0 0 0 2px var(--c);transform:scale(1.08)}
+.sw .ic{opacity:0;transform:scale(.4);transition:opacity var(--fast),transform var(--fast) var(--spring)}
+.sw.on .ic{opacity:1;transform:none}
+body.pixel .sw{border-radius:0}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;padding:0;border:0;width:100%;height:28px}
+input[type=range]:focus{box-shadow:none}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(var(--accent),var(--accent)) 0/var(--v,50%) 100% no-repeat,var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;margin-top:-7px;border-radius:50%;background:var(--card);border:2px solid var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.25);transition:transform var(--fast) var(--spring)}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--line)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--card);border:2px solid var(--accent)}
+.switch{width:44px;height:26px;border-radius:13px;background:var(--line);position:relative;flex:none;transition:background-color var(--fast)}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform var(--mid) var(--spring)}
+.switch.on{background:var(--accent)}.switch.on::after{transform:translateX(18px)}
+
+/* settings */
+.set{max-width:760px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);padding:6px 16px;animation:rowIn .35s var(--ease) both;animation-delay:calc(var(--i,0)*50ms)}
+.card h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px;display:flex;align-items:center;gap:8px}
+.opt{display:flex;align-items:center;gap:14px;padding:12px 0;border-top:var(--bw) solid var(--line);flex-wrap:wrap}
+.card h3+.opt{border-top:0}
+.opt>.ic{color:var(--accent)}
+.opt .l{flex:1;min-width:160px}
+.opt .l b{display:block;font-weight:600}
+.opt .l span{color:var(--muted);font-size:13px}
+.opt .ctl{display:flex;align-items:center;gap:10px}
+.vol{display:flex;align-items:center;gap:10px;width:100%;padding:0 0 10px 34px}
+.vol span{width:44px;text-align:right;color:var(--muted);font-size:13px}
+.themes{display:flex;gap:10px;flex-wrap:wrap}
+.th{width:120px;border-radius:var(--r);border:2px solid var(--line);padding:8px;background:var(--bg);text-align:left;transition:border-color var(--fast),transform var(--fast) var(--spring)}
+.th:hover{transform:translateY(-2px)}
+.th.on{border-color:var(--accent)}
+.th .pv{height:54px;border-radius:6px;background:var(--card);border:1px solid var(--line);margin-bottom:6px;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px}
+.th .pv i{border-radius:4px;background:var(--soft)}.th .pv i:first-child{background:var(--accent)}
+.th[data-id=pixel] .pv,.th[data-id=pixel] .pv i{border-radius:0}.th[data-id=pixel]{font-family:NSAPixel,monospace}
+.th[data-id=home] .pv{grid-template-columns:1fr 1fr 1fr 1fr}
+.th b{font-size:13px}
+
+/* install: big tiles behind which each thing lives, like Remote Install on the console */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;max-width:980px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:18px;background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);text-align:left;transition:transform var(--fast) var(--spring),border-color var(--fast),box-shadow var(--fast);animation:rowIn .35s var(--ease) both;animation-delay:calc(var(--i,0)*50ms)}
+.tile:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 22px rgba(0,0,0,.08)}
+.tile .ib{width:46px;height:46px;border-radius:var(--rs);background:var(--soft);color:var(--accent);display:grid;place-items:center;transition:background-color var(--fast),color var(--fast)}
+.tile:hover .ib{background:var(--accent);color:var(--onaccent)}
+.tile b{font-size:16px}.tile span{color:var(--muted);font-size:13px}
+pre.log{max-height:60vh;overflow:auto;background:var(--bg);border-radius:var(--rs);padding:10px;font-size:12px;white-space:pre-wrap;word-break:break-all;margin:0}
+.hist{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:var(--bw) solid var(--line)}
+.hist:first-child{border-top:0}
 .hist .u{flex:1;min-width:0;word-break:break-all;font-size:13px}
-pre.log{max-height:300px;overflow:auto;background:var(--bg);border:var(--bw) solid var(--line);border-radius:var(--rs);padding:8px;font-size:12px;white-space:pre-wrap;word-break:break-all}
-h2{font-size:15px;margin:14px 0 6px}
-.screens{display:flex;flex-direction:column;align-items:center;gap:10px}
-.screens canvas{background:#000;image-rendering:pixelated;border:var(--bw) solid var(--line);max-width:100%;touch-action:none}
-#cv_top{width:800px;aspect-ratio:400/240}
-#cv_bottom{width:640px;aspect-ratio:320/240;cursor:pointer}
-.pad{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;align-items:center;margin-top:6px}
-.pad .grp{display:grid;gap:4px}
-.pad button{min-width:44px;padding:8px 10px;user-select:none}
-.dpad{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,40px)}
-.abxy{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,40px)}
-.pad .sp{visibility:hidden}
+
+/* uploads and the clipboard, floating */
+.dock{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;align-items:flex-end;z-index:40;pointer-events:none}
+.dock>*{pointer-events:auto}
+.ups{width:340px;max-width:calc(100vw - 36px);background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;animation:toastIn .3s var(--spring)}
+.ups .hd{display:flex;align-items:center;gap:8px;padding:10px 12px;font-weight:600;cursor:pointer}
+.ups .hd .sp{flex:1}
+.ups .items{max-height:240px;overflow:auto;padding:0 12px 10px}
+.ups.min .items{display:none}
+.up{padding:6px 0;font-size:13px}
+.up .n{display:flex;gap:8px}.up .n span:first-child{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.up .n span:last-child{color:var(--muted)}
+.prog{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:4px}
+.prog>i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.prog.ind>i{width:35%;animation:ind 1.1s ease-in-out infinite}
+@keyframes ind{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+body.pixel .prog,body.pixel .prog>i{border-radius:0}
+.clip{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 14px;background:var(--ink);color:var(--bg);border-radius:30px;box-shadow:var(--shadow);animation:toastIn .3s var(--spring);font-size:14px}
+.clip .btn{border-radius:20px;padding:6px 14px}
+.clip .tool{color:var(--bg)}.clip .tool:hover{background:rgba(255,255,255,.12);color:var(--bg)}
+.selbar{display:flex;align-items:center;gap:4px;background:var(--accent);color:var(--onaccent);border-radius:var(--rs);padding:3px 3px 3px 12px;animation:pop .2s var(--spring)}
+.selbar .tool{color:var(--onaccent);height:32px}.selbar .tool:hover{background:rgba(255,255,255,.18);color:var(--onaccent)}
+.dropzone{position:absolute;inset:8px;border:3px dashed var(--accent);border-radius:var(--r);background:color-mix(in srgb,var(--accent) 8%,transparent);display:grid;place-items:center;pointer-events:none;z-index:5;opacity:0;transition:opacity var(--fast)}
+.dropzone.on{opacity:1}
+.dropzone div{background:var(--card);padding:14px 22px;border-radius:var(--r);box-shadow:var(--shadow);display:flex;align-items:center;gap:10px;font-weight:600;color:var(--accent);transform:scale(.95);transition:transform var(--mid) var(--spring)}
+.dropzone.on div{transform:none}
+
+/* the picture viewer */
+.lightbox{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.88);display:grid;place-items:center;animation:fade .2s}
+.lightbox img{max-width:92vw;max-height:84vh;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.6);animation:zoomIn .3s var(--spring)}
+.lightbox .cap{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:#ddd;font-size:14px}
+.lightbox .tool{position:absolute;color:#fff;width:48px;height:48px}.lightbox .tool:hover{background:rgba(255,255,255,.15);color:#fff}
+@keyframes fade{from{opacity:0}}
+@keyframes zoomIn{from{opacity:0;transform:scale(.92)}}
+
+/* the console, live */
+.ds{margin:6px auto 30px;width:min(640px,100%);display:flex;flex-direction:column;align-items:center}
+.ds .lid,.ds .base{width:100%;background:linear-gradient(160deg,color-mix(in srgb,var(--ink) 88%,var(--accent)),color-mix(in srgb,var(--ink) 96%,#000));border-radius:26px;padding:22px 30px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.12);display:flex;justify-content:center}
+.ds .lid{border-radius:26px 26px 10px 10px}
+.ds .hinge{width:92%;height:12px;background:color-mix(in srgb,var(--ink) 80%,#000);border-radius:0 0 8px 8px}
+.ds .base{border-radius:10px 10px 30px 30px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;padding:18px 20px 22px}
+.ds canvas{background:#000;image-rendering:pixelated;border-radius:4px;max-width:100%;touch-action:none;display:block;box-shadow:0 0 0 3px #111}
+#cv_top{width:100%;max-width:600px;aspect-ratio:400/240}
+#cv_bottom{width:100%;max-width:400px;aspect-ratio:320/240;cursor:crosshair}
+.dpad,.abxy{display:grid;grid-template-columns:repeat(3,40px);grid-template-rows:repeat(3,40px);gap:2px;justify-self:center}
+.key{display:grid;place-items:center;background:color-mix(in srgb,var(--ink) 70%,#000);color:#eee;border-radius:8px;font-weight:700;font-size:14px;box-shadow:0 3px 0 rgba(0,0,0,.45);transition:transform .08s,box-shadow .08s,background-color .08s;user-select:none}
+.key:hover{background:var(--accent);color:var(--onaccent)}
+.key.down,.key:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.45)}
+.abxy .key{border-radius:50%}
+.side{display:flex;flex-direction:column;gap:14px;align-items:center}
+.shoulders{display:flex;gap:6px}
+.shoulders .key,.small .key{padding:6px 12px;font-size:12px;border-radius:12px}
+.small{display:flex;gap:8px}
+.livebar{display:flex;align-items:center;gap:10px;color:#bbb;font-size:12px;margin-top:10px}
+.livebar .switch{transform:scale(.85)}
+
+/* sign in */
+.login{position:fixed;inset:0;display:grid;place-items:center;padding:20px}
+.login .box{width:min(380px,100%);background:var(--card);border:var(--bw) solid var(--line);border-radius:calc(var(--r) + 6px);padding:28px 24px;text-align:center;box-shadow:var(--shadow);animation:zoomIn .4s var(--spring)}
+.login .logo{width:56px;height:56px;border-radius:14px;background:var(--accent);color:var(--onaccent);display:grid;place-items:center;margin:0 auto 10px}
+.login h1{margin:0 0 4px;font-size:24px}
+.login p{color:var(--muted);margin:0 0 18px;font-size:14px}
+.pins{display:flex;gap:8px;justify-content:center;margin-bottom:12px}
+.pins i{width:42px;height:52px;border-radius:var(--rs);border:2px solid var(--line);display:grid;place-items:center;font-style:normal;font-size:24px;font-weight:700;background:var(--bg);transition:border-color var(--fast),transform var(--fast) var(--spring)}
+.pins i.f{border-color:var(--accent);transform:scale(1.05)}
+.pins i.cur{border-color:var(--accent);box-shadow:0 0 0 3px var(--soft)}
+.pins.shake{animation:shake .4s}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+.keypad button{height:50px;border-radius:var(--rs);background:var(--bg);font-size:20px;font-weight:600;transition:transform .08s,background-color var(--fast)}
+.keypad button:hover{background:var(--soft);color:var(--accent)}
+.keypad button:active{transform:scale(.93)}
+.login .msg{color:var(--danger);min-height:1.4em;font-size:14px}
+#pinfield{position:absolute;opacity:0;pointer-events:none;width:1px}
+
+textarea.code{width:100%;height:56vh;font:13px/1.45 ui-monospace,Consolas,monospace;resize:vertical;tab-size:4}
+
+/* phones: the menu is a bar at the bottom */
+@media (max-width:760px){
+  .app{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
+  .rail{grid-row:3;flex-direction:row;border-right:0;border-top:var(--bw) solid var(--line);padding:4px;overflow-x:auto;gap:0}
+  .rail .grp{display:none}
+  .navi{flex-direction:column;gap:2px;font-size:10px;padding:6px 2px;flex:1;min-width:0;align-items:center;text-align:center}
+  .navi span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #console{display:none}
+  .navi .cnt{display:none}
+  .status .opt-wide{display:none}
+  .search input{width:130px}.search input:focus{width:170px}
+  .scroll{padding:0 10px 90px}.titlebar{padding:10px}
+  .ds .base{grid-template-columns:1fr;justify-items:center}
+}
 </style>
 </head>
 <body>
-<div id="login" class="login card hide">
-  <h1>NSA</h1>
-  <div id="t_pin"></div>
-  <input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12">
-  <button class="primary" id="enter"></button>
-  <div class="msg" id="loginmsg"></div>
+<div id="login" class="login" hidden>
+  <div class="box">
+    <div class="logo"><span class="ic s32" data-ic="3ds"></span></div>
+    <h1>NSA</h1>
+    <p id="t_pin"></p>
+    <div class="pins" id="pins"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <input id="pinfield" inputmode="numeric" autocomplete="off" maxlength="6">
+    <div class="msg" id="loginmsg"></div>
+    <div class="keypad" id="keypad"></div>
+  </div>
 </div>
 
-<div id="app" class="hide">
-<header>
-  <h1>NSA</h1><span id="console"></span>
-  <span class="info" id="space"></span>
-</header>
-<main>
-  <nav><button id="tab_files" class="on"></button><button id="tab_titles"></button><button id="tab_tickets"></button><button id="tab_ext"></button><button id="tab_install"></button><button id="tab_screen"></button></nav>
-
-  <div class="card" id="files">
-    <div class="bar">
-      <div class="crumbs" id="crumbs"></div>
-      <button id="up"></button>
-      <button id="mkdir"></button>
-      <button class="primary" id="uploadbtn"></button>
-      <input type="file" id="file" multiple class="hide">
+<div id="app" class="app" hidden>
+  <header class="topbar">
+    <div class="brand"><div class="logo"><span class="ic s16" data-ic="3ds"></span></div>NSA</div>
+    <span id="console"></span>
+    <span class="sp"></span>
+    <div class="status">
+      <span class="opt-wide" id="sd"><span class="ic s16" data-ic="device-sd-card"></span><span id="sdtext"></span><span class="sdbar"><i id="sdfill"></i></span></span>
+      <span id="wifi"><span class="ic s16" data-ic="wifi"></span></span>
+      <span id="battery"></span>
+      <span id="clock"></span>
     </div>
-    <table>
-      <thead><tr><th id="h_name"></th><th class="num" id="h_size"></th><th class="num" id="h_date"></th><th></th></tr></thead>
-      <tbody id="rows"></tbody>
-    </table>
-    <div class="msg" id="empty"></div>
-    <div class="drop" id="drop"></div>
-    <div id="uploads"></div>
-  </div>
-
-  <div class="card hide" id="screen">
-    <div class="bar"><label><input type="checkbox" id="live" checked> <span id="t_live"></span></label><span class="note" id="fps"></span></div>
-    <div class="screens">
-      <canvas id="cv_top" width="400" height="240"></canvas>
-      <canvas id="cv_bottom" width="320" height="240"></canvas>
-    </div>
-    <div class="pad" id="pad"></div>
-    <div class="note" id="padnote" style="text-align:center"></div>
-  </div>
-
-  <div class="card hide" id="install">
-    <h2 id="h_urls" style="margin-top:0"></h2>
-    <textarea id="urls" spellcheck="false"></textarea>
-    <div class="bar" style="margin-top:8px"><button class="primary" id="installurls"></button><span class="note" id="urlsnote"></span></div>
-    <h2 id="h_hist"></h2>
-    <div id="hist"></div>
-    <h2 id="h_log"></h2>
-    <div class="bar"><button id="reloadlog"></button></div>
-    <pre class="log" id="log"></pre>
-  </div>
-
-  <div class="card hide" id="tickets">
-    <div class="bar"><input type="text" id="tfilter"><button id="treload"></button></div>
-    <div class="note" id="ticketsnote"></div>
-    <div class="grid" id="tgrid"></div>
-    <div class="msg" id="ticketsmsg"></div>
-  </div>
-
-  <div class="card hide" id="ext">
-    <div class="bar"><input type="text" id="efilter"><button id="ereload"></button></div>
-    <div class="note" id="extnote"></div>
-    <div class="grid" id="egrid"></div>
-    <div class="msg" id="extmsg"></div>
-  </div>
-
-  <div class="card hide" id="titles">
-    <div class="bar">
-      <input type="text" id="filter">
-      <select id="kind"></select>
-      <button class="primary" id="sendpkg"></button>
-      <input type="file" id="pkg" accept=".nsasave" class="hide">
-    </div>
-    <div class="note" id="titlesnote"></div>
-    <div class="grid" id="grid"></div>
-    <div class="msg" id="titlesmsg"></div>
-  </div>
-</main>
+  </header>
+  <nav class="rail" id="rail"></nav>
+  <main id="main"></main>
 </div>
-<dialog id="ed"><h3 id="edtitle"></h3><textarea id="edtext" spellcheck="false" style="width:100%;height:50vh;box-sizing:border-box;font-family:monospace;background:var(--bg);color:var(--ink);border:var(--bw) solid var(--line);border-radius:var(--r);padding:6px"></textarea><div class="bar"><button id="edsave"></button><button id="edcancel"></button></div></dialog>
-<dialog id="dlg"><h3 id="dlgtitle"></h3><div class="choices" id="dlgbody"></div><div class="bar"><button id="dlgclose"></button></div></dialog>
-<div id="toast"></div>
+<div class="dock" id="dock"></div>
+<div class="toasts" id="toasts"></div>
+<input type="file" id="picker" multiple hidden>
 
+<script src="/icons.js"></script>
 <script>
-const L = (navigator.language||'en').startsWith('es') ? 'es' : 'en';
-const T = {
-  en:{pin:'Type the PIN shown in the console\'s Settings (Web server).',enter:'Enter',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',up:'Up',mkdir:'New folder',upload:'Upload',name:'Name',size:'Size',date:'Modified',download:'Download',rename:'Rename',tickets:'Tickets',extdata:'Extra data',ticketsnote:'Read only: tickets and extra data are deleted from the console\'s own screens (Tickets, Ext Save Data), which ask first.',notinstalled:'Not installed',shared:'Shared',copy:'Copy',move:'Move',edit:'Edit',save_:'Save',cancel:'Cancel',copyto:'Copy to (full path):',moveto:'Move to (full path):',toobig:'Too big to edit here (over 256 KB).',saved:'Saved.',del:'Delete',install:'Install',empty:'Empty folder.',drop:'Drop files here to upload them to this folder',free:'free of',newname:'Name of the new folder:',renameto:'New name:',confirmdel:'Delete "%s"? This cannot be undone.',confirminst:'Install "%s" on the console?',done:'Done.',installed:'Installed.',restarting:'Installed. NSA restarts in a few seconds.',failed:'Failed: ',uploading:'Uploading',lost:'Cannot reach the console.',
-    files:'Files',titles:'Titles',search:'Search…',k_game:'Games and demos',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',sendpkg:'Send a save package to the console',
-    note:'Saves, extra data and SpotPass data download as a .nsasave package; a package you send is unpacked on the console, which asks there before replacing anything.',
-    save:'Save',ext:'Extra data',boss:'SpotPass',packing:'Packing…',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and saved on the console (this title or its data is not there, so it cannot be imported).',notitles:'No titles.',loading:'Loading titles…',version:'v',
-    screen:'Screen',live:'Live view',padnote:'Click the bottom screen to touch it (drag up or down to scroll). Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',nolive:'The console does not answer.',
-    install:'Install',h_urls:'Install from URLs (one per line)',installurls:'Send to the console',urlsnote:'The console asks there before installing.',h_hist:'Remote Install history',h_log:'Transfer log',reload:'Reload',again:'Install again',nohist:'Nothing yet.',nolog:'(no log)',
-    launch:'Launch',delete:'Delete',delticket:'Delete with ticket',import:'Import',close:'Close',importtitle:'Import %s',nobackups:'No backups of this data (NSA\'s exports or Checkpoint\'s).',asked:'Look at the console: it asks there.',confirmlaunch:'Launch "%s" on the console? (NSA closes.)',confirmdelete:'Ask the console to delete "%s"? It asks again there.'},
-  es:{pin:'Escribe el PIN que sale en Ajustes de la consola (Servidor web).',enter:'Entrar',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',up:'Subir nivel',mkdir:'Nueva carpeta',upload:'Subir archivos',name:'Nombre',size:'Tamaño',date:'Modificado',download:'Descargar',rename:'Renombrar',tickets:'Tickets',extdata:'Datos extra',ticketsnote:'Solo lectura: los tickets y los datos extra se borran en las pantallas de la consola (Tickets, Ext Save Data), que preguntan antes.',notinstalled:'No instalado',shared:'Compartido',copy:'Copiar',move:'Mover',edit:'Editar',save_:'Guardar',cancel:'Cancelar',copyto:'Copiar a (ruta completa):',moveto:'Mover a (ruta completa):',toobig:'Demasiado grande para editar aquí (más de 256 KB).',saved:'Guardado.',del:'Borrar',install:'Instalar',empty:'Carpeta vacía.',drop:'Suelta aquí archivos para subirlos a esta carpeta',free:'libres de',newname:'Nombre de la carpeta nueva:',renameto:'Nombre nuevo:',confirmdel:'¿Borrar "%s"? No se puede deshacer.',confirminst:'¿Instalar "%s" en la consola?',done:'Hecho.',installed:'Instalado.',restarting:'Instalado. NSA se reinicia en unos segundos.',failed:'Error: ',uploading:'Subiendo',lost:'No se puede contactar con la consola.',
-    files:'Archivos',titles:'Títulos',search:'Buscar…',k_game:'Juegos y demos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',sendpkg:'Enviar un paquete de partida a la consola',
-    note:'Las partidas, los datos extra y los datos SpotPass se descargan como un paquete .nsasave; un paquete que envíes se desempaqueta en la consola, que pregunta allí antes de reemplazar nada.',
-    save:'Partida',ext:'Datos extra',boss:'SpotPass',packing:'Empaquetando…',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están, así que no se puede importar).',notitles:'Sin títulos.',loading:'Cargando títulos…',version:'v',
-    screen:'Pantalla',live:'Ver en vivo',padnote:'Pulsa la pantalla de abajo para tocarla (arrastra arriba o abajo para desplazar). Teclas: flechas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Intro = Start, Retroceso = Select.',nolive:'La consola no responde.',
-    install:'Instalar',h_urls:'Instalar desde URLs (una por línea)',installurls:'Enviar a la consola',urlsnote:'La consola pregunta allí antes de instalar.',h_hist:'Historial de Remote Install',h_log:'Registro de transferencias',reload:'Recargar',again:'Instalar otra vez',nohist:'Nada todavía.',nolog:'(sin registro)',
-    launch:'Lanzar',delete:'Borrar',delticket:'Borrar con ticket',import:'Importar',close:'Cerrar',importtitle:'Importar %s',nobackups:'No hay copias de estos datos (exportaciones de NSA ni de Checkpoint).',asked:'Mira la consola: pregunta allí.',confirmlaunch:'¿Lanzar "%s" en la consola? (NSA se cierra.)',confirmdelete:'¿Pedir a la consola que borre "%s"? Pregunta otra vez allí.'}
-}[L];
-document.documentElement.lang = L;
+'use strict';
+// ---- words: the console's language when it is English or Spanish, else the browser's ----
+const WORDS = {
+en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',lost:'Cannot reach the console.',failed:'Failed: ',done:'Done.',
+  g_manage:'Manage',g_tools:'Tools',titles:'Titles',files:'Files',tickets:'Tickets',extdata:'Extra data',install:'Install',screen:'Screen',settings:'Settings',
+  search:'Search',filter:'Filter',sort:'Sort',view:'View',list:'List',grid:'Grid',more:'More',reload:'Reload',close:'Close',cancel:'Cancel',ok:'OK',save:'Save',
+  k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
+  loaded:'%a of %b',notitles:'Nothing matches.',loading:'Loading…',version:'Version',size:'Size',code:'Product code',publisher:'Publisher',id:'Title ID',type:'Type',path:'Path',modified:'Modified',
+  launch:'Launch',deleteTitle:'Delete',delticket:'Delete with ticket',data:'Data',dsave:'Download save',dext:'Download extra data',dboss:'Download SpotPass data',isave:'Import save',iext:'Import extra data',iboss:'Import SpotPass data',
+  sendpkg:'Send a save package',sendpkgsub:'A .nsasave package made by NSA: the console unpacks it and asks there.',packing:'Packing…',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and kept on the console (this title or its data is not there).',
+  nobackups:'No backups of this data (NSA\'s exports or Checkpoint\'s).',pickbackup:'Pick a backup: the console asks before replacing anything.',asked:'Look at the console: it asks there.',
+  confirmlaunch:'Launch "%s" on the console? NSA closes.',confirmdelete:'Ask the console to delete "%s"? It asks again there.',danger:'Delete',
+  readonly:'Read only here: delete tickets and extra data from the console\'s own screens, which ask first.',notinstalled:'Not installed',installedOn:'Installed on',
+  sd:'SD',nand:'NAND',folder:'Folder',file:'File',items:'%n items',item:'1 item',empty:'This folder is empty.',emptyHint:'Drop files here, or use Upload.',
+  open:'Open',download:'Download',upload:'Upload',uploadFolder:'Upload a folder',newfolder:'New folder',newname:'Name of the new folder',rename:'Rename',renameto:'New name',copy:'Copy',cut:'Cut (move)',paste:'Paste here',del:'Delete',
+  viewpic:'View picture',play:'Play here',edit:'Edit text',view_:'Open text',installcia:'Install',selectall:'Select all',selected:'%n selected',copied:'%n copied',cutn:'%n to move',pasting:'Pasting…',
+  confirmdel:'Delete "%s"? This cannot be undone.',confirmdeln:'Delete %n items? This cannot be undone.',confirminst:'Install "%s" on the console?',installed:'Installed.',restarting:'Installed. NSA restarts in a few seconds.',installing:'Installing…',
+  toobig:'Too big to edit here (over 256 KB).',saved:'Saved.',uploading:'Uploading',uploads:'Uploads',queued:'Waiting',movedTo:'Moved to %s',copiedTo:'Copied to %s',dropTo:'Drop to upload to %s',dropHint:'Drag onto a folder to move (hold Ctrl to copy)',taken:'"%s" is already there.',
+  t_type:{text:'Text',code:'Code',data:'Data',image:'Picture',audio:'Sound',video:'Video',archive:'Compressed',program:'Program',rom:'Game ROM',save:'Save file',binary:'Binary',pdf:'PDF',cia:'CIA',ticket:'Ticket',file:'File'},
+  i_urls:'Install from URLs',i_urlssub:'Paste links to CIAs: the console asks there, downloads and installs.',i_cia:'Install a CIA from this PC',i_ciasub:'Upload it and install it; the copy on the SD card is deleted after.',
+  i_hist:'History',i_histsub:'What was sent to Remote Install before.',i_log:'Transfer log',i_logsub:'The end of transfer-log.txt.',urls:'One URL per line',send:'Send to the console',again:'Install again',nohist:'Nothing yet.',nolog:'(no log)',
+  live:'Live',nolive:'The console does not answer.',padnote:'Click the bottom screen to touch it, drag up or down to scroll. Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',
+  ap:'Appearance',theme:'Theme',themesub:'How every screen looks, here and on the console.',accent:'Accent colour',night:'Night mode',nightsub:'Auto: from 20:00 to 8:00 by the console\'s clock.',off:'Off',on:'On',auto:'Auto',language:'Language',lsystem:'Console\'s',
+  snd:'Sound',sounds:'Interface sounds',soundssub:'Ticks and clicks; Alerts plays only success and error.',alerts:'Alerts',all:'All',music:'Background music',musicsub:'Made on the console as it plays.',m_lift:'Lift',m_calm:'Calm',m_shop:'Shop',
+  page:'This page',psound:'Sounds in this page',psoundsub:'The console\'s tones, played by the browser (as set above).',pmotion:'Animations',pmotionsub:'Movement in lists, sheets and screens.',signout:'Sign out',signoutsub:'Forget the PIN in this browser.',about:'Console',address:'Address'},
+es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',lost:'No se puede contactar con la consola.',failed:'Error: ',done:'Hecho.',
+  g_manage:'Gestionar',g_tools:'Herramientas',titles:'Títulos',files:'Archivos',tickets:'Tickets',extdata:'Datos extra',install:'Instalar',screen:'Pantalla',settings:'Ajustes',
+  search:'Buscar',filter:'Filtrar',sort:'Ordenar',view:'Vista',list:'Lista',grid:'Cuadrícula',more:'Más',reload:'Recargar',close:'Cerrar',cancel:'Cancelar',ok:'Aceptar',save:'Guardar',
+  k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
+  loaded:'%a de %b',notitles:'No hay nada que coincida.',loading:'Cargando…',version:'Versión',size:'Tamaño',code:'Código de producto',publisher:'Editor',id:'ID de título',type:'Tipo',path:'Ruta',modified:'Modificado',
+  launch:'Lanzar',deleteTitle:'Borrar',delticket:'Borrar con ticket',data:'Datos',dsave:'Descargar partida',dext:'Descargar datos extra',dboss:'Descargar datos SpotPass',isave:'Importar partida',iext:'Importar datos extra',iboss:'Importar datos SpotPass',
+  sendpkg:'Enviar un paquete de partida',sendpkgsub:'Un paquete .nsasave hecho por NSA: la consola lo desempaqueta y pregunta allí.',packing:'Empaquetando…',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están).',
+  nobackups:'No hay copias de estos datos (exportaciones de NSA ni de Checkpoint).',pickbackup:'Elige una copia: la consola pregunta antes de reemplazar nada.',asked:'Mira la consola: pregunta allí.',
+  confirmlaunch:'¿Lanzar "%s" en la consola? NSA se cierra.',confirmdelete:'¿Pedir a la consola que borre "%s"? Pregunta otra vez allí.',danger:'Borrar',
+  readonly:'Aquí solo se consultan: los tickets y los datos extra se borran desde las pantallas de la consola, que preguntan antes.',notinstalled:'No instalado',installedOn:'Instalado en',
+  sd:'SD',nand:'NAND',folder:'Carpeta',file:'Archivo',items:'%n elementos',item:'1 elemento',empty:'Esta carpeta está vacía.',emptyHint:'Suelta archivos aquí o usa Subir.',
+  open:'Abrir',download:'Descargar',upload:'Subir',uploadFolder:'Subir una carpeta',newfolder:'Nueva carpeta',newname:'Nombre de la carpeta nueva',rename:'Renombrar',renameto:'Nombre nuevo',copy:'Copiar',cut:'Cortar (mover)',paste:'Pegar aquí',del:'Borrar',
+  viewpic:'Ver imagen',play:'Reproducir aquí',edit:'Editar texto',view_:'Abrir texto',installcia:'Instalar',selectall:'Seleccionar todo',selected:'%n seleccionados',copied:'%n copiados',cutn:'%n para mover',pasting:'Pegando…',
+  confirmdel:'¿Borrar "%s"? No se puede deshacer.',confirmdeln:'¿Borrar %n elementos? No se puede deshacer.',confirminst:'¿Instalar "%s" en la consola?',installed:'Instalado.',restarting:'Instalado. NSA se reinicia en unos segundos.',installing:'Instalando…',
+  toobig:'Demasiado grande para editar aquí (más de 256 KB).',saved:'Guardado.',uploading:'Subiendo',uploads:'Subidas',queued:'En espera',movedTo:'Movido a %s',copiedTo:'Copiado a %s',dropTo:'Suelta para subir a %s',dropHint:'Arrastra sobre una carpeta para mover (Ctrl para copiar)',taken:'"%s" ya existe allí.',
+  t_type:{text:'Texto',code:'Código',data:'Datos',image:'Imagen',audio:'Sonido',video:'Vídeo',archive:'Comprimido',program:'Programa',rom:'ROM de juego',save:'Partida',binary:'Binario',pdf:'PDF',cia:'CIA',ticket:'Ticket',file:'Archivo'},
+  i_urls:'Instalar desde URLs',i_urlssub:'Pega enlaces a CIAs: la consola pregunta allí, descarga e instala.',i_cia:'Instalar un CIA desde este PC',i_ciasub:'Se sube y se instala; la copia en la SD se borra después.',
+  i_hist:'Historial',i_histsub:'Lo que se envió antes a Remote Install.',i_log:'Registro de transferencias',i_logsub:'El final de transfer-log.txt.',urls:'Una URL por línea',send:'Enviar a la consola',again:'Instalar otra vez',nohist:'Nada todavía.',nolog:'(sin registro)',
+  live:'En vivo',nolive:'La consola no responde.',padnote:'Pulsa la pantalla de abajo para tocarla, arrastra arriba o abajo para desplazar. Teclas: flechas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Intro = Start, Retroceso = Select.',
+  ap:'Apariencia',theme:'Tema',themesub:'Cómo se ven todas las pantallas, aquí y en la consola.',accent:'Color de acento',night:'Modo noche',nightsub:'Auto: de 20:00 a 8:00 según el reloj de la consola.',off:'No',on:'Sí',auto:'Auto',language:'Idioma',lsystem:'El de la consola',
+  snd:'Sonido',sounds:'Sonidos de la interfaz',soundssub:'Ticks y clics; Avisos solo suena al acabar bien o mal.',alerts:'Avisos',all:'Todos',music:'Música de fondo',musicsub:'La consola la compone mientras suena.',m_lift:'Lift',m_calm:'Calma',m_shop:'Tienda',
+  page:'Esta página',psound:'Sonidos en esta página',psoundsub:'Los tonos de la consola, sonando en el navegador (como arriba).',pmotion:'Animaciones',pmotionsub:'Movimiento en listas, hojas y pantallas.',signout:'Cerrar sesión',signoutsub:'Olvidar el PIN en este navegador.',about:'Consola',address:'Dirección'}
+};
+const store = { get(k,d){ try { const v = localStorage.getItem('nsa.'+k); return v===null ? d : JSON.parse(v); } catch(e){ return d; } },
+                set(k,v){ try { localStorage.setItem('nsa.'+k, JSON.stringify(v)); } catch(e){} } };
+let L = store.get('lang', (navigator.language||'en').startsWith('es') ? 'es' : 'en'), T = WORDS[L];
+const tr = (k, a) => { let s = T[k] ?? k; if(a) for(const x in a) s = s.replace('%'+x, a[x]); return s; };
+
+// ---- little helpers ----
 const $ = id => document.getElementById(id);
-let pin = '', cwd = '/';
+function h(tag, props, ...kids){
+  const e = document.createElement(tag);
+  if(props) for(const k in props){ const v = props[k]; if(v==null || v===false) continue;
+    if(k==='class') e.className = v; else if(k==='text') e.textContent = v; else if(k==='style') e.style.cssText = v;
+    else if(k.startsWith('on')) e[k] = v; else if(k==='vars') for(const n in v) e.style.setProperty('--'+n, v[n]); else e.setAttribute(k, v===true ? '' : v); }
+  for(const c of kids.flat()) if(c!=null && c!==false) e.append(c.nodeType ? c : document.createTextNode(c));
+  return e;
+}
+const NAMES = typeof ICON_NAMES!=='undefined' ? ICON_NAMES : [], COLS = typeof ICON_COLUMNS!=='undefined' ? ICON_COLUMNS : 16;
+function setIcon(e, name){ const i = NAMES.indexOf(name); e.style.visibility = i<0 ? 'hidden' : ''; e.style.setProperty('--c', i%COLS); e.style.setProperty('--r', Math.floor(i/COLS)); return e; }
+const ic = (name, size) => setIcon(h('span', {class:'ic'+(size?' s'+size:'')}), name);
+document.querySelectorAll('[data-ic]').forEach(e => setIcon(e, e.dataset.ic));
+function fmtSize(n){ if(n<1024) return n+' B'; const u=['KB','MB','GB','TB']; let i=-1; do { n/=1024; i++; } while(n>=1024 && i<3); return n.toFixed(n<10?2:n<100?1:0)+' '+u[i]; }
+function fmtDate(s){ if(!s) return ''; const d = new Date(s*1000); return d.toLocaleDateString(L,{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString(L,{hour:'2-digit',minute:'2-digit'}); }
+const fmtVer = v => ((v>>10)&63)+'.'+((v>>4)&63)+'.'+(v&15);
+const q = o => Object.entries(o).filter(([,v]) => v!=null).map(([k,v]) => k+'='+encodeURIComponent(v)).join('&');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const collator = new Intl.Collator(undefined, {numeric:true, sensitivity:'base'});
 
-function setText(){ $('t_pin').textContent=T.pin; $('enter').textContent=T.enter; $('up').textContent=T.up; $('mkdir').textContent=T.mkdir;
-  $('uploadbtn').textContent=T.upload; $('h_name').textContent=T.name; $('h_size').textContent=T.size; $('h_date').textContent=T.date; $('drop').textContent=T.drop;
-  $('tab_files').textContent=T.files; $('tab_titles').textContent=T.titles; $('tab_tickets').textContent=T.tickets; $('tab_ext').textContent=T.extdata; $('ticketsnote').textContent=T.ticketsnote; $('extnote').textContent=T.ticketsnote; $('tfilter').placeholder=T.search; $('efilter').placeholder=T.search; $('treload').textContent=T.reload; $('ereload').textContent=T.reload; $('tab_install').textContent=T.install; $('tab_screen').textContent=T.screen; $('t_live').textContent=T.live; $('padnote').textContent=T.padnote; $('h_urls').textContent=T.h_urls; $('installurls').textContent=T.installurls; $('urlsnote').textContent=T.urlsnote; $('h_hist').textContent=T.h_hist; $('h_log').textContent=T.h_log; $('reloadlog').textContent=T.reload; $('dlgclose').textContent=T.close; $('edsave').textContent=T.save_; $('edcancel').textContent=T.cancel; $('filter').placeholder=T.search; $('sendpkg').textContent=T.sendpkg; $('titlesnote').textContent=T.note;
-  const sel=$('kind'); sel.textContent=''; [['game',T.k_game],['update',T.k_update],['dlc',T.k_dlc],['system',T.k_system],['all',T.k_all]].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; sel.appendChild(o); }); }
-setText();
+// ---- the console's tones (source/core/sound.c), played by the browser ----
+const TONES = {tick:[[2400,2000,14,.30,140,0]], click:[[1700,1300,28,.40,70,0]], back:[[1100,650,55,.35,30,0]],
+  success:[[784,784,90,.4,12,10],[988,988,90,.4,12,10],[1319,1319,220,.4,8,0]], error:[[300,300,120,.4,6,60],[220,220,200,.4,6,0]]};
+let audio = null; const buffers = {};
+let soundMode = 2, soundVolume = 70;   // The console's setting, read with the other settings.
+function sfx(name){
+  if(!store.get('pageSound', true) || soundMode===0 || (soundMode===1 && name!=='success' && name!=='error')) return;
+  try {
+    audio = audio || new (window.AudioContext||window.webkitAudioContext)();
+    if(!buffers[name]){
+      const rate = audio.sampleRate, tones = TONES[name];
+      const len = tones.reduce((n,t) => n + Math.round((t[2]+t[5])*rate/1000), 0);
+      const b = audio.createBuffer(1, len, rate), out = b.getChannelData(0); let pos = 0;
+      for(const [from,to,ms,amp,decay,gap] of tones){ const n = Math.round(ms*rate/1000); let ph = 0;
+        for(let i=0;i<n;i++){ const x=i/n, f=from+(to-from)*x; ph += 2*Math.PI*f/rate; const fade = Math.min(1,(n-i)/(rate*0.003)); out[pos++] = Math.sin(ph)*Math.exp(-decay*i/rate)*amp*fade; }
+        pos += Math.round(gap*rate/1000); }
+      buffers[name] = b;
+    }
+    const src = audio.createBufferSource(), g = audio.createGain(); g.gain.value = soundVolume/100*0.6;
+    src.buffer = buffers[name]; src.connect(g).connect(audio.destination); src.start();
+  } catch(e){}
+}
 
-// The console's theme: colours, corners, borders and (Pixel) its font.
-let themeKey = '';
+// ---- talking to the console ----
+let pin = '';
+class ApiError extends Error {}
+async function api(method, path, params, body){
+  let r;
+  try { r = await fetch('/api/'+path+(params ? '?'+(typeof params==='string' ? params : q(params)) : ''), {method, headers:{'X-Pin':pin}, body}); }
+  catch(e){ throw new ApiError(T.lost); }
+  let j = null; try { j = await r.json(); } catch(e){}
+  if(r.status===401 || r.status===429){ const e = new ApiError(r.status===401 ? T.wrong : T.locked); e.auth = true; throw e; }
+  if(!r.ok || (j && j.ok===false)){ const e = new ApiError((j && j.error) || r.statusText); e.status = r.status; throw e; }
+  return j;
+}
+async function run(fn){ try { return await fn(); } catch(e){ if(e.auth) showLogin(e.message); else { sfx('error'); toast(T.failed+e.message, 'err'); } } }
+const fileUrl = path => '/api/file?'+q({path});
+
+// Background loads (names, icons) one at a time, what is on screen first: the console serves one request at a time.
+const bgq = []; let bgBusy = false;
+const seen = new IntersectionObserver(es => { for(const e of es) e.target._vis = e.isIntersecting; pumpBg(); }, {rootMargin:'200px'});
+function later(el, fn){ bgq.push({el, fn}); seen.observe(el); pumpBg(); }
+async function pumpBg(){
+  if(bgBusy) return; bgBusy = true;
+  while(bgq.length){
+    let i = bgq.findIndex(j => j.el._vis && j.el.isConnected);
+    if(i<0) i = bgq.findIndex(j => j.el.isConnected && j.el.offsetParent);
+    if(i<0) i = bgq.findIndex(j => j.el.isConnected);
+    if(i<0){ bgq.length = 0; break; }
+    const [job] = bgq.splice(i, 1); seen.unobserve(job.el);
+    try { await job.fn(); } catch(e){ if(e.auth){ bgq.length = 0; showLogin(e.message); break; } }
+  }
+  bgBusy = false;
+}
+// An icon (a BMP from the console) kept as a blob for as long as the page is open.
+const icons = new Map();
+async function iconUrl(url){
+  if(icons.has(url)) return icons.get(url);
+  const r = await fetch(url, {headers:{'X-Pin':pin}});
+  if(r.status===401){ const e = new ApiError(T.wrong); e.auth = true; throw e; }
+  const u = r.ok ? URL.createObjectURL(await r.blob()) : ''; icons.set(url, u); return u;
+}
+function putIcon(pic, u){ if(!u) return; const img = h('img', {alt:'', class:'px'}); img.onload = () => img.classList.add('in'); img.src = u; pic.textContent = ''; pic.append(img); }
+
+// ---- toasts, sheets, questions, menus ----
+function toast(text, kind){
+  const t = h('div', {class:'toast '+(kind||'')}, ic(kind==='err' ? 'alert-triangle' : kind==='ok' ? 'check' : 'info-circle', 16), h('span', {text}));
+  $('toasts').append(t);
+  while($('toasts').children.length > 4) $('toasts').firstChild.remove();
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 260); }, kind==='err' ? 6000 : 3800);
+}
+const openSheets = new Set();
+function sheet({head, body, foot, wide, onclose}){
+  const pane = h('div', {class:'pane'}, h('div', {class:'grab'}), head||null, h('div', {class:'body'}, body||[]), foot ? h('div', {class:'foot'}, foot) : null);
+  const d = h('dialog', {class:'sheet'+(wide?' wide':'')}, pane);
+  document.body.append(d); d.showModal(); requestAnimationFrame(() => requestAnimationFrame(() => d.classList.add('open'))); sfx('click');
+  let closed = false;
+  const close = quiet => { if(closed) return; closed = true; openSheets.delete(close); if(!quiet) sfx('back'); d.classList.remove('open'); setTimeout(() => { d.close(); d.remove(); if(onclose) onclose(); }, 290); };
+  openSheets.add(close);
+  d.addEventListener('cancel', e => { e.preventDefault(); close(); });
+  d.addEventListener('mousedown', e => { if(e.target===d) close(); });
+  // A swipe down closes it on a phone.
+  let y0 = null; pane.addEventListener('touchstart', e => { if(pane.querySelector('.body').scrollTop<=0) y0 = e.touches[0].clientY; }, {passive:true});
+  pane.addEventListener('touchmove', e => { if(y0!=null){ const dy = Math.max(0, e.touches[0].clientY-y0); pane.style.transition='none'; pane.style.transform='translateY('+dy+'px)'; } }, {passive:true});
+  pane.addEventListener('touchend', e => { if(y0==null) return; const dy = e.changedTouches[0].clientY-y0; y0 = null; pane.style.transition=''; pane.style.transform=''; if(dy>90) close(); });
+  return {close, el:d, pane};
+}
+function sheetHead(pic, title, sub){ return h('div', {class:'head'}, h('div', {class:'big'}, pic), h('div', {style:'min-width:0'}, h('h3', {text:title}), sub ? h('div', {class:'sub', text:sub}) : null)); }
+const cells = list => h('div', {class:'cells'}, list.filter(c => c && c[1]!=null && c[1]!=='').map(([b,s]) => h('div', {class:'cell'}, h('b', {text:b}), h('span', {text:s, title:s}))));
+// Actions: [icon, label, fn, {danger, note}] or a string (a group label). Choosing one closes the sheet first.
+function actions(list, closeFn){
+  let i = 0;
+  return h('div', {class:'acts'}, list.filter(Boolean).map(a => typeof a==='string' ? h('div', {class:'lbl', text:a}) :
+    h('button', {class:'act'+(a[3]&&a[3].danger?' danger':''), vars:{i:i++}, onclick:() => { closeFn && closeFn(true); a[2](); }}, ic(a[0]), h('span', {text:a[1]}), a[3]&&a[3].note ? h('small', {text:a[3].note}) : null)));
+}
+function ask(title, {text, value='', okLabel=T.ok, danger=false, input=true, select}={}){
+  return new Promise(res => {
+    const inp = input ? h('input', {type:'text', value, spellcheck:'false'}) : null;
+    let s;
+    const ok = () => { const v = inp ? inp.value.trim() : true; s.close(true); res(inp && !v ? null : v); };
+    const okb = h('button', {class:'btn '+(danger?'danger':'primary'), onclick:ok}, danger ? ic('trash',16) : null, okLabel);
+    s = sheet({head:h('div', {class:'head'}, h('h3', {text:title})), body:h('div', {class:'ask'}, text ? h('p', {text}) : null, inp),
+      foot:[h('button', {class:'btn', onclick:() => s.close(), text:T.cancel}), okb], onclose:() => res(null)});
+    if(inp){ inp.onkeydown = e => { if(e.key==='Enter') ok(); }; setTimeout(() => { inp.focus(); const dot = select ? value.lastIndexOf('.') : -1; inp.setSelectionRange(0, dot>0 ? dot : value.length); }, 60); }
+    else setTimeout(() => okb.focus(), 60);
+  });
+}
+const confirmAsk = (text, danger, okLabel) => ask(okLabel || T.ok, {text, input:false, danger, okLabel});
+let openMenu = null;
+function menu(x, y, items){
+  closeMenu();
+  const m = h('div', {class:'menu'}, items.filter(Boolean).map(a => a==='-' ? h('hr') : a.nodeType ? a : typeof a==='string' ? h('div', {class:'lbl', text:a}) :
+    h('button', {class:'act'+(a[3]&&a[3].danger?' danger':''), disabled:a[3]&&a[3].disabled, onclick:() => { closeMenu(); a[2](); }}, ic(a[0]), h('span', {text:a[1]}), a[3]&&a[3].key ? h('small', {text:a[3].key}) : null)));
+  document.body.append(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(x, innerWidth-r.width-8))+'px'; m.style.top = Math.max(8, Math.min(y, innerHeight-r.height-8))+'px';
+  openMenu = m; sfx('tick');
+}
+function closeMenu(){ if(openMenu){ openMenu.remove(); openMenu = null; } }
+addEventListener('mousedown', e => { if(openMenu && !openMenu.contains(e.target)) closeMenu(); }, true);
+addEventListener('keydown', e => { if(e.key==='Escape') closeMenu(); });
+addEventListener('blur', closeMenu);
+const menuAt = (btn, items) => { const r = btn.getBoundingClientRect(); menu(r.left, r.bottom+6, items); };
+function seg(options, value, onpick){
+  const s = h('div', {class:'seg'});
+  options.forEach(([v, label, icon]) => s.append(h('button', {class:v===value?'on':'', onclick:() => { [...s.children].forEach(b => b.classList.remove('on')); s.children[options.findIndex(o => o[0]===v)].classList.add('on'); sfx('tick'); onpick(v); }}, icon ? ic(icon,16) : null, label)));
+  return s;
+}
+const tool = (icon, title, fn, cls) => h('button', {class:'tool'+(cls?' '+cls:''), title, 'aria-label':title, onclick:fn}, ic(icon));
+function searchBox(value, oninput){ const i = h('input', {type:'search', placeholder:T.search, value}); i.oninput = () => oninput(i.value.trim().toLowerCase()); return h('label', {class:'search'}, ic('search',16), i); }
+
+// ---- the console's theme ----
+let themeKey = '', themeNow = null;
 async function loadTheme(){
   try {
     const t = await (await fetch('/theme.json')).json();
-    const key = JSON.stringify(t); if(key===themeKey) return; themeKey = key;
+    const key = JSON.stringify(t); if(key===themeKey) return; themeKey = key; themeNow = t;
     const c = t.colors, s = document.documentElement.style;
-    s.setProperty('--bg',c.background); s.setProperty('--card',c.surface); s.setProperty('--line',c.border); s.setProperty('--ink',c.text);
-    s.setProperty('--muted',c.muted); s.setProperty('--accent',c.accent); s.setProperty('--onaccent',c.onAccent); s.setProperty('--hover',c.accentSoft);
-    s.setProperty('--danger',c.danger); s.setProperty('--success',c.success);
-    s.setProperty('--r',t.radius+'px'); s.setProperty('--rs',t.radiusSmall+'px'); s.setProperty('--bw',t.border+'px');
-    document.body.classList.toggle('pixel', t.pixel);
+    const set = {bg:c.background, card:c.surface, line:c.border, ink:c.text, muted:c.muted, accent:c.accent, onaccent:c.onAccent, soft:c.accentSoft, danger:c.danger, success:c.success, warning:c.warning};
+    for(const k in set) s.setProperty('--'+k, set[k]);
+    s.setProperty('--r', t.radius+'px'); s.setProperty('--rs', t.radiusSmall+'px'); s.setProperty('--bw', t.border+'px');
+    s.colorScheme = t.night ? 'dark' : 'light';
+    document.body.classList.toggle('pixel', !!t.pixel);
+    if(current==='settings') renderSettings();
   } catch(e){}
 }
-loadTheme(); setInterval(loadTheme, 5000);
+loadTheme(); setInterval(() => { if(!document.hidden) loadTheme(); }, 5000);
+document.body.classList.toggle('nomotion', !store.get('motion', true));
 
-function toast(t){ const e=$('toast'); e.textContent=t; e.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>e.classList.remove('on'),4500); }
-function fmtSize(n){ if(n<1024) return n+' B'; const u=['KB','MB','GB','TB']; let i=-1; do{ n/=1024; i++; }while(n>=1024&&i<3); return n.toFixed(n<10?2:1)+' '+u[i]; }
-function fmtDate(s){ if(!s) return ''; const d=new Date(s*1000); return d.toLocaleDateString()+' '+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
-const q = (k,v) => k+'='+encodeURIComponent(v);
-
-async function api(method, path, params, body){
-  let r;
-  try { r = await fetch('/api/'+path+(params?'?'+params:''), {method, headers:{'X-Pin':pin}, body}); }
-  catch(e){ throw new Error(T.lost); }
-  let j = null;
-  try { j = await r.json(); } catch(e){}
-  if(r.status===401) { const err=new Error(T.wrong); err.auth=true; throw err; }
-  if(r.status===429) { const err=new Error(T.locked); err.auth=true; throw err; }
-  if(!r.ok || (j && j.ok===false)) throw new Error((j&&j.error)||r.statusText);
-  return j;
+// ---- sign in: six boxes and a keypad ----
+const pf = $('pinfield');
+function drawPins(){ const v = pf.value; [...$('pins').children].forEach((e,i) => { e.textContent = v[i] ? '•' : ''; e.classList.toggle('f', !!v[i]); e.classList.toggle('cur', i===v.length); }); }
+pf.oninput = () => { pf.value = pf.value.replace(/\D/g,'').slice(0,6); drawPins(); sfx('tick'); if(pf.value.length===6) login(pf.value); };
+'1 2 3 4 5 6 7 8 9 ⌫ 0 ↵'.split(' ').forEach(k => $('keypad').append(h('button', {text:k, onclick:() => {
+  if(k==='⌫') pf.value = pf.value.slice(0,-1); else if(k==='↵'){ if(pf.value) login(pf.value); return; } else pf.value += k;
+  pf.oninput(); pf.focus(); }})));
+$('login').onclick = () => pf.focus();
+function showLogin(msg){
+  $('app').hidden = true; $('login').hidden = false; $('t_pin').textContent = T.pin; $('loginmsg').textContent = msg||'';
+  if(msg){ $('pins').classList.remove('shake'); void $('pins').offsetWidth; $('pins').classList.add('shake'); sfx('error'); }
+  pf.value = ''; drawPins(); pf.focus();
 }
-
-async function login(){
-  pin = $('pin').value.trim();
-  document.cookie = 'pin='+encodeURIComponent(pin)+'; path=/; SameSite=Strict';
+let info = {}, settings = null;
+async function login(p){
+  pin = p; document.cookie = 'pin='+encodeURIComponent(pin)+'; path=/; SameSite=Strict';
   try {
-    const i = await api('GET','info');
+    info = await api('GET', 'info');
+    try { settings = await api('GET', 'settings'); applyConsoleSettings(); } catch(e){ if(e.auth) throw e; }
     sessionStorage.setItem('pin', pin);
-    $('login').classList.add('hide'); $('app').classList.remove('hide');
-    $('console').textContent = i.console+' · '+i.version;
-    $('space').textContent = fmtSize(i.free)+' '+T.free+' '+fmtSize(i.total);
-    go('/');
+    $('login').hidden = true; $('app').hidden = false; sfx('success');
+    buildRail(); drawStatus(); route();
   } catch(e){ showLogin(e.message); }
 }
-$('enter').onclick = login;
-$('pin').onkeydown = e => { if(e.key==='Enter') login(); };
-function showLogin(msg){ $('app').classList.add('hide'); $('login').classList.remove('hide'); $('loginmsg').textContent = msg||''; $('pin').focus(); }
-async function run(fn){ try { await fn(); } catch(e){ if(e.auth) showLogin(e.message); else toast(T.failed+e.message); } }
+function applyConsoleSettings(){
+  soundMode = settings.sounds; soundVolume = settings.soundVolume;
+  const want = settings.language==='es' ? 'es' : settings.language==='en' ? 'en' : (navigator.language||'en').startsWith('es') ? 'es' : 'en';
+  if(want!==L){ L = want; T = WORDS[L]; document.documentElement.lang = L; store.set('lang', L); if(!$('app').hidden){ buildRail(); route(true); } }
+}
+document.documentElement.lang = L;
 
-// ---- tabs ----
-function tab(name){
-  for(const n of ['files','titles','tickets','ext','install','screen']){ $(n).classList.toggle('hide', name!==n); $('tab_'+n).classList.toggle('on', name===n); }
-  if(name==='titles' && !titlesLoaded) loadTitles();
-  if(name==='install') loadInstall();
-  if(name==='tickets' && !ticketsLoaded) loadTickets();
-  if(name==='ext' && !extLoaded) loadExt();
-  current = name; if(name==='screen') startLive();
+// ---- the status bar ----
+function drawStatus(){
+  $('console').textContent = (info.console||'')+' · '+(info.version||'');
+  if(info.total){ $('sdtext').textContent = fmtSize(info.free)+' / '+fmtSize(info.total); $('sdfill').style.width = (100*(1-info.free/info.total)).toFixed(1)+'%'; }
+  const b = $('battery'); b.textContent = '';
+  if(info.battery!=null) b.append(ic(info.charging ? 'battery-charging' : ['battery','battery-1','battery-1','battery-2','battery-3','battery-4'][Math.min(5, info.battery)], 16));
 }
-let current = 'files';
-$('tab_files').onclick = () => tab('files'); $('tab_titles').onclick = () => tab('titles'); $('tab_tickets').onclick = () => tab('tickets'); $('tab_ext').onclick = () => tab('ext'); $('tab_install').onclick = () => tab('install'); $('tab_screen').onclick = () => tab('screen');
+setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString(L, {hour:'2-digit', minute:'2-digit'}); }, 1000);
+setInterval(async () => { if($('app').hidden || document.hidden) return; try { info = await api('GET','info'); drawStatus(); $('wifi').style.opacity = 1; } catch(e){ $('wifi').style.opacity = .3; } }, 30000);
 
-// ---- files ----
-function crumbs(){
-  const c = $('crumbs'); c.textContent='';
-  const parts = cwd.split('/').filter(Boolean);
-  let path = '/';
-  const root = document.createElement('a'); root.textContent='SD'; root.onclick=()=>go('/'); c.appendChild(root);
-  parts.forEach(p => { path += p+'/'; const to=path;
-    c.appendChild(document.createTextNode(' / '));
-    const a=document.createElement('a'); a.textContent=p; a.onclick=()=>go(to); c.appendChild(a); });
+// ---- the menu and the screens (#titles, #files/sd/path...) ----
+const SCREENS = [['g_manage'], ['titles','apps'], ['files','folder'], ['tickets','ticket'], ['extdata','database'], ['g_tools'], ['install','world-download'], ['screen','device-desktop'], ['settings','settings']];
+let current = '';
+function buildRail(){
+  const r = $('rail'); r.textContent = '';
+  for(const [k, icon] of SCREENS) r.append(icon ? h('button', {class:'navi', 'data-s':k, onclick:() => { if(k===current && k==='files') location.hash = '#files'; else location.hash = '#'+(k==='files' && lastDir!=='/' ? 'files'+lastDir : k); }}, ic(icon), h('span', {text:T[k]}), h('span', {class:'cnt', id:'cnt_'+k})) : h('div', {class:'grp', text:T[k]}));
+  markRail();
 }
-async function go(path){
-  if(!path.endsWith('/')) path += '/';
-  try {
-    const j = await api('GET','list', q('path', path==='/'?'/':path.slice(0,-1)));
-    cwd = path; crumbs();
-    const files = j.files.sort((a,b)=> (b.dir-a.dir) || a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'}));
-    const rows = $('rows'); rows.textContent='';
-    files.forEach(f => rows.appendChild(row(f)));
-    $('empty').textContent = files.length ? '' : T.empty; $('empty').style.color='var(--muted)';
-  } catch(e){ if(e.auth) showLogin(e.message); else toast(e.message); }
+function markRail(){ document.querySelectorAll('.navi').forEach(b => b.classList.toggle('on', b.dataset.s===current)); }
+const screens = {};
+function route(force){
+  openSheets.forEach(c => c(true));
+  const hash = decodeURIComponent(location.hash.slice(1)) || store.get('screen', 'titles');
+  const name = hash.split('/')[0];
+  if(!screens[name]) { location.hash = '#titles'; return; }
+  if(name!==current || force){
+    if(current && screens[current].leave) screens[current].leave();
+    current = name; store.set('screen', name); markRail(); closeMenu();
+    const m = $('main'); m.textContent = ''; m.append(screens[name].render(hash));
+    sfx('tick');
+  } else if(screens[name].hash) screens[name].hash(hash);
 }
-function btn(label, cls, fn){ const b=document.createElement('button'); b.textContent=label; if(cls) b.className=cls; b.onclick=fn; return b; }
-function full(f){ return cwd + f.name; }
-function row(f){
-  const tr = document.createElement('tr'); tr.className='row';
-  const n = document.createElement('td'); n.className='name';
-  const a = document.createElement('a'); a.textContent = (f.dir?'📁 ':'') + f.name;
-  if(f.dir){ a.className='dir'; a.onclick=()=>go(full(f)); }
-  else { a.href='/api/file?'+q('path',full(f)); a.download=f.name; }
-  n.appendChild(a);
-  const s = document.createElement('td'); s.className='num'; s.textContent = f.dir ? '' : fmtSize(f.size);
-  const d = document.createElement('td'); d.className='num'; d.textContent = fmtDate(f.mtime);
-  const act = document.createElement('td'); act.className='act';
-  if(!f.dir && /\.cia$/i.test(f.name)) act.appendChild(btn(T.install,'',()=>install(f)));
-  if(!f.dir && /\.(txt|json|ini|cfg|conf|md|log|xml|csv|lua|py|js|html|css|c|h|cpp|sh|yml|yaml|toml)$/i.test(f.name)) act.appendChild(btn(T.edit,'',()=>edit(f)));
-  act.appendChild(btn(T.copy,'',()=>copy(f,false)));
-  act.appendChild(btn(T.move,'',()=>copy(f,true)));
-  act.appendChild(btn(T.rename,'',()=>rename(f)));
-  act.appendChild(btn(T.del,'danger',()=>del(f)));
-  tr.append(n,s,d,act); return tr;
-}
-async function del(f){ if(!confirm(T.confirmdel.replace('%s',f.name))) return;
-  run(async()=>{ await api('DELETE','file',q('path',full(f))); toast(T.done); go(cwd); }); }
-async function rename(f){ const to = prompt(T.renameto, f.name); if(!to || to===f.name) return;
-  run(async()=>{ await api('POST','rename',q('path',full(f))+'&'+q('to',cwd+to)); go(cwd); }); }
-async function copy(f, move){ const to = prompt(move?T.moveto:T.copyto, cwd+f.name); if(!to || to===full(f)) return;
-  run(async()=>{ toast('…'); await api('POST',move?'rename':'copy',q('path',full(f))+'&'+q('to',to)); toast(T.done); go(cwd); }); }
-let editing = '';
-async function edit(f){
-  if(f.size>262144){ toast(T.toobig); return; }
-  run(async()=>{ const r = await fetch('/api/file?'+q('path',full(f)),{headers:{'X-Pin':pin}}); if(!r.ok) throw new Error(r.statusText);
-    editing = full(f); $('edtitle').textContent = f.name; $('edtext').value = await r.text(); $('ed').showModal(); });
-}
-$('edcancel').onclick = () => $('ed').close();
-$('edsave').onclick = () => run(async()=>{ await api('PUT','file',q('path',editing),new Blob([$('edtext').value],{type:'text/plain'})); $('ed').close(); toast(T.saved); go(cwd); });
-async function install(f){ if(!confirm(T.confirminst.replace('%s',f.name))) return;
-  run(async()=>{ toast('…'); const j = await api('POST','install',q('path',full(f))); toast(j.restarting?T.restarting:T.installed); }); }
-$('mkdir').onclick = () => { const n = prompt(T.newname); if(!n) return;
-  run(async()=>{ await api('POST','mkdir',q('path',cwd+n)); go(cwd); }); };
-$('up').onclick = () => { const p = cwd.split('/').filter(Boolean); p.pop(); go('/'+p.join('/')); };
-
-// One upload at a time (the console serves one request at a time), with progress. `done(ok)` runs after each.
-const queue = []; let busy = false;
-function enqueue(files){ for(const f of files) queue.push({file:f, dir:cwd}); pump(); }
-function put(path, file, onprogress){
-  return new Promise(resolve => {
-    const x = new XMLHttpRequest();
-    x.open('PUT', '/api/file?'+q('path', path)); x.setRequestHeader('X-Pin', pin);
-    x.upload.onprogress = e => { if(e.lengthComputable) onprogress(e.loaded/e.total); };
-    x.onloadend = () => resolve(x.status===200);
-    x.send(file);
-  });
-}
-async function pump(){
-  if(busy || !queue.length) return; busy = true;
-  const job = queue.shift();
-  const box = document.createElement('div'); box.style.marginTop='8px';
-  const label = document.createElement('div'); label.textContent = T.uploading+' '+job.file.name;
-  const bar = document.createElement('div'); bar.className='prog'; const fill = document.createElement('div'); bar.appendChild(fill);
-  box.append(label, bar); $('uploads').appendChild(box);
-  const ok = await put(job.dir+job.file.name, job.file, f => fill.style.width = (100*f)+'%');
-  busy=false; box.remove();
-  if(ok) { if(!queue.length) { toast(T.done); go(cwd); } } else toast(T.failed+job.file.name);
-  pump();
-}
-$('uploadbtn').onclick = () => $('file').click();
-$('file').onchange = e => { enqueue(e.target.files); e.target.value=''; };
-const drop = $('drop');
-['dragenter','dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
-['dragleave','drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
-document.addEventListener('drop', e => { if(e.dataTransfer && e.dataTransfer.files.length && !$('files').classList.contains('hide')) enqueue(e.dataTransfer.files); });
+addEventListener('hashchange', () => { if(!$('app').hidden) route(); });
+function screenEl(titleNode, tools, content){ return h('section', {class:'screen'}, h('div', {class:'titlebar'}, titleNode, tools), content); }
+function emptyEl(icon, text, sub){ return h('div', {class:'empty'}, ic(icon), h('div', {text}), sub ? h('div', {class:'note', text:sub}) : null); }
+function skeletonRows(n){ return Array.from({length:n}, (_, i) => h('div', {class:'row', vars:{i}}, h('div', {class:'pic'}), h('div', {class:'txt'}, h('div', {class:'nm'}, h('span', {class:'sk', style:'width:'+(40+((i*37)%45))+'%'})), h('div', {class:'sub'}, h('span', {class:'sk', style:'width:30%'}))))); }
 
 // ---- titles ----
-let titles = [], titlesLoaded = false;
-const details = new Map();   // id+media -> details, as they come
-
-async function loadTitles(){
-  $('titlesmsg').textContent = T.loading; $('titlesmsg').style.color='var(--muted)';
-  try {
-    const j = await api('GET','titles');
-    titles = j.titles; titlesLoaded = true; $('titlesmsg').textContent=''; renderTitles();
-  } catch(e){ $('titlesmsg').textContent=''; if(e.auth) showLogin(e.message); else toast(e.message); }
-}
-function kindMatches(t){
-  const k = $('kind').value;
-  return k==='all' || (k==='game' ? (t.kind==='game'||t.kind==='demo') : k==='system' ? (t.kind==='system'||t.kind==='dsiware') : t.kind===k);
-}
-function titleKey(t){ return t.id+t.media; }
-
-let detailQueue = [], detailBusy = false;
-async function pumpDetails(){
-  if(detailBusy) return; detailBusy = true;
-  while(detailQueue.length){
-    const {t, card} = detailQueue.shift();
-    if(!card.isConnected) continue;
-    try { const d = await api('GET','title', q('id',t.id)+'&'+q('media',t.media)); details.set(titleKey(t), d); fillCard(t, card, d); }
-    catch(e){ if(e.auth){ showLogin(e.message); break; } }
+const TV = {kind:store.get('t.kind','game'), media:store.get('t.media','all'), sort:store.get('t.sort','name'), view:store.get('t.view','list'), text:''};
+let titles = null, titleRows = new Map(), titlesLoading = false;
+const KINDS = () => [['game',T.k_game],['update',T.k_update],['dlc',T.k_dlc],['system',T.k_system],['all',T.k_all]];
+const tkey = t => t.id+t.media;
+function kindOk(t){ const k = TV.kind; return k==='all' || (k==='game' ? t.kind==='game'||t.kind==='demo' : k==='system' ? t.kind==='system'||t.kind==='dsiware' : t.kind===k); }
+screens.titles = {
+  render(){
+    const list = h('div', {class:'list anim'+(TV.view==='grid'?' grid':''), id:'tlist'});
+    const count = h('small', {id:'tcount'});
+    const filterBtn = tool('filter', T.filter, e => menuAt(e.currentTarget, [T.kind, seg(KINDS(), TV.kind, v => { TV.kind = v; store.set('t.kind', v); applyTitles(true); }), T.media,
+      seg([['all',T.k_all],['sd','SD'],['nand','NAND']], TV.media, v => { TV.media = v; store.set('t.media', v); applyTitles(true); })]), TV.kind!=='game'||TV.media!=='all' ? 'on' : '');
+    const sortBtn = tool('arrows-sort', T.sort, e => menuAt(e.currentTarget, [['name',T.s_name,'list'],['size',T.s_size,'database'],['id',T.s_id,'key']].map(([v,l,i]) =>
+      [TV.sort===v ? 'check' : i, l, () => { TV.sort = v; store.set('t.sort', v); applyTitles(); }])));
+    const viewBtn = tool(TV.view==='grid' ? 'list' : 'layout-grid', T.view, e => { TV.view = TV.view==='grid' ? 'list' : 'grid'; store.set('t.view', TV.view); list.classList.toggle('grid', TV.view==='grid'); setIcon(e.currentTarget.firstChild, TV.view==='grid' ? 'list' : 'layout-grid'); sfx('tick'); });
+    const moreBtn = tool('dots', T.more, e => menuAt(e.currentTarget, [['upload', T.sendpkg, sendPackage], ['refresh', T.reload, () => { titles = null; titleRows.clear(); route(true); }]]));
+    const el = screenEl(h('h2', {}, T.titles, count), [searchBox(TV.text, v => { TV.text = v; applyTitles(); }), filterBtn, sortBtn, viewBtn, moreBtn], h('div', {class:'scroll'}, list));
+    if(titles){ for(const t of titles) list.append(titleRows.get(tkey(t))); setTimeout(applyTitles); }
+    else { list.append(...skeletonRows(10)); loadTitles(); }
+    return el;
   }
-  detailBusy = false;
-}
-
-function renderTitles(){
-  const text = $('filter').value.trim().toLowerCase();
-  const grid = $('grid'); grid.textContent=''; detailQueue = [];
-  const shown = titles.filter(t => kindMatches(t) && (!text || t.id.toLowerCase().includes(text) || (details.get(titleKey(t))||{name:''}).name.toLowerCase().includes(text)));
-  if(!shown.length) { $('titlesmsg').textContent = T.notitles; return; } $('titlesmsg').textContent='';
-  shown.forEach(t => { const card = makeCard(t); grid.appendChild(card);
-    const d = details.get(titleKey(t)); if(d) fillCard(t, card, d); else detailQueue.push({t, card}); });
-  pumpDetails();
-}
-function makeCard(t){
-  const c = document.createElement('div'); c.className='title';
-  const img = document.createElement('img'); img.loading='lazy'; img.alt=''; img.src='/api/icon?'+q('id',t.id)+'&'+q('media',t.media); img.onerror=()=>{ img.style.visibility='hidden'; };
-  const b = document.createElement('div'); b.className='body';
-  const name = document.createElement('div'); name.className='t'; name.textContent = t.id;
-  const sub = document.createElement('div'); sub.className='s';
-  const badge = document.createElement('span'); badge.className='badge'; badge.textContent = t.media.toUpperCase();
-  const v = t.version; sub.append(badge, document.createTextNode(T.version+((v>>10)&63)+'.'+((v>>4)&63)+'.'+(v&15)+' · '+fmtSize(t.size)));
-  const id = document.createElement('div'); id.className='s'; id.textContent = t.id;
-  const acts = document.createElement('div'); acts.className='acts';
-  b.append(name, sub, id, acts); c.append(img, b); return c;
-}
-function fillCard(t, card, d){
-  card.querySelector('.t').textContent = d.name || t.id;
-  const pub = d.publisher ? d.publisher+' · ' : ''; card.querySelectorAll('.s')[1].textContent = pub + (d.code||'') + ' ' + t.id;
-  const acts = card.querySelector('.acts'); acts.textContent='';
-  [['save',T.save],['ext',T.ext],['boss',T.boss]].forEach(([kind,label]) => { if(d[kind]) {
-    acts.appendChild(btn('⬇ '+label,'',()=>downloadSave(t, d, kind, label)));
-    acts.appendChild(btn('⬆ '+label,'',()=>importDialog(t, d, kind, label))); } });
-  if(t.kind==='game' || t.kind==='demo') acts.appendChild(btn(T.launch,'',()=>launchTitle(t, d)));
-  acts.appendChild(btn(T.delete,'danger',()=>deleteTitle(t, d, false)));
-  if(t.kind!=='system') acts.appendChild(btn(T.delticket,'danger',()=>deleteTitle(t, d, true)));
-}
-const tname = (t,d) => (d&&d.name)||t.id;
-async function launchTitle(t, d){ if(!confirm(T.confirmlaunch.replace('%s',tname(t,d)))) return;
-  run(async()=>{ await api('POST','title/launch', q('id',t.id)+'&'+q('media',t.media)); toast(T.asked); }); }
-async function deleteTitle(t, d, ticket){ if(!confirm(T.confirmdelete.replace('%s',tname(t,d)))) return;
-  run(async()=>{ await api('POST','title/delete', q('id',t.id)+'&'+q('media',t.media)+'&ticket='+(ticket?1:0)); toast(T.asked); }); }
-function importDialog(t, d, kind, label){
-  run(async()=>{
-    const j = await api('GET','save/backups', q('id',t.id)+'&'+q('media',t.media)+'&'+q('kind',kind));
-    $('dlgtitle').textContent = T.importtitle.replace('%s', label+' · '+tname(t,d));
-    const body = $('dlgbody'); body.textContent='';
-    if(!j.backups.length){ const n=document.createElement('div'); n.className='note'; n.textContent=T.nobackups; body.appendChild(n); }
-    j.backups.forEach(b => body.appendChild(btn(b.label,'',()=>{ $('dlg').close();
-      run(async()=>{ await api('POST','save/import', q('id',t.id)+'&'+q('media',t.media)+'&'+q('kind',kind)+'&'+q('path',b.path)+'&'+q('name',tname(t,d))); toast(T.asked); }); })));
-    $('dlg').showModal();
-  });
-}
-$('dlgclose').onclick = () => $('dlg').close();
-async function downloadSave(t, d, kind, label){
-  run(async()=>{
-    toast(T.packing);
-    const j = await api('POST','save/pack', q('id',t.id)+'&'+q('media',t.media)+'&'+q('kind',kind)+'&'+q('name', d.name||t.id));
-    const a = document.createElement('a'); a.href='/api/file?'+q('path', j.path); a.download = j.path.split('/').pop(); document.body.appendChild(a); a.click(); a.remove();
-    toast(T.done);
-  });
-}
-$('filter').oninput = renderTitles; $('kind').onchange = renderTitles;
-$('sendpkg').onclick = () => $('pkg').click();
-$('pkg').onchange = async e => {
-  const f = e.target.files[0]; e.target.value=''; if(!f) return;
-  run(async()=>{
-    toast(T.uploading+' '+f.name);
-    const path = '/nsa/received/'+f.name;
-    try { await api('POST','mkdir','path=%2Fnsa%2Freceived'); } catch(e){}
-    if(!await put(path, f, ()=>{})) throw new Error(f.name);
-    const j = await api('POST','save/receive', q('path',path)+'&import=1');
-    toast(j.import ? T.pkgsent : T.pkgsentkeep);
-  });
 };
-
-// ---- install: URLs, the history of Remote Install, the transfer log ----
-function sendUrls(text){
-  run(async()=>{ await api('POST','install-url', null, text); toast(T.asked); loadInstall(); });
+async function loadTitles(){
+  if(titlesLoading) return; titlesLoading = true;
+  try {
+    const j = await api('GET', 'titles'); titles = j.titles;
+    for(const t of titles) titleRows.set(tkey(t), titleRow(t));
+    const list = $('tlist');
+    if(list){ list.textContent = ''; titles.forEach((t,i) => { const r = titleRows.get(tkey(t)); r.style.setProperty('--i', i); list.append(r); }); applyTitles(); }
+    for(const t of titles){ const r = titleRows.get(tkey(t)); later(r, () => loadTitle(t, r)); }
+  } catch(e){ if(e.auth) showLogin(e.message); else { const l = $('tlist'); if(l){ l.textContent=''; l.append(emptyEl('alert-triangle', e.message)); } } }
+  titlesLoading = false;
 }
-$('installurls').onclick = () => { const t = $('urls').value.trim(); if(t) sendUrls(t+'\n'); };
-async function fetchText(path, from){
-  const r = await fetch('/api/file?'+q('path',path), {headers: Object.assign({'X-Pin':pin}, from ? {Range:'bytes='+from+'-'} : {})});
-  if(!r.ok) return null; return r.text();
+function titleRow(t){
+  const pic = h('div', {class:'pic'}, ic('apps', 24));
+  const r = h('div', {class:'row', tabindex:0, role:'button'}, pic,
+    h('div', {class:'txt'}, h('div', {class:'nm'}, h('span', {class:'sk', style:'width:'+(35+(parseInt(t.id.slice(-3),16)%45))+'%'})), h('div', {class:'sub', text:'v'+fmtVer(t.version)+' · '+fmtSize(t.size)})),
+    h('div', {class:'meta'}, h('span', {class:'badge'+(t.media==='nand'?' n':''), text:t.media.toUpperCase()})), ic('chevron-right', 16));
+  r.lastChild.classList.add('chev');
+  r._t = t; r._pic = pic;
+  r.onclick = () => titleSheet(t, r);
+  r.onkeydown = e => { if(e.key==='Enter') r.onclick(); };
+  r.title = t.id;
+  return r;
 }
-// ---- tickets and extra data: read only lists, a name and icon for each as they arrive ----
-let ticketsLoaded = false, extLoaded = false, ticketList = [], extList = [];
-function smallCard(t, iconUrl, infoUrl, fallbackName, badgeText, extra){
-  const c = document.createElement('div'); c.className='title';
-  const img = document.createElement('img'); img.loading='lazy'; img.alt=''; if(iconUrl) img.src=iconUrl; img.onerror=()=>{ img.style.visibility='hidden'; };
-  const b = document.createElement('div'); b.className='body';
-  const name = document.createElement('div'); name.className='t'; name.textContent = fallbackName;
-  const sub = document.createElement('div'); sub.className='s';
-  if(badgeText){ const badge = document.createElement('span'); badge.className='badge'; badge.textContent = badgeText; sub.append(badge); }
-  if(extra) sub.append(document.createTextNode(extra));
-  const id = document.createElement('div'); id.className='s'; id.textContent = t.id;
-  b.append(name, sub, id); c.append(img, b); c._name = name; c._info = infoUrl; return c;
+async function loadTitle(t, r){
+  const d = await api('GET', 'title', {id:t.id, media:t.media}); r._d = d;
+  r.querySelector('.nm').textContent = d.name || t.id;
+  r.querySelector('.sub').textContent = [d.publisher, 'v'+fmtVer(t.version), fmtSize(t.size)].filter(Boolean).join(' · ');
+  r.title = (d.name||'')+'\n'+t.id;
+  putIcon(r._pic, await iconUrl('/api/icon?'+q({id:t.id, media:t.media})));
+  sortSoon();
 }
-let listBusy = false; const nameCache = new Map();
-async function pumpNames(cards){
-  if(listBusy) return; listBusy = true;
-  for(const c of cards){
-    if(!c.isConnected || !c._info) continue;
-    try { const d = await api('GET', c._info.path, c._info.params); if(d.name) c._name.textContent = d.name; nameCache.set(c._key, d.name||''); }
-    catch(e){ if(e.auth){ showLogin(e.message); break; } }
+let sortTimer = 0;
+function sortSoon(){ if(TV.sort==='name' && !sortTimer) sortTimer = setTimeout(() => { sortTimer = 0; applyTitles(); }, 700); }
+function applyTitles(animate){
+  const list = $('tlist'); if(!list || !titles) return;
+  const rows = titles.map(t => titleRows.get(tkey(t)));
+  const name = r => (r._d && r._d.name) || '￿'+r._t.id;
+  rows.sort(TV.sort==='size' ? (a,b) => b._t.size-a._t.size : TV.sort==='id' ? (a,b) => a._t.id.localeCompare(b._t.id) : (a,b) => collator.compare(name(a), name(b)));
+  let shown = 0;
+  for(const r of rows){
+    const t = r._t, nm = ((r._d && r._d.name)||'')+' '+((r._d && r._d.publisher)||'')+' '+t.id;
+    const ok = kindOk(t) && (TV.media==='all' || t.media===TV.media) && (!TV.text || nm.toLowerCase().includes(TV.text));
+    r.hidden = !ok; if(ok) shown++;
   }
-  listBusy = false;
+  // Only moves the rows that are out of place, so the list does not flash.
+  rows.forEach((r, i) => { if(list.children[i]!==r) list.insertBefore(r, list.children[i]||null); });
+  let empty = list.querySelector('.empty'); if(empty) empty.remove();
+  if(!shown) list.append(emptyEl('search', T.notitles));
+  if(animate){ list.classList.remove('anim'); void list.offsetWidth; list.classList.add('anim'); let i = 0; for(const r of rows) if(!r.hidden) r.style.setProperty('--i', i++); }
+  const loaded = rows.filter(r => r._d).length;
+  $('tcount').textContent = loaded<rows.length ? tr('loaded', {a:loaded, b:rows.length}) : String(shown);
+  const c = $('cnt_titles'); if(c) c.textContent = rows.length;
 }
-function fillGrid(grid, filter, items, make){
-  grid.textContent=''; const cards = [];
-  const f = filter.value.toLowerCase();
-  for(const it of items){ if(f && !(JSON.stringify(it)+' '+(nameCache.get(it.id+it.media)||'')).toLowerCase().includes(f)) continue; const c = make(it); c._key = it.id+it.media; if(nameCache.has(c._key) && nameCache.get(c._key)) c._name.textContent = nameCache.get(c._key); grid.appendChild(c); cards.push(c); }
-  pumpNames(cards);
+function titleSheet(t, r){
+  const d = r._d || {}, name = d.name || t.id;
+  const big = r._pic.querySelector('img') ? h('img', {src:r._pic.querySelector('img').src, class:'px'}) : ic('apps', 48);
+  const kindName = {game:T.k_game, demo:'Demo', update:T.k_update, dlc:T.k_dlc, system:T.k_system, dsiware:'DSiWare'}[t.kind] || t.kind;
+  const data = [['save','dsave','isave'],['ext','dext','iext'],['boss','dboss','iboss']].filter(([k]) => d[k]);
+  let s;
+  s = sheet({head:sheetHead(big, name, d.publisher), body:[
+    cells([[T.id, t.id], [T.code, d.code], [T.version, fmtVer(t.version)+' ('+t.version+')'], [T.size, fmtSize(t.size)], [T.media, t.media.toUpperCase()], [T.kind, kindName]]),
+    actions([
+      (t.kind==='game'||t.kind==='demo') && ['player-play', T.launch, () => launchTitle(t, name)],
+      data.length && T.data,
+      ...data.map(([k, dl]) => ['download', T[dl], () => downloadSave(t, name, k)]),
+      ...data.map(([k, , im]) => ['upload', T[im], () => importSave(t, name, k, T[im])]),
+      T.danger,
+      ['trash', T.deleteTitle, () => deleteTitle(t, name, false), {danger:true}],
+      t.kind!=='system' && ['trash-x', T.delticket, () => deleteTitle(t, name, true), {danger:true}]
+    ], c => s.close(c))]});
 }
-function ticketCard(t){
-  const inst = t.media==='sd'||t.media==='nand';
-  return smallCard(t, inst?'/api/icon?'+q('id',t.id)+'&'+q('media',t.media):'', inst?{path:'title',params:q('id',t.id)+'&'+q('media',t.media)}:null, t.id, inst?t.media.toUpperCase():T.notinstalled, ' · '+t.kind);
+async function launchTitle(t, name){ if(await confirmAsk(tr('confirmlaunch', {s:name}), false, T.launch)) run(async () => { await api('POST', 'title/launch', {id:t.id, media:t.media}); toast(T.asked); }); }
+async function deleteTitle(t, name, ticket){ if(await confirmAsk(tr('confirmdelete', {s:name}), true, T.del)) run(async () => { await api('POST', 'title/delete', {id:t.id, media:t.media, ticket:ticket?1:0}); toast(T.asked); }); }
+function downloadSave(t, name, kind){
+  run(async () => { toast(T.packing); const j = await api('POST', 'save/pack', {id:t.id, media:t.media, kind, name});
+    const a = h('a', {href:fileUrl(j.path), download:j.path.split('/').pop()}); document.body.append(a); a.click(); a.remove(); sfx('success'); toast(T.done, 'ok'); });
 }
-function extCard(e){
-  return smallCard(e, '/api/extdata/icon?'+q('id',e.id)+'&'+q('media',e.media), {path:'extdata/info',params:q('id',e.id)+'&'+q('media',e.media)}, e.id, e.media.toUpperCase(), '');
+function importSave(t, name, kind, label){
+  run(async () => {
+    const j = await api('GET', 'save/backups', {id:t.id, media:t.media, kind});
+    let s;
+    s = sheet({head:sheetHead(ic('history', 32), label, name), body: j.backups.length ? [h('p', {class:'note', text:T.pickbackup}), actions(j.backups.map(b => [b.checkpoint ? 'box' : '3ds', b.label, () =>
+      run(async () => { await api('POST', 'save/import', {id:t.id, media:t.media, kind, path:b.path, name}); toast(T.asked); }), {note:b.checkpoint ? 'Checkpoint' : 'NSA'}]), c => s.close(c))] : emptyEl('history', T.nobackups),
+      foot:[h('button', {class:'btn', text:T.close, onclick:() => s.close()})]});
+  });
 }
-async function loadTickets(){
-  $('ticketsmsg').textContent = T.loading;
-  try { const j = await api('GET','tickets'); ticketList = j.tickets; ticketsLoaded = true; $('ticketsmsg').textContent=''; fillGrid($('tgrid'), $('tfilter'), ticketList, ticketCard); }
-  catch(e){ $('ticketsmsg').textContent=''; if(e.auth) showLogin(e.message); else toast(e.message); }
+function sendPackage(){
+  pick('.nsasave', false, async files => {
+    const f = files[0]; if(!f) return;
+    run(async () => {
+      try { await api('POST', 'mkdir', {path:'/nsa/received'}); } catch(e){}
+      const path = '/nsa/received/'+f.name;
+      if(!await uploadOne(f, path)) throw new ApiError(f.name);
+      const j = await api('POST', 'save/receive', {path, import:1}); toast(j.import ? T.pkgsent : T.pkgsentkeep, 'ok');
+    });
+  });
 }
-async function loadExt(){
-  $('extmsg').textContent = T.loading;
-  try { const j = await api('GET','extdata'); extList = j.extdata; extLoaded = true; $('extmsg').textContent=''; fillGrid($('egrid'), $('efilter'), extList, extCard); }
-  catch(e){ $('extmsg').textContent=''; if(e.auth) showLogin(e.message); else toast(e.message); }
-}
-$('treload').onclick = () => { ticketsLoaded = false; loadTickets(); };
-$('ereload').onclick = () => { extLoaded = false; loadExt(); };
-$('tfilter').oninput = () => fillGrid($('tgrid'), $('tfilter'), ticketList, ticketCard);
-$('efilter').oninput = () => fillGrid($('egrid'), $('efilter'), extList, extCard);
-async function loadInstall(){
-  const hist = $('hist'); hist.textContent='';
-  try {
-    const text = await fetchText('/nsa/history.json');
-    const list = text ? JSON.parse(text) : [];
-    if(!list.length) hist.textContent = T.nohist;
-    list.forEach(h => { const row=document.createElement('div'); row.className='hist';
-      const u=document.createElement('div'); u.className='u'; u.textContent=h.urls.trim();
-      if(h.time){ const t=document.createElement('div'); t.className='note'; t.textContent=fmtDate(h.time); u.appendChild(t); }
-      row.append(u, btn(T.again,'',()=>sendUrls(h.urls))); hist.appendChild(row); });
-  } catch(e){ hist.textContent = T.nohist; }
-  loadLog();
-}
-async function loadLog(){
-  try {
-    const j = await api('GET','list','path=%2Fnsa'); const f = j.files.find(f=>f.name==='transfer-log.txt');
-    const text = f ? await fetchText('/nsa/transfer-log.txt', Math.max(0, f.size-20000)) : null;
-    $('log').textContent = text ? text.split('\n').slice(-200).join('\n') : T.nolog;
-    $('log').scrollTop = 1e9;
-  } catch(e){ $('log').textContent = T.nolog; }
-}
-$('reloadlog').onclick = loadLog;
 
-// ---- the console's screens, live, and its buttons ----
-const ctxTop = $('cv_top').getContext('2d'), ctxBottom = $('cv_bottom').getContext('2d');
-const imgTop = ctxTop.createImageData(400,240), imgBottom = ctxBottom.createImageData(320,240);
-let liveBusy = false;
+// ---- tickets and extra data: read only lists, names and icons as they arrive ----
+function roScreen(key, opts){
+  let items = null; const rows = new Map(); let text = '';
+  const apply = () => {
+    const list = $('l_'+key); if(!list || !items) return; let shown = 0;
+    for(const it of items){ const r = rows.get(it.id+it.media); const ok = !text || ((r._name||'')+' '+it.id+' '+(it.kind||'')).toLowerCase().includes(text); r.hidden = !ok; if(ok) shown++; }
+    let e = list.querySelector('.empty'); if(e) e.remove(); if(!shown) list.append(emptyEl('search', T.notitles));
+    $('c_'+key).textContent = shown; const c = $('cnt_'+key); if(c) c.textContent = items.length;
+  };
+  const row = it => {
+    const pic = h('div', {class:'pic'}, ic(opts.icon, 24));
+    const nm = h('div', {class:'nm', text:it.id}), sub = h('div', {class:'sub', text:opts.sub(it)});
+    const r = h('div', {class:'row', tabindex:0}, pic, h('div', {class:'txt'}, nm, sub), h('div', {class:'meta'}, opts.badge(it)), ic('chevron-right', 16));
+    r.lastChild.classList.add('chev');
+    r.onclick = () => { let s; s = sheet({head:sheetHead(pic.querySelector('img') ? h('img', {src:pic.querySelector('img').src, class:'px'}) : ic(opts.icon, 48), r._name || it.id, r._pub),
+      body:[cells(opts.cells(it, r)), h('p', {class:'note', text:T.readonly})], foot:[h('button', {class:'btn', text:T.close, onclick:() => s.close()})]}); };
+    const inf = opts.info(it);
+    if(inf) later(r, async () => { const d = await api('GET', inf[0], inf[1]); if(d.name){ r._name = d.name; nm.textContent = d.name; } r._pub = d.publisher; if(d.publisher) sub.textContent = d.publisher+' · '+opts.sub(it);
+      putIcon(pic, await iconUrl(inf[2])); });
+    return r;
+  };
+  const load = async () => {
+    try { const j = await api('GET', opts.path); items = j[opts.field]; items.forEach(it => rows.set(it.id+it.media, row(it)));
+      const l = $('l_'+key); if(l){ l.textContent = ''; items.forEach((it,i) => { const r = rows.get(it.id+it.media); r.style.setProperty('--i', i); l.append(r); }); apply(); } }
+    catch(e){ if(e.auth) showLogin(e.message); else toast(e.message, 'err'); }
+  };
+  return {
+    render(){
+      const list = h('div', {class:'list anim', id:'l_'+key});
+      const el = screenEl(h('h2', {}, T[key], h('small', {id:'c_'+key})), [searchBox(text, v => { text = v; apply(); }), tool('refresh', T.reload, () => { items = null; rows.clear(); route(true); })], h('div', {class:'scroll'}, list));
+      if(items){ items.forEach(it => list.append(rows.get(it.id+it.media))); setTimeout(apply); } else { list.append(...skeletonRows(8)); load(); }
+      return el;
+    }
+  };
+}
+screens.tickets = roScreen('tickets', {path:'tickets', field:'tickets', icon:'ticket',
+  sub:it => it.id+' · '+it.kind, badge:it => h('span', {class:'badge'+(it.media?'':' n'), text:it.media ? it.media.toUpperCase() : T.notinstalled}),
+  info:it => it.media==='sd'||it.media==='nand' ? ['title', {id:it.id, media:it.media}, '/api/icon?'+q({id:it.id, media:it.media})] : null,
+  cells:it => [[T.id, it.id], [T.kind, it.kind], [T.installedOn, it.media ? it.media.toUpperCase() : T.notinstalled]]});
+screens.extdata = roScreen('extdata', {path:'extdata', field:'extdata', icon:'database',
+  sub:it => it.id, badge:it => h('span', {class:'badge'+(it.media==='nand'?' n':''), text:it.media.toUpperCase()}),
+  info:it => ['extdata/info', {id:it.id, media:it.media}, '/api/extdata/icon?'+q({id:it.id, media:it.media})],
+  cells:it => [['ID', it.id], [T.media, it.media.toUpperCase()]]});
+
+// ---- files ----
+const FV = {sort:store.get('f.sort','name'), view:store.get('f.view','list'), text:''};
+let cwd = '/', lastDir = store.get('f.dir','/'), entries = [], sel = new Set(), anchor = null, clip = null, fileRows = new Map();
+const EXT = {text:'txt md log nfo rtf srt', code:'c h cpp hpp py lua sh js css html htm xml bat cmake', data:'ini cfg conf json yml yaml toml properties inf csv tsv',
+  image:'png jpg jpeg bmp gif tga mpo psd webp', audio:'mp3 wav flac ogg oga bcstm bcwav bfstm m4a aac opus wma mid midi', video:'mp4 avi mkv mov wmv webm',
+  archive:'zip 7z rar gz tar bz2 xz', program:'3dsx elf', rom:'nds dsi gba gb gbc nes sfc smc gen md pce n64 z64 v64 3ds cci', save:'sav srm dsv eep fla mpk', pdf:'pdf', binary:'firm bin cdc dat img nand', cia:'cia', ticket:'tik'};
+const TYPE_ICON = {text:'file-text', code:'file-code', data:'file-settings', image:'photo', audio:'music', video:'movie', archive:'file-zip', program:'apps', rom:'device-gamepad-2', save:'device-floppy', pdf:'file-type-pdf', binary:'file', cia:'package', ticket:'ticket', file:'file'};
+const FOLDER_ICON = [[/^3ds$/,'apps'],[/^(nsa|fbi)$/,'3ds'],[/^cias$/,'package'],[/^(roms|_nds|_gba|retroarch)$/,'device-gamepad-2'],[/^(dcim|photos)$/,'photo'],[/^(music|sounds?)$/,'music'],[/^(luma|boot9strap|gm9)$/,'bolt'],[/^nintendo 3ds$/,'device-nintendo'],[/^(saves|checkpoint|jksv)$/,'device-floppy']];
+function typeOf(f){ if(f.dir) return 'folder'; const x = (f.name.split('.').pop()||'').toLowerCase(); if(!f.name.includes('.')) return 'file'; for(const k in EXT) if((' '+EXT[k]+' ').includes(' '+x+' ')) return k; return 'file'; }
+const iconOf = f => f.dir ? ((FOLDER_ICON.find(([re]) => re.test(f.name.toLowerCase()))||[0,'folder'])[1]) : TYPE_ICON[typeOf(f)];
+const join = (dir, name) => dir+name;
+const parentOf = p => { const s = p.replace(/\/$/,'').split('/'); s.pop(); return s.join('/')+'/'; };
+const editable = f => ['text','code','data'].includes(typeOf(f));
+
+screens.files = {
+  render(hash){
+    const el = h('section', {class:'screen', id:'files'});
+    setTimeout(() => this.hash(hash));
+    return el;
+  },
+  hash(hash){ const p = hash.slice('files'.length) || '/'; go(p.endsWith('/') ? p : p+'/'); },
+  leave(){ sel.clear(); }
+};
+function filesChrome(){
+  const el = $('files'); el.textContent = '';
+  const crumbs = h('div', {class:'crumbs', id:'crumbs'});
+  const tools = h('div', {id:'ftools', style:'display:flex;gap:6px;align-items:center;flex-wrap:wrap'});
+  const list = h('div', {class:'list'+(FV.view==='grid'?' grid':''), id:'flist'});
+  const scroll = h('div', {class:'scroll', id:'fscroll', style:'position:relative'}, list);
+  const zone = h('div', {class:'dropzone', id:'dropzone'}, h('div', {}, ic('upload'), h('span', {id:'droptext'})));
+  el.append(h('div', {class:'titlebar'}, crumbs, tools), h('div', {style:'position:relative;flex:1;display:flex;flex-direction:column;min-height:0'}, scroll, zone));
+  scroll.oncontextmenu = e => { if(e.target.closest('.row')) return; e.preventDefault(); menu(e.clientX, e.clientY, folderMenu()); };
+  scroll.onclick = e => { if(!e.target.closest('.row') && sel.size){ sel.clear(); drawSel(); } };
+  setupDrop(scroll);
+}
+function folderMenu(){ return [['folder-plus', T.newfolder, newFolder], ['upload', T.upload, () => pick(null, true, files => enqueue([...files].map(f => ({file:f, path:cwd+f.name}))))],
+  ['folder-up', T.uploadFolder, pickFolder], clip && ['clipboard', T.paste, paste, {key:'Ctrl+V'}], '-', ['square-check', T.selectall, selectAll, {key:'Ctrl+A'}], ['refresh', T.reload, () => go(cwd, true)]]; }
+function drawTools(){
+  const t = $('ftools'); if(!t) return; t.textContent = '';
+  if(sel.size){
+    t.append(h('div', {class:'selbar'}, h('span', {text:tr('selected', {n:sel.size}), style:'margin-right:6px;font-weight:600'}),
+      tool('download', T.download, () => downloadMany(selected().filter(f => !f.dir))), tool('copy', T.copy, () => toClip('copy')), tool('scissors', T.cut, () => toClip('cut')),
+      tool('trash', T.del, () => deleteMany(selected())), tool('x', T.close, () => { sel.clear(); drawSel(); })));
+    return;
+  }
+  t.append(searchBox(FV.text, v => { FV.text = v; drawFiles(); }),
+    tool('folder-plus', T.newfolder, newFolder),
+    tool('arrows-sort', T.sort, e => menuAt(e.currentTarget, [['name',T.s_name,'list'],['size',T.s_size,'database'],['date',T.s_date,'clock']].map(([v,l,i]) => [FV.sort===v ? 'check' : i, l, () => { FV.sort = v; store.set('f.sort', v); drawFiles(); }]))),
+    tool(FV.view==='grid' ? 'list' : 'layout-grid', T.view, e => { FV.view = FV.view==='grid' ? 'list' : 'grid'; store.set('f.view', FV.view); $('flist').classList.toggle('grid', FV.view==='grid'); drawTools(); sfx('tick'); }),
+    tool('dots', T.more, e => menuAt(e.currentTarget, folderMenu())),
+    h('button', {class:'btn primary', onclick:e => menuAt(e.currentTarget, [['file', T.upload, () => pick(null, true, files => enqueue([...files].map(f => ({file:f, path:cwd+f.name}))))], ['folder', T.uploadFolder, pickFolder]])}, ic('upload', 16), T.upload));
+}
+function drawCrumbs(){
+  const c = $('crumbs'); c.textContent = '';
+  const parts = cwd.split('/').filter(Boolean); let path = '/';
+  const seg = (label, to) => { const b = h('button', {text:label, onclick:() => { if(to!==cwd) location.hash = '#files'+to; }}); dropTarget(b, to); return b; };
+  c.append(seg('SD', '/'));
+  parts.forEach(p => { path += p+'/'; c.append(h('span', {class:'s', text:'›'}), seg(p, path)); });
+}
+async function go(path, keep){
+  if(!$('flist')) filesChrome();
+  const back = cwd.startsWith(path) && path!==cwd;
+  try {
+    const j = await api('GET', 'list', {path: path==='/' ? '/' : path.slice(0,-1)});
+    const changed = path!==cwd;
+    cwd = path; lastDir = path; store.set('f.dir', path); entries = j.files;
+    if(changed){ sel.clear(); FV.text = ''; }
+    drawCrumbs(); drawTools(); drawFiles(keep ? null : changed ? (back ? 'back' : 'fwd') : null);
+    if(changed) $('fscroll').scrollTop = 0;
+  } catch(e){
+    if(e.auth) showLogin(e.message);
+    else { toast(e.message, 'err'); if(path!=='/' && !entries.length) location.hash = '#files/'; }
+  }
+}
+function sortedEntries(){
+  const by = FV.sort==='size' ? (a,b) => b.size-a.size : FV.sort==='date' ? (a,b) => (b.mtime||0)-(a.mtime||0) : (a,b) => collator.compare(a.name, b.name);
+  return entries.filter(f => !FV.text || f.name.toLowerCase().includes(FV.text)).sort((a,b) => (b.dir-a.dir) || by(a,b) || collator.compare(a.name,b.name));
+}
+function drawFiles(dir){
+  const list = $('flist'); if(!list) return; list.textContent = ''; fileRows.clear();
+  list.className = 'list'+(FV.view==='grid' ? ' grid' : '')+(dir ? ' anim '+dir : '');
+  const files = sortedEntries();
+  files.forEach((f, i) => { const r = fileRow(f); r.style.setProperty('--i', i); list.append(r); fileRows.set(f.name, r); });
+  if(!files.length) list.append(FV.text ? emptyEl('search', T.notitles) : emptyEl('folder', T.empty, T.emptyHint));
+  drawSel();
+}
+function fileRow(f){
+  const type = typeOf(f), path = join(cwd, f.name);
+  const pic = h('div', {class:'pic'}, ic(iconOf(f), 24), h('div', {class:'chk'}, ic('check', 16)));
+  const sub = f.dir ? T.folder : [T.t_type[type]||T.t_type.file, fmtSize(f.size)].join(' · ');
+  const r = h('div', {class:'row', tabindex:0, draggable:'true', title:f.name}, pic,
+    h('div', {class:'txt'}, h('div', {class:'nm', text:f.name}), h('div', {class:'sub', text:sub})), h('div', {class:'meta', text:fmtDate(f.mtime)}), ic('chevron-right', 16));
+  r.lastChild.classList.add('chev');
+  if(type==='image' && f.size < 4e6 && FV.view==='grid') later(r, async () => { putIcon(pic, await iconUrl(fileUrl(path))); pic.append(h('div', {class:'chk'}, ic('check', 16))); });
+  r._f = f;
+  pic.onclick = e => { e.stopPropagation(); toggleSel(f.name, e.shiftKey); };
+  r.onclick = e => {
+    if(e.shiftKey && anchor!=null){ rangeSel(f.name); return; }
+    if(e.ctrlKey || e.metaKey || sel.size){ toggleSel(f.name); return; }
+    openEntry(f);
+  };
+  r.onkeydown = e => { if(e.key==='Enter') openEntry(f); };
+  r.oncontextmenu = e => { e.preventDefault(); if(!sel.has(f.name)){ sel.clear(); drawSel(); } menu(e.clientX, e.clientY, sel.size>1 ? manyMenu() : entryMenu(f)); };
+  // Dragging rows onto folders moves them; out of the browser (Chrome) downloads a file.
+  r.ondragstart = e => {
+    const names = sel.has(f.name) ? [...sel] : [f.name];
+    e.dataTransfer.setData('text/x-nsa', JSON.stringify(names.map(n => join(cwd, n))));
+    if(!f.dir && names.length===1) e.dataTransfer.setData('DownloadURL', 'application/octet-stream:'+f.name+':'+location.origin+fileUrl(path));
+    e.dataTransfer.effectAllowed = 'copyMove';
+    names.forEach(n => fileRows.get(n) && fileRows.get(n).classList.add('dragging'));
+    toast(T.dropHint);
+  };
+  r.ondragend = () => document.querySelectorAll('.row.dragging').forEach(x => x.classList.remove('dragging'));
+  if(f.dir) dropTarget(r, path+'/');
+  if(clip && clip.mode==='cut' && clip.paths.includes(path)) r.classList.add('cut');
+  return r;
+}
+const selected = () => entries.filter(f => sel.has(f.name));
+function toggleSel(name, range){ if(range && anchor!=null){ rangeSel(name); return; } sel.has(name) ? sel.delete(name) : sel.add(name); anchor = name; sfx('tick'); drawSel(); }
+function rangeSel(name){ const names = sortedEntries().map(f => f.name); let a = names.indexOf(anchor), b = names.indexOf(name); if(a>b) [a,b] = [b,a]; for(let i=a;i<=b;i++) sel.add(names[i]); sfx('tick'); drawSel(); }
+function selectAll(){ sortedEntries().forEach(f => sel.add(f.name)); drawSel(); }
+function drawSel(){ fileRows.forEach((r, n) => r.classList.toggle('sel', sel.has(n))); const l = $('flist'); if(l) l.classList.toggle('selecting', sel.size>0); drawTools(); }
+function openEntry(f){ if(f.dir){ sfx('click'); location.hash = '#files'+join(cwd, f.name)+'/'; } else fileSheet(f); }
+function entryActions(f){
+  const t = typeOf(f), path = join(cwd, f.name);
+  return [
+    f.dir && ['folder', T.open, () => openEntry(f)],
+    t==='image' && ['photo', T.viewpic, () => viewPicture(f)],
+    editable(f) && ['pencil', T.edit, () => editText(f)],
+    t==='cia' && ['package', T.installcia, () => installCia(f)],
+    !f.dir && ['download', T.download, () => download(f)],
+    '-',
+    ['copy', T.copy, () => toClip('copy', [path]), {key:'Ctrl+C'}],
+    ['scissors', T.cut, () => toClip('cut', [path]), {key:'Ctrl+X'}],
+    ['pencil', T.rename, () => renameEntry(f), {key:'F2'}],
+    ['trash', T.del, () => deleteMany([f]), {danger:true, key:'Del'}]];
+}
+const entryMenu = f => entryActions(f);
+const manyMenu = () => [['download', T.download, () => downloadMany(selected().filter(f => !f.dir))], ['copy', T.copy, () => toClip('copy'), {key:'Ctrl+C'}], ['scissors', T.cut, () => toClip('cut'), {key:'Ctrl+X'}], '-', ['trash', T.del, () => deleteMany(selected()), {danger:true, key:'Del'}]];
+function fileSheet(f){
+  const t = typeOf(f), path = join(cwd, f.name);
+  const big = t==='image' && f.size < 8e6 ? h('img', {src:fileUrl(path), alt:''}) : ic(iconOf(f), 48);
+  const body = [cells([[T.size, fmtSize(f.size)], [T.type, T.t_type[t]||T.t_type.file], [T.modified, fmtDate(f.mtime)], [T.path, path]])];
+  if(t==='audio') body.push(h('audio', {controls:true, src:fileUrl(path), style:'width:100%;margin:0 0 10px', preload:'none'}));
+  let s;
+  s = sheet({head:sheetHead(big, f.name, T.t_type[t]||T.t_type.file), body:[...body, actions(entryActions(f).map(a => a==='-' ? null : a), c => s.close(c))]});
+}
+function download(f){ const a = h('a', {href:fileUrl(join(cwd, f.name)), download:f.name}); document.body.append(a); a.click(); a.remove(); }
+async function downloadMany(files){ for(const f of files){ download(f); await sleep(400); } }
+async function newFolder(){ const n = await ask(T.newfolder, {text:T.newname}); if(!n) return;
+  run(async () => { await api('POST', 'mkdir', {path:cwd+n}); await go(cwd, true); const r = fileRows.get(n); if(r){ r.scrollIntoView({block:'center'}); r.animate([{background:'var(--soft)'},{}], {duration:1200}); } }); }
+async function renameEntry(f){ const to = await ask(T.rename, {text:T.renameto, value:f.name, select:!f.dir}); if(!to || to===f.name) return;
+  run(async () => { await api('POST', 'rename', {path:join(cwd, f.name), to:cwd+to}); sfx('success'); go(cwd, true); }); }
+async function deleteMany(files){
+  if(!files.length) return;
+  if(!await confirmAsk(files.length===1 ? tr('confirmdel', {s:files[0].name}) : tr('confirmdeln', {n:files.length}), true, T.del)) return;
+  run(async () => {
+    for(const f of files){ const r = fileRows.get(f.name); if(r) r.animate([{opacity:1},{opacity:0, transform:'translateX(40px)'}], {duration:250, fill:'forwards'});
+      await api('DELETE', 'file', {path:join(cwd, f.name)}); }
+    sel.clear(); toast(T.done, 'ok'); go(cwd, true);
+  });
+}
+// The clipboard, as on the console: copy or cut here, paste in another folder.
+function toClip(mode, paths){
+  paths = paths || selected().map(f => join(cwd, f.name)); if(!paths.length) return;
+  clip = {mode, paths}; sel.clear(); drawSel(); drawClip(); sfx('click');
+  fileRows.forEach((r, n) => r.classList.toggle('cut', mode==='cut' && paths.includes(join(cwd, n))));
+}
+function drawClip(){
+  let c = $('clipbar'); if(c) c.remove(); if(!clip) return;
+  $('dock').append(h('div', {class:'clip', id:'clipbar'}, ic(clip.mode==='cut' ? 'scissors' : 'clipboard', 16), h('span', {text:tr(clip.mode==='cut' ? 'cutn' : 'copied', {n:clip.paths.length})}),
+    h('button', {class:'btn primary', onclick:paste}, T.paste), tool('x', T.cancel, () => { clip = null; drawClip(); fileRows.forEach(r => r.classList.remove('cut')); })));
+}
+async function paste(){ if(!clip) return; if(current!=='files'){ location.hash = '#files'+lastDir; return; } const c = clip; if(c.mode==='cut'){ clip = null; drawClip(); } await transfer(c.paths, cwd, c.mode==='copy'); }
+// Moves (or copies) paths into a folder of the SD card.
+async function transfer(paths, dir, copy){
+  paths = paths.filter(p => (parentOf(p)!==dir || copy) && !dir.startsWith(p.replace(/\/$/,'')+'/'));
+  if(!paths.length) return;
+  const t = h('div', {class:'toast'}, ic(copy ? 'copy' : 'scissors', 16), h('span', {text:T.pasting})); $('toasts').append(t);
+  let ok = 0;
+  for(const p of paths){
+    let name = p.replace(/\/$/,'').split('/').pop(), to = dir+name;
+    if(copy && parentOf(p)===dir){ const dot = name.lastIndexOf('.'); to = dir+(dot>0 ? name.slice(0,dot)+' (2)'+name.slice(dot) : name+' (2)'); }
+    try { await api('POST', copy ? 'copy' : 'rename', {path:p.replace(/\/$/,''), to}); ok++; }
+    catch(e){ if(e.auth){ showLogin(e.message); break; } toast(e.status===409 ? tr('taken', {s:name}) : T.failed+e.message, 'err'); }
+  }
+  t.remove();
+  if(ok){ sfx('success'); toast(tr(copy ? 'copiedTo' : 'movedTo', {s:dir==='/' ? 'SD' : dir.replace(/\/$/,'').split('/').pop()}), 'ok'); }
+  if(current==='files') go(cwd, true);
+}
+// Something dropped on a folder: rows of this list move there; files from the computer are uploaded there.
+let dragDepth = 0;
+function dropTarget(el, dir){
+  el.addEventListener('dragover', e => { const types = e.dataTransfer.types; if(!types.includes('text/x-nsa') && !types.includes('Files')) return;
+    e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = types.includes('text/x-nsa') ? (e.ctrlKey||e.altKey ? 'copy' : 'move') : 'copy';
+    if(!el.classList.contains('drop')){ el.classList.add('drop'); sfx('tick'); }
+    if(types.includes('Files')) $('droptext').textContent = tr('dropTo', {s:dir==='/' ? 'SD' : dir.replace(/\/$/,'').split('/').pop()}); });
+  el.addEventListener('dragleave', () => el.classList.remove('drop'));
+  el.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); el.classList.remove('drop'); hideZone(); handleDrop(e, dir); });
+}
+function setupDrop(scroll){
+  scroll.addEventListener('dragenter', e => { if(e.dataTransfer.types.includes('Files') && !e.dataTransfer.types.includes('text/x-nsa')){ dragDepth++; $('dropzone').classList.add('on'); $('droptext').textContent = tr('dropTo', {s:cwd==='/' ? 'SD' : cwd.replace(/\/$/,'').split('/').pop()}); } });
+  scroll.addEventListener('dragleave', () => { if(--dragDepth<=0) hideZone(); });
+  scroll.addEventListener('dragover', e => { if(e.dataTransfer.types.includes('Files')){ e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; $('droptext').textContent = tr('dropTo', {s:cwd==='/' ? 'SD' : cwd.replace(/\/$/,'').split('/').pop()}); } });
+  scroll.addEventListener('drop', e => { e.preventDefault(); hideZone(); handleDrop(e, cwd); });
+}
+function hideZone(){ dragDepth = 0; const z = $('dropzone'); if(z) z.classList.remove('on'); }
+addEventListener('dragover', e => e.preventDefault()); addEventListener('drop', e => { e.preventDefault(); hideZone(); });
+function handleDrop(e, dir){
+  const dt = e.dataTransfer, inner = dt.getData('text/x-nsa');
+  if(inner){ transfer(JSON.parse(inner), dir, e.ctrlKey||e.altKey); return; }
+  // Folders from the computer come as entries (only while the event lasts: take them now).
+  const roots = [...dt.items].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if(roots.length) walkEntries(roots, dir).then(enqueue); else if(dt.files.length) enqueue([...dt.files].map(f => ({file:f, path:dir+f.name})));
+}
+async function walkEntries(roots, dir){
+  const out = [];
+  async function walk(entry, base){
+    if(entry.isFile){ const f = await new Promise((res, rej) => entry.file(res, rej)); out.push({file:f, path:base+f.name}); return; }
+    out.push({mkdir:base+entry.name}); const reader = entry.createReader(); let batch;
+    do { batch = await new Promise((res, rej) => reader.readEntries(res, rej)); for(const c of batch) await walk(c, base+entry.name+'/'); } while(batch.length);
+  }
+  for(const r of roots) await walk(r, dir);
+  return out;
+}
+function pick(accept, multiple, then){ const p = $('picker'); p.accept = accept||''; p.multiple = multiple; p.webkitdirectory = false; p.onchange = () => { then(p.files); p.value = ''; }; p.click(); }
+function pickFolder(){ const p = $('picker'); p.accept = ''; p.multiple = true; p.webkitdirectory = true; p.onchange = () => {
+  const jobs = [], made = new Set();
+  for(const f of p.files){ const parts = f.webkitRelativePath.split('/'); for(let i=1;i<parts.length;i++){ const d = cwd+parts.slice(0,i).join('/'); if(!made.has(d)){ made.add(d); jobs.push({mkdir:d}); } } jobs.push({file:f, path:cwd+f.webkitRelativePath}); }
+  enqueue(jobs); p.value = ''; }; p.click(); }
+// Uploads, one at a time (the console serves one request at a time), in a panel that stays while browsing.
+const upq = []; let upBusy = false, upPanel = null;
+function enqueue(jobs){ for(const j of jobs){ j.el = j.file ? upItem(j.file.name, fmtSize(j.file.size)) : null; upq.push(j); } pumpUploads(); }
+function upItem(name, size){
+  if(!upPanel){ upPanel = h('div', {class:'ups'}, h('div', {class:'hd', onclick:() => upPanel.classList.toggle('min')}, ic('upload', 16), h('span', {id:'uphd', text:T.uploads}), h('span', {class:'sp'}), ic('chevron-down', 16)), h('div', {class:'items'})); $('dock').prepend(upPanel); }
+  const fill = h('i'), el = h('div', {class:'up'}, h('div', {class:'n'}, h('span', {text:name}), h('span', {text:T.queued})), h('div', {class:'prog'}, fill));
+  el._fill = fill; el._st = el.firstChild.lastChild; el._size = size; upPanel.lastChild.append(el); return el;
+}
+function put(path, file, onprogress){
+  return new Promise(resolve => { const x = new XMLHttpRequest(); x.open('PUT', fileUrl(path)); x.setRequestHeader('X-Pin', pin);
+    x.upload.onprogress = e => { if(e.lengthComputable) onprogress(e.loaded/e.total, e.loaded); }; x.onloadend = () => resolve(x.status===200); x.send(file); });
+}
+async function uploadOne(file, path, el){
+  el = el || upItem(file.name, fmtSize(file.size)); const t0 = performance.now();
+  const ok = await put(path, file, (f, n) => { el._fill.style.width = (100*f)+'%'; const s = n/Math.max(.001,(performance.now()-t0)/1000); el._st.textContent = Math.round(100*f)+'% · '+fmtSize(s)+'/s'; });
+  el._st.textContent = ok ? el._size : '✕'; el._fill.style.width = '100%'; if(!ok) el._fill.style.background = 'var(--danger)';
+  setTimeout(() => { el.style.transition = 'opacity .4s'; el.style.opacity = 0; setTimeout(() => { el.remove(); if(upPanel && !upPanel.lastChild.children.length){ upPanel.remove(); upPanel = null; } }, 400); }, ok ? 2500 : 8000);
+  return ok;
+}
+async function pumpUploads(){
+  if(upBusy) return; upBusy = true; let any = false, failed = 0;
+  while(upq.length){
+    const j = upq.shift(); $('uphd') && ($('uphd').textContent = T.uploading+' · '+(upq.length+1));
+    if(j.mkdir){ try { await api('POST', 'mkdir', {path:j.mkdir}); } catch(e){} continue; }
+    if(await uploadOne(j.file, j.path, j.el)) any = true; else failed++;
+  }
+  upBusy = false; $('uphd') && ($('uphd').textContent = T.uploads);
+  if(failed){ sfx('error'); toast(T.failed+failed, 'err'); } else if(any){ sfx('success'); toast(T.done, 'ok'); }
+  if(current==='files') go(cwd, true);
+}
+async function installCia(f){
+  if(!await confirmAsk(tr('confirminst', {s:f.name}), false, T.installcia)) return;
+  run(async () => { const t = h('div', {class:'toast'}, ic('package', 16), h('span', {text:T.installing})); $('toasts').append(t);
+    try { const j = await api('POST', 'install', {path:join(cwd, f.name)}); sfx('success'); toast(j.restarting ? T.restarting : T.installed, 'ok'); } finally { t.remove(); } });
+}
+// Pictures: full size, with the folder's others on the arrows.
+function viewPicture(f){
+  const pics = sortedEntries().filter(x => typeOf(x)==='image'); let i = pics.findIndex(x => x.name===f.name);
+  const img = h('img', {alt:''}), cap = h('div', {class:'cap'});
+  const show = () => { img.src = fileUrl(join(cwd, pics[i].name)); cap.textContent = pics[i].name+' · '+(i+1)+' / '+pics.length; img.style.animation = 'none'; void img.offsetWidth; img.style.animation = ''; };
+  const step = d => { i = (i+d+pics.length)%pics.length; show(); sfx('tick'); };
+  const box = h('div', {class:'lightbox'}, img, cap, h('button', {class:'tool', style:'top:14px;right:14px', onclick:() => done()}, ic('x', 24)),
+    pics.length>1 && h('button', {class:'tool', style:'left:14px;top:50%', onclick:e => { e.stopPropagation(); step(-1); }}, ic('chevron-left', 32)),
+    pics.length>1 && h('button', {class:'tool', style:'right:14px;top:50%', onclick:e => { e.stopPropagation(); step(1); }}, ic('chevron-right', 32)));
+  const key = e => { if(e.key==='Escape') done(); else if(e.key==='ArrowLeft') step(-1); else if(e.key==='ArrowRight') step(1); };
+  const done = () => { removeEventListener('keydown', key, true); box.remove(); sfx('back'); };
+  box.onclick = e => { if(e.target===box) done(); };
+  addEventListener('keydown', key, true); document.body.append(box); show(); sfx('click');
+}
+async function editText(f){
+  if(f.size>262144){ toast(T.toobig, 'err'); return; }
+  run(async () => {
+    const path = join(cwd, f.name), r = await fetch(fileUrl(path), {headers:{'X-Pin':pin}}); if(!r.ok) throw new ApiError(r.statusText);
+    const ta = h('textarea', {class:'code', spellcheck:'false'}); ta.value = await r.text(); const orig = ta.value;
+    const saveIt = () => run(async () => { await api('PUT', 'file', {path}, new Blob([ta.value], {type:'text/plain'})); orig2 = ta.value; sfx('success'); toast(T.saved, 'ok'); go(cwd, true); });
+    let orig2 = orig, s;
+    ta.onkeydown = e => { if((e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); saveIt(); } if(e.key==='Tab'){ e.preventDefault(); ta.setRangeText('\t', ta.selectionStart, ta.selectionEnd, 'end'); } };
+    s = sheet({wide:true, head:sheetHead(ic(iconOf(f), 32), f.name, path), body:ta,
+      foot:[h('span', {class:'note', text:'Ctrl+S'}), h('span', {class:'sp'}), h('button', {class:'btn', text:T.close, onclick:() => s.close()}), h('button', {class:'btn primary', onclick:saveIt}, ic('device-floppy', 16), T.save)]});
+    setTimeout(() => ta.focus(), 100);
+  });
+}
+// Keys in the Files screen, as in a file manager.
+addEventListener('keydown', e => {
+  if(current!=='files' || document.querySelector('dialog,.lightbox') || /INPUT|TEXTAREA|SELECT/.test((document.activeElement||{}).tagName||'')) return;
+  const mod = e.ctrlKey || e.metaKey;
+  if(mod && e.key==='a'){ e.preventDefault(); selectAll(); }
+  else if(mod && e.key==='c' && sel.size){ toClip('copy'); }
+  else if(mod && e.key==='x' && sel.size){ toClip('cut'); }
+  else if(mod && e.key==='v' && clip){ paste(); }
+  else if(e.key==='Delete' && sel.size){ deleteMany(selected()); }
+  else if(e.key==='F2' && sel.size===1){ renameEntry(selected()[0]); }
+  else if(e.key==='Escape' && sel.size){ sel.clear(); drawSel(); }
+  else if((e.key==='Backspace' || (e.altKey && e.key==='ArrowUp')) && cwd!=='/'){ e.preventDefault(); sfx('back'); location.hash = '#files'+parentOf(cwd); }
+});
+
+// ---- install: the console's Remote Install, each thing behind its own tile ----
+screens.install = {
+  render(){
+    const tiles = [['world-download', T.i_urls, T.i_urlssub, urlsSheet], ['upload', T.i_cia, T.i_ciasub, () => pick('.cia', true, installFromPc)],
+      ['history', T.i_hist, T.i_histsub, histSheet], ['list-details', T.i_log, T.i_logsub, logSheet]];
+    return screenEl(h('h2', {}, T.install), null, h('div', {class:'scroll'}, h('div', {class:'tiles'}, tiles.map(([i, b, s, fn], n) =>
+      h('button', {class:'tile', vars:{i:n}, onclick:fn}, h('div', {class:'ib'}, ic(i, 24)), h('b', {text:b}), h('span', {text:s}))))));
+  }
+};
+function sendUrls(text){ run(async () => { await api('POST', 'install-url', null, text); toast(T.asked, 'ok'); }); }
+function urlsSheet(){
+  const ta = h('textarea', {class:'code', style:'height:160px', placeholder:'https://…/game.cia', spellcheck:'false'}); let s;
+  s = sheet({head:sheetHead(ic('world-download', 32), T.i_urls, T.i_urlssub), body:[h('p', {class:'note', text:T.urls}), ta],
+    foot:[h('button', {class:'btn', text:T.cancel, onclick:() => s.close()}), h('button', {class:'btn primary', onclick:() => { const t = ta.value.trim(); if(t){ s.close(true); sendUrls(t+'\n'); } }}, ic('3ds', 16), T.send)]});
+  setTimeout(() => ta.focus(), 100);
+}
+async function fetchText(path, from){
+  const r = await fetch(fileUrl(path), {headers:Object.assign({'X-Pin':pin}, from ? {Range:'bytes='+from+'-'} : {})});
+  if(r.status===401){ const e = new ApiError(T.wrong); e.auth = true; throw e; }
+  return r.ok ? r.text() : null;
+}
+async function histSheet(){
+  const body = h('div', {}, ...skeletonRows(3)); let s;
+  s = sheet({head:sheetHead(ic('history', 32), T.i_hist, T.i_histsub), body, foot:[h('button', {class:'btn', text:T.close, onclick:() => s.close()})]});
+  let list = []; try { const t = await fetchText('/nsa/history.json'); list = t ? JSON.parse(t) : []; } catch(e){ if(e.auth){ showLogin(e.message); return; } }
+  body.textContent = '';
+  if(!list.length) body.append(emptyEl('history', T.nohist));
+  list.forEach((x, i) => body.append(h('div', {class:'hist', style:'animation:rowIn .3s both;animation-delay:'+(i*25)+'ms'}, h('div', {class:'u'}, x.urls.trim(), x.time ? h('div', {class:'note', text:fmtDate(x.time)}) : null),
+    h('button', {class:'btn', onclick:() => { s.close(true); sendUrls(x.urls); }}, ic('refresh', 16), T.again))));
+}
+async function logSheet(){
+  const pre = h('pre', {class:'log', text:T.loading}); let s;
+  const load = async () => { try { const j = await api('GET', 'list', {path:'/nsa'}); const f = j.files.find(f => f.name==='transfer-log.txt');
+    const t = f ? await fetchText('/nsa/transfer-log.txt', Math.max(0, f.size-20000)) : null; pre.textContent = t ? t.split('\n').slice(-200).join('\n') : T.nolog; pre.scrollTop = 1e9; } catch(e){ pre.textContent = T.nolog; } };
+  s = sheet({wide:true, head:sheetHead(ic('list-details', 32), T.i_log, '/nsa/transfer-log.txt'), body:pre, foot:[h('button', {class:'btn', onclick:load}, ic('refresh', 16), T.reload), h('button', {class:'btn', text:T.close, onclick:() => s.close()})]});
+  load();
+}
+async function installFromPc(files){
+  const list = [...files]; if(!list.length) return;
+  try { await api('POST', 'mkdir', {path:'/nsa/web-install'}); } catch(e){ if(e.auth){ showLogin(e.message); return; } }
+  for(const f of list){
+    const path = '/nsa/web-install/'+f.name, el = upItem(f.name, fmtSize(f.size));
+    if(!await uploadOne(f, path, el)){ sfx('error'); toast(T.failed+f.name, 'err'); continue; }
+    const t = h('div', {class:'toast'}, ic('package', 16), h('span', {text:T.installing+' '+f.name})); $('toasts').append(t);
+    try { const j = await api('POST', 'install', {path}); sfx('success'); toast((j.restarting ? T.restarting : T.installed)+' '+f.name, 'ok'); if(j.restarting) break; }
+    catch(e){ if(e.auth){ showLogin(e.message); break; } sfx('error'); toast(T.failed+e.message, 'err'); }
+    finally { t.remove(); try { await api('DELETE', 'file', {path}); } catch(e){} }
+  }
+}
+
+// ---- the console's screens, live, in a console ----
+let liveOn = store.get('live', true), liveBusy = false;
+screens.screen = {
+  render(){
+    const top = h('canvas', {id:'cv_top', width:400, height:240}), bottom = h('canvas', {id:'cv_bottom', width:320, height:240});
+    const key = (label, k, cls) => { const b = h('button', {class:'key'+(cls?' '+cls:''), text:label, 'data-k':k}); b.onclick = () => press(k); return b; };
+    const sp = () => h('span');
+    const sw = h('button', {class:'switch'+(liveOn?' on':''), onclick:() => { liveOn = !liveOn; store.set('live', liveOn); sw.classList.toggle('on', liveOn); startLive(); }});
+    const el = screenEl(h('h2', {}, T.screen, h('small', {id:'fps'})), null, h('div', {class:'scroll'},
+      h('div', {class:'ds'}, h('div', {class:'lid'}, top), h('div', {class:'hinge'}),
+        h('div', {class:'base'},
+          h('div', {class:'side'}, h('div', {class:'shoulders'}, key('L','L'), key('ZL','ZL')), h('div', {class:'dpad'}, sp(), key('▲','UP'), sp(), key('◀','LEFT'), sp(), key('▶','RIGHT'), sp(), key('▼','DOWN'), sp())),
+          h('div', {style:'display:flex;flex-direction:column;align-items:center;gap:10px'}, bottom, h('div', {class:'small'}, key('SELECT','SELECT'), key('START','START')), h('div', {class:'livebar'}, sw, T.live)),
+          h('div', {class:'side'}, h('div', {class:'shoulders'}, key('ZR','ZR'), key('R','R')), h('div', {class:'abxy'}, sp(), key('X','X'), sp(), key('Y','Y'), sp(), key('A','A'), sp(), key('B','B'), sp())))),
+      h('p', {class:'note', style:'text-align:center;max-width:640px;margin:0 auto', text:T.padnote})));
+    setTimeout(() => { setupCanvas(top, bottom); startLive(); });
+    return el;
+  }
+};
+let ctxTop, ctxBottom, imgTop, imgBottom;
+function setupCanvas(top, bottom){
+  ctxTop = top.getContext('2d'); ctxBottom = bottom.getContext('2d'); imgTop = ctxTop.createImageData(400,240); imgBottom = ctxBottom.createImageData(320,240);
+  let down = null;
+  const pos = e => { const b = bottom.getBoundingClientRect(); return {x:Math.max(0,Math.min(319,Math.floor((e.clientX-b.left)*320/b.width))), y:Math.max(0,Math.min(239,Math.floor((e.clientY-b.top)*240/b.height)))}; };
+  bottom.onpointerdown = e => { down = pos(e); bottom.setPointerCapture(e.pointerId); };
+  bottom.onpointerup = e => { if(!down) return; const p = pos(e), d = down; down = null; sfx('tick');
+    if(Math.abs(p.y-d.y) > 12) run(() => api('POST', 'input/drag', {x:d.x, y1:d.y, y2:p.y, frames:20})); else run(() => api('POST', 'input/tap', {x:p.x, y:p.y})); };
+}
 function paint(img, ctx, u16, offset, count){
   const d = img.data;
-  for(let i=0, j=0; i<count; i++, j+=4){ const c = u16[offset+i];
-    d[j]=((c>>11)&31)*255/31; d[j+1]=((c>>5)&63)*255/63; d[j+2]=(c&31)*255/31; d[j+3]=255; }
+  for(let i=0, j=0; i<count; i++, j+=4){ const c = u16[offset+i]; d[j] = ((c>>11)&31)*255/31; d[j+1] = ((c>>5)&63)*255/63; d[j+2] = (c&31)*255/31; d[j+3] = 255; }
   ctx.putImageData(img, 0, 0);
 }
 async function frame(){
   const r = await fetch('/api/screens', {headers:{'X-Pin':pin}});
-  if(r.status===401) { const e=new Error(T.wrong); e.auth=true; throw e; }
-  if(!r.ok) throw new Error(T.nolive);
-  const u16 = new Uint16Array(await r.arrayBuffer());
+  if(r.status===401){ const e = new ApiError(T.wrong); e.auth = true; throw e; }
+  if(!r.ok) throw new ApiError(T.nolive);
+  const u16 = new Uint16Array(await r.arrayBuffer()); if(!$('cv_top')) return;
   paint(imgTop, ctxTop, u16, 0, 400*240); paint(imgBottom, ctxBottom, u16, 400*240, 320*240);
 }
 async function startLive(){
   if(liveBusy) return; liveBusy = true;
   let n = 0, t0 = performance.now();
-  while(current==='screen' && $('live').checked && !document.hidden){
-    try { await frame(); n++; const dt = performance.now()-t0; if(dt>2000){ $('fps').textContent=(n*1000/dt).toFixed(1)+' fps'; n=0; t0=performance.now(); } }
-    catch(e){ if(e.auth){ showLogin(e.message); break; } $('fps').textContent=e.message; await new Promise(r=>setTimeout(r,1500)); }
+  if(!liveOn) await frame().catch(() => {});
+  while(current==='screen' && liveOn && !document.hidden && $('cv_top')){
+    try { await frame(); n++; const dt = performance.now()-t0; if(dt>2000){ $('fps').textContent = (n*1000/dt).toFixed(1)+' fps'; n = 0; t0 = performance.now(); } }
+    catch(e){ if(e.auth){ showLogin(e.message); break; } if($('fps')) $('fps').textContent = e.message; await sleep(1500); }
   }
   liveBusy = false;
 }
-$('live').onchange = startLive;
 document.addEventListener('visibilitychange', () => { if(current==='screen') startLive(); });
-async function press(keys, frames){ run(async()=>{ await api('POST','input/press', q('keys',keys)+(frames?'&frames='+frames:'')); if(!$('live').checked) frame(); }); }
-const pad = $('pad');
-function grid(cls, cells){ const g=document.createElement('div'); g.className='grp '+cls;
-  cells.forEach(c => { if(!c){ const e=document.createElement('span'); e.className='sp'; g.appendChild(e); } else g.appendChild(btn(c[0],'',()=>press(c[1]))); }); return g; }
-pad.append(
-  grid('', [['L','L'],['ZL','ZL']].map(x=>x)),
-  grid('dpad', [null,['▲','UP'],null,['◀','LEFT'],null,['▶','RIGHT'],null,['▼','DOWN'],null]),
-  grid('', [['Select','SELECT'],['Start','START']]),
-  grid('abxy', [null,['X','X'],null,['Y','Y'],null,['A','A'],null,['B','B'],null]),
-  grid('', [['R','R'],['ZR','ZR']]));
-// A click is a tap; a drag mostly up or down scrolls.
-const cvb = $('cv_bottom'); let down = null;
-function pos(e){ const b=cvb.getBoundingClientRect(); return {x:Math.max(0,Math.min(319,Math.floor((e.clientX-b.left)*320/b.width))), y:Math.max(0,Math.min(239,Math.floor((e.clientY-b.top)*240/b.height)))}; }
-cvb.onpointerdown = e => { down = pos(e); cvb.setPointerCapture(e.pointerId); };
-cvb.onpointerup = e => { if(!down) return; const p = pos(e), d = down; down = null;
-  if(Math.abs(p.y-d.y) > 12) run(async()=>{ await api('POST','input/drag', 'x='+d.x+'&y1='+d.y+'&y2='+p.y+'&frames=20'); });
-  else run(async()=>{ await api('POST','input/tap', 'x='+p.x+'&y='+p.y); }); };
-const keymap = {ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',x:'A',z:'B',s:'X',a:'Y',q:'L',w:'R',Enter:'START',Backspace:'SELECT'};
-document.addEventListener('keydown', e => {
-  if(current!=='screen' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test((document.activeElement||{}).tagName||'')) return;
-  const k = keymap[e.key.length===1 ? e.key.toLowerCase() : e.key]; if(k){ e.preventDefault(); press(k); } });
+function press(keys, frames){
+  const b = document.querySelector('.key[data-k="'+keys+'"]'); if(b){ b.classList.add('down'); setTimeout(() => b.classList.remove('down'), 140); }
+  sfx(keys==='B' ? 'back' : keys==='A' ? 'click' : 'tick');
+  run(async () => { await api('POST', 'input/press', {keys, frames}); if(!liveOn) frame(); });
+}
+const KEYMAP = {ArrowUp:'UP', ArrowDown:'DOWN', ArrowLeft:'LEFT', ArrowRight:'RIGHT', x:'A', z:'B', s:'X', a:'Y', q:'L', w:'R', Enter:'START', Backspace:'SELECT'};
+addEventListener('keydown', e => {
+  if(current!=='screen' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog') || /INPUT|TEXTAREA|SELECT/.test((document.activeElement||{}).tagName||'')) return;
+  const k = KEYMAP[e.key.length===1 ? e.key.toLowerCase() : e.key]; if(k){ e.preventDefault(); press(k); }
+});
 
+// ---- settings: the console's own (they change there too) and this page's ----
+screens.settings = { render(){ const el = screenEl(h('h2', {}, T.settings), null, h('div', {class:'scroll', id:'setscroll'})); setTimeout(renderSettings); return el; } };
+let setBusy = false;
+async function changeSetting(params){
+  if(setBusy) return; setBusy = true;
+  try { settings = await api('POST', 'settings', params); applyConsoleSettings(); themeKey = ''; await loadTheme(); renderSettings(); }
+  catch(e){ if(e.auth) showLogin(e.message); else { sfx('error'); toast(T.failed+e.message, 'err'); } }
+  setBusy = false;
+}
+function opt(icon, label, sub, ctl){ return h('div', {class:'opt'}, ic(icon), h('div', {class:'l'}, h('b', {text:label}), sub ? h('span', {text:sub}) : null), h('div', {class:'ctl'}, ctl)); }
+function volume(value, key){
+  const out = h('span', {text:value+'%'}), r = h('input', {type:'range', min:25, max:100, step:5, value});
+  const paintV = () => { r.style.setProperty('--v', ((r.value-25)/75*100)+'%'); out.textContent = r.value+'%'; };
+  r.oninput = paintV; r.onchange = () => changeSetting({[key]:r.value}); paintV();
+  return h('div', {class:'vol'}, ic('volume', 16), r, out);
+}
+function sw(on, fn){ const b = h('button', {class:'switch'+(on?' on':''), role:'switch'}); b.onclick = () => { b.classList.toggle('on'); sfx('tick'); fn(b.classList.contains('on')); }; return b; }
+function renderSettings(){
+  const box = $('setscroll'); if(!box) return;
+  const keepScroll = box.scrollTop; box.textContent = '';
+  if(!settings){ box.append(emptyEl('settings', T.loading)); api('GET', 'settings').then(s => { settings = s; renderSettings(); }).catch(() => {}); return; }
+  const s = settings, night = themeNow && themeNow.night, first = !box._done; box._done = true;
+  const cards = [
+    h('div', {class:'card'}, h('h3', {}, ic('palette', 16), T.ap),
+      h('div', {class:'opt', style:'display:block'}, h('div', {class:'l', style:'margin-bottom:10px'}, h('b', {text:T.theme}), h('span', {text:T.themesub})),
+        h('div', {class:'themes'}, s.themes.map(t => h('button', {class:'th'+(t.id===s.theme?' on':''), 'data-id':t.id, onclick:() => { sfx('click'); changeSetting({theme:t.id}); }},
+          h('div', {class:'pv'}, h('i'), h('i'), h('i'), h('i')), h('b', {text:t.name}))))),
+      h('div', {class:'opt', style:'display:block'}, h('div', {class:'l', style:'margin-bottom:10px'}, h('b', {text:T.accent})),
+        h('div', {class:'swatches'}, s.accents.map(a => h('button', {class:'sw'+(a.id===s.accent?' on':''), title:a.name, vars:{c:night ? a.night : a.day}, onclick:() => { sfx('click'); changeSetting({accent:a.id}); }}, ic('check', 16))))),
+      opt('moon', T.night, T.nightsub, seg([['off',T.off,'sun'],['on',T.on,'moon'],['auto',T.auto,'sun-moon']], s.night, v => changeSetting({night:v}))),
+      opt('language', T.language, null, seg([['system',T.lsystem],['en','English'],['es','Español']], s.language, v => changeSetting({language:v})))),
+    h('div', {class:'card'}, h('h3', {}, ic('volume', 16), T.snd),
+      opt('volume', T.sounds, T.soundssub, seg([[0,T.off],[1,T.alerts],[2,T.all]], s.sounds, v => changeSetting({sounds:v}))), volume(s.soundVolume, 'soundVolume'),
+      opt('music', T.music, T.musicsub, seg([[0,T.off],[1,T.m_lift],[2,T.m_calm],[3,T.m_shop]], s.music, v => changeSetting({music:v}))), volume(s.musicVolume, 'musicVolume')),
+    h('div', {class:'card'}, h('h3', {}, ic('device-desktop', 16), T.page),
+      opt('volume', T.psound, T.psoundsub, sw(store.get('pageSound', true), v => { store.set('pageSound', v); if(v) sfx('click'); })),
+      opt('player-play', T.pmotion, T.pmotionsub, sw(store.get('motion', true), v => { store.set('motion', v); document.body.classList.toggle('nomotion', !v); })),
+      opt('key', T.signout, T.signoutsub, h('button', {class:'btn danger', onclick:() => { sessionStorage.removeItem('pin'); document.cookie = 'pin=; path=/; max-age=0'; pin = ''; showLogin(); }}, ic('power', 16), T.signout))),
+    h('div', {class:'card'}, h('h3', {}, ic('3ds', 16), T.about), cells([['NSA', info.version], [T.about, info.console], [T.address, location.host], ['SD', info.total ? fmtSize(info.free)+' / '+fmtSize(info.total) : '']]))
+  ];
+  cards.forEach((c, i) => { c.style.setProperty('--i', i); if(!first) c.style.animation = 'none'; });
+  box.append(h('div', {class:'set'}, cards)); box.scrollTop = keepScroll;
+}
+
+// ---- start ----
 const saved = sessionStorage.getItem('pin');
-if(saved){ $('pin').value = saved; login(); } else showLogin();
+if(saved) login(saved); else showLogin();
 </script>
 </body>
 </html>

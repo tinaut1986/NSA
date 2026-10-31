@@ -554,6 +554,15 @@ const i18n_entry i18n_es[] = {
         {"With servefiles.py, or any tool made for FBI:", "Con servefiles.py, o cualquier herramienta hecha para FBI:"},
         {"Point the camera at the code.\nA QR code with one or more links to CIAs.", "Apunta la cámara al código.\nUn código QR con uno o varios enlaces a CIA."},
         {"Failed to allocate remote install data.", "No se ha podido reservar memoria para la instalación remota."},
+        // Remote install history
+        {"History", "Historial"},
+        {"%lu request", "%lu petición"},
+        {"%lu requests", "%lu peticiones"},
+        {"Last: %lu link from %s", "Última: %lu enlace de %s"},
+        {"Last: %lu links from %s", "Última: %lu enlaces de %s"},
+        {"and %lu more", "y %lu más"},
+        {"\uE000 install   \uE001 back", "\uE000 instalar   \uE001 volver"},
+        {"Install from the selected request?", "¿Instalar desde la petición elegida?"},
         // Installing from URLs
         {"Installing", "Instalando"},
         {"From %s", "Desde %s"},

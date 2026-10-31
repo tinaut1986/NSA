@@ -36,6 +36,8 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 ### Titles, tickets and data
 
 <p align="center">
+  <img src="docs/images/titles.png" width="360" alt="The list of titles">
+  <img src="docs/images/titles-filter.png" width="360" alt="Filters: memory, kind and region">
   <img src="docs/images/title-actions.png" width="360" alt="A title's actions">
 </p>
 

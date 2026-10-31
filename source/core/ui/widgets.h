@@ -46,6 +46,10 @@ void widget_row_slider_track(float x, float y, float width, float* trackX, float
 
 void widget_progress(float x, float y, float width, float height, float progress);
 void widget_scrollbar(float x, float y, float height, float offset, float visible, float total);
+// A finger on a scrollbar takes it, from a wider area than the bar (x is the bar's left), and the
+// scroll offset that puts the thumb under the finger. Nothing to take while all of it is visible.
+bool widget_scrollbar_touched(const touchPosition* pos, float x, float y, float height, float visible, float total);
+float widget_scrollbar_offset(float y, float height, float visible, float total, float py);
 
 // The bottom screen's toast, just above `bottom`: a line and, when progress
 // is known (>= 0), a bar.

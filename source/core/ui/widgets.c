@@ -261,6 +261,21 @@ void widget_progress(float x, float y, float width, float height, float progress
     }
 }
 
+bool widget_scrollbar_touched(const touchPosition* pos, float x, float y, float height, float visible, float total) {
+    return total > visible && total > 0 && pos->px >= x - 16 && pos->px <= x + WIDGET_SCROLLBAR_WIDTH + 10 && pos->py >= y - 4 && pos->py <= y + height + 4;
+}
+
+float widget_scrollbar_offset(float y, float height, float visible, float total, float py) {
+    float thumb = height * visible / total;
+    if(thumb < 12) {
+        thumb = 12;
+    }
+
+    float fraction = (py - y - thumb / 2) / (height - thumb);
+    fraction = fraction < 0 ? 0 : fraction > 1 ? 1 : fraction;
+    return fraction * (total - visible);
+}
+
 void widget_scrollbar(float x, float y, float height, float offset, float visible, float total) {
     if(total <= visible || total <= 0) {
         return;

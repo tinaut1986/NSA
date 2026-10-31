@@ -114,6 +114,129 @@ void selftest_fault_list(char* out, size_t size) {
 
 // ---- files ----
 
+// ---- CPU: how busy each core is ----
+
+// A thread per core at the lowest priority spins and counts: it only runs when
+// nothing else wants the core, so what it does not get is what the rest used.
+// Its rate on an idle core (measured first, for a moment at a high priority)
+// is 100% free. Core 1 is the system core: NSA may use 30% of it, and that is
+// what its figure is a share of.
+
+#define CPU_CORES_MAX 3
+
+typedef struct {
+    Thread thread;
+    volatile u64 loops;
+    volatile u64 idleRate;   // Loops per second with the core to itself.
+    volatile bool ready;
+} selftest_cpu_core;
+
+static selftest_cpu_core selftest_cpu[CPU_CORES_MAX];
+static u32 selftest_cpu_count = 0;
+static volatile bool selftest_cpu_run = false;
+
+static void selftest_cpu_thread(void* arg) {
+    selftest_cpu_core* core = (selftest_cpu_core*) arg;
+
+    // How fast it counts with nothing in the way, the same loop as below so
+    // that the rates compare. Only on the app core: there a short burst at a
+    // high priority is harmless, while on the system core it would hold up the
+    // FTP server. The cores run at one clock, so the others take this rate.
+    if(core == &selftest_cpu[0]) {
+        svcSetThreadPriority(CUR_THREAD_HANDLE, 0x18);
+        u64 start = svcGetSystemTick();
+        while(svcGetSystemTick() - start < SYSCLOCK_ARM11 / 5) {
+            for(u32 i = 0; i < 1000; i++) {
+                core->loops++;
+            }
+        }
+
+        u64 ticks = svcGetSystemTick() - start;
+        u64 rate = (u64) (core->loops * (double) SYSCLOCK_ARM11 / ticks);
+        svcSetThreadPriority(CUR_THREAD_HANDLE, 0x3F);
+        for(u32 i = 0; i < selftest_cpu_count; i++) {
+            selftest_cpu[i].idleRate = rate;
+        }
+    }
+
+    core->ready = true;
+
+    while(selftest_cpu_run) {
+        for(u32 i = 0; i < 1000; i++) {
+            core->loops++;
+        }
+    }
+}
+
+static void selftest_cpu_start() {
+    if(selftest_cpu_run) {
+        return;
+    }
+
+    bool isNew = false;
+    APT_CheckNew3DS(&isNew);
+    selftest_cpu_count = isNew ? 3 : 2;
+    selftest_cpu_run = true;
+    memset(selftest_cpu, 0, sizeof(selftest_cpu));
+    for(u32 i = 0; i < selftest_cpu_count; i++) {
+        selftest_cpu[i].thread = threadCreate(selftest_cpu_thread, &selftest_cpu[i], 0x1000, 0x3F, (int) i, false);
+    }
+
+    for(u32 waited = 0; waited < 3000 && selftest_cpu[0].idleRate == 0; waited += 10) {
+        svcSleepThread(10000000);
+    }
+}
+
+void selftest_cpu_stop() {
+    if(!selftest_cpu_run) {
+        return;
+    }
+
+    selftest_cpu_run = false;
+    for(u32 i = 0; i < selftest_cpu_count; i++) {
+        if(selftest_cpu[i].thread != NULL) {
+            threadJoin(selftest_cpu[i].thread, U64_MAX);
+            threadFree(selftest_cpu[i].thread);
+            selftest_cpu[i].thread = NULL;
+        }
+    }
+}
+
+// "core0 37% core1 12% core2 80%" busy over the next `ms` (FTP thread).
+void selftest_cpu_measure(u32 ms, char* out, size_t size) {
+    selftest_cpu_start();
+
+    u64 before[CPU_CORES_MAX];
+    for(u32 i = 0; i < selftest_cpu_count; i++) {
+        before[i] = selftest_cpu[i].loops;
+    }
+
+    u64 start = svcGetSystemTick();
+    svcSleepThread((s64) ms * 1000000);
+    double secs = (double) (svcGetSystemTick() - start) / SYSCLOCK_ARM11;
+
+    size_t len = 0;
+    out[0] = '\0';
+    for(u32 i = 0; i < selftest_cpu_count && len < size; i++) {
+        if(selftest_cpu[i].thread == NULL || selftest_cpu[i].idleRate == 0) {
+            len += snprintf(out + len, size - len, "%score%lu ?", i > 0 ? " " : "", i);
+            continue;
+        }
+
+        double free = (selftest_cpu[i].loops - before[i]) / secs / (double) selftest_cpu[i].idleRate;
+        // The system core: NSA gets only its time limit of it, which is the 100%.
+        if(i == 1) {
+            u32 limit = 0;
+            if(R_SUCCEEDED(APT_GetAppCpuTimeLimit(&limit)) && limit > 0) {
+                free = free * 100 / limit;
+            }
+        }
+
+        int busy = (int) ((1.0 - (free > 1 ? 1 : free)) * 100 + 0.5);
+        len += snprintf(out + len, size - len, "%score%lu %d%%", i > 0 ? " " : "", i, busy);
+    }
+}
+
 bool selftest_sha256(const char* path, char* hex, size_t size) {
     if(size < 65) {
         return false;

@@ -24,6 +24,12 @@ void selftest_fault_clear();
 // "point hits/fired ..." for every armed fault.
 void selftest_fault_list(char* out, size_t size);
 
+// SITE CPU (FTP thread): how busy each core was over the next `ms`, as
+// "core0 37% core1 12% ...". It starts counting threads at the lowest priority
+// on each core; SITE CPU OFF stops them.
+void selftest_cpu_measure(u32 ms, char* out, size_t size);
+void selftest_cpu_stop();
+
 // SITE SHA256 (FTP thread): the hash of a file, in hex; false when it can not be read.
 bool selftest_sha256(const char* path, char* hex, size_t size);
 

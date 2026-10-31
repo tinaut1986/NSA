@@ -37,17 +37,60 @@ What `release` holds, in the order it was built:
 10. **Export an installed title as a CIA** (Titles' sheet; by another session, validated).
 11. **Console to console** (below): send and receive files and titles, over the Wi-Fi or
     with no router, install on arrival, resume, log.
-12. **Files: cut/move, pictures and text** (branch `feat/file-viewers`, not merged until the owner
-    validates): "Cut (move)" on files and folders (renamed when pasted on the same medium,
+12. **Files: cut/move, pictures and text** (merged, see Pending tests): "Cut (move)" on files and folders (renamed when pasted on the same medium,
     else copied then deleted); tapping a picture (PNG, JPEG, BMP, GIF, TGA, camera MPO in 3D)
     opens `imageview.c` (zoom, drag, L/R through the folder; decoded up to 5 megapixels and
     shrunk to a 1024 px texture); text files (and "Open as text" for any file) open
     `textview.c`, which edits with its own keyboard on the bottom screen (the system one hides
     the text), keeps CRLF, reads non-UTF-8 as Latin-1, up to 256 KB (longer: read only).
-13. **Audio player** (branch `feat/audio-player`, cut from `feat/file-viewers`): MP3, WAV, FLAC and
+13. **Audio player** (merged, see Pending tests): MP3, WAV, FLAC and
     Ogg Vorbis from Files (`audioview.c`). dr_mp3/dr_flac/dr_wav (vendored in `source/libs/dr_libs`,
     public domain) and Tremor decode on a thread into four DSP buffers; the next file of the
     folder follows, seek bar, volume, +-10 s. Needs `sdmc:/3ds/dspfirm.cdc`. Tested only on Azahar.
+
+## Pending tests on the console (2026-10-31)
+
+Merged into `release` on the owner's word, **not yet tried on a console** (only built, and the
+viewers in Azahar). The owner will go through them one by one; tick each when validated.
+
+**Downloads** (issue #19 has the review points)
+- [ ] Big download (>= 4 MB) from a server with `Accept-Ranges`: New 3DS (8 connections) and
+      2DS (2 connections): speed, cancel half way, dropped connection (segment retries), hash.
+- [ ] Small download and a server without ranges (one connection, ring of buffers).
+- [ ] HTTPS curl cannot connect to: fallback to the system's HTTP service.
+- [ ] `transfer-log.txt` has the `http:` speed lines.
+- [ ] Idle drawing: nothing that moves by itself looks choppy (toasts, progress, cross-fades,
+      Receive screens); `ui_wake()` exists but nobody calls it yet.
+- [ ] `SITE CPU` (DEBUG) answers per core without disturbing the FTP server.
+
+**Remote install history**
+- [ ] History list: install again, forget, long-press sheet, top card with the links.
+- [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.
+
+**Files: cut / move**
+- [ ] Cut a file and a folder, paste on the same medium (instant rename) and on another one
+      (SD to NAND: copy then delete the source); same folder; folder into itself; name taken.
+- [ ] Cut, then paste after the source's list was left (clipboard survives navigating).
+
+**Files: pictures**
+- [ ] PNG, JPEG, BMP, GIF, TGA open; L/R through the folder; zoom, drag, D-Pad/Circle Pad pan.
+- [ ] A camera's **MPO in 3D** (pair order, depth, slider at 0 shows the left picture): not
+      tried even in Azahar (no sample).
+- [ ] More than 5 megapixels / 12 MB refuses with a message; a 1024+ px picture is shrunk.
+- [ ] Memory on an Old 3DS with a 4-5 megapixel JPEG.
+
+**Files: text**
+- [ ] Open `.txt`/`.json`/...; "Open as text" on any file; binary files refuse.
+- [ ] Edit with the custom keyboard: letters, shift/caps, symbols, accents, backspace/arrows
+      repeat, D-Pad cursor, X/Y/A shortcuts, START saves, close with changes asks.
+- [ ] CRLF kept; a Latin-1 file is read and saved as UTF-8; a file over 256 KB is read only.
+- [ ] Saving on the NAND / save-data archives (commit).
+
+**Files: audio**
+- [ ] MP3, WAV, FLAC, Ogg Vorbis really heard (Azahar only showed the position moving).
+- [ ] Old 3DS decodes MP3/FLAC in real time; CPU use while the UI draws.
+- [ ] Seek (+-10 s, bar) in a long MP3 (slow without a seek table); next track on its own.
+- [ ] No `dspfirm.cdc`: the message shows instead of crashing.
 
 ## Export an installed title as a CIA (`source/fbi/action/exportcia.c`)
 

@@ -64,6 +64,7 @@ const i18n_entry i18n_es[] = {
         {"\uE000 OK", "\uE000 OK"},
         {"\uE001 back", "\uE001 volver"},
         {"Start dump", "Copiar"},
+        {"Also saved as a .sha256 file next to it.", "También guardado en un archivo .sha256 junto a ella."},
         {"Dump NAND", "Copiar la NAND"},
         {"Copy the whole system memory to the SD card as a backup.", "Copia toda la memoria del sistema en la tarjeta SD como copia de seguridad."},
         {"Theme, colours, language, updates and the FTP server.", "Tema, colores, idioma, actualizaciones y servidor FTP."},

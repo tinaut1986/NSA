@@ -59,6 +59,16 @@ body.pixel .prog{border-radius:0}
 .title .acts{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 .title .acts button{padding:2px 8px;font-size:13px}
 .note{color:var(--muted);font-size:13px;margin:6px 0}
+dialog{background:var(--card);color:var(--ink);border:var(--bw) solid var(--line);border-radius:var(--r);padding:14px;max-width:min(560px,92vw);width:100%}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog h3{margin:0 0 8px;font-size:16px}
+.choices{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow:auto;margin:8px 0}
+.choices button{text-align:left}
+textarea{font:inherit;width:100%;min-height:90px;color:var(--ink);background:var(--bg);border:var(--bw) solid var(--line);border-radius:var(--rs);padding:8px}
+.hist{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:var(--bw) solid var(--line)}
+.hist .u{flex:1;min-width:0;word-break:break-all;font-size:13px}
+pre.log{max-height:300px;overflow:auto;background:var(--bg);border:var(--bw) solid var(--line);border-radius:var(--rs);padding:8px;font-size:12px;white-space:pre-wrap;word-break:break-all}
+h2{font-size:15px;margin:14px 0 6px}
 </style>
 </head>
 <body>
@@ -76,7 +86,7 @@ body.pixel .prog{border-radius:0}
   <span class="info" id="space"></span>
 </header>
 <main>
-  <nav><button id="tab_files" class="on"></button><button id="tab_titles"></button></nav>
+  <nav><button id="tab_files" class="on"></button><button id="tab_titles"></button><button id="tab_install"></button></nav>
 
   <div class="card" id="files">
     <div class="bar">
@@ -95,6 +105,17 @@ body.pixel .prog{border-radius:0}
     <div id="uploads"></div>
   </div>
 
+  <div class="card hide" id="install">
+    <h2 id="h_urls" style="margin-top:0"></h2>
+    <textarea id="urls" spellcheck="false"></textarea>
+    <div class="bar" style="margin-top:8px"><button class="primary" id="installurls"></button><span class="note" id="urlsnote"></span></div>
+    <h2 id="h_hist"></h2>
+    <div id="hist"></div>
+    <h2 id="h_log"></h2>
+    <div class="bar"><button id="reloadlog"></button></div>
+    <pre class="log" id="log"></pre>
+  </div>
+
   <div class="card hide" id="titles">
     <div class="bar">
       <input type="text" id="filter">
@@ -108,6 +129,7 @@ body.pixel .prog{border-radius:0}
   </div>
 </main>
 </div>
+<dialog id="dlg"><h3 id="dlgtitle"></h3><div class="choices" id="dlgbody"></div><div class="bar"><button id="dlgclose"></button></div></dialog>
 <div id="toast"></div>
 
 <script>
@@ -116,11 +138,15 @@ const T = {
   en:{pin:'Type the PIN shown in the console\'s Settings (Web server).',enter:'Enter',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',up:'Up',mkdir:'New folder',upload:'Upload',name:'Name',size:'Size',date:'Modified',download:'Download',rename:'Rename',del:'Delete',install:'Install',empty:'Empty folder.',drop:'Drop files here to upload them to this folder',free:'free of',newname:'Name of the new folder:',renameto:'New name:',confirmdel:'Delete "%s"? This cannot be undone.',confirminst:'Install "%s" on the console?',done:'Done.',installed:'Installed.',restarting:'Installed. NSA restarts in a few seconds.',failed:'Failed: ',uploading:'Uploading',lost:'Cannot reach the console.',
     files:'Files',titles:'Titles',search:'Search…',k_game:'Games and demos',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',sendpkg:'Send a save package to the console',
     note:'Saves, extra data and SpotPass data download as a .nsasave package; a package you send is unpacked on the console, which asks there before replacing anything.',
-    save:'Save',ext:'Extra data',boss:'SpotPass',packing:'Packing…',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and saved on the console (this title or its data is not there, so it cannot be imported).',notitles:'No titles.',loading:'Loading titles…',version:'v'},
+    save:'Save',ext:'Extra data',boss:'SpotPass',packing:'Packing…',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and saved on the console (this title or its data is not there, so it cannot be imported).',notitles:'No titles.',loading:'Loading titles…',version:'v',
+    install:'Install',h_urls:'Install from URLs (one per line)',installurls:'Send to the console',urlsnote:'The console asks there before installing.',h_hist:'Remote Install history',h_log:'Transfer log',reload:'Reload',again:'Install again',nohist:'Nothing yet.',nolog:'(no log)',
+    launch:'Launch',delete:'Delete',delticket:'Delete with ticket',import:'Import',close:'Close',importtitle:'Import %s',nobackups:'No backups of this data (NSA\'s exports or Checkpoint\'s).',asked:'Look at the console: it asks there.',confirmlaunch:'Launch "%s" on the console? (NSA closes.)',confirmdelete:'Ask the console to delete "%s"? It asks again there.'},
   es:{pin:'Escribe el PIN que sale en Ajustes de la consola (Servidor web).',enter:'Entrar',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',up:'Subir nivel',mkdir:'Nueva carpeta',upload:'Subir archivos',name:'Nombre',size:'Tamaño',date:'Modificado',download:'Descargar',rename:'Renombrar',del:'Borrar',install:'Instalar',empty:'Carpeta vacía.',drop:'Suelta aquí archivos para subirlos a esta carpeta',free:'libres de',newname:'Nombre de la carpeta nueva:',renameto:'Nombre nuevo:',confirmdel:'¿Borrar "%s"? No se puede deshacer.',confirminst:'¿Instalar "%s" en la consola?',done:'Hecho.',installed:'Instalado.',restarting:'Instalado. NSA se reinicia en unos segundos.',failed:'Error: ',uploading:'Subiendo',lost:'No se puede contactar con la consola.',
     files:'Archivos',titles:'Títulos',search:'Buscar…',k_game:'Juegos y demos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',sendpkg:'Enviar un paquete de partida a la consola',
     note:'Las partidas, los datos extra y los datos SpotPass se descargan como un paquete .nsasave; un paquete que envíes se desempaqueta en la consola, que pregunta allí antes de reemplazar nada.',
-    save:'Partida',ext:'Datos extra',boss:'SpotPass',packing:'Empaquetando…',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están, así que no se puede importar).',notitles:'Sin títulos.',loading:'Cargando títulos…',version:'v'}
+    save:'Partida',ext:'Datos extra',boss:'SpotPass',packing:'Empaquetando…',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están, así que no se puede importar).',notitles:'Sin títulos.',loading:'Cargando títulos…',version:'v',
+    install:'Instalar',h_urls:'Instalar desde URLs (una por línea)',installurls:'Enviar a la consola',urlsnote:'La consola pregunta allí antes de instalar.',h_hist:'Historial de Remote Install',h_log:'Registro de transferencias',reload:'Recargar',again:'Instalar otra vez',nohist:'Nada todavía.',nolog:'(sin registro)',
+    launch:'Lanzar',delete:'Borrar',delticket:'Borrar con ticket',import:'Importar',close:'Cerrar',importtitle:'Importar %s',nobackups:'No hay copias de estos datos (exportaciones de NSA ni de Checkpoint).',asked:'Mira la consola: pregunta allí.',confirmlaunch:'¿Lanzar "%s" en la consola? (NSA se cierra.)',confirmdelete:'¿Pedir a la consola que borre "%s"? Pregunta otra vez allí.'}
 }[L];
 document.documentElement.lang = L;
 const $ = id => document.getElementById(id);
@@ -128,7 +154,7 @@ let pin = '', cwd = '/';
 
 function setText(){ $('t_pin').textContent=T.pin; $('enter').textContent=T.enter; $('up').textContent=T.up; $('mkdir').textContent=T.mkdir;
   $('uploadbtn').textContent=T.upload; $('h_name').textContent=T.name; $('h_size').textContent=T.size; $('h_date').textContent=T.date; $('drop').textContent=T.drop;
-  $('tab_files').textContent=T.files; $('tab_titles').textContent=T.titles; $('filter').placeholder=T.search; $('sendpkg').textContent=T.sendpkg; $('titlesnote').textContent=T.note;
+  $('tab_files').textContent=T.files; $('tab_titles').textContent=T.titles; $('tab_install').textContent=T.install; $('h_urls').textContent=T.h_urls; $('installurls').textContent=T.installurls; $('urlsnote').textContent=T.urlsnote; $('h_hist').textContent=T.h_hist; $('h_log').textContent=T.h_log; $('reloadlog').textContent=T.reload; $('dlgclose').textContent=T.close; $('filter').placeholder=T.search; $('sendpkg').textContent=T.sendpkg; $('titlesnote').textContent=T.note;
   const sel=$('kind'); sel.textContent=''; [['game',T.k_game],['update',T.k_update],['dlc',T.k_dlc],['system',T.k_system],['all',T.k_all]].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; sel.appendChild(o); }); }
 setText();
 
@@ -184,11 +210,11 @@ async function run(fn){ try { await fn(); } catch(e){ if(e.auth) showLogin(e.mes
 
 // ---- tabs ----
 function tab(name){
-  $('files').classList.toggle('hide', name!=='files'); $('titles').classList.toggle('hide', name!=='titles');
-  $('tab_files').classList.toggle('on', name==='files'); $('tab_titles').classList.toggle('on', name==='titles');
+  for(const n of ['files','titles','install']){ $(n).classList.toggle('hide', name!==n); $('tab_'+n).classList.toggle('on', name===n); }
   if(name==='titles' && !titlesLoaded) loadTitles();
+  if(name==='install') loadInstall();
 }
-$('tab_files').onclick = () => tab('files'); $('tab_titles').onclick = () => tab('titles');
+$('tab_files').onclick = () => tab('files'); $('tab_titles').onclick = () => tab('titles'); $('tab_install').onclick = () => tab('install');
 
 // ---- files ----
 function crumbs(){
@@ -323,8 +349,30 @@ function fillCard(t, card, d){
   card.querySelector('.t').textContent = d.name || t.id;
   const pub = d.publisher ? d.publisher+' · ' : ''; card.querySelectorAll('.s')[1].textContent = pub + (d.code||'') + ' ' + t.id;
   const acts = card.querySelector('.acts'); acts.textContent='';
-  [['save',T.save],['ext',T.ext],['boss',T.boss]].forEach(([kind,label]) => { if(d[kind]) acts.appendChild(btn('⬇ '+label,'',()=>downloadSave(t, d, kind, label))); });
+  [['save',T.save],['ext',T.ext],['boss',T.boss]].forEach(([kind,label]) => { if(d[kind]) {
+    acts.appendChild(btn('⬇ '+label,'',()=>downloadSave(t, d, kind, label)));
+    acts.appendChild(btn('⬆ '+label,'',()=>importDialog(t, d, kind, label))); } });
+  if(t.kind==='game' || t.kind==='demo') acts.appendChild(btn(T.launch,'',()=>launchTitle(t, d)));
+  acts.appendChild(btn(T.delete,'danger',()=>deleteTitle(t, d, false)));
+  if(t.kind!=='system') acts.appendChild(btn(T.delticket,'danger',()=>deleteTitle(t, d, true)));
 }
+const tname = (t,d) => (d&&d.name)||t.id;
+async function launchTitle(t, d){ if(!confirm(T.confirmlaunch.replace('%s',tname(t,d)))) return;
+  run(async()=>{ await api('POST','title/launch', q('id',t.id)+'&'+q('media',t.media)); toast(T.asked); }); }
+async function deleteTitle(t, d, ticket){ if(!confirm(T.confirmdelete.replace('%s',tname(t,d)))) return;
+  run(async()=>{ await api('POST','title/delete', q('id',t.id)+'&'+q('media',t.media)+'&ticket='+(ticket?1:0)); toast(T.asked); }); }
+function importDialog(t, d, kind, label){
+  run(async()=>{
+    const j = await api('GET','save/backups', q('id',t.id)+'&'+q('media',t.media)+'&'+q('kind',kind));
+    $('dlgtitle').textContent = T.importtitle.replace('%s', label+' · '+tname(t,d));
+    const body = $('dlgbody'); body.textContent='';
+    if(!j.backups.length){ const n=document.createElement('div'); n.className='note'; n.textContent=T.nobackups; body.appendChild(n); }
+    j.backups.forEach(b => body.appendChild(btn(b.label,'',()=>{ $('dlg').close();
+      run(async()=>{ await api('POST','save/import', q('id',t.id)+'&'+q('media',t.media)+'&'+q('kind',kind)+'&'+q('path',b.path)+'&'+q('name',tname(t,d))); toast(T.asked); }); })));
+    $('dlg').showModal();
+  });
+}
+$('dlgclose').onclick = () => $('dlg').close();
 async function downloadSave(t, d, kind, label){
   run(async()=>{
     toast(T.packing);
@@ -346,6 +394,38 @@ $('pkg').onchange = async e => {
     toast(j.import ? T.pkgsent : T.pkgsentkeep);
   });
 };
+
+// ---- install: URLs, the history of Remote Install, the transfer log ----
+function sendUrls(text){
+  run(async()=>{ await api('POST','install-url', null, text); toast(T.asked); loadInstall(); });
+}
+$('installurls').onclick = () => { const t = $('urls').value.trim(); if(t) sendUrls(t+'\n'); };
+async function fetchText(path, from){
+  const r = await fetch('/api/file?'+q('path',path), {headers: Object.assign({'X-Pin':pin}, from ? {Range:'bytes='+from+'-'} : {})});
+  if(!r.ok) return null; return r.text();
+}
+async function loadInstall(){
+  const hist = $('hist'); hist.textContent='';
+  try {
+    const text = await fetchText('/nsa/history.json');
+    const list = text ? JSON.parse(text) : [];
+    if(!list.length) hist.textContent = T.nohist;
+    list.forEach(h => { const row=document.createElement('div'); row.className='hist';
+      const u=document.createElement('div'); u.className='u'; u.textContent=h.urls.trim();
+      if(h.time){ const t=document.createElement('div'); t.className='note'; t.textContent=fmtDate(h.time); u.appendChild(t); }
+      row.append(u, btn(T.again,'',()=>sendUrls(h.urls))); hist.appendChild(row); });
+  } catch(e){ hist.textContent = T.nohist; }
+  loadLog();
+}
+async function loadLog(){
+  try {
+    const j = await api('GET','list','path=%2Fnsa'); const f = j.files.find(f=>f.name==='transfer-log.txt');
+    const text = f ? await fetchText('/nsa/transfer-log.txt', Math.max(0, f.size-20000)) : null;
+    $('log').textContent = text ? text.split('\n').slice(-200).join('\n') : T.nolog;
+    $('log').scrollTop = 1e9;
+  } catch(e){ $('log').textContent = T.nolog; }
+}
+$('reloadlog').onclick = loadLog;
 
 const saved = sessionStorage.getItem('pin');
 if(saved){ $('pin').value = saved; login(); } else showLogin();

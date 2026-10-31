@@ -60,4 +60,12 @@ if titles:
 s, b = req('GET', '/api/title?id=0004000000000000&media=sd', a.pin); check('unknown title is 404', s == 404)
 s, b = req('POST', '/api/save/pack?id=0004000000000000&media=sd&kind=save', a.pin); check('save of an unknown title is 404', s == 404)
 s, b = req('POST', '/api/save/receive?path=/webtest/x.nsasave', a.pin); check('receive only from /nsa/received', s == 400)
+s, b = req('POST', '/api/install-url', a.pin, b'ftp://x/y.cia\n'); check('only http(s) URLs', s == 400)
+s, b = req('POST', '/api/install-url', a.pin, b''); check('empty URL list refused', s == 400)
+s, b = req('POST', '/api/title/launch?id=0004000000000000&media=sd', a.pin); check('launch of an unknown title is 404', s == 404)
+s, b = req('POST', '/api/title/delete?id=0004000000000000&media=sd', a.pin); check('delete of an unknown title is 404', s == 404)
+if titles:
+    s, b = req('GET', '/api/save/backups?' + q + '&kind=save', a.pin); check('backups list', s == 200 and isinstance(json.loads(b)['backups'], list))
+    s, b = req('POST', '/api/save/import?' + q + '&kind=save&path=/etc/passwd', a.pin); check('import needs a listed backup (404 or queued then refused)', s in (200, 404))
+s, b = req('POST', '/api/install-url', a.pin, b'http://127.0.0.1:9/none.cia\n'); check('install from a URL is queued for the console to ask', s == 200)
 print('failures:', fails); sys.exit(1 if fails else 0)

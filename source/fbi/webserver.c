@@ -17,6 +17,7 @@
 #include <jansson.h>
 
 #include "ftpserver.h"
+#include "section.h"
 #include "relaunch.h"
 #include "transfer.h"
 #include "webserver.h"
@@ -933,10 +934,90 @@ static void web_api_save_pack(web_request* r) {
     web_send_json(r, 200, json_pack("{s:b,s:s,s:I}", "ok", 1, "path", path, "size", (json_int_t) size));
 }
 
-// A package the page uploaded: the console takes it as if it had been sent, and asks there what to do.
-static char web_receive_path[WEB_PATH_MAX];
-static volatile bool web_receive_pending = false;
-static bool web_receive_import = false;
+// ---- what has to happen on the main thread ----
+//
+// Anything that opens a question or a screen on the console is done by the main thread (webserver_poll_main),
+// one request at a time. The page never changes anything this way on its own: the console asks first.
+
+typedef enum {
+    REQ_NONE,
+    REQ_RECEIVE,       // A package the page uploaded: unpacked, and imported if asked.
+    REQ_IMPORT,        // A backup already on the SD card.
+    REQ_LAUNCH,
+    REQ_DELETE,
+    REQ_INSTALL_URL
+} web_request_kind;
+
+static struct {
+    volatile bool pending;
+    web_request_kind kind;
+    title_info title;
+    char name[0x100];
+    save_kind saveKind;
+    u32 extId;
+    bool flag;                 // REQ_RECEIVE: import; REQ_DELETE: with the ticket.
+    char path[WEB_PATH_MAX];
+    char urls[4096];
+} web_job;
+
+// Claims the slot; false (and the answer sent) when the console is still on the last request.
+static bool web_job_begin(web_request* r, web_request_kind kind) {
+    if(web_job.pending) {
+        web_send_error(r, 409, "the console is still asking about the last request");
+        return false;
+    }
+
+    memset(&web_job, 0, sizeof(web_job));
+    web_job.kind = kind;
+    return true;
+}
+
+static void web_job_run() {
+    switch(web_job.kind) {
+        case REQ_RECEIVE:
+            action_save_package_received(web_job.path, web_job.flag);
+            break;
+        case REQ_IMPORT:
+            action_save_import_backup(&web_job.title, web_job.name, web_job.saveKind, web_job.extId, web_job.path);
+            break;
+        case REQ_LAUNCH:
+        case REQ_DELETE: {
+            // The actions keep the item while their question is open: it is never freed here.
+            list_item* item = task_title_item(web_job.title.mediaType, web_job.title.titleId);
+            if(item == NULL) {
+                break;
+            }
+
+            if(web_job.kind == REQ_LAUNCH) {
+                action_launch_title(NULL, item);
+            } else {
+                static linked_list deleting;
+                static bool ready = false;
+                if(!ready) {
+                    linked_list_init(&deleting);
+                    ready = true;
+                }
+
+                linked_list_add(&deleting, item);
+                if(web_job.flag) {
+                    action_delete_title_ticket(&deleting, item);
+                } else {
+                    action_delete_title(&deleting, item);
+                }
+            }
+
+            break;
+        }
+        case REQ_INSTALL_URL:
+            action_install_url("Install from the URL(s) sent from the web page?", web_job.urls, NULL, NULL, NULL, NULL, NULL);
+            break;
+        default:
+            break;
+    }
+
+    web_job.kind = REQ_NONE;
+    web_job.pending = false;
+}
 
 static void web_api_save_receive(web_request* r) {
     char vpath[WEB_PATH_MAX];
@@ -954,17 +1035,158 @@ static void web_api_save_receive(web_request* r) {
         return;
     }
 
-    if(web_receive_pending) {
-        web_send_error(r, 409, "the console is still asking about the last one");
+    char want[8] = "";
+    web_query_get(r->query, "import", want, sizeof(want));
+    if(!web_job_begin(r, REQ_RECEIVE)) {
         return;
     }
 
-    string_copy(web_receive_path, vpath, sizeof(web_receive_path));
-    char want[8] = "";
-    web_query_get(r->query, "import", want, sizeof(want));
-    web_receive_import = strcmp(want, "1") == 0 && action_save_package_can_import(id, kind);
-    web_receive_pending = true;
-    web_send_json(r, 200, json_pack("{s:b,s:b}", "ok", 1, "import", web_receive_import));
+    string_copy(web_job.path, vpath, sizeof(web_job.path));
+    web_job.flag = strcmp(want, "1") == 0 && action_save_package_can_import(id, kind);
+    bool import = web_job.flag;
+    web_job.pending = true;
+    web_send_json(r, 200, json_pack("{s:b,s:b}", "ok", 1, "import", import));
+}
+
+// The backups of a title's data that are on the SD card: NSA's exports and Checkpoint's.
+static void web_api_save_backups(web_request* r) {
+    title_info title;
+    save_kind kind;
+    if(!web_parse_title(r, &title) || !web_parse_kind(r, &kind)) {
+        return;
+    }
+
+    save_backup* backups = NULL;
+    u32 count = action_save_backups(&title, kind, &backups);
+    json_t* list = json_array();
+    for(u32 i = 0; i < count; i++) {
+        json_array_append_new(list, json_pack("{s:s,s:s,s:b}", "path", backups[i].path, "label", backups[i].label, "checkpoint", backups[i].checkpoint));
+    }
+
+    free(backups);
+    web_send_json(r, 200, json_pack("{s:b,s:o}", "ok", 1, "backups", list));
+}
+
+static void web_api_save_import(web_request* r) {
+    title_info title;
+    save_kind kind;
+    char path[WEB_PATH_MAX] = "";
+    if(!web_parse_title(r, &title) || !web_parse_kind(r, &kind)) {
+        return;
+    }
+
+    u32 extId = 0;
+    if(!web_query_get(r->query, "path", path, sizeof(path)) || !action_save_data_exists(&title, kind, &extId)) {
+        web_send_error(r, 404, "this title has no such data (or it was never started)");
+        return;
+    }
+
+    if(!web_job_begin(r, REQ_IMPORT)) {
+        return;
+    }
+
+    web_job.title = title;
+    web_query_get(r->query, "name", web_job.name, sizeof(web_job.name));
+    web_job.saveKind = kind;
+    web_job.extId = extId;
+    string_copy(web_job.path, path, sizeof(web_job.path));
+    web_job.pending = true;
+    web_send_ok(r);
+}
+
+static void web_api_title_launch(web_request* r) {
+    title_info title;
+    if(!web_parse_title(r, &title) || !web_job_begin(r, REQ_LAUNCH)) {
+        return;
+    }
+
+    web_job.title = title;
+    web_job.pending = true;
+    web_send_ok(r);
+}
+
+static void web_api_title_delete(web_request* r) {
+    title_info title;
+    if(!web_parse_title(r, &title)) {
+        return;
+    }
+
+    char ticket[8] = "";
+    web_query_get(r->query, "ticket", ticket, sizeof(ticket));
+    if(!web_job_begin(r, REQ_DELETE)) {
+        return;
+    }
+
+    web_job.title = title;
+    web_job.flag = strcmp(ticket, "1") == 0;
+    web_job.pending = true;
+    web_send_ok(r);
+}
+
+// The body is the URLs, one per line: the console asks before installing them.
+static void web_api_install_url(web_request* r) {
+    if(r->contentLength == 0 || r->contentLength >= sizeof(web_job.urls)) {
+        web_send_error(r, 400, "send between 1 and 4000 bytes of URLs");
+        return;
+    }
+
+    char* urls = (char*) calloc(1, sizeof(web_job.urls));
+    if(urls == NULL) {
+        web_send_error(r, 500, "out of memory");
+        return;
+    }
+
+    u32 early = r->have - r->headLen;
+    if(early > r->contentLength) {
+        early = (u32) r->contentLength;
+    }
+
+    memcpy(urls, r->head + r->headLen, early);
+    u32 got = early;
+    bool ok = true;
+    while(ok && got < r->contentLength) {
+        if(!web_wait_fd(r->fd, POLLIN, WEB_IDLE_MS)) {
+            ok = false;
+            break;
+        }
+
+        ssize_t n = recv(r->fd, urls + got, (size_t) (r->contentLength - got), 0);
+        if(n <= 0) {
+            ok = false;
+            break;
+        }
+
+        got += (u32) n;
+    }
+
+    // Only web addresses, one per line.
+    bool valid = ok && got > 0;
+    for(char* line = urls; valid && *line != '\0'; ) {
+        char* end = strchr(line, '\n');
+        size_t len = end != NULL ? (size_t) (end - line) : strlen(line);
+        if(len > 0 && !(strncmp(line, "http://", 7) == 0 || strncmp(line, "https://", 8) == 0)) {
+            valid = false;
+        }
+
+        line = end != NULL ? end + 1 : line + len;
+    }
+
+    if(!valid) {
+        free(urls);
+        web_send_error(r, 400, "only http:// and https:// addresses, one per line");
+        return;
+    }
+
+    if(!web_job_begin(r, REQ_INSTALL_URL)) {
+        free(urls);
+        return;
+    }
+
+    string_copy(web_job.urls, urls, sizeof(web_job.urls));
+    free(urls);
+    remoteinstall_note_urls(web_job.urls);
+    web_job.pending = true;
+    web_send_ok(r);
 }
 
 // ---- serving ----
@@ -1039,6 +1261,16 @@ static void web_handle(web_request* r) {
         web_api_save_pack(r);
     } else if(post && strcmp(api, "save/receive") == 0) {
         web_api_save_receive(r);
+    } else if(get && strcmp(api, "save/backups") == 0) {
+        web_api_save_backups(r);
+    } else if(post && strcmp(api, "save/import") == 0) {
+        web_api_save_import(r);
+    } else if(post && strcmp(api, "title/launch") == 0) {
+        web_api_title_launch(r);
+    } else if(post && strcmp(api, "title/delete") == 0) {
+        web_api_title_delete(r);
+    } else if(post && strcmp(api, "install-url") == 0) {
+        web_api_install_url(r);
     } else {
         web_send_error(r, 404, "unknown request");
     }
@@ -1190,9 +1422,8 @@ void webserver_resume_later() {
 
 void webserver_poll_main() {
     // A package uploaded by the page: unpacked (and imported, behind the red question) like one that was sent.
-    if(web_receive_pending) {
-        action_save_package_received(web_receive_path, web_receive_import);
-        web_receive_pending = false;
+    if(web_job.pending) {
+        web_job_run();
     }
 
     if(web_retry && osGetTime() >= web_retry_next) {

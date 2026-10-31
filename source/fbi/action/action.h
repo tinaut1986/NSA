@@ -72,6 +72,13 @@ void action_browse_title_save_data(linked_list* items, list_item* selected);
 typedef enum { SAVE_KIND_SAVE, SAVE_KIND_EXT } save_kind;
 void action_export_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
 void action_import_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
+// Sent as one file (a package, see savetransfer.c) over the console to console transfer.
+void action_send_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
+bool action_find_ext_data(title_info* info, u32* extId);
+// The receiving side: a package's file name tells what it is; `path` is inside the SD archive.
+bool action_save_package_name(const char* fileName, u64* titleId, save_kind* kind, char* name, size_t nameSize);
+bool action_save_package_can_import(u64 titleId, save_kind kind);
+void action_save_package_received(const char* path, bool importNow);
 void action_import_secure_value(linked_list* items, list_item* selected);
 void action_export_secure_value(linked_list* items, list_item* selected);
 void action_delete_secure_value(linked_list* items, list_item* selected);

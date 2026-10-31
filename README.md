@@ -24,7 +24,7 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 - **Remote install** keeps a history of what you installed, to install it again.
 - **Send a file or an installed title to another 3DS** that runs NSA, over your Wi-Fi (four
   connections at once) or with no router at all. The other console picks what to do: install now,
-  or save it in a folder. A cut transfer goes on where it stopped. Every send and receive is logged
+  or save it in a folder (a save sent this way is imported or kept with the other exports). A cut transfer goes on where it stopped. Every send and receive is logged
   in `sdmc:/nsa/transfer-log.txt`.
 - **Export an installed title as a CIA** (installing it again needs Luma3DS).
 
@@ -44,6 +44,9 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 - **Titles**: rows or a grid of icons, filters by memory, kind and region, search and sorting;
   updates and DLC are grouped under their game. Launch, delete (with or without its ticket),
   extract the icon, browse the save data and the extra data, import and export secure values.
+- **Save data and extra data** of a 3DS game can be exported to a folder on the SD card, imported back (the current
+  data is exported first) and sent to another 3DS. Importing also finds [Checkpoint](https://github.com/FlagBrew/Checkpoint)'s
+  backups, each one tagged with the app it comes from.
 - **Tickets**, **Ext Save Data** and **Pending titles** (interrupted installs and downloads) on the
   same pattern: pictures, filters, search, and actions in a sheet, with what deletes in red.
 - Export, import and erase the save data of DS cartridges.

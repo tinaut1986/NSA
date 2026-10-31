@@ -9,6 +9,7 @@
 #include <jansson.h>
 #include "../core/http.h"
 #include "../core/screen.h"
+#include "../core/sound.h"
 #include "../core/task/task.h"
 #include "../core/ui/ui.h"
 #include "section.h"
@@ -167,6 +168,7 @@ void cleanup() {
     clipboard_clear();
 
     task_exit();
+    sound_exit();
     ui_exit();
     screen_exit();
 

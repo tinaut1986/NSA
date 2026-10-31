@@ -16,6 +16,8 @@ static settings_data settings = {
         .theme = 0,
         .accent = 0,
         .night = THEME_NIGHT_OFF,
+        .sounds = SOUNDS_ALL,
+        .soundVolume = 60,
         .language = LANGUAGE_SYSTEM,
         .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false},
         .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false},
@@ -84,6 +86,9 @@ void settings_load() {
         settings.accent = theme_accent_find(json_string_value(accent));
     }
 
+    settings.sounds = settings_get_uint(json, "sounds", settings.sounds, SOUNDS_ALL);
+    settings.soundVolume = settings_get_uint(json, "sound_volume", settings.soundVolume, 100);
+
     json_t* night = json_object_get(json, "night_mode");
     if(json_is_string(night)) {
         settings.night = (theme_night_mode) settings_find(night_ids, 3, json_string_value(night));
@@ -138,6 +143,7 @@ void settings_load() {
 void settings_apply() {
     theme_select(settings.theme, settings.accent, settings.night);
     i18n_set_language(settings.language);
+    sound_set((sound_mode) settings.sounds, settings.soundVolume);
 }
 
 Result settings_save() {
@@ -153,7 +159,7 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
@@ -161,6 +167,8 @@ Result settings_save() {
                              "accent", theme_accent_get(settings.accent)->id,
                              "night_mode", night_ids[settings.night < 3 ? settings.night : 0],
                              "language", language_ids[settings.language < LANGUAGE_COUNT ? settings.language : 0],
+                             "sounds", (int) settings.sounds,
+                             "sound_volume", (int) settings.soundVolume,
                              "titles",
                              "media", (int) settings.titles.media,
                              "kinds", (int) settings.titles.kinds,

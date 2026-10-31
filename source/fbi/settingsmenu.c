@@ -18,6 +18,8 @@ typedef enum {
     OPTION_ACCENT,
     OPTION_NIGHT,
     OPTION_LANGUAGE,
+    OPTION_SOUNDS,
+    OPTION_SOUND_VOLUME,
     OPTION_CHANNEL,
     OPTION_AUTO_UPDATE,
     OPTION_FTP,
@@ -43,7 +45,7 @@ typedef struct {
 
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
-            ICON_PALETTE, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_GIT_BRANCH,
+            ICON_PALETTE, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_VOLUME, ICON_GIT_BRANCH,
             ICON_REFRESH, ICON_SERVER, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS
     };
 
@@ -56,6 +58,8 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_ACCENT: return _("Accent colour");
         case OPTION_NIGHT: return _("Night mode");
         case OPTION_LANGUAGE: return _("Language");
+        case OPTION_SOUNDS: return _("Sounds");
+        case OPTION_SOUND_VOLUME: return _("Sound volume");
         case OPTION_CHANNEL: return _("Update channel");
         case OPTION_AUTO_UPDATE: return _("Check at start");
         case OPTION_FTP: return _("FTP server");
@@ -78,6 +82,12 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_NIGHT:
             return settings->night == THEME_NIGHT_ON ? _("On") : settings->night == THEME_NIGHT_AUTO ? _("Automatic") : _("Off");
         case OPTION_LANGUAGE: return i18n_language_name(settings->language);
+        case OPTION_SOUNDS: return settings->sounds == SOUNDS_ALL ? _("All") : settings->sounds == SOUNDS_ALERTS ? _("Alerts") : _("Off");
+        case OPTION_SOUND_VOLUME: {
+            static char volume[8];
+            snprintf(volume, sizeof(volume), "%lu%%", settings->soundVolume);
+            return volume;
+        }
         case OPTION_CHANNEL: return settings->channel == UPDATE_CHANNEL_BETA ? _("Beta") : _("Stable");
         case OPTION_AUTO_UPDATE: return settingsmenu_on_off(settings->autoUpdate);
         case OPTION_FTP: return settingsmenu_on_off(ftpserver_running());
@@ -114,6 +124,17 @@ static void settingsmenu_change(settings_option option, int direction) {
         case OPTION_LANGUAGE:
             settings->language = (language_id) settingsmenu_step(settings->language, LANGUAGE_COUNT, step);
             break;
+        case OPTION_SOUNDS:
+            settings->sounds = settingsmenu_step(settings->sounds, 3, step);
+            break;
+        case OPTION_SOUND_VOLUME: {
+            // 25, 50, 75, 100 %, from wherever it is.
+            u32 volume = settings->soundVolume;
+            settings->soundVolume = step > 0 ? (volume >= 100 ? 25 : (volume / 25 + 1) * 25) : (volume <= 25 ? 100 : ((volume - 1) / 25) * 25);
+            sound_set((sound_mode) settings->sounds, settings->soundVolume);
+            sound_play(SOUND_SUCCESS);
+            break;
+        }
         case OPTION_CHANNEL:
             settings->channel = settings->channel == UPDATE_CHANNEL_BETA ? UPDATE_CHANNEL_STABLE : UPDATE_CHANNEL_BETA;
             break;
@@ -282,6 +303,11 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_ACCENT: return _("The colour of buttons, selections and bars.");
         case OPTION_NIGHT: return _("Dark colours. Automatic: from 20:00 to 8:00.");
         case OPTION_LANGUAGE: return _("System: the console's language when NSA has it, else English.");
+        case OPTION_SOUNDS:
+            return settings->sounds == SOUNDS_ALL ? _("All: a tick for buttons and touches, and a tune when something ends or fails.")
+                   : settings->sounds == SOUNDS_ALERTS ? _("Alerts: only when something ends well or fails (a transfer, an install).")
+                                                       : _("Off: no sounds. They need the DSP firmware (dspfirm.cdc).");
+        case OPTION_SOUND_VOLUME: return _("How loud the interface sounds are.");
         case OPTION_CHANNEL:
             return settings->channel == UPDATE_CHANNEL_BETA
                    ? _("Beta: the newest release, beta or stable. The changelog lists every release since yours.")

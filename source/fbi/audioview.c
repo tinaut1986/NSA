@@ -424,7 +424,7 @@ static void audio_player_stop(audio_player* p) {
     free(p);
 }
 
-static audio_player* audio_player_start(FS_Archive archive, const char* path, bool paused, u64 startFrame, const char** error) {
+static audio_player* audio_player_start(FS_Archive archive, const char* path, bool paused, u64 startFrame, float volume, const char** error) {
     audio_dec* dec = audio_dec_open(archive, path, error);
     if(dec == NULL) {
         return NULL;
@@ -452,7 +452,7 @@ static audio_player* audio_player_start(FS_Archive archive, const char* path, bo
     ndspChnSetInterp(AUDIO_CHANNEL, NDSP_INTERP_LINEAR);
     ndspChnSetRate(AUDIO_CHANNEL, (float) dec->rate);
     ndspChnSetFormat(AUDIO_CHANNEL, dec->channels == 1 ? NDSP_FORMAT_MONO_PCM16 : NDSP_FORMAT_STEREO_PCM16);
-    float mix[12] = {1.0f, 1.0f};
+    float mix[12] = {volume, volume};
     ndspChnSetMix(AUDIO_CHANNEL, mix);
     ndspChnSetPaused(AUDIO_CHANNEL, paused);
 
@@ -513,7 +513,7 @@ static void audio_play_index(audio_data* data, u32 index) {
     }
 
     const char* error = NULL;
-    data->player = audio_player_start(data->archive, data->paths[index], false, 0, &error);
+    data->player = audio_player_start(data->archive, data->paths[index], false, 0, data->volume, &error);
     data->paused = false;
     if(data->player == NULL) {
         snprintf(data->error, sizeof(data->error), "%s", error != NULL ? error : _("This file cannot be played."));
@@ -523,10 +523,6 @@ static void audio_play_index(audio_data* data, u32 index) {
 static void audio_close(ui_view* view, audio_data* data) {
     ui_pop();
     audio_stop(data);
-    if(data->dspReady) {
-        ndspExit();
-    }
-
     for(u32 i = 0; i < data->count; i++) {
         free(data->paths[i]);
     }
@@ -570,7 +566,8 @@ static void audio_seek_fraction(audio_data* data, float fraction) {
 static void audio_set_volume(audio_data* data, float volume) {
     data->volume = volume < 0 ? 0 : volume > 1 ? 1 : volume;
     if(data->dspReady) {
-        ndspSetMasterVol(data->volume);
+        float mix[12] = {data->volume, data->volume};
+        ndspChnSetMix(AUDIO_CHANNEL, mix);
     }
 }
 
@@ -857,13 +854,10 @@ void audioview_open(FS_Archive archive, const char* const* paths, u32 count, u32
     data->pressed = -1;
 
     // The DSP needs its firmware (sdmc:/3ds/dspfirm.cdc) dumped from the console.
-    Result res = ndspInit();
-    data->dspReady = R_SUCCEEDED(res);
+    data->dspReady = sound_dsp_start();
     if(!data->dspReady) {
         snprintf(data->error, sizeof(data->error), "%s", _("No DSP firmware: dump it with DSP1 to play sound."));
     } else {
-        ndspSetOutputMode(NDSP_OUTPUT_STEREO);
-        ndspSetMasterVol(data->volume);
     }
 
     ui_view* view = ui_create();

@@ -629,6 +629,15 @@ const i18n_entry i18n_es[] = {
         {"stereo", "estéreo"},
         {"Play", "Reproducir"},
         {"\uE000 pause   \uE004 \uE005 track   \uE001 back", "\uE000 pausa   \uE004 \uE005 pista   \uE001 volver"},
+        // Sounds
+        {"Sounds", "Sonidos"},
+        {"Sound volume", "Volumen de sonidos"},
+        {"All", "Todos"},
+        {"Alerts", "Avisos"},
+        {"All: a tick for buttons and touches, and a tune when something ends or fails.", "Todos: un toque al pulsar botones y la pantalla, y una melodía cuando algo termina o falla."},
+        {"Alerts: only when something ends well or fails (a transfer, an install).", "Avisos: solo cuando algo termina bien o falla (una transferencia, una instalación)."},
+        {"Off: no sounds. They need the DSP firmware (dspfirm.cdc).", "No: sin sonidos. Necesitan el firmware del DSP (dspfirm.cdc)."},
+        {"How loud the interface sounds are.", "Lo fuerte que suenan los sonidos de la interfaz."},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

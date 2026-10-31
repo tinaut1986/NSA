@@ -15,5 +15,6 @@
 #include "http.h"
 #include "linkedlist.h"
 #include "screen.h"
+#include "sound.h"
 #include "spi.h"
 #include "stringutil.h"

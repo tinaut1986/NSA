@@ -92,6 +92,16 @@ viewers in Azahar). The owner will go through them one by one; tick each when va
 - [ ] Seek (+-10 s, bar) in a long MP3 (slow without a seek table); next track on its own.
 - [ ] No `dspfirm.cdc`: the message shows instead of crashing.
 
+**Interface sounds** (`source/core/sound.c`, Settings: Sounds Off/Alerts/All, Sound volume)
+- [ ] Heard on both consoles: tick (D-Pad, touch), click (A), back (B), success tune (transfer
+      or install ended), error tones (any Failure/Error dialog). Azahar only proved it runs.
+- [ ] "Alerts" plays only the last two; "Off" is silent; volume steps 25/50/75/100 give a sample.
+- [ ] No `dspfirm.cdc`: no sound and no crash. Sounds and the audio player share the DSP: play a
+      song, then press buttons (the song's volume is its own, per channel).
+- [ ] Are the tones pleasant and not tiring? Tune them in `sound_prepare` (tone tables).
+- [ ] Possible next steps: sound on the held repeat of a list, on text-editor keys, a different
+      tone per kind of action (delete, install).
+
 **Next, item 3 (Pending titles, System save data, Dump NAND on the Titles pattern)**
 - [ ] The owner thinks they tried it once but does not remember. The code on `release` still
       has FBI's action lists for those three (no sheet, no tool icons), so check on the console
@@ -236,7 +246,7 @@ current, this list is the summary. What only the owner can test (local wireless)
    - Folders cannot be sent, only files and titles. Tickets, saves and extra data could use the
      same channel (saves and extra data export without the CIA problem).
    - The root certificate fix means CIAs made before it (in `/nsa/cias/`) may carry a wrong chain.
-   - Sound/vibration when a transfer ends, if the owner wants it.
+   - ~~Sound when a transfer ends~~ done with the interface sounds (see Pending tests); the 3DS has no vibration.
 1. ~~Publish v0.2.0 beta~~ done; **v0.3.0 stable published**.
 2. **Remote install**, the owner agreed it needs the same treatment. Proposal, to show as
    a mockup first: three big cards (QR code, enter URLs, receive from a computer), the

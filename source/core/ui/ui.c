@@ -8,6 +8,7 @@
 #include "ui.h"
 #include "../error.h"
 #include "../screen.h"
+#include "../sound.h"
 #include "../appinfo.h"
 #include "../i18n.h"
 #include "../data/smdh.h"
@@ -318,6 +319,18 @@ bool ui_update() {
     ui_view* ui = NULL;
 
     input_scan();
+
+    // Feedback for the buttons, wherever they are pressed.
+    u32 down = hidKeysDown();
+    if((down & KEY_B) && ui_depth() > 1) {
+        sound_play(SOUND_BACK);
+    } else if(down & (KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT | KEY_TOUCH)) {
+        sound_play(SOUND_TICK);
+    } else if(down & KEY_A) {
+        sound_play(SOUND_CLICK);
+    }
+
+    sound_update();
 
     ui = ui_top();
     if(ui != NULL && ui->update != NULL) {

@@ -53,6 +53,8 @@ What `release` holds, in the order it was built:
     dr_mp3/dr_flac/dr_wav (vendored in `source/libs/dr_libs`, public domain or MIT-0) and Tremor
     (`-lvorbisidec -logg`) decode on a thread into four DSP buffers; the folder's next file
     follows, seek bar, volume, +-10 s. Needs `sdmc:/3ds/dspfirm.cdc`.
+13b. **Saves** (`feat/save-export-import`, `feat/send-saves`, `feat/checkpoint-import`, `feat/import-list`): export, import and
+    send the save data and extra data of 3DS titles; see item 3b under "Next".
 14. **Downloads, history, idle drawing** (`feat/fast-downloads`; issue #19 has the review
     points): curl on its own thread with a ring of buffers, big files in 512 KB segments over 8
     connections (2 on an Old 3DS) when the server sends `Accept-Ranges`, the system's HTTP
@@ -417,28 +419,25 @@ current, this list is the summary. What only the owner can test (local wireless)
    the file ends up). Pending titles and System save data still have FBI's action lists
    and English item names ("Delete Pending Title"...); System save data would show
    readable names of the known modules.
-3b. **Send saves and extra data** (design agreed with the owner 2026-10-31, not started). A save is
-   whole: it cannot be merged, only replaced or kept apart. Today a 3DS title only has "Save data"
-   (browse the files) and "Browse extra data"; export/import exists for DS cartridge saves only.
-   - **Local first**, on the Titles sheet, flat rows (no nested menus): *Export save*, *Import save*,
-     *Send save to another 3DS*, and the same three for *extra data*. Export copies the archive's
-     files to `sdmc:/nsa/saves/<TITLEID>/<date>/` (extra data under `ext/`, SpotPass under `boss/`)
-     with a small manifest (title ID, version, name, date, kind); it is a plain folder the owner can
-     browse and copy to a PC. Import picks one of those folders (newest first).
-   - **Import replaces the whole archive** (delete its contents, copy the tree, commit), behind the
-     red warning, and **first copies the current save to `before-import-<date>/`** next to the
-     exports. It is only offered when the archive can be opened (title installed and started once;
-     for extra data, the archive exists).
-   - **Sending**: folders cannot be sent today, so a save/ext data goes as a package like the title
-     package: a header (kind 2 save / 3 extra data, title ID, version, name, file count) and the files
-     as read; protocol version up. The receiver unpacks into a folder under `sdmc:/nsa/saves/` first,
-     whatever the choice, and "Import now" is the same local import over that folder.
-   - **Receiving**, in the same Receive screen: *Import now* (red; only if the title or archive is
-     there) / *Save in a folder* / *Reject*; with no title or archive, only *Save in a folder* / *Reject*
-     and the text says why. Mockup: `saves-mock.png` (owner's chat, 2026-10-31).
-   - When the sender's game version differs from the installed one (same title ID), the receiver shows
-     both versions and asks whether to import anyway (the owner's choice, never blocked or forced).
-   - Open: ext data to the right game depends on the exact ext data link (4).
+3b. **Send saves and extra data**: built 2026-10-31 (code: `source/fbi/action/savetransfer.c`), untried on a console
+   (see Pending tests). A save is whole: it cannot be merged, only replaced or kept apart.
+   - **Export** (Titles sheet, flat rows *Export save/extra data*): copies the archive's files to
+     `sdmc:/nsa/saves/<TITLEID>/<YYYYMMDD-HHMMSS>/{manifest.txt, save/ | ext/}`; the manifest has
+     `source=NSA`, kind, title ID, version, name, date. A plain folder to browse or copy to a PC.
+   - **Import** (*Import save/extra data*, red): a scrolling list (no cap) of NSA's exports tagged `[NSA]` and
+     Checkpoint's backups tagged `[Checkpoint]` (`sdmc:/3ds/Checkpoint/saves|extdata/0x<unique ID, 5 digits> <game>/<backup>/`,
+     the tree directly in the folder, no manifest). It first exports the current data to `<date>-before-import`
+     (a suffix, not the `before-import-<date>` prefix first planned, so names still sort by date), empties the
+     archive, copies the tree and commits. Warns when the export's game version differs from the installed one
+     (NSA's exports only). Only offered when the archive opens (title started once; ext data found).
+   - **Send** (*Send save/extra data to another 3DS*): no protocol change. The data is packed on a worker thread into one
+     file `sdmc:/nsa/saves/send/<TITLEID>-<save|ext>-<name>.nsasave` (format in `savetransfer.c`) and goes through the
+     normal file transfer (resume included). The package stays on the sender's SD until the next one of that title
+     overwrites it. The receiver recognises the name: *Import now* (only if the title, or the ext data archive, is
+     installed) / *Save in a folder* / *Reject*; either way it unpacks into `sdmc:/nsa/saves/<TITLEID>/<date>/` (the same
+     folder the import list shows) and deletes the package. Unpacking refuses paths with `..`, a leading `/`, `\` or `:`.
+   - Not built: SpotPass (`boss/`) in the exports; exporting in Checkpoint's layout (the owner said it is not needed now);
+     ext data to the right game still rests on the ID heuristics (4).
 4. **Exact ext data link**: read the ExtData ID from each game's exheader (NCCH
    `ExHeader`, ARM11 local system capabilities, offset 0x230 by 3dbrew; check with the
    Program ID at 0x200) instead of the ID heuristics. The file path type for the exheader

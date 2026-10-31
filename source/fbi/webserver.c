@@ -919,19 +919,8 @@ static void web_api_title(web_request* r) {
     web_send_json(r, 200, json_pack("{s:b,s:s,s:s,s:s,s:b,s:b,s:b}", "ok", 1, "name", name, "publisher", publisher, "code", code, "save", save, "ext", ext, "boss", boss));
 }
 
-// The large icon as a 48x48 BMP.
-static void web_api_icon(web_request* r) {
-    title_info title;
-    if(!web_parse_title(r, &title)) {
-        return;
-    }
-
-    SMDH* smdh = web_read_smdh(&title);
-    if(smdh == NULL) {
-        web_send_error(r, 404, "no icon");
-        return;
-    }
-
+// Sends an SMDH's large icon as a 48x48 BMP (frees the SMDH).
+static void web_send_smdh_icon(web_request* r, SMDH* smdh) {
     enum { SIZE = 48, ROW = SIZE * 3, DATA = ROW * SIZE, HEAD = 54 };
     u8* bmp = (u8*) calloc(1, HEAD + DATA);
     if(bmp == NULL) {
@@ -981,6 +970,164 @@ static void web_api_icon(web_request* r) {
     }
 
     free(bmp);
+}
+
+
+// The large icon as a 48x48 BMP.
+static void web_api_icon(web_request* r) {
+    title_info title;
+    if(!web_parse_title(r, &title)) {
+        return;
+    }
+
+    SMDH* smdh = web_read_smdh(&title);
+    if(smdh == NULL) {
+        web_send_error(r, 404, "no icon");
+        return;
+    }
+
+    web_send_smdh_icon(r, smdh);
+}
+
+// ---- tickets and extra data (read only: deleting stays a question on the console) ----
+
+// Every ticket's title ID, and where that title is installed ("" when it is not).
+static void web_api_tickets(web_request* r) {
+    u32 count = 0;
+    if(R_FAILED(AM_GetTicketCount(&count))) {
+        web_send_error(r, 500, "cannot read the tickets");
+        return;
+    }
+
+    json_t* list = json_array();
+    u64* ids = (u64*) calloc(count == 0 ? 1 : count, sizeof(u64));
+    if(ids == NULL) {
+        json_decref(list);
+        web_send_error(r, 500, "out of memory");
+        return;
+    }
+
+    u32 got = 0;
+    if(R_SUCCEEDED(AM_GetTicketList(&got, count, 0, ids))) {
+        qsort(ids, got, sizeof(u64), web_compare_ids);
+        for(u32 i = 0; i < got; i++) {
+            if(i > 0 && ids[i] == ids[i - 1]) {
+                continue;   // A title can hold several tickets (Azahar repeats them).
+            }
+
+            const char* where = "";
+            AM_TitleEntry entry;
+            if(R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_SD, 1, &ids[i], &entry))) {
+                where = "sd";
+            } else if(R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_NAND, 1, &ids[i], &entry))) {
+                where = "nand";
+            }
+
+            char id[17];
+            snprintf(id, sizeof(id), "%016llX", (unsigned long long) ids[i]);
+            json_array_append_new(list, json_pack("{s:s,s:s,s:s}", "id", id, "media", where, "kind", web_kind_name(ids[i])));
+        }
+    }
+
+    free(ids);
+    web_send_json(r, 200, json_pack("{s:b,s:o}", "ok", 1, "tickets", list));
+}
+
+#define WEB_MAX_EXT 512
+
+static bool web_parse_ext(web_request* r, FS_ExtSaveDataInfo* info) {
+    char id[32] = "";
+    char media[8] = "";
+    if(!web_query_get(r->query, "id", id, sizeof(id)) || !web_query_get(r->query, "media", media, sizeof(media)) || strlen(id) != 16
+       || (strcmp(media, "sd") != 0 && strcmp(media, "nand") != 0)) {
+        web_send_error(r, 400, "bad extra data");
+        return false;
+    }
+
+    memset(info, 0, sizeof(*info));
+    info->mediaType = strcmp(media, "nand") == 0 ? MEDIATYPE_NAND : MEDIATYPE_SD;
+    info->saveId = strtoull(id, NULL, 16);
+    return true;
+}
+
+// Every extra data archive (SD and NAND): {id, media, shared}.
+static void web_api_extdata(web_request* r) {
+    json_t* list = json_array();
+    static const FS_MediaType media[2] = {MEDIATYPE_SD, MEDIATYPE_NAND};
+    u64* ids = (u64*) calloc(WEB_MAX_EXT, sizeof(u64));
+    if(ids == NULL) {
+        json_decref(list);
+        web_send_error(r, 500, "out of memory");
+        return;
+    }
+
+    for(u32 m = 0; m < 2; m++) {
+        u32 count = 0;
+        if(R_FAILED(FSUSER_EnumerateExtSaveData(&count, WEB_MAX_EXT, media[m], 8, media[m] == MEDIATYPE_NAND, (u8*) ids))) {
+            continue;
+        }
+
+        qsort(ids, count, sizeof(u64), web_compare_ids);
+        for(u32 i = 0; i < count; i++) {
+            char id[17];
+            snprintf(id, sizeof(id), "%016llX", (unsigned long long) ids[i]);
+            json_array_append_new(list, json_pack("{s:s,s:s}", "id", id, "media", web_media_name(media[m])));
+        }
+    }
+
+    free(ids);
+    web_send_json(r, 200, json_pack("{s:b,s:o}", "ok", 1, "extdata", list));
+}
+
+// The SMDH an extra data archive keeps, or NULL.
+static SMDH* web_read_ext_smdh(const FS_ExtSaveDataInfo* info) {
+    SMDH* smdh = (SMDH*) calloc(1, sizeof(SMDH));
+    if(smdh == NULL) {
+        return NULL;
+    }
+
+    u32 got = 0;
+    if(R_FAILED(FSUSER_ReadExtSaveDataIcon(&got, *info, sizeof(SMDH), (u8*) smdh)) || got != sizeof(SMDH)
+       || smdh->magic[0] != 'S' || smdh->magic[1] != 'M' || smdh->magic[2] != 'D' || smdh->magic[3] != 'H') {
+        free(smdh);
+        return NULL;
+    }
+
+    return smdh;
+}
+
+static void web_api_extdata_info(web_request* r) {
+    FS_ExtSaveDataInfo info;
+    if(!web_parse_ext(r, &info)) {
+        return;
+    }
+
+    char name[0x100] = "";
+    char publisher[0x100] = "";
+    SMDH* smdh = web_read_ext_smdh(&info);
+    if(smdh != NULL) {
+        SMDH_title* names = smdh_select_title(smdh);
+        utf16_to_utf8((uint8_t*) name, names->shortDescription, sizeof(name) - 1);
+        utf16_to_utf8((uint8_t*) publisher, names->publisher, sizeof(publisher) - 1);
+        free(smdh);
+    }
+
+    web_send_json(r, 200, json_pack("{s:b,s:s,s:s}", "ok", 1, "name", name, "publisher", publisher));
+}
+
+static void web_api_extdata_icon(web_request* r) {
+    FS_ExtSaveDataInfo info;
+    if(!web_parse_ext(r, &info)) {
+        return;
+    }
+
+    SMDH* smdh = web_read_ext_smdh(&info);
+    if(smdh == NULL) {
+        web_send_error(r, 404, "no icon");
+        return;
+    }
+
+    web_send_smdh_icon(r, smdh);
 }
 
 // ---- saves ----
@@ -1478,6 +1625,14 @@ static void web_handle(web_request* r) {
         web_api_titles(r);
     } else if(get && strcmp(api, "title") == 0) {
         web_api_title(r);
+    } else if(get && strcmp(api, "tickets") == 0) {
+        web_api_tickets(r);
+    } else if(get && strcmp(api, "extdata") == 0) {
+        web_api_extdata(r);
+    } else if(get && strcmp(api, "extdata/info") == 0) {
+        web_api_extdata_info(r);
+    } else if(get && strcmp(api, "extdata/icon") == 0) {
+        web_api_extdata_icon(r);
     } else if(get && strcmp(api, "icon") == 0) {
         web_api_icon(r);
     } else if(post && strcmp(api, "save/pack") == 0) {

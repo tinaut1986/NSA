@@ -96,7 +96,7 @@ h2{font-size:15px;margin:14px 0 6px}
   <span class="info" id="space"></span>
 </header>
 <main>
-  <nav><button id="tab_files" class="on"></button><button id="tab_titles"></button><button id="tab_install"></button><button id="tab_screen"></button></nav>
+  <nav><button id="tab_files" class="on"></button><button id="tab_titles"></button><button id="tab_tickets"></button><button id="tab_ext"></button><button id="tab_install"></button><button id="tab_screen"></button></nav>
 
   <div class="card" id="files">
     <div class="bar">
@@ -136,6 +136,20 @@ h2{font-size:15px;margin:14px 0 6px}
     <pre class="log" id="log"></pre>
   </div>
 
+  <div class="card hide" id="tickets">
+    <div class="bar"><input type="text" id="tfilter"><button id="treload"></button></div>
+    <div class="note" id="ticketsnote"></div>
+    <div class="grid" id="tgrid"></div>
+    <div class="msg" id="ticketsmsg"></div>
+  </div>
+
+  <div class="card hide" id="ext">
+    <div class="bar"><input type="text" id="efilter"><button id="ereload"></button></div>
+    <div class="note" id="extnote"></div>
+    <div class="grid" id="egrid"></div>
+    <div class="msg" id="extmsg"></div>
+  </div>
+
   <div class="card hide" id="titles">
     <div class="bar">
       <input type="text" id="filter">
@@ -156,14 +170,14 @@ h2{font-size:15px;margin:14px 0 6px}
 <script>
 const L = (navigator.language||'en').startsWith('es') ? 'es' : 'en';
 const T = {
-  en:{pin:'Type the PIN shown in the console\'s Settings (Web server).',enter:'Enter',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',up:'Up',mkdir:'New folder',upload:'Upload',name:'Name',size:'Size',date:'Modified',download:'Download',rename:'Rename',copy:'Copy',move:'Move',edit:'Edit',save_:'Save',cancel:'Cancel',copyto:'Copy to (full path):',moveto:'Move to (full path):',toobig:'Too big to edit here (over 256 KB).',saved:'Saved.',del:'Delete',install:'Install',empty:'Empty folder.',drop:'Drop files here to upload them to this folder',free:'free of',newname:'Name of the new folder:',renameto:'New name:',confirmdel:'Delete "%s"? This cannot be undone.',confirminst:'Install "%s" on the console?',done:'Done.',installed:'Installed.',restarting:'Installed. NSA restarts in a few seconds.',failed:'Failed: ',uploading:'Uploading',lost:'Cannot reach the console.',
+  en:{pin:'Type the PIN shown in the console\'s Settings (Web server).',enter:'Enter',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',up:'Up',mkdir:'New folder',upload:'Upload',name:'Name',size:'Size',date:'Modified',download:'Download',rename:'Rename',tickets:'Tickets',extdata:'Extra data',ticketsnote:'Read only: tickets and extra data are deleted from the console\'s own screens (Tickets, Ext Save Data), which ask first.',notinstalled:'Not installed',shared:'Shared',copy:'Copy',move:'Move',edit:'Edit',save_:'Save',cancel:'Cancel',copyto:'Copy to (full path):',moveto:'Move to (full path):',toobig:'Too big to edit here (over 256 KB).',saved:'Saved.',del:'Delete',install:'Install',empty:'Empty folder.',drop:'Drop files here to upload them to this folder',free:'free of',newname:'Name of the new folder:',renameto:'New name:',confirmdel:'Delete "%s"? This cannot be undone.',confirminst:'Install "%s" on the console?',done:'Done.',installed:'Installed.',restarting:'Installed. NSA restarts in a few seconds.',failed:'Failed: ',uploading:'Uploading',lost:'Cannot reach the console.',
     files:'Files',titles:'Titles',search:'Search…',k_game:'Games and demos',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',sendpkg:'Send a save package to the console',
     note:'Saves, extra data and SpotPass data download as a .nsasave package; a package you send is unpacked on the console, which asks there before replacing anything.',
     save:'Save',ext:'Extra data',boss:'SpotPass',packing:'Packing…',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and saved on the console (this title or its data is not there, so it cannot be imported).',notitles:'No titles.',loading:'Loading titles…',version:'v',
     screen:'Screen',live:'Live view',padnote:'Click the bottom screen to touch it (drag up or down to scroll). Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',nolive:'The console does not answer.',
     install:'Install',h_urls:'Install from URLs (one per line)',installurls:'Send to the console',urlsnote:'The console asks there before installing.',h_hist:'Remote Install history',h_log:'Transfer log',reload:'Reload',again:'Install again',nohist:'Nothing yet.',nolog:'(no log)',
     launch:'Launch',delete:'Delete',delticket:'Delete with ticket',import:'Import',close:'Close',importtitle:'Import %s',nobackups:'No backups of this data (NSA\'s exports or Checkpoint\'s).',asked:'Look at the console: it asks there.',confirmlaunch:'Launch "%s" on the console? (NSA closes.)',confirmdelete:'Ask the console to delete "%s"? It asks again there.'},
-  es:{pin:'Escribe el PIN que sale en Ajustes de la consola (Servidor web).',enter:'Entrar',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',up:'Subir nivel',mkdir:'Nueva carpeta',upload:'Subir archivos',name:'Nombre',size:'Tamaño',date:'Modificado',download:'Descargar',rename:'Renombrar',copy:'Copiar',move:'Mover',edit:'Editar',save_:'Guardar',cancel:'Cancelar',copyto:'Copiar a (ruta completa):',moveto:'Mover a (ruta completa):',toobig:'Demasiado grande para editar aquí (más de 256 KB).',saved:'Guardado.',del:'Borrar',install:'Instalar',empty:'Carpeta vacía.',drop:'Suelta aquí archivos para subirlos a esta carpeta',free:'libres de',newname:'Nombre de la carpeta nueva:',renameto:'Nombre nuevo:',confirmdel:'¿Borrar "%s"? No se puede deshacer.',confirminst:'¿Instalar "%s" en la consola?',done:'Hecho.',installed:'Instalado.',restarting:'Instalado. NSA se reinicia en unos segundos.',failed:'Error: ',uploading:'Subiendo',lost:'No se puede contactar con la consola.',
+  es:{pin:'Escribe el PIN que sale en Ajustes de la consola (Servidor web).',enter:'Entrar',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',up:'Subir nivel',mkdir:'Nueva carpeta',upload:'Subir archivos',name:'Nombre',size:'Tamaño',date:'Modificado',download:'Descargar',rename:'Renombrar',tickets:'Tickets',extdata:'Datos extra',ticketsnote:'Solo lectura: los tickets y los datos extra se borran en las pantallas de la consola (Tickets, Ext Save Data), que preguntan antes.',notinstalled:'No instalado',shared:'Compartido',copy:'Copiar',move:'Mover',edit:'Editar',save_:'Guardar',cancel:'Cancelar',copyto:'Copiar a (ruta completa):',moveto:'Mover a (ruta completa):',toobig:'Demasiado grande para editar aquí (más de 256 KB).',saved:'Guardado.',del:'Borrar',install:'Instalar',empty:'Carpeta vacía.',drop:'Suelta aquí archivos para subirlos a esta carpeta',free:'libres de',newname:'Nombre de la carpeta nueva:',renameto:'Nombre nuevo:',confirmdel:'¿Borrar "%s"? No se puede deshacer.',confirminst:'¿Instalar "%s" en la consola?',done:'Hecho.',installed:'Instalado.',restarting:'Instalado. NSA se reinicia en unos segundos.',failed:'Error: ',uploading:'Subiendo',lost:'No se puede contactar con la consola.',
     files:'Archivos',titles:'Títulos',search:'Buscar…',k_game:'Juegos y demos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',sendpkg:'Enviar un paquete de partida a la consola',
     note:'Las partidas, los datos extra y los datos SpotPass se descargan como un paquete .nsasave; un paquete que envíes se desempaqueta en la consola, que pregunta allí antes de reemplazar nada.',
     save:'Partida',ext:'Datos extra',boss:'SpotPass',packing:'Empaquetando…',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están, así que no se puede importar).',notitles:'Sin títulos.',loading:'Cargando títulos…',version:'v',
@@ -177,7 +191,7 @@ let pin = '', cwd = '/';
 
 function setText(){ $('t_pin').textContent=T.pin; $('enter').textContent=T.enter; $('up').textContent=T.up; $('mkdir').textContent=T.mkdir;
   $('uploadbtn').textContent=T.upload; $('h_name').textContent=T.name; $('h_size').textContent=T.size; $('h_date').textContent=T.date; $('drop').textContent=T.drop;
-  $('tab_files').textContent=T.files; $('tab_titles').textContent=T.titles; $('tab_install').textContent=T.install; $('tab_screen').textContent=T.screen; $('t_live').textContent=T.live; $('padnote').textContent=T.padnote; $('h_urls').textContent=T.h_urls; $('installurls').textContent=T.installurls; $('urlsnote').textContent=T.urlsnote; $('h_hist').textContent=T.h_hist; $('h_log').textContent=T.h_log; $('reloadlog').textContent=T.reload; $('dlgclose').textContent=T.close; $('edsave').textContent=T.save_; $('edcancel').textContent=T.cancel; $('filter').placeholder=T.search; $('sendpkg').textContent=T.sendpkg; $('titlesnote').textContent=T.note;
+  $('tab_files').textContent=T.files; $('tab_titles').textContent=T.titles; $('tab_tickets').textContent=T.tickets; $('tab_ext').textContent=T.extdata; $('ticketsnote').textContent=T.ticketsnote; $('extnote').textContent=T.ticketsnote; $('tfilter').placeholder=T.search; $('efilter').placeholder=T.search; $('treload').textContent=T.reload; $('ereload').textContent=T.reload; $('tab_install').textContent=T.install; $('tab_screen').textContent=T.screen; $('t_live').textContent=T.live; $('padnote').textContent=T.padnote; $('h_urls').textContent=T.h_urls; $('installurls').textContent=T.installurls; $('urlsnote').textContent=T.urlsnote; $('h_hist').textContent=T.h_hist; $('h_log').textContent=T.h_log; $('reloadlog').textContent=T.reload; $('dlgclose').textContent=T.close; $('edsave').textContent=T.save_; $('edcancel').textContent=T.cancel; $('filter').placeholder=T.search; $('sendpkg').textContent=T.sendpkg; $('titlesnote').textContent=T.note;
   const sel=$('kind'); sel.textContent=''; [['game',T.k_game],['update',T.k_update],['dlc',T.k_dlc],['system',T.k_system],['all',T.k_all]].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; sel.appendChild(o); }); }
 setText();
 
@@ -233,13 +247,15 @@ async function run(fn){ try { await fn(); } catch(e){ if(e.auth) showLogin(e.mes
 
 // ---- tabs ----
 function tab(name){
-  for(const n of ['files','titles','install','screen']){ $(n).classList.toggle('hide', name!==n); $('tab_'+n).classList.toggle('on', name===n); }
+  for(const n of ['files','titles','tickets','ext','install','screen']){ $(n).classList.toggle('hide', name!==n); $('tab_'+n).classList.toggle('on', name===n); }
   if(name==='titles' && !titlesLoaded) loadTitles();
   if(name==='install') loadInstall();
+  if(name==='tickets' && !ticketsLoaded) loadTickets();
+  if(name==='ext' && !extLoaded) loadExt();
   current = name; if(name==='screen') startLive();
 }
 let current = 'files';
-$('tab_files').onclick = () => tab('files'); $('tab_titles').onclick = () => tab('titles'); $('tab_install').onclick = () => tab('install'); $('tab_screen').onclick = () => tab('screen');
+$('tab_files').onclick = () => tab('files'); $('tab_titles').onclick = () => tab('titles'); $('tab_tickets').onclick = () => tab('tickets'); $('tab_ext').onclick = () => tab('ext'); $('tab_install').onclick = () => tab('install'); $('tab_screen').onclick = () => tab('screen');
 
 // ---- files ----
 function crumbs(){
@@ -442,6 +458,56 @@ async function fetchText(path, from){
   const r = await fetch('/api/file?'+q('path',path), {headers: Object.assign({'X-Pin':pin}, from ? {Range:'bytes='+from+'-'} : {})});
   if(!r.ok) return null; return r.text();
 }
+// ---- tickets and extra data: read only lists, a name and icon for each as they arrive ----
+let ticketsLoaded = false, extLoaded = false, ticketList = [], extList = [];
+function smallCard(t, iconUrl, infoUrl, fallbackName, badgeText, extra){
+  const c = document.createElement('div'); c.className='title';
+  const img = document.createElement('img'); img.loading='lazy'; img.alt=''; if(iconUrl) img.src=iconUrl; img.onerror=()=>{ img.style.visibility='hidden'; };
+  const b = document.createElement('div'); b.className='body';
+  const name = document.createElement('div'); name.className='t'; name.textContent = fallbackName;
+  const sub = document.createElement('div'); sub.className='s';
+  if(badgeText){ const badge = document.createElement('span'); badge.className='badge'; badge.textContent = badgeText; sub.append(badge); }
+  if(extra) sub.append(document.createTextNode(extra));
+  const id = document.createElement('div'); id.className='s'; id.textContent = t.id;
+  b.append(name, sub, id); c.append(img, b); c._name = name; c._info = infoUrl; return c;
+}
+let listBusy = false; const nameCache = new Map();
+async function pumpNames(cards){
+  if(listBusy) return; listBusy = true;
+  for(const c of cards){
+    if(!c.isConnected || !c._info) continue;
+    try { const d = await api('GET', c._info.path, c._info.params); if(d.name) c._name.textContent = d.name; nameCache.set(c._key, d.name||''); }
+    catch(e){ if(e.auth){ showLogin(e.message); break; } }
+  }
+  listBusy = false;
+}
+function fillGrid(grid, filter, items, make){
+  grid.textContent=''; const cards = [];
+  const f = filter.value.toLowerCase();
+  for(const it of items){ if(f && !(JSON.stringify(it)+' '+(nameCache.get(it.id+it.media)||'')).toLowerCase().includes(f)) continue; const c = make(it); c._key = it.id+it.media; if(nameCache.has(c._key) && nameCache.get(c._key)) c._name.textContent = nameCache.get(c._key); grid.appendChild(c); cards.push(c); }
+  pumpNames(cards);
+}
+function ticketCard(t){
+  const inst = t.media==='sd'||t.media==='nand';
+  return smallCard(t, inst?'/api/icon?'+q('id',t.id)+'&'+q('media',t.media):'', inst?{path:'title',params:q('id',t.id)+'&'+q('media',t.media)}:null, t.id, inst?t.media.toUpperCase():T.notinstalled, ' · '+t.kind);
+}
+function extCard(e){
+  return smallCard(e, '/api/extdata/icon?'+q('id',e.id)+'&'+q('media',e.media), {path:'extdata/info',params:q('id',e.id)+'&'+q('media',e.media)}, e.id, e.media.toUpperCase(), '');
+}
+async function loadTickets(){
+  $('ticketsmsg').textContent = T.loading;
+  try { const j = await api('GET','tickets'); ticketList = j.tickets; ticketsLoaded = true; $('ticketsmsg').textContent=''; fillGrid($('tgrid'), $('tfilter'), ticketList, ticketCard); }
+  catch(e){ $('ticketsmsg').textContent=''; if(e.auth) showLogin(e.message); else toast(e.message); }
+}
+async function loadExt(){
+  $('extmsg').textContent = T.loading;
+  try { const j = await api('GET','extdata'); extList = j.extdata; extLoaded = true; $('extmsg').textContent=''; fillGrid($('egrid'), $('efilter'), extList, extCard); }
+  catch(e){ $('extmsg').textContent=''; if(e.auth) showLogin(e.message); else toast(e.message); }
+}
+$('treload').onclick = () => { ticketsLoaded = false; loadTickets(); };
+$('ereload').onclick = () => { extLoaded = false; loadExt(); };
+$('tfilter').oninput = () => fillGrid($('tgrid'), $('tfilter'), ticketList, ticketCard);
+$('efilter').oninput = () => fillGrid($('egrid'), $('efilter'), extList, extCard);
 async function loadInstall(){
   const hist = $('hist'); hist.textContent='';
   try {

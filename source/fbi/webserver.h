@@ -25,6 +25,9 @@
 //   GET    /font.ttf                       (public) the Pixel theme's font
 //   GET    /api/titles                     [{id, media, kind, version, size}]: SD and NAND, no DSiWare
 //   GET    /api/title?id=&media=           {name, publisher, code, save, ext, boss}
+//   GET    /api/tickets                    [{id, media: sd|nand|"" (where installed), kind}]
+//   GET    /api/extdata                    [{id, media}]: extra data archives, SD and NAND
+//   GET    /api/extdata/info?id=&media=    {name, publisher};  /api/extdata/icon?id=&media=  its icon as a BMP
 //   GET    /api/icon?id=&media=            the 48x48 icon as a BMP
 //   POST   /api/save/pack?id=&media=&kind=save|ext|boss&name=   makes the .nsasave package: {path, size}
 //   POST   /api/save/receive?path=/nsa/received/x.nsasave&import=1   the console takes it like a sent one and asks there

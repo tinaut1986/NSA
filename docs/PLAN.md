@@ -92,6 +92,11 @@ viewers in Azahar). The owner will go through them one by one; tick each when va
 - [ ] Seek (+-10 s, bar) in a long MP3 (slow without a seek table); next track on its own.
 - [ ] No `dspfirm.cdc`: the message shows instead of crashing.
 
+**Next, item 3 (Pending titles, System save data, Dump NAND on the Titles pattern)**
+- [ ] The owner thinks they tried it once but does not remember. The code on `release` still
+      has FBI's action lists for those three (no sheet, no tool icons), so check on the console
+      what state they are really in before working on them.
+
 ## Export an installed title as a CIA (`source/fbi/action/exportcia.c`)
 
 Titles' sheet has "Export as CIA" (CTR titles on SD or NAND, not cards or DSiWare); the

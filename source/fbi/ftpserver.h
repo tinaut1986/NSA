@@ -52,3 +52,6 @@ void ftpserver_corner(char* out, size_t size);
 // (0..1, or < 0 when unknown). False otherwise. The restart that follows an
 // install of NSA itself is relaunch.h's.
 bool ftpserver_notice(char* out, size_t size, float* progress);
+
+// Installs a CIA of the SD card (an SD title; NSA itself restarts, see relaunch.h): for the web server.
+bool ftpserver_install(const char* vpath, char* error, size_t errorSize);

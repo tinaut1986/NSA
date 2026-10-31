@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NSA</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1d2330;--muted:#6b7385;--line:#dfe3ea;--accent:#2f6df6;--onaccent:#fff;--danger:#d63b3b;--hover:#eef2fb}
+@media(prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1c2028;--ink:#e8ebf2;--muted:#8d95a8;--line:#2b303b;--accent:#5b8cff;--onaccent:#0b0f18;--danger:#ff6b6b;--hover:#232a38}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,sans-serif}
+header{display:flex;gap:12px;align-items:center;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:18px;margin:0}
+header .info{color:var(--muted);font-size:13px;margin-left:auto}
+main{max-width:980px;margin:16px auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+button:hover{background:var(--hover)}
+button.primary{background:var(--accent);color:var(--onaccent);border-color:var(--accent)}
+button.danger{color:var(--danger)}
+input[type=text],input[type=password]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.crumbs{flex:1;min-width:200px;word-break:break-all}
+.crumbs a{color:var(--accent);cursor:pointer;text-decoration:none}
+.crumbs a:hover{text-decoration:underline}
+table{width:100%;border-collapse:collapse}
+td,th{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--muted);font-weight:500;font-size:13px}
+tr.row:hover{background:var(--hover)}
+td.name a{color:var(--ink);text-decoration:none;cursor:pointer;word-break:break-all}
+td.name a.dir{color:var(--accent);font-weight:500}
+td.num{text-align:right;white-space:nowrap;color:var(--muted)}
+td.act{text-align:right;white-space:nowrap}
+td.act button{padding:2px 8px;font-size:13px}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:14px;text-align:center;color:var(--muted);margin-top:10px}
+.drop.over{border-color:var(--accent);background:var(--hover)}
+.login{max-width:340px;margin:12vh auto;text-align:center}
+.login input{width:100%;font-size:22px;letter-spacing:6px;text-align:center;margin:12px 0}
+.msg{color:var(--danger);min-height:1.4em}
+.prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px}
+.prog>div{height:100%;width:0;background:var(--accent)}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.on{opacity:.95}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div id="login" class="login card hide">
+  <h1>NSA</h1>
+  <div id="t_pin"></div>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12">
+  <button class="primary" id="enter"></button>
+  <div class="msg" id="loginmsg"></div>
+</div>
+
+<div id="app" class="hide">
+<header>
+  <h1>NSA</h1><span id="console"></span>
+  <span class="info" id="space"></span>
+</header>
+<main>
+  <div class="card">
+    <div class="bar">
+      <div class="crumbs" id="crumbs"></div>
+      <button id="up"></button>
+      <button id="mkdir"></button>
+      <button class="primary" id="uploadbtn"></button>
+      <input type="file" id="file" multiple class="hide">
+    </div>
+    <table>
+      <thead><tr><th id="h_name"></th><th class="num" id="h_size"></th><th class="num" id="h_date"></th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="msg" id="empty"></div>
+    <div class="drop" id="drop"></div>
+    <div id="uploads"></div>
+  </div>
+</main>
+</div>
+<div id="toast"></div>
+
+<script>
+const L = (navigator.language||'en').startsWith('es') ? 'es' : 'en';
+const T = {
+  en:{pin:'Type the PIN shown in the console\'s Settings (Web server).',enter:'Enter',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',up:'Up',mkdir:'New folder',upload:'Upload',name:'Name',size:'Size',date:'Modified',download:'Download',rename:'Rename',del:'Delete',install:'Install',empty:'Empty folder.',drop:'Drop files here to upload them to this folder',free:'free of',newname:'Name of the new folder:',renameto:'New name:',confirmdel:'Delete "%s"? This cannot be undone.',confirminst:'Install "%s" on the console?',done:'Done.',installed:'Installed.',restarting:'Installed. NSA restarts in a few seconds.',failed:'Failed: ',uploading:'Uploading',lost:'Cannot reach the console.'},
+  es:{pin:'Escribe el PIN que sale en Ajustes de la consola (Servidor web).',enter:'Entrar',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',up:'Subir nivel',mkdir:'Nueva carpeta',upload:'Subir archivos',name:'Nombre',size:'Tamaño',date:'Modificado',download:'Descargar',rename:'Renombrar',del:'Borrar',install:'Instalar',empty:'Carpeta vacía.',drop:'Suelta aquí archivos para subirlos a esta carpeta',free:'libres de',newname:'Nombre de la carpeta nueva:',renameto:'Nombre nuevo:',confirmdel:'¿Borrar "%s"? No se puede deshacer.',confirminst:'¿Instalar "%s" en la consola?',done:'Hecho.',installed:'Instalado.',restarting:'Instalado. NSA se reinicia en unos segundos.',failed:'Error: ',uploading:'Subiendo',lost:'No se puede contactar con la consola.'}
+}[L];
+document.documentElement.lang = L;
+const $ = id => document.getElementById(id);
+let pin = '', cwd = '/';
+
+function setText(){ $('t_pin').textContent=T.pin; $('enter').textContent=T.enter; $('up').textContent=T.up; $('mkdir').textContent=T.mkdir;
+  $('uploadbtn').textContent=T.upload; $('h_name').textContent=T.name; $('h_size').textContent=T.size; $('h_date').textContent=T.date; $('drop').textContent=T.drop; }
+setText();
+
+function toast(t){ const e=$('toast'); e.textContent=t; e.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>e.classList.remove('on'),3500); }
+function fmtSize(n){ if(n<1024) return n+' B'; const u=['KB','MB','GB','TB']; let i=-1; do{ n/=1024; i++; }while(n>=1024&&i<3); return n.toFixed(n<10?2:1)+' '+u[i]; }
+function fmtDate(s){ if(!s) return ''; const d=new Date(s*1000); return d.toLocaleDateString()+' '+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+const enc = p => encodeURIComponent(p).replace(/%2F/g,'/');
+const q = (k,v) => k+'='+encodeURIComponent(v);
+
+async function api(method, path, params, body){
+  let r;
+  try { r = await fetch('/api/'+path+(params?'?'+params:''), {method, headers:{'X-Pin':pin}, body}); }
+  catch(e){ throw new Error(T.lost); }
+  let j = null;
+  try { j = await r.json(); } catch(e){}
+  if(r.status===401) { const err=new Error(T.wrong); err.auth=true; throw err; }
+  if(r.status===429) { const err=new Error(T.locked); err.auth=true; throw err; }
+  if(!r.ok || (j && j.ok===false)) throw new Error((j&&j.error)||r.statusText);
+  return j;
+}
+
+async function login(){
+  pin = $('pin').value.trim();
+  document.cookie = 'pin='+encodeURIComponent(pin)+'; path=/; SameSite=Strict';
+  try {
+    const i = await api('GET','info');
+    sessionStorage.setItem('pin', pin);
+    $('login').classList.add('hide'); $('app').classList.remove('hide');
+    $('console').textContent = i.console+' · '+i.version;
+    $('space').textContent = fmtSize(i.free)+' '+T.free+' '+fmtSize(i.total);
+    go('/');
+  } catch(e){ showLogin(e.message); }
+}
+$('enter').onclick = login;
+$('pin').onkeydown = e => { if(e.key==='Enter') login(); };
+
+function showLogin(msg){ $('app').classList.add('hide'); $('login').classList.remove('hide'); $('loginmsg').textContent = msg||''; $('pin').focus(); }
+
+function crumbs(){
+  const c = $('crumbs'); c.textContent='';
+  const parts = cwd.split('/').filter(Boolean);
+  let path = '/';
+  const root = document.createElement('a'); root.textContent='SD'; root.onclick=()=>go('/'); c.appendChild(root);
+  parts.forEach(p => { path += p+'/'; const to=path;
+    c.appendChild(document.createTextNode(' / '));
+    const a=document.createElement('a'); a.textContent=p; a.onclick=()=>go(to); c.appendChild(a); });
+}
+
+async function go(path){
+  if(!path.endsWith('/')) path += '/';
+  try {
+    const j = await api('GET','list', q('path', path==='/'?'/':path.slice(0,-1)));
+    cwd = path; crumbs();
+    const files = j.files.sort((a,b)=> (b.dir-a.dir) || a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'}));
+    const rows = $('rows'); rows.textContent='';
+    files.forEach(f => rows.appendChild(row(f)));
+    $('empty').textContent = files.length ? '' : T.empty; $('empty').style.color='var(--muted)';
+  } catch(e){ if(e.auth) showLogin(e.message); else toast(e.message); }
+}
+
+function btn(label, cls, fn){ const b=document.createElement('button'); b.textContent=label; if(cls) b.className=cls; b.onclick=fn; return b; }
+function full(f){ return cwd + f.name; }
+
+function row(f){
+  const tr = document.createElement('tr'); tr.className='row';
+  const n = document.createElement('td'); n.className='name';
+  const a = document.createElement('a'); a.textContent = (f.dir?'📁 ':'') + f.name;
+  if(f.dir){ a.className='dir'; a.onclick=()=>go(full(f)); }
+  else { a.href='/api/file?'+q('path',full(f)); a.download=f.name; }
+  n.appendChild(a);
+  const s = document.createElement('td'); s.className='num'; s.textContent = f.dir ? '' : fmtSize(f.size);
+  const d = document.createElement('td'); d.className='num'; d.textContent = fmtDate(f.mtime);
+  const act = document.createElement('td'); act.className='act';
+  if(!f.dir && /\.cia$/i.test(f.name)) act.appendChild(btn(T.install,'',()=>install(f)));
+  act.appendChild(btn(T.rename,'',()=>rename(f)));
+  act.appendChild(btn(T.del,'danger',()=>del(f)));
+  tr.append(n,s,d,act); return tr;
+}
+
+async function run(fn){ try { await fn(); } catch(e){ if(e.auth) showLogin(e.message); else toast(T.failed+e.message); } }
+
+async function del(f){ if(!confirm(T.confirmdel.replace('%s',f.name))) return;
+  run(async()=>{ await api('DELETE','file',q('path',full(f))); toast(T.done); go(cwd); }); }
+async function rename(f){ const to = prompt(T.renameto, f.name); if(!to || to===f.name) return;
+  run(async()=>{ await api('POST','rename',q('path',full(f))+'&'+q('to',cwd+to)); go(cwd); }); }
+async function install(f){ if(!confirm(T.confirminst.replace('%s',f.name))) return;
+  run(async()=>{ toast('…'); const j = await api('POST','install',q('path',full(f))); toast(j.restarting?T.restarting:T.installed); }); }
+$('mkdir').onclick = () => { const n = prompt(T.newname); if(!n) return;
+  run(async()=>{ await api('POST','mkdir',q('path',cwd+n)); go(cwd); }); };
+$('up').onclick = () => { const p = cwd.split('/').filter(Boolean); p.pop(); go('/'+p.join('/')); };
+
+// Uploads: one at a time (the console serves one request at a time), with progress.
+const queue = []; let busy = false;
+function enqueue(files){ for(const f of files) queue.push({file:f, dir:cwd}); pump(); }
+function pump(){
+  if(busy || !queue.length) return; busy = true;
+  const job = queue.shift();
+  const box = document.createElement('div'); box.style.marginTop='8px';
+  const label = document.createElement('div'); label.textContent = T.uploading+' '+job.file.name;
+  const bar = document.createElement('div'); bar.className='prog'; const fill = document.createElement('div'); bar.appendChild(fill);
+  box.append(label, bar); $('uploads').appendChild(box);
+  const x = new XMLHttpRequest();
+  x.open('PUT', '/api/file?'+q('path', job.dir+job.file.name));
+  x.setRequestHeader('X-Pin', pin);
+  x.upload.onprogress = e => { if(e.lengthComputable) fill.style.width = (100*e.loaded/e.total)+'%'; };
+  x.onloadend = () => { busy=false; box.remove();
+    if(x.status===200) { if(!queue.length) { toast(T.done); go(cwd); } } else toast(T.failed+job.file.name);
+    pump(); };
+  x.send(job.file);
+}
+$('uploadbtn').onclick = () => $('file').click();
+$('file').onchange = e => { enqueue(e.target.files); e.target.value=''; };
+const drop = $('drop');
+['dragenter','dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+document.addEventListener('drop', e => { if(e.dataTransfer && e.dataTransfer.files.length) enqueue(e.dataTransfer.files); });
+
+const saved = sessionStorage.getItem('pin');
+if(saved){ $('pin').value = saved; login(); } else showLogin();
+</script>
+</body>
+</html>

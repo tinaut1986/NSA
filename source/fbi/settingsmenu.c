@@ -6,6 +6,7 @@
 #include <3ds.h>
 
 #include "ftpserver.h"
+#include "webserver.h"
 #include "section.h"
 #include "settings.h"
 #include "../core/bgmusic.h"
@@ -23,6 +24,7 @@ typedef enum {
     OPTION_SOUNDS,
     OPTION_MUSIC,
     OPTION_FTP,
+    OPTION_WEB,
     OPTION_CHANNEL,
     OPTION_AUTO_UPDATE,
     OPTION_CHECK_UPDATES,
@@ -95,6 +97,7 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_CHANNEL: return _("Update channel");
         case OPTION_AUTO_UPDATE: return _("Check at start");
         case OPTION_FTP: return _("FTP server");
+        case OPTION_WEB: return _("Web server");
         case OPTION_CHECK_UPDATES: return _("Check for updates");
         case OPTION_CHANGELOG: return _("Changelog");
         default: return "";
@@ -119,6 +122,7 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_CHANNEL: return settings->channel == UPDATE_CHANNEL_BETA ? _("Beta") : _("Stable");
         case OPTION_AUTO_UPDATE: return settingsmenu_on_off(settings->autoUpdate);
         case OPTION_FTP: return settingsmenu_on_off(ftpserver_running());
+        case OPTION_WEB: return settingsmenu_on_off(webserver_running());
         default: return NULL;
     }
 }
@@ -173,6 +177,15 @@ static void settingsmenu_change(settings_option option, int direction) {
                 // Saved on even when it cannot start now (no Wi-Fi): it starts next time.
                 ftpserver_start();
                 settings->ftpServer = true;
+            }
+            break;
+        case OPTION_WEB:
+            if(webserver_running()) {
+                webserver_stop();
+                settings->webServer = false;
+            } else {
+                webserver_start();
+                settings->webServer = true;
             }
             break;
         case OPTION_CHECK_UPDATES:
@@ -409,6 +422,7 @@ static const char* settingsmenu_help(settings_option option) {
             return settings->autoUpdate ? _("On: look for an update when NSA starts and ask before installing it.")
                                         : _("Off: only look for updates from this screen.");
         case OPTION_FTP: return _("Only the SD card, no password. Driving the console and SITE INSTALL need the file sdmc:/nsa/remote.flag.");
+        case OPTION_WEB: return _("A page to manage the console from a computer's browser: files, installing CIAs. It asks for the PIN shown here, which changes each time the server starts. Plain HTTP, only on your Wi-Fi.");
         case OPTION_CHECK_UPDATES: return _("Look for a newer release in your channel now.");
         case OPTION_CHANGELOG: return _("Every release of your channel, newest first.");
         default: return "";
@@ -479,6 +493,12 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
         char address[64];
         ftpserver_address(address, sizeof(address));
         snprintf(line, sizeof(line), "FTP: %s", address);
+    } else if(option == OPTION_WEB) {
+        char address[64];
+        char pin[16];
+        webserver_address(address, sizeof(address));
+        webserver_pin(pin, sizeof(pin));
+        snprintf(line, sizeof(line), pin[0] != '\0' ? "%s  PIN %s" : "%s", address, pin);
     } else if(option == OPTION_NIGHT) {
         snprintf(line, sizeof(line), "%s %s", _("Now:"), t->night ? _("night") : _("day"));
     } else if(option == OPTION_CHANNEL || option == OPTION_AUTO_UPDATE || option == OPTION_CHECK_UPDATES || option == OPTION_CHANGELOG) {

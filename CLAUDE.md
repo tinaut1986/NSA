@@ -147,6 +147,14 @@ Ask before installing while the owner is using the console.
 Delete test files from the console's SD afterwards; the SD root is the owner's (Luma, boot9strap,
 `boot.3dsx`, `retroarch`, `roms` ... are theirs: never touch what is not NSA's or a test's).
 
+## Web server
+
+`source/fbi/webserver.c` (port 8080, off until Settings -> Web server) and `romfs/web/index.html`: a page to manage the console
+from a computer. Design, API, security and the phases left are in `docs/PLAN.md` ("Next" item 10); the API is also at the top of
+`webserver.h`. To try it: Azahar with `"web_server": true` in its `sdmc:/nsa/settings.json`, then
+`tools/web_tests.py --host 127.0.0.1` (a DEBUG build writes the PIN to `sdmc:/nsa/web-pin.txt`), and open
+`http://127.0.0.1:8080/` in the built-in browser. Anything that changes something must be sent with the `X-Pin` header.
+
 ## Console to console: testing
 
 Read "Console to console" in `docs/PLAN.md` first. In short:

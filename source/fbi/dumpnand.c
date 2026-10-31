@@ -141,6 +141,30 @@ static void dumpnand_delete_partial(dumpnand_data* dump) {
     }
 }
 
+// "<hash>  <name>.bin" in <name>.bin.sha256, the format `sha256sum -c` reads.
+static void dumpnand_write_hash_file(dumpnand_data* dump) {
+    const char* name = strrchr(dump->path, '/');
+    name = name != NULL ? name + 1 : dump->path;
+
+    char line[160];
+    int length = snprintf(line, sizeof(line), "%s  %s\n", dump->hash, name);
+
+    char path[FILE_PATH_MAX];
+    snprintf(path, sizeof(path), "%s.sha256", dump->path);
+
+    FS_Path* fsPath = fs_make_path_utf8(path);
+    if(fsPath != NULL) {
+        Handle file = 0;
+        if(R_SUCCEEDED(FSUSER_OpenFileDirectly(&file, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *fsPath, FS_OPEN_WRITE | FS_OPEN_CREATE, 0))) {
+            u32 written = 0;
+            FSFILE_Write(file, &written, 0, line, (u32) length, FS_WRITE_FLUSH);
+            FSFILE_Close(file);
+        }
+
+        fs_free_path_utf8(fsPath);
+    }
+}
+
 // ---- what is known before starting ----
 
 static void dumpnand_probe(dumpnand_data* dump) {
@@ -383,7 +407,8 @@ static void dumpnand_draw_bottom(ui_view* view, void* data, float x1, float y1, 
         widget_text_fit(name != NULL ? name + 1 : dump->path, tx, y + 62 + widget_text_height(WIDGET_SMALL_SCALE), WIDGET_TEXT_SCALE, t->palette->text, right - tx);
 
         snprintf(text, sizeof(text), "SHA-256 %.16s...", dump->hash);
-        widget_text_fit(text, tx, y + cardH - 12 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, t->accent, right - tx);
+        widget_text_fit(text, tx, y + cardH - 12 - 2 * widget_text_height(WIDGET_SMALL_SCALE) - 2, WIDGET_SMALL_SCALE, t->accent, right - tx);
+        widget_text_fit(_("Also saved as a .sha256 file next to it."), tx, y + cardH - 10 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, t->palette->textMuted, right - tx);
     }
 
     // Buttons.
@@ -452,6 +477,8 @@ static void dumpnand_update(ui_view* view, void* data, float bx1, float by1, flo
             for(u32 i = 0; i < 32; i++) {
                 snprintf(dump->hash + i * 2, 3, "%02x", digest[i]);
             }
+
+            dumpnand_write_hash_file(dump);
 
             dump->state = DUMP_DONE;
             sound_play(SOUND_SUCCESS);

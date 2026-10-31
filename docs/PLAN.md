@@ -124,7 +124,8 @@ dates). The owner will go through them one by one; tick each only when they say 
 
 **Dump NAND screen** (branch `advanced`)
 - [ ] On a console: the raw NAND opens (Azahar cannot, it closes), size and free space are right,
-      a dump runs to the end, the SHA-256 shown matches the file (`sha256sum`), cancelling deletes the
+      a dump runs to the end, the SHA-256 shown matches the file (`sha256sum`) and the `.sha256` next to it
+      passes `sha256sum -c`, cancelling deletes the
       half file, a full SD card shows the red "not enough space" screen. Seen in Azahar only with a
       fake source of zeros (UI and hash).
 

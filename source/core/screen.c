@@ -1250,3 +1250,26 @@ bool screen_capture(gfxScreen_t screen, const char* path) {
     ok = fclose(f) == 0 && ok;
     return ok;
 }
+
+bool screen_capture_rgb565(gfxScreen_t screen, u16* out, u32* width, u32* height) {
+    u16 fbWidth = 0;
+    u16 fbHeight = 0;
+    u8* fb = gfxGetFramebuffer(screen, GFX_LEFT, &fbWidth, &fbHeight);
+    if(fb == NULL) {
+        return false;
+    }
+
+    // As in screen_capture: the framebuffer is portrait, each column is one screen column from the bottom.
+    *width = fbHeight;
+    *height = fbWidth;
+    for(u32 y = 0; y < *height; y++) {
+        u32 r = *height - 1 - y;
+        u16* row = &out[y * *width];
+        for(u32 x = 0; x < *width; x++) {
+            const u8* px = &fb[(x * fbWidth + r) * 3];   // B, G, R
+            row[x] = (u16) (((px[2] & 0xF8) << 8) | ((px[1] & 0xFC) << 3) | (px[0] >> 3));
+        }
+    }
+
+    return true;
+}

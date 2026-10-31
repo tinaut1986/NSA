@@ -65,6 +65,8 @@ void screen_draw_string_wrap(const char* text, float x, float y, float scaleX, f
 // themed widgets. All honour screen_set_base_alpha.
 // Writes what the screen shows to a 24-bit BMP. Main thread, between frames.
 bool screen_capture(gfxScreen_t screen, const char* path);
+// The screen as RGB565, row by row from the top: `out` holds at least 400 * 240 values. False when there is no frame.
+bool screen_capture_rgb565(gfxScreen_t screen, u16* out, u32* width, u32* height);
 
 // Clips drawing to a rectangle of the current screen until screen_clear_clip.
 void screen_set_clip(float x, float y, float width, float height);

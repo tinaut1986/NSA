@@ -38,6 +38,10 @@ viewer_kind viewers_kind_of(const char* name) {
         return VIEWER_IMAGE;
     }
 
+    if(viewers_ext_in(ext, "mp3 wav flac ogg oga")) {
+        return VIEWER_AUDIO;
+    }
+
     if(viewers_ext_in(ext, "txt md json ini cfg conf log xml csv tsv html htm css js c h cpp hpp py lua sh yml yaml toml srt bat cmake properties inf cue m3u tex")) {
         return VIEWER_TEXT;
     }

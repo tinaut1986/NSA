@@ -467,7 +467,7 @@ static void files_open_text(void* data) {
 }
 
 // The pictures of the folder (in the list's order) with `selected` among them; opens the viewer.
-static void files_open_image_in(files_data* data, linked_list* items, list_item* selected) {
+static void files_open_media_in(files_data* data, linked_list* items, list_item* selected, viewer_kind kind) {
     u32 total = linked_list_size(items);
     const char** paths = (const char**) calloc(total > 0 ? total : 1, sizeof(char*));
     if(paths == NULL) {
@@ -486,7 +486,7 @@ static void files_open_image_in(files_data* data, linked_list* items, list_item*
         }
 
         file_info* info = (file_info*) item->data;
-        if(!files_is_dir(info) && viewers_kind_of(info->name) == VIEWER_IMAGE) {
+        if(!files_is_dir(info) && viewers_kind_of(info->name) == kind) {
             if(item == selected) {
                 index = count;
             }
@@ -495,13 +495,23 @@ static void files_open_image_in(files_data* data, linked_list* items, list_item*
         }
     }
 
-    imageview_open(((file_info*) selected->data)->archive, paths, count, index);
+    if(kind == VIEWER_AUDIO) {
+        audioview_open(((file_info*) selected->data)->archive, paths, count, index);
+    } else {
+        imageview_open(((file_info*) selected->data)->archive, paths, count, index);
+    }
+
     free(paths);
 }
 
 static void files_open_image(void* data) {
     files_data* listData = (files_data*) data;
-    files_open_image_in(listData, listData->actionItems, listData->actionSelected);
+    files_open_media_in(listData, listData->actionItems, listData->actionSelected, VIEWER_IMAGE);
+}
+
+static void files_open_audio(void* data) {
+    files_data* listData = (files_data*) data;
+    files_open_media_in(listData, listData->actionItems, listData->actionSelected, VIEWER_AUDIO);
 }
 
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
@@ -517,6 +527,10 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
     viewer_kind viewer = viewers_kind_of(info->name);
     if(viewer == VIEWER_IMAGE) {
         actions[count++] = (sheet_action) {ICON_PHOTO, _("View picture"), false, files_open_image};
+    }
+
+    if(viewer == VIEWER_AUDIO) {
+        actions[count++] = (sheet_action) {ICON_MUSIC, _("Play"), false, files_open_audio};
     }
 
     if(viewer == VIEWER_TEXT) {
@@ -939,7 +953,9 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
         if(files_is_dir(fileInfo)) {
             files_navigate(listData, items, fileInfo->path);
         } else if(viewer == VIEWER_IMAGE) {
-            files_open_image_in(listData, items, selected);
+            files_open_media_in(listData, items, selected, VIEWER_IMAGE);
+        } else if(viewer == VIEWER_AUDIO) {
+            files_open_media_in(listData, items, selected, VIEWER_AUDIO);
         } else if(viewer == VIEWER_TEXT) {
             textview_open(fileInfo->archive, fileInfo->path, fileInfo->name, false);
         } else {

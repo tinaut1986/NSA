@@ -44,6 +44,10 @@ What `release` holds, in the order it was built:
     shrunk to a 1024 px texture); text files (and "Open as text" for any file) open
     `textview.c`, which edits with its own keyboard on the bottom screen (the system one hides
     the text), keeps CRLF, reads non-UTF-8 as Latin-1, up to 256 KB (longer: read only).
+13. **Audio player** (branch `feat/audio-player`, cut from `feat/file-viewers`): MP3, WAV, FLAC and
+    Ogg Vorbis from Files (`audioview.c`). dr_mp3/dr_flac/dr_wav (vendored in `source/libs/dr_libs`,
+    public domain) and Tremor decode on a thread into four DSP buffers; the next file of the
+    folder follows, seek bar, volume, +-10 s. Needs `sdmc:/3ds/dspfirm.cdc`. Tested only on Azahar.
 
 ## Export an installed title as a CIA (`source/fbi/action/exportcia.c`)
 

@@ -612,6 +612,14 @@ const i18n_entry i18n_es[] = {
         {"Save the changes before closing?", "¿Guardar los cambios antes de cerrar?"},
         {"Discard", "Descartar"},
         {"Cancel", "Cancelar"},
+        // Audio
+        {"This file cannot be played.", "No se puede reproducir este archivo."},
+        {"Only mono and stereo sound is supported.", "Solo se admite sonido mono y estéreo."},
+        {"No DSP firmware: dump it with DSP1 to play sound.", "Falta el firmware del DSP: extráelo con DSP1 para oír sonido."},
+        {"mono", "mono"},
+        {"stereo", "estéreo"},
+        {"Play", "Reproducir"},
+        {"\uE000 pause   \uE004 \uE005 track   \uE001 back", "\uE000 pausa   \uE004 \uE005 pista   \uE001 volver"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

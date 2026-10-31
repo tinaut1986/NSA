@@ -111,30 +111,16 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- **Import rollback**: not tried: make an import fail (cancel with B midway, or a full save) and check the old data is back and
-  the `-before-import` folder is gone; a failed rollback keeps the folder.
-
-- **SpotPass data export/import/send**: not tried on a console. The BOSS archive may refuse to create files or to be emptied
-  (permissions of the boss service); if the import fails midway the old data is put back (and if that fails too, the `-before-import` folder has it).
-
-- **Import from Checkpoint's backups**: *Import save / extra data* also lists the backups Checkpoint keeps in
-  `sdmc:/3ds/Checkpoint/saves|extdata/0x<unique ID, 5 digits> <game>/<backup>/` (the archive's tree directly in the folder, no
-  manifest, so no version warning), tagged `[Checkpoint]` (a scrolling list with no cap, not a sheet); NSA's are tagged `[NSA]` and their manifest has `source=NSA`. Format
-  checked against Checkpoint's source, not against a real backup. Export still writes only NSA's layout.
-
-- **Send saves and extra data to another 3DS (3b)**: Titles sheet rows *Send save / extra data to another 3DS*. The data
-  is packed (worker thread) into one file `sdmc:/nsa/saves/send/<TITLEID>-<save|ext>-<name>.nsasave` and goes through the normal
-  file transfer (no protocol change; the package stays on the sender's SD, overwritten by the next one of that title). The receiver
-  recognises the name: *Import now* (only if the title, or the ext data archive, is installed) / *Save in a folder* / *Reject*;
-  either way it is unpacked into `sdmc:/nsa/saves/<TITLEID>/<date>/` and the same red import (with the backup first and the version
-  warning) follows. Not tried on a console: any of it, between the two consoles; a title not installed on the receiver; resume.
-  The package is deleted after unpacking. Unpacking refuses paths with `..`, `/` first, `\` or `:`.
-
-- **Export/import of 3DS saves and extra data (3b, local part)**: Titles sheet rows *Export save*, *Import save*,
-  and the same for extra data. Exports go to `sdmc:/nsa/saves/<TITLEID>/<YYYYMMDD-HHMMSS>/{manifest.txt,save|ext/}`;
-  import lists those folders (16 newest), asks in red, exports the current data to `<date>-before-import` first, empties the
-  archive and copies. Not tried on a console: a save with subfolders, extra data (fixed file layout), an empty save,
-  cancelling midway, the version warning. SpotPass (`boss/`) and sending to another 3DS are not built yet.
+**Saves, extra data and SpotPass data** (item 3b; code in `source/fbi/action/savetransfer.c`; none of it tried on a console)
+- [ ] Export a save (Titles sheet) to `sdmc:/nsa/saves/<TITLEID>/<date>/save/` with `manifest.txt` (`source=NSA`): with subfolders, an empty save, a big one; cancel with B midway.
+- [ ] Same for extra data (`ext/`; fixed file layout) and for SpotPass data (`boss/`; the BOSS archive may refuse to create files or be emptied).
+- [ ] Import: the scrolling list shows NSA's exports tagged `[NSA]` newest first (no cap), the red warning, the version warning when the game's version differs, the backup `<date>-before-import` made first, the data replaced, the game starts with it.
+- [ ] Import rollback: make an import fail (cancel with B midway, a full save) and check the old data is back, the `-before-import` folder is gone and the message says it could not be imported; if the rollback itself fails the folder stays.
+- [ ] Import from Checkpoint's backups (`sdmc:/3ds/Checkpoint/saves|extdata/0x<ID> <game>/<backup>/`) tagged `[Checkpoint]`: the format was checked against Checkpoint's source, not a real backup; extra data under `extdata/` with the same ID rule.
+- [ ] Send a save, extra data and SpotPass data to the other console (New 3DS XL <-> 2DS): the package `sdmc:/nsa/saves/send/<TITLEID>-<kind>-<name>.nsasave` is made, goes through, and the receiver offers *Import now* / *Save in a folder* / *Reject*.
+- [ ] Receiver without the title (or its extra data / SpotPass archive): only *Save in a folder* / *Reject*, with the reason; the folder appears in the import list as `[NSA]`.
+- [ ] A cut transfer of a package goes on where it stopped; the package is deleted after unpacking; the sender's package is overwritten by the next one.
+- [ ] Spanish texts of all of this (rows, list title, prompts, notices) and their fit on the real console screen.
 
 Merged into `release` on the owner's word, **not yet tried on a console** unless said otherwise
 (built, and the screens driven in Azahar, which shows layout but not sound, 3D, hb:ldr or real

@@ -64,7 +64,7 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
   <img src="docs/images/audio-player.png" width="360" alt="The audio player">
 </p>
 
-### Advanced (needs a CIA, a 3DS or a 3DSX under Luma3DS)
+### Advanced (only with NSA installed as a CIA, or run as a 3DSX under Luma3DS)
 
 The console's own memory and data, behind a warning: browse and modify the CTR NAND, TWL NAND,
 TWL photos and TWL sounds, browse and delete system save data, and dump the raw NAND image to the
@@ -93,9 +93,11 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
 
 ### For developers
 
-- With the **FTP server** on (Settings, or always in DEBUG builds) the console answers on port
-  5021 and can be driven from a computer: `SITE SCREENSHOT`, `SITE PRESS`, `SITE TAP`, `SITE DRAG`,
-  and `SITE INSTALL` to update NSA itself. See [CLAUDE.md](CLAUDE.md).
+- With the **FTP server** on (Settings → FTP server) the SD card is served on port 5021. Driving
+  the console from a computer (`SITE SCREENSHOT`, `SITE PRESS`, `SITE TAP`, `SITE DRAG`, and
+  `SITE INSTALL` to update NSA itself) is off in normal builds: it turns on while the file
+  `sdmc:/nsa/remote.flag` exists on the SD card (DEBUG builds always have it on). See
+  [CLAUDE.md](CLAUDE.md).
 - Plans, decisions and what is still to test on a console are in [docs/PLAN.md](docs/PLAN.md).
 
 > The pictures are from a New 3DS XL. Some of the newer features have so far run only in an

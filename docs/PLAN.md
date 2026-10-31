@@ -122,6 +122,12 @@ dates). The owner will go through them one by one; tick each only when they say 
       `release`, before this change): not seen even once; readable names of the modules were not
       added (no source found for the IDs).
 
+**Dump NAND screen** (branch `advanced`)
+- [ ] On a console: the raw NAND opens (Azahar cannot, it closes), size and free space are right,
+      a dump runs to the end, the SHA-256 shown matches the file (`sha256sum`), cancelling deletes the
+      half file, a full SD card shows the red "not enough space" screen. Seen in Azahar only with a
+      fake source of zeros (UI and hash).
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.

@@ -496,6 +496,25 @@ static void titles_delete_ext(void* data) {
     }
 }
 
+static void titles_save_files(titles_data* data, bool import, save_kind kind) {
+    title_info* info = (title_info*) data->actionSelected->data;
+    u32 extId = 0;
+    if(kind == SAVE_KIND_EXT && !titles_ext_find(info, &extId)) {
+        return;
+    }
+
+    if(import) {
+        action_import_save_files(info, data->actionSelected->name, kind, extId);
+    } else {
+        action_export_save_files(info, data->actionSelected->name, kind, extId);
+    }
+}
+
+static void titles_export_save_files(void* data) { titles_save_files(data, false, SAVE_KIND_SAVE); }
+static void titles_import_save_files(void* data) { titles_save_files(data, true, SAVE_KIND_SAVE); }
+static void titles_export_ext_files(void* data) { titles_save_files(data, false, SAVE_KIND_EXT); }
+static void titles_import_ext_files(void* data) { titles_save_files(data, true, SAVE_KIND_EXT); }
+
 static void titles_actions_open(titles_data* data, linked_list* items, list_item* selected) {
     title_info* info = (title_info*) selected->data;
     data->actionItems = items;
@@ -510,10 +529,14 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
     actions[count++] = (sheet_action) {ICON_PLAYER_PLAY, _("Launch"), false, titles_launch};
     if(!info->twl) {
         actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save data"), false, titles_browse_save};
+        actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Export save"), false, titles_export_save_files};
+        actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Import save"), true, titles_import_save_files};
         actions[count++] = (sheet_action) {ICON_PHOTO, _("Extract icon"), false, titles_extract_smdh};
         if(hasExt) {
             // Browsing leaves the sheet open under it: B comes back to the sheet.
             actions[count++] = (sheet_action) {ICON_DATABASE, _("Browse extra data"), false, titles_browse_ext, true};
+            actions[count++] = (sheet_action) {ICON_DATABASE, _("Export extra data"), false, titles_export_ext_files};
+            actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Import extra data"), true, titles_import_ext_files};
         }
 
         if(!card) {

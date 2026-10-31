@@ -109,6 +109,12 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- **Export/import of 3DS saves and extra data (3b, local part)**: Titles sheet rows *Export save*, *Import save*,
+  and the same for extra data. Exports go to `sdmc:/nsa/saves/<TITLEID>/<YYYYMMDD-HHMMSS>/{manifest.txt,save|ext/}`;
+  import lists those folders (16 newest), asks in red, exports the current data to `<date>-before-import` first, empties the
+  archive and copies. Not tried on a console: a save with subfolders, extra data (fixed file layout), an empty save,
+  cancelling midway, the version warning. SpotPass (`boss/`) and sending to another 3DS are not built yet.
+
 Merged into `release` on the owner's word, **not yet tried on a console** unless said otherwise
 (built, and the screens driven in Azahar, which shows layout but not sound, 3D, hb:ldr or real
 dates). The owner will go through them one by one; tick each only when they say it works.

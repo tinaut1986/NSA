@@ -96,7 +96,7 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
 
 ### For developers
 
-- With the **FTP server** on (Settings → FTP server) the SD card is served on port 5021. Driving
+- With the **FTP server** on (Settings → FTP server, on by default) the SD card is served on port 5021. Driving
   the console from a computer (`SITE SCREENSHOT`, `SITE PRESS`, `SITE TAP`, `SITE DRAG`, and
   `SITE INSTALL` to update NSA itself) is off in normal builds: it turns on while the file
   `sdmc:/nsa/remote.flag` exists on the SD card (DEBUG builds always have it on). See

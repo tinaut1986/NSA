@@ -315,7 +315,7 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_AUTO_UPDATE:
             return settings->autoUpdate ? _("On: look for an update when NSA starts and ask before installing it.")
                                         : _("Off: only look for updates from this screen.");
-        case OPTION_FTP: return _("Only the SD card, no password. SITE INSTALL <path> installs a CIA from the SD card.");
+        case OPTION_FTP: return _("Only the SD card, no password. Driving the console and SITE INSTALL need the file sdmc:/nsa/remote.flag.");
         case OPTION_CHECK_UPDATES: return _("Look for a newer release in your channel now.");
         case OPTION_CHANGELOG: return _("Every release of your channel, newest first.");
         default: return "";

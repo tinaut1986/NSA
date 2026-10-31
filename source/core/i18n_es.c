@@ -79,7 +79,7 @@ const i18n_entry i18n_es[] = {
         {"Stable: stable releases only. The changelog lists everything since yours, betas included.", "Estable: solo versiones estables. Las novedades incluyen todo desde la tuya, betas incluidas."},
         {"On: look for an update when NSA starts and ask before installing it.", "Sí: busca una actualización al abrir NSA y pregunta antes de instalarla."},
         {"Off: only look for updates from this screen.", "No: solo se buscan actualizaciones desde esta pantalla."},
-        {"Only the SD card, no password. SITE INSTALL <path> installs a CIA from the SD card.", "Solo la tarjeta SD, sin contraseña. SITE INSTALL <ruta> instala un CIA de la tarjeta SD."},
+        {"Only the SD card, no password. Driving the console and SITE INSTALL need the file sdmc:/nsa/remote.flag.", "Solo la tarjeta SD, sin contraseña. Controlar la consola y SITE INSTALL necesitan el archivo sdmc:/nsa/remote.flag."},
         {"Look for a newer release in your channel now.", "Busca ahora una versión más nueva en tu canal."},
         {"Every release of your channel, newest first.", "Todas las versiones de tu canal, de la más nueva a la más antigua."},
         {"Now:", "Ahora:"},

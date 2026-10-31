@@ -404,6 +404,14 @@ done:
     return ok;
 }
 
+// For the web server: the same install, with its progress on the bottom screen's toast.
+bool ftpserver_install(const char* vpath, char* error, size_t errorSize) {
+    ftp_set_phase(PHASE_INSTALLING, vpath);
+    bool ok = ftp_install_cia(vpath, error, errorSize);
+    ftp_set_phase(PHASE_NONE, NULL);
+    return ok;
+}
+
 // ---- commands ----
 
 static void ftp_format_list_line(char* out, unsigned cap, const char* name, const struct stat* st, bool mlsd) {

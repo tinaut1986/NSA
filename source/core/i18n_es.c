@@ -679,6 +679,8 @@ const i18n_entry i18n_es[] = {
         {"Run program", "Ejecutar programa"},
         {"File / installed size", "Tamaño archivo / instalado"},
         {"Modified", "Modificado"},
+        {"Web server", "Servidor web"},
+        {"A page to manage the console from a computer's browser: files, installing CIAs. It asks for the PIN shown here, which changes each time the server starts. Plain HTTP, only on your Wi-Fi.", "Una página para manejar la consola desde el navegador de un ordenador: archivos e instalar CIAs. Pide el PIN que se ve aquí, que cambia cada vez que arranca el servidor. HTTP sin cifrar, solo en tu Wi-Fi."},
         {"The import failed and the previous data could not be put back. It is in the folder ending in -before-import.", "La importación falló y no se pudieron devolver los datos anteriores. Están en la carpeta que acaba en -before-import."},
         {"The import failed. The previous data was put back.", "La importación falló. Se han devuelto los datos anteriores."},
         {"Export SpotPass data", "Exportar datos SpotPass"},

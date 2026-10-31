@@ -10,6 +10,7 @@
 #include "resources.h"
 #include "section.h"
 #include "ftpserver.h"
+#include "webserver.h"
 #include "settings.h"
 #include "update.h"
 #include "../core/core.h"
@@ -217,6 +218,10 @@ void startup_run() {
     // Debug builds always serve, whatever the saved setting says.
     if(settings_get()->ftpServer || NSA_DEBUG) {
         ftpserver_start();
+    }
+
+    if(settings_get()->webServer) {
+        webserver_start();
     }
 
     if(startup_is_dir(LEGACY_ROOT) && !startup_is_dir(DATA_ROOT)) {

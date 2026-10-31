@@ -13,6 +13,7 @@
 static settings_data settings = {
         .channel = UPDATE_CHANNEL_STABLE,
         .autoUpdate = true,
+        .webServer = false,
         .ftpServer = true,   // Serving files is on by default; driving the console needs sdmc:/nsa/remote.flag.
         .theme = 0,
         .accent = 0,
@@ -78,6 +79,11 @@ void settings_load() {
     json_t* ftpServer = json_object_get(json, "ftp_server");
     if(json_is_boolean(ftpServer)) {
         settings.ftpServer = json_is_true(ftpServer);
+    }
+
+    json_t* webServer = json_object_get(json, "web_server");
+    if(json_is_boolean(webServer)) {
+        settings.webServer = json_is_true(webServer);
     }
 
     json_t* theme = json_object_get(json, "theme");
@@ -172,10 +178,11 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
+                             "web_server", settings.webServer,
                              "theme", theme_get(settings.theme)->id,
                              "accent", theme_accent_get(settings.accent)->id,
                              "night_mode", night_ids[settings.night < 3 ? settings.night : 0],

@@ -62,7 +62,8 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
   <img src="docs/images/files-photos.png" width="360" alt="A folder of pictures">
   <img src="docs/images/file-actions.png" width="360" alt="A file's actions">
   <img src="docs/images/image-viewer.png" width="360" alt="The picture viewer">
-  <img src="docs/images/text-viewer.png" width="360" alt="The text viewer and editor">
+  <img src="docs/images/text-viewer.png" width="360" alt="The text viewer">
+  <img src="docs/images/text-editor.png" width="360" alt="Editing with NSA's own keyboard">
   <img src="docs/images/audio-player.png" width="360" alt="The audio player">
 </p>
 

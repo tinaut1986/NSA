@@ -658,6 +658,7 @@ const i18n_entry i18n_es[] = {
         {"Failed to start the program.", "No se pudo iniciar el programa."},
         {"Run program", "Ejecutar programa"},
         {"File / installed size", "Tamaño archivo / instalado"},
+        {"Modified", "Modificado"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

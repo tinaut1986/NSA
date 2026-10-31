@@ -20,6 +20,13 @@
 //   POST   /api/mkdir?path=/dir
 //   POST   /api/rename?path=/a&to=/b
 //   POST   /api/install?path=/f.cia        installs a CIA from the SD card (SD titles only)
+//   GET    /theme.json                     (public) the console's theme, for the page to wear
+//   GET    /font.ttf                       (public) the Pixel theme's font
+//   GET    /api/titles                     [{id, media, kind, version, size}]: SD and NAND, no DSiWare
+//   GET    /api/title?id=&media=           {name, publisher, code, save, ext, boss}
+//   GET    /api/icon?id=&media=            the 48x48 icon as a BMP
+//   POST   /api/save/pack?id=&media=&kind=save|ext|boss&name=   makes the .nsasave package: {path, size}
+//   POST   /api/save/receive?path=/nsa/received/x.nsasave&import=1   the console takes it like a sent one and asks there
 //
 // Port 8080 (the ports 5000-5085 are Remote Install, the transfers and the FTP server).
 

@@ -488,6 +488,10 @@ static void titles_save_files(titles_data* data, int mode, save_kind kind) {
         return;
     }
 
+    if(kind == SAVE_KIND_BOSS && !action_find_boss_data(info, &extId)) {
+        return;
+    }
+
     if(mode == 1) {
         action_import_save_files(info, data->actionSelected->name, kind, extId);
     } else if(mode == 2) {
@@ -503,6 +507,9 @@ static void titles_export_ext_files(void* data) { titles_save_files(data, 0, SAV
 static void titles_import_ext_files(void* data) { titles_save_files(data, 1, SAVE_KIND_EXT); }
 static void titles_send_save_files(void* data) { titles_save_files(data, 2, SAVE_KIND_SAVE); }
 static void titles_send_ext_files(void* data) { titles_save_files(data, 2, SAVE_KIND_EXT); }
+static void titles_export_boss_files(void* data) { titles_save_files(data, 0, SAVE_KIND_BOSS); }
+static void titles_import_boss_files(void* data) { titles_save_files(data, 1, SAVE_KIND_BOSS); }
+static void titles_send_boss_files(void* data) { titles_save_files(data, 2, SAVE_KIND_BOSS); }
 
 static void titles_actions_open(titles_data* data, linked_list* items, list_item* selected) {
     title_info* info = (title_info*) selected->data;
@@ -514,6 +521,8 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
     bool card = info->mediaType == MEDIATYPE_GAME_CARD;
     u32 extId = 0;
     bool hasExt = titles_ext_find(info, &extId);
+    u32 bossId = 0;
+    bool hasBoss = action_find_boss_data(info, &bossId);
 
     actions[count++] = (sheet_action) {ICON_PLAYER_PLAY, _("Launch"), false, titles_launch};
     if(!info->twl) {
@@ -528,6 +537,12 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
             actions[count++] = (sheet_action) {ICON_DATABASE, _("Export extra data"), false, titles_export_ext_files};
             actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Import extra data"), true, titles_import_ext_files};
             actions[count++] = (sheet_action) {ICON_3DS, _("Send extra data to another 3DS"), false, titles_send_ext_files};
+        }
+
+        if(hasBoss) {
+            actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Export SpotPass data"), false, titles_export_boss_files};
+            actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Import SpotPass data"), true, titles_import_boss_files};
+            actions[count++] = (sheet_action) {ICON_3DS, _("Send SpotPass data to another 3DS"), false, titles_send_boss_files};
         }
 
         if(!card) {

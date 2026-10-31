@@ -44,7 +44,7 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 - **Titles**: rows or a grid of icons, filters by memory, kind and region, search and sorting;
   updates and DLC are grouped under their game. Launch, delete (with or without its ticket),
   extract the icon, browse the save data and the extra data, import and export secure values.
-- **Save data and extra data** of a 3DS game can be exported to a folder on the SD card, imported back (the current
+- **Save data, extra data and SpotPass data** of a 3DS game can be exported to a folder on the SD card, imported back (the current
   data is exported first) and sent to another 3DS. Importing also finds [Checkpoint](https://github.com/FlagBrew/Checkpoint)'s
   backups, each one tagged with the app it comes from.
 - **Tickets**, **Ext Save Data** and **Pending titles** (interrupted installs and downloads) on the

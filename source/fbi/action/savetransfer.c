@@ -24,7 +24,7 @@
 #define CHECKPOINT_DIR "/3ds/Checkpoint/"
 
 static const char* save_kind_dir(save_kind kind) {
-    return kind == SAVE_KIND_EXT ? "ext" : "save";
+    return kind == SAVE_KIND_EXT ? "ext" : kind == SAVE_KIND_BOSS ? "boss" : "save";
 }
 
 // ---- tree copy: every file under one root of an archive into another root of another archive ----
@@ -36,7 +36,8 @@ typedef struct {
     FS_Archive dstArchive;
     char srcRoot[FILE_PATH_MAX];  // With the trailing slash.
     char dstRoot[FILE_PATH_MAX];
-    bool commit;                  // The destination is a save archive.
+    bool commit;                  // The destination is committed at the end...
+    bool commitFatal;             // ...and a failure to is an error (a save archive; extra data is written at once).
 
     linked_list contents;
     data_op_data op;
@@ -144,8 +145,10 @@ static bool tree_error(void* data, u32 index, Result res, ui_view** errorView) {
 static void tree_finish(tree_copy* job, Result res) {
     if(R_SUCCEEDED(res) && job->commit) {
         res = FSUSER_ControlArchive(job->dstArchive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
-        if(R_FAILED(res)) {
+        if(R_FAILED(res) && job->commitFatal) {
             error_display_res(job->title, tree_draw_top, res, "Failed to commit the changes.");
+        } else {
+            res = 0;
         }
     }
 
@@ -310,13 +313,17 @@ static Result save_open_sd(FS_Archive* sd) {
 
 // The archive with the data: the save, or the extra data of `extId`.
 static Result save_open_target(FS_Archive* archive, title_info* title, save_kind kind, u32 extId) {
-    if(kind == SAVE_KIND_EXT) {
+    if(kind == SAVE_KIND_EXT || kind == SAVE_KIND_BOSS) {
         u32 path[3] = {MEDIATYPE_SD, extId, 0};
-        return fs_open_archive(archive, ARCHIVE_EXTDATA, fs_make_path_binary(path, sizeof(path)));
+        return fs_open_archive(archive, kind == SAVE_KIND_BOSS ? ARCHIVE_BOSS_EXTDATA : ARCHIVE_EXTDATA, fs_make_path_binary(path, sizeof(path)));
     }
 
     u32 path[3] = {title->mediaType, (u32) (title->titleId & 0xFFFFFFFF), (u32) ((title->titleId >> 32) & 0xFFFFFFFF)};
     return fs_open_archive(archive, ARCHIVE_USER_SAVEDATA, fs_make_path_binary(path, sizeof(path)));
+}
+
+static const char* save_open_error_text(save_kind kind) {
+    return kind == SAVE_KIND_EXT ? "Failed to open the extra data." : kind == SAVE_KIND_BOSS ? "Failed to open the SpotPass data." : "Failed to open the save data. Has the game been started once?";
 }
 
 static void save_timestamp(char* out, size_t size) {
@@ -420,7 +427,7 @@ static void save_export(title_info* title, const char* name, save_kind kind, u32
 
     Result res = save_open_target(&job->srcArchive, title, kind, extId);
     if(R_FAILED(res)) {
-        error_display_res(title, task_draw_title_info, res, kind == SAVE_KIND_EXT ? "Failed to open the extra data." : "Failed to open the save data. Has the game been started once?");
+        error_display_res(title, task_draw_title_info, res, save_open_error_text(kind));
         free(job);
         export_done(exp, res);
         return;
@@ -467,7 +474,7 @@ static void import_copied(void* ctx, Result res) {
     import_ctx* imp = (import_ctx*) ctx;
 
     if(R_SUCCEEDED(res)) {
-        prompt_display_notify("Success", imp->kind == SAVE_KIND_EXT ? "Extra data imported." : "Save imported.", COLOR_TEXT, imp->title, task_draw_title_info, NULL);
+        prompt_display_notify("Success", imp->kind == SAVE_KIND_EXT ? "Extra data imported." : imp->kind == SAVE_KIND_BOSS ? "SpotPass data imported." : "Save imported.", COLOR_TEXT, imp->title, task_draw_title_info, NULL);
     } else {
         // The archive was emptied before: the copy of what was there is in the -before-import folder.
         prompt_display_notify("Failure", "The import did not finish. What was there before is in the folder ending in -before-import.", COLOR_TEXT, imp->title, task_draw_title_info, NULL);
@@ -539,6 +546,7 @@ static void import_backed_up(void* ctx, bool ok) {
 
     job->title = imp->title;
     job->commit = true;
+    job->commitFatal = imp->kind == SAVE_KIND_SAVE;
     job->done = import_copied;
     job->ctx = imp;
     string_copy(job->srcRoot, imp->from, sizeof(job->srcRoot));
@@ -611,7 +619,7 @@ static void import_ask(title_info* title, const char* name, save_kind kind, u32 
     }
 
     snprintf(text, sizeof(text), _("Replace the current %s with the one from %s? What is there now is exported first.%s"),
-             kind == SAVE_KIND_EXT ? _("extra data") : _("save"), label, versions);
+             kind == SAVE_KIND_EXT ? _("extra data") : kind == SAVE_KIND_BOSS ? _("SpotPass data") : _("save"), label, versions);
 
     prompt_display_warning("Confirmation", text, COLOR_TEXT, imp, import_draw_top, import_onresponse);
 }
@@ -826,7 +834,8 @@ void action_import_save_files(title_info* title, const char* name, save_kind kin
     char cpBase[FILE_PATH_MAX];
     snprintf(cpBase, sizeof(cpBase), CHECKPOINT_DIR "%s/", kind == SAVE_KIND_EXT ? "extdata" : "saves");
     u32 games = 0;
-    char (*gameNames)[FILE_NAME_MAX] = save_list_dirs(sd, cpBase, idPrefix, &games);
+    // Checkpoint has no SpotPass backups.
+    char (*gameNames)[FILE_NAME_MAX] = kind == SAVE_KIND_BOSS ? NULL : save_list_dirs(sd, cpBase, idPrefix, &games);
     for(u32 g = 0; g < games; g++) {
         char gameDir[FILE_PATH_MAX];
         snprintf(gameDir, sizeof(gameDir), "%s%s/", cpBase, gameNames[g]);
@@ -856,7 +865,7 @@ void action_import_save_files(title_info* title, const char* name, save_kind kin
         return;
     }
 
-    ui_view* view = list_display(kind == SAVE_KIND_EXT ? "Import extra data" : "Import save", " import    back", list, import_list_update, import_list_draw_top);
+    ui_view* view = list_display(kind == SAVE_KIND_EXT ? "Import extra data" : kind == SAVE_KIND_BOSS ? "Import SpotPass data" : "Import save", " import    back", list, import_list_update, import_list_draw_top);
     if(view == NULL) {
         free(list->choices);
         free(list);
@@ -873,9 +882,9 @@ void action_import_save_files(title_info* title, const char* name, save_kind kin
 
 // ---- extra data of a game ----
 
-// The ID of the extra data a game has on the SD card, if it has any: under its own ID, or under it
-// without the last byte (Mario Kart 7, 00030700, keeps its data as 307).
-bool action_find_ext_data(title_info* info, u32* extId) {
+// The ID of the extra data (or SpotPass data) a game has on the SD card, if it has any: under its own ID,
+// or under it without the last byte (Mario Kart 7, 00030700, keeps its data as 307).
+static bool save_find_data(title_info* info, FS_ArchiveID archiveId, u32* extId) {
     title_kind kind = title_kind_of(info->titleId);
     if(info->twl || (kind != TITLE_KIND_GAME && kind != TITLE_KIND_DEMO)) {
         return false;
@@ -885,7 +894,7 @@ bool action_find_ext_data(title_info* info, u32* extId) {
     for(u32 i = 0; i < 2; i++) {
         u32 path[3] = {MEDIATYPE_SD, candidates[i], 0};
         FS_Archive archive = 0;
-        if(R_SUCCEEDED(fs_open_archive(&archive, ARCHIVE_EXTDATA, fs_make_path_binary(path, sizeof(path))))) {
+        if(R_SUCCEEDED(fs_open_archive(&archive, archiveId, fs_make_path_binary(path, sizeof(path))))) {
             fs_close_archive(archive);
             *extId = candidates[i];
             return true;
@@ -893,6 +902,33 @@ bool action_find_ext_data(title_info* info, u32* extId) {
     }
 
     return false;
+}
+
+bool action_find_ext_data(title_info* info, u32* extId) {
+    return save_find_data(info, ARCHIVE_EXTDATA, extId);
+}
+
+bool action_find_boss_data(title_info* info, u32* extId) {
+    return save_find_data(info, ARCHIVE_BOSS_EXTDATA, extId);
+}
+
+// Is the data of `kind` here for an installed title? Fills `extId` for extra and SpotPass data.
+static bool save_find_kind(title_info* info, save_kind kind, u32* extId) {
+    if(kind == SAVE_KIND_EXT) {
+        return action_find_ext_data(info, extId);
+    }
+
+    if(kind == SAVE_KIND_BOSS) {
+        return action_find_boss_data(info, extId);
+    }
+
+    FS_Archive archive = 0;
+    if(R_FAILED(save_open_target(&archive, info, kind, 0))) {
+        return false;
+    }
+
+    fs_close_archive(archive);
+    return true;
 }
 
 // ---- a save as one file, to send it ----
@@ -1234,7 +1270,7 @@ void action_send_save_files(title_info* title, const char* name, save_kind kind,
     if(R_SUCCEEDED(res)) {
         res = save_open_target(&job->src, title, kind, extId);
         if(R_FAILED(res)) {
-            error_display_res(title, task_draw_title_info, res, kind == SAVE_KIND_EXT ? "Failed to open the extra data." : "Failed to open the save data. Has the game been started once?");
+            error_display_res(title, task_draw_title_info, res, save_open_error_text(kind));
             free(job->buffer);
             free(job);
             free(w);
@@ -1307,11 +1343,13 @@ bool action_save_package_name(const char* fileName, u64* titleId, save_kind* kin
         *kind = SAVE_KIND_SAVE;
     } else if(strncmp(rest, "ext-", 4) == 0) {
         *kind = SAVE_KIND_EXT;
+    } else if(strncmp(rest, "boss-", 5) == 0) {
+        *kind = SAVE_KIND_BOSS;
     } else {
         return false;
     }
 
-    rest += *kind == SAVE_KIND_EXT ? 4 : 5;
+    rest += *kind == SAVE_KIND_EXT ? 4 : 5;   // "ext-", "save-" or "boss-"
     size_t nameLen = (size_t) (fileName + len - extLen - rest);
     if(nameLen >= nameSize) {
         nameLen = nameSize - 1;
@@ -1348,17 +1386,7 @@ bool action_save_package_can_import(u64 titleId, save_kind kind) {
     }
 
     u32 extId = 0;
-    if(kind == SAVE_KIND_EXT) {
-        return action_find_ext_data(&title, &extId);
-    }
-
-    FS_Archive archive = 0;
-    if(R_FAILED(save_open_target(&archive, &title, kind, 0))) {
-        return false;
-    }
-
-    fs_close_archive(archive);
-    return true;
+    return save_find_kind(&title, kind, &extId);
 }
 
 typedef struct {
@@ -1396,7 +1424,7 @@ static Result unpack_work(worker* w) {
     u32 nameLen = 0;
     u32 entries = 0;
     Result res = 0;
-    if(!unpack_read(f, magic, 8) || memcmp(magic, PACK_MAGIC, 8) != 0 || !unpack_read(f, &kind, 4) || kind > 1
+    if(!unpack_read(f, magic, 8) || memcmp(magic, PACK_MAGIC, 8) != 0 || !unpack_read(f, &kind, 4) || kind > 2
        || !unpack_read(f, &job->titleId, 8) || !unpack_read(f, &job->version, 4) || !unpack_read(f, &nameLen, 4)
        || nameLen >= sizeof(job->name) || !unpack_read(f, job->name, nameLen) || !unpack_read(f, &entries, 4)) {
         fclose(f);
@@ -1404,7 +1432,7 @@ static Result unpack_work(worker* w) {
     }
 
     job->name[nameLen] = '\0';
-    job->kind = kind == 1 ? SAVE_KIND_EXT : SAVE_KIND_SAVE;
+    job->kind = kind == 2 ? SAVE_KIND_BOSS : kind == 1 ? SAVE_KIND_EXT : SAVE_KIND_SAVE;
 
     FS_Archive sd = 0;
     char root[FILE_PATH_MAX];
@@ -1489,7 +1517,7 @@ static void unpack_finished(worker* w, Result res) {
 
         title_info installed;
         u32 extId = 0;
-        if(job->importNow && save_installed_title(job->titleId, &installed) && (job->kind == SAVE_KIND_SAVE || action_find_ext_data(&installed, &extId))) {
+        if(job->importNow && save_installed_title(job->titleId, &installed) && save_find_kind(&installed, job->kind, &extId)) {
             char root[FILE_PATH_MAX];
             snprintf(root, sizeof(root), "%s%s/", job->dir, save_kind_dir(job->kind));
             import_ask(&installed, job->name, job->kind, extId, job->dir, root, _("the other console"));

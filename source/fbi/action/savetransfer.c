@@ -16,6 +16,7 @@
 #include "../resources.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
+#include "../transfer.h"
 
 #define MAX_FILES 1024
 #define SAVES_DIR APP_DATA_DIR "saves/"
@@ -449,7 +450,8 @@ void action_export_save_files(title_info* title, const char* name, save_kind kin
 // ---- import ----
 
 typedef struct {
-    title_info* title;
+    title_info* title;          // Points at titleCopy.
+    title_info titleCopy;
     char name[LIST_ITEM_NAME_MAX];
     save_kind kind;
     u32 extId;
@@ -591,18 +593,20 @@ typedef struct {
 
 static import_picks picks;
 
-static void import_pick(u32 index) {
+// Asks, in red, whether to replace the current data with the export in `from`.
+static void import_ask(title_info* title, const char* name, save_kind kind, u32 extId, const char* from, const char* label) {
     import_ctx* imp = (import_ctx*) calloc(1, sizeof(import_ctx));
     if(imp == NULL) {
         error_display(NULL, NULL, "Failed to allocate the import.");
         return;
     }
 
-    imp->title = picks.title;
-    string_copy(imp->name, picks.name, sizeof(imp->name));
-    imp->kind = picks.kind;
-    imp->extId = picks.extId;
-    snprintf(imp->from, sizeof(imp->from), SAVES_DIR "%016llX/%s/", (unsigned long long) picks.title->titleId, picks.folder[index]);
+    imp->titleCopy = *title;
+    imp->title = &imp->titleCopy;
+    string_copy(imp->name, name, sizeof(imp->name));
+    imp->kind = kind;
+    imp->extId = extId;
+    string_copy(imp->from, from, sizeof(imp->from));
 
     char saved[16];
     save_read_manifest(imp->from, "version", saved, sizeof(saved));
@@ -610,15 +614,21 @@ static void import_pick(u32 index) {
     char text[512];
     char versions[160] = {'\0'};
     char current[16];
-    snprintf(current, sizeof(current), "%u", (unsigned) picks.title->version);
+    snprintf(current, sizeof(current), "%u", (unsigned) title->version);
     if(saved[0] != '\0' && strcmp(saved, current) != 0) {
         snprintf(versions, sizeof(versions), _("\nThe export is from version %s of the game; the installed one is %s."), saved, current);
     }
 
     snprintf(text, sizeof(text), _("Replace the current %s with the one from %s? What is there now is exported first.%s"),
-             picks.kind == SAVE_KIND_EXT ? _("extra data") : _("save"), picks.label[index], versions);
+             kind == SAVE_KIND_EXT ? _("extra data") : _("save"), label, versions);
 
     prompt_display_warning("Confirmation", text, COLOR_TEXT, imp, import_draw_top, import_onresponse);
+}
+
+static void import_pick(u32 index) {
+    char from[FILE_PATH_MAX];
+    snprintf(from, sizeof(from), SAVES_DIR "%016llX/%s/", (unsigned long long) picks.title->titleId, picks.folder[index]);
+    import_ask(picks.title, picks.name, picks.kind, picks.extId, from, picks.label[index]);
 }
 
 #define PICK_FN(n) static void import_pick_##n(void* data) { import_pick(n); }
@@ -713,4 +723,684 @@ void action_import_save_files(title_info* title, const char* name, save_kind kin
     }
 
     sheet_display_list(NULL, 0, actions, picks.count, NULL);
+}
+
+// ---- extra data of a game ----
+
+// The ID of the extra data a game has on the SD card, if it has any: under its own ID, or under it
+// without the last byte (Mario Kart 7, 00030700, keeps its data as 307).
+bool action_find_ext_data(title_info* info, u32* extId) {
+    title_kind kind = title_kind_of(info->titleId);
+    if(info->twl || (kind != TITLE_KIND_GAME && kind != TITLE_KIND_DEMO)) {
+        return false;
+    }
+
+    u32 candidates[2] = {(u32) info->titleId, (u32) info->titleId >> 8};
+    for(u32 i = 0; i < 2; i++) {
+        u32 path[3] = {MEDIATYPE_SD, candidates[i], 0};
+        FS_Archive archive = 0;
+        if(R_SUCCEEDED(fs_open_archive(&archive, ARCHIVE_EXTDATA, fs_make_path_binary(path, sizeof(path))))) {
+            fs_close_archive(archive);
+            *extId = candidates[i];
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// ---- a save as one file, to send it ----
+//
+//   "NSASAVE1", u32 kind, u64 title ID, u32 version, u32 name length + name, u32 entries,
+//   then per entry: u8 type (0 folder, 1 file), u16 path length + path (relative, no leading slash),
+//   u64 size, and the bytes of a file.
+// It travels as a plain file (resumable, like any other) named <TITLEID>-<save|ext>-<name>.nsasave.
+
+#define PACK_MAGIC "NSASAVE1"
+#define PACK_EXT ".nsasave"
+#define PACK_DIR SAVES_DIR "send/"
+#define PACK_NAME_MAX 64
+
+typedef struct worker_s worker;
+
+struct worker_s {
+    Thread thread;
+    volatile bool done;
+    volatile bool cancel;
+    volatile Result result;
+    volatile u64 processed;
+    volatile u64 total;
+    const char* status;     // Translated.
+
+    title_info* title;      // For the top screen, or NULL.
+    Result (*work)(worker* w);
+    void (*finished)(worker* w, Result res);
+    void* arg;
+};
+
+static void worker_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    worker* w = (worker*) data;
+    if(w->title != NULL) {
+        task_draw_title_info(view, w->title, x1, y1, x2, y2);
+    }
+}
+
+static void worker_thread(void* arg) {
+    worker* w = (worker*) arg;
+    w->result = w->work(w);
+    w->done = true;
+}
+
+static void worker_update(ui_view* view, void* data, float* progress, char* text) {
+    worker* w = (worker*) data;
+
+    if(w->done) {
+        ui_pop();
+        info_destroy(view);
+
+        threadJoin(w->thread, U64_MAX);
+        threadFree(w->thread);
+
+        Result res = w->result;
+        w->finished(w, res);
+        return;
+    }
+
+    if(hidKeysDown() & KEY_B) {
+        w->cancel = true;
+    }
+
+    u64 total = w->total;
+    *progress = total != 0 ? (float) ((double) w->processed / (double) total) : 0;
+    snprintf(text, PROGRESS_TEXT_MAX, "%s\n%.2f %s / %.2f %s", w->status,
+             ui_get_display_size(w->processed), ui_get_display_size_units(w->processed),
+             ui_get_display_size(total), ui_get_display_size_units(total));
+}
+
+// `finished` frees the worker and whatever it carries.
+static void worker_start(worker* w, const char* title) {
+    w->thread = threadCreate(worker_thread, w, 0x10000, 0x19, -2, false);
+    if(w->thread == NULL) {
+        error_display(NULL, NULL, "Failed to start the task.");
+        w->finished(w, R_APP_THREAD_CREATE_FAILED);
+        return;
+    }
+
+    info_display(title, "Press B to cancel.", true, w, worker_update, worker_draw_top);
+}
+
+// Is `rel` a path that stays inside the folder it is unpacked in?
+static bool pack_path_ok(const char* rel) {
+    if(rel[0] == '\0' || rel[0] == '/' || strchr(rel, '\\') != NULL || strchr(rel, ':') != NULL) {
+        return false;
+    }
+
+    for(const char* part = rel; part != NULL; ) {
+        const char* slash = strchr(part, '/');
+        size_t len = slash != NULL ? (size_t) (slash - part) : strlen(part);
+        if(len == 0 || (len == 1 && part[0] == '.') || (len == 2 && part[0] == '.' && part[1] == '.')) {
+            return false;
+        }
+
+        part = slash != NULL ? slash + 1 : NULL;
+    }
+
+    return true;
+}
+
+typedef struct {
+    title_info title;
+    char name[LIST_ITEM_NAME_MAX];
+    save_kind kind;
+    u32 extId;
+    char path[FILE_PATH_MAX];       // The package, with the sdmc: prefix.
+    char sdPath[FILE_PATH_MAX];     // The same inside the SD archive.
+    char fileName[FILE_NAME_MAX];
+    FS_Archive src;
+    FILE* out;
+    u32 entries;
+    u64 bytes;
+    u8* buffer;
+} pack_job;
+
+#define PACK_BUFFER (64 * 1024)
+
+static bool pack_write(pack_job* job, const void* data, size_t size) {
+    return job->out == NULL || fwrite(data, 1, size, job->out) == size;
+}
+
+// Walks `dir` (ends with a slash) of the archive: counts, or also writes when job->out is set.
+static Result pack_walk(worker* w, pack_job* job, const char* dir, const char* rel) {
+    FS_Path* dirPath = fs_make_path_utf8(dir);
+    if(dirPath == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Handle handle = 0;
+    Result res = FSUSER_OpenDirectory(&handle, job->src, *dirPath);
+    fs_free_path_utf8(dirPath);
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    FS_DirectoryEntry* entries = (FS_DirectoryEntry*) calloc(MAX_FILES, sizeof(FS_DirectoryEntry));
+    u32 count = 0;
+    if(entries == NULL) {
+        FSDIR_Close(handle);
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    res = FSDIR_Read(handle, &count, MAX_FILES, entries);
+    FSDIR_Close(handle);
+
+    for(u32 i = 0; R_SUCCEEDED(res) && i < count; i++) {
+        if(w->cancel) {
+            res = R_APP_CANCELLED;
+            break;
+        }
+
+        char name[FILE_NAME_MAX] = {'\0'};
+        utf16_to_utf8((uint8_t*) name, entries[i].name, sizeof(name) - 1);
+
+        char entryRel[FILE_PATH_MAX];
+        char entryPath[FILE_PATH_MAX];
+        if((size_t) snprintf(entryRel, sizeof(entryRel), "%s%s", rel, name) >= sizeof(entryRel)
+           || (size_t) snprintf(entryPath, sizeof(entryPath), "%s%s", dir, name) >= sizeof(entryPath)) {
+            res = R_APP_BAD_DATA;
+            break;
+        }
+
+        u16 pathLen = (u16) strlen(entryRel);
+        bool isDir = (entries[i].attributes & FS_ATTRIBUTE_DIRECTORY) != 0;
+        u8 type = isDir ? 0 : 1;
+        u64 size = 0;
+
+        Handle file = 0;
+        if(!isDir) {
+            FS_Path* filePath = fs_make_path_utf8(entryPath);
+            if(filePath == NULL) {
+                res = R_APP_OUT_OF_MEMORY;
+                break;
+            }
+
+            res = FSUSER_OpenFile(&file, job->src, *filePath, FS_OPEN_READ, 0);
+            fs_free_path_utf8(filePath);
+            if(R_SUCCEEDED(res)) {
+                res = FSFILE_GetSize(file, &size);
+            }
+
+            if(R_FAILED(res)) {
+                if(file != 0) {
+                    FSFILE_Close(file);
+                }
+
+                break;
+            }
+        }
+
+        job->entries++;
+        job->bytes += size;
+
+        if(job->out != NULL) {
+            if(!pack_write(job, &type, 1) || !pack_write(job, &pathLen, 2) || !pack_write(job, entryRel, pathLen) || !pack_write(job, &size, 8)) {
+                res = R_APP_BAD_DATA;
+            }
+
+            for(u64 at = 0; R_SUCCEEDED(res) && !isDir && at < size; ) {
+                u32 want = size - at < PACK_BUFFER ? (u32) (size - at) : PACK_BUFFER;
+                u32 got = 0;
+                if(w->cancel) {
+                    res = R_APP_CANCELLED;
+                } else if(R_SUCCEEDED(res = FSFILE_Read(file, &got, at, job->buffer, want)) && got != want) {
+                    res = R_APP_BAD_DATA;
+                } else if(R_SUCCEEDED(res) && !pack_write(job, job->buffer, got)) {
+                    res = R_APP_BAD_DATA;
+                }
+
+                at += got;
+                w->processed += got;
+            }
+        }
+
+        if(file != 0) {
+            FSFILE_Close(file);
+        }
+
+        if(R_SUCCEEDED(res) && isDir) {
+            char subDir[FILE_PATH_MAX];
+            char subRel[FILE_PATH_MAX];
+            if((size_t) snprintf(subDir, sizeof(subDir), "%s/", entryPath) >= sizeof(subDir)
+               || (size_t) snprintf(subRel, sizeof(subRel), "%s/", entryRel) >= sizeof(subRel)) {
+                res = R_APP_BAD_DATA;
+            } else {
+                res = pack_walk(w, job, subDir, subRel);
+            }
+        }
+    }
+
+    free(entries);
+    return res;
+}
+
+static Result pack_work(worker* w) {
+    pack_job* job = (pack_job*) w->arg;
+    Result res = 0;
+
+    w->status = _("Counting...");
+    job->entries = 0;
+    job->bytes = 0;
+    job->out = NULL;
+    if(R_FAILED(res = pack_walk(w, job, "/", ""))) {
+        return res;
+    }
+
+    w->total = job->bytes;
+    w->processed = 0;
+    w->status = _("Packing...");
+
+    u32 entries = job->entries;
+    job->entries = 0;
+    job->bytes = 0;
+
+    job->out = fopen(job->path, "wb");
+    if(job->out == NULL) {
+        return R_APP_BAD_DATA;
+    }
+
+    u32 kind = job->kind;
+    u32 version = job->title.version;
+    u32 nameLen = (u32) strlen(job->name);
+    bool ok = pack_write(job, PACK_MAGIC, 8) && pack_write(job, &kind, 4) && pack_write(job, &job->title.titleId, 8)
+              && pack_write(job, &version, 4) && pack_write(job, &nameLen, 4) && pack_write(job, job->name, nameLen)
+              && pack_write(job, &entries, 4);
+
+    res = ok ? pack_walk(w, job, "/", "") : R_APP_BAD_DATA;
+    if(R_SUCCEEDED(res) && job->entries != entries) {
+        res = R_APP_BAD_DATA;   // The save changed while it was read.
+    }
+
+    if(fclose(job->out) != 0 && R_SUCCEEDED(res)) {
+        res = R_APP_BAD_DATA;
+    }
+
+    job->out = NULL;
+    if(R_FAILED(res)) {
+        remove(job->path);
+    }
+
+    return res;
+}
+
+static FS_Archive pack_sd_kept = 0;
+
+static void pack_finished(worker* w, Result res) {
+    pack_job* job = (pack_job*) w->arg;
+
+    fs_close_archive(job->src);
+    free(job->buffer);
+
+    if(R_SUCCEEDED(res)) {
+        FILE* f = fopen(job->path, "rb");
+        u64 size = 0;
+        if(f != NULL) {
+            fseek(f, 0, SEEK_END);
+            size = (u64) ftell(f);
+            fclose(f);
+        }
+
+        if(pack_sd_kept == 0) {
+            save_open_sd(&pack_sd_kept);
+        }
+
+        if(size > 0 && pack_sd_kept != 0) {
+            // The Send screen keeps the archive open: it stays open for good (one handle).
+            transfer_send_file(pack_sd_kept, job->sdPath, job->fileName, size);
+        } else {
+            error_display(NULL, NULL, "Failed to read the package.");
+        }
+    } else if(res != R_APP_CANCELLED) {
+        error_display_res(&job->title, task_draw_title_info, res, "Failed to pack the data.");
+    } else {
+        prompt_display_notify("Failure", "Operation cancelled.", COLOR_TEXT, NULL, NULL, NULL);
+    }
+
+    free(job);
+    free(w);
+}
+
+void action_send_save_files(title_info* title, const char* name, save_kind kind, u32 extId) {
+    worker* w = (worker*) calloc(1, sizeof(worker));
+    pack_job* job = (pack_job*) calloc(1, sizeof(pack_job));
+    if(w == NULL || job == NULL) {
+        free(w);
+        free(job);
+        error_display(NULL, NULL, "Failed to allocate the package.");
+        return;
+    }
+
+    job->title = *title;
+    string_copy(job->name, name, sizeof(job->name));
+    job->kind = kind;
+    job->extId = extId;
+    job->buffer = (u8*) malloc(PACK_BUFFER);
+
+    Result res = job->buffer != NULL ? 0 : R_APP_OUT_OF_MEMORY;
+    if(R_SUCCEEDED(res)) {
+        res = save_open_target(&job->src, title, kind, extId);
+        if(R_FAILED(res)) {
+            error_display_res(title, task_draw_title_info, res, kind == SAVE_KIND_EXT ? "Failed to open the extra data." : "Failed to open the save data. Has the game been started once?");
+            free(job->buffer);
+            free(job);
+            free(w);
+            return;
+        }
+    }
+
+    if(R_FAILED(res)) {
+        error_display(NULL, NULL, "Failed to allocate the package.");
+        free(job->buffer);
+        free(job);
+        free(w);
+        return;
+    }
+
+    // Readable by the receiver, which sees only the name: what it is and whose.
+    char clean[PACK_NAME_MAX];
+    size_t n = 0;
+    for(const char* c = name; *c != '\0' && n + 1 < sizeof(clean); c++) {
+        bool plain = (*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') || (*c >= '0' && *c <= '9') || *c == ' ' || *c == '.' || *c == '(' || *c == ')';
+        clean[n++] = plain ? *c : '_';
+    }
+
+    clean[n] = '\0';
+    snprintf(job->fileName, sizeof(job->fileName), "%016llX-%s-%s" PACK_EXT, (unsigned long long) title->titleId, save_kind_dir(kind), clean);
+    snprintf(job->sdPath, sizeof(job->sdPath), PACK_DIR "%s", job->fileName);
+    snprintf(job->path, sizeof(job->path), "sdmc:%s", job->sdPath);
+
+    FS_Archive sd = 0;
+    if(R_SUCCEEDED(save_open_sd(&sd))) {
+        save_make_dirs(sd, PACK_DIR);
+        fs_close_archive(sd);
+    }
+
+    w->title = &job->title;
+    w->arg = job;
+    w->work = pack_work;
+    w->finished = pack_finished;
+    w->status = _("Counting...");
+    worker_start(w, "Packing");
+}
+
+// ---- receiving one ----
+
+// Reads "<TITLEID>-<save|ext>-<name>.nsasave"; false for any other name.
+bool action_save_package_name(const char* fileName, u64* titleId, save_kind* kind, char* name, size_t nameSize) {
+    size_t len = strlen(fileName);
+    size_t extLen = strlen(PACK_EXT);
+    if(len < 16 + 1 + 3 + 1 || len < extLen || strcasecmp(fileName + len - extLen, PACK_EXT) != 0) {
+        return false;
+    }
+
+    u64 id = 0;
+    for(u32 i = 0; i < 16; i++) {
+        char c = fileName[i];
+        u32 v = c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : c >= 'a' && c <= 'f' ? c - 'a' + 10 : 99;
+        if(v > 15) {
+            return false;
+        }
+
+        id = (id << 4) | v;
+    }
+
+    const char* rest = fileName + 17;
+    if(fileName[16] != '-') {
+        return false;
+    }
+
+    if(strncmp(rest, "save-", 5) == 0) {
+        *kind = SAVE_KIND_SAVE;
+    } else if(strncmp(rest, "ext-", 4) == 0) {
+        *kind = SAVE_KIND_EXT;
+    } else {
+        return false;
+    }
+
+    rest += *kind == SAVE_KIND_EXT ? 4 : 5;
+    size_t nameLen = (size_t) (fileName + len - extLen - rest);
+    if(nameLen >= nameSize) {
+        nameLen = nameSize - 1;
+    }
+
+    memcpy(name, rest, nameLen);
+    name[nameLen] = '\0';
+    *titleId = id;
+    return true;
+}
+
+// The title as installed here (SD, then NAND), if it is.
+static bool save_installed_title(u64 titleId, title_info* out) {
+    static const FS_MediaType media[2] = {MEDIATYPE_SD, MEDIATYPE_NAND};
+    for(u32 i = 0; i < 2; i++) {
+        AM_TitleEntry entry;
+        if(R_SUCCEEDED(AM_GetTitleInfo(media[i], 1, &titleId, &entry))) {
+            memset(out, 0, sizeof(*out));
+            out->mediaType = media[i];
+            out->titleId = titleId;
+            out->version = entry.version;
+            out->installedSize = entry.size;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool action_save_package_can_import(u64 titleId, save_kind kind) {
+    title_info title;
+    if(!save_installed_title(titleId, &title)) {
+        return false;
+    }
+
+    u32 extId = 0;
+    if(kind == SAVE_KIND_EXT) {
+        return action_find_ext_data(&title, &extId);
+    }
+
+    FS_Archive archive = 0;
+    if(R_FAILED(save_open_target(&archive, &title, kind, 0))) {
+        return false;
+    }
+
+    fs_close_archive(archive);
+    return true;
+}
+
+typedef struct {
+    char package[FILE_PATH_MAX];    // With the sdmc: prefix.
+    char dir[FILE_PATH_MAX];        // The folder it is unpacked in (inside the SD archive), with the trailing slash.
+    bool importNow;
+    u64 titleId;
+    u32 version;
+    save_kind kind;
+    char name[LIST_ITEM_NAME_MAX];
+    char stamp[32];
+    u8* buffer;
+} unpack_job;
+
+static bool unpack_read(FILE* f, void* out, size_t size) {
+    return fread(out, 1, size, f) == size;
+}
+
+static Result unpack_work(worker* w) {
+    unpack_job* job = (unpack_job*) w->arg;
+
+    FILE* f = fopen(job->package, "rb");
+    if(f == NULL) {
+        return R_APP_BAD_DATA;
+    }
+
+    fseek(f, 0, SEEK_END);
+    w->total = (u64) ftell(f);
+    fseek(f, 0, SEEK_SET);
+    w->processed = 0;
+    w->status = _("Unpacking...");
+
+    char magic[8];
+    u32 kind = 0;
+    u32 nameLen = 0;
+    u32 entries = 0;
+    Result res = 0;
+    if(!unpack_read(f, magic, 8) || memcmp(magic, PACK_MAGIC, 8) != 0 || !unpack_read(f, &kind, 4) || kind > 1
+       || !unpack_read(f, &job->titleId, 8) || !unpack_read(f, &job->version, 4) || !unpack_read(f, &nameLen, 4)
+       || nameLen >= sizeof(job->name) || !unpack_read(f, job->name, nameLen) || !unpack_read(f, &entries, 4)) {
+        fclose(f);
+        return R_APP_BAD_DATA;
+    }
+
+    job->name[nameLen] = '\0';
+    job->kind = kind == 1 ? SAVE_KIND_EXT : SAVE_KIND_SAVE;
+
+    FS_Archive sd = 0;
+    char root[FILE_PATH_MAX];
+    snprintf(root, sizeof(root), "%s%s/", job->dir, save_kind_dir(job->kind));
+    if(R_FAILED(res = save_open_sd(&sd)) || R_FAILED(res = save_make_dirs(sd, root))) {
+        if(sd != 0) {
+            fs_close_archive(sd);
+        }
+
+        fclose(f);
+        return res;
+    }
+
+    for(u32 i = 0; R_SUCCEEDED(res) && i < entries; i++) {
+        u8 type = 0;
+        u16 pathLen = 0;
+        u64 size = 0;
+        char rel[FILE_PATH_MAX];
+        if(w->cancel) {
+            res = R_APP_CANCELLED;
+            break;
+        }
+
+        if(!unpack_read(f, &type, 1) || type > 1 || !unpack_read(f, &pathLen, 2) || pathLen == 0 || pathLen >= sizeof(rel)
+           || !unpack_read(f, rel, pathLen) || !unpack_read(f, &size, 8)) {
+            res = R_APP_BAD_DATA;
+            break;
+        }
+
+        rel[pathLen] = '\0';
+        char path[FILE_PATH_MAX];
+        if(!pack_path_ok(rel) || (size_t) snprintf(path, sizeof(path), "%s%s", root, rel) >= sizeof(path)) {
+            res = R_APP_BAD_DATA;
+            break;
+        }
+
+        if(type == 0) {
+            res = fs_ensure_dir(sd, path);
+            continue;
+        }
+
+        char full[FILE_PATH_MAX + 8];
+        snprintf(full, sizeof(full), "sdmc:%s", path);
+        FILE* out = fopen(full, "wb");
+        if(out == NULL) {
+            res = R_APP_BAD_DATA;
+            break;
+        }
+
+        for(u64 at = 0; at < size; ) {
+            u32 want = size - at < PACK_BUFFER ? (u32) (size - at) : PACK_BUFFER;
+            if(!unpack_read(f, job->buffer, want) || fwrite(job->buffer, 1, want, out) != want) {
+                res = R_APP_BAD_DATA;
+                break;
+            }
+
+            at += want;
+            w->processed += want;
+        }
+
+        if(fclose(out) != 0 && R_SUCCEEDED(res)) {
+            res = R_APP_BAD_DATA;
+        }
+    }
+
+    fclose(f);
+    fs_close_archive(sd);
+    return res;
+}
+
+static void unpack_finished(worker* w, Result res) {
+    unpack_job* job = (unpack_job*) w->arg;
+
+    if(R_SUCCEEDED(res)) {
+        // The folder is a normal export now: what to know about it is in its manifest.
+        title_info title;
+        memset(&title, 0, sizeof(title));
+        title.titleId = job->titleId;
+        title.version = (u16) job->version;
+        save_write_manifest(job->dir, &title, job->name, job->kind, job->stamp);
+        remove(job->package);
+
+        title_info installed;
+        u32 extId = 0;
+        if(job->importNow && save_installed_title(job->titleId, &installed) && (job->kind == SAVE_KIND_SAVE || action_find_ext_data(&installed, &extId))) {
+            import_ask(&installed, job->name, job->kind, extId, job->dir, _("the other console"));
+        } else {
+            char text[FILE_PATH_MAX + 64];
+            snprintf(text, sizeof(text), _("Saved in sdmc:%s"), job->dir);
+            prompt_display_notify("Success", text, COLOR_TEXT, NULL, NULL, NULL);
+        }
+    } else if(res != R_APP_CANCELLED) {
+        error_display_res(NULL, NULL, res, "Failed to unpack the data.");
+    }
+
+    free(job->buffer);
+    free(job);
+    free(w);
+}
+
+// A package arrived at `path` (inside the SD archive): unpack it into a folder of saves, then import
+// it if asked to. The package is deleted once unpacked.
+void action_save_package_received(const char* path, bool importNow) {
+    worker* w = (worker*) calloc(1, sizeof(worker));
+    unpack_job* job = (unpack_job*) calloc(1, sizeof(unpack_job));
+    if(w == NULL || job == NULL) {
+        free(w);
+        free(job);
+        error_display(NULL, NULL, "Failed to allocate the package.");
+        return;
+    }
+
+    job->buffer = (u8*) malloc(PACK_BUFFER);
+    if(job->buffer == NULL) {
+        free(w);
+        free(job);
+        error_display(NULL, NULL, "Failed to allocate the package.");
+        return;
+    }
+
+    snprintf(job->package, sizeof(job->package), "sdmc:%s", path);
+    job->importNow = importNow;
+    save_timestamp(job->stamp, sizeof(job->stamp));
+
+    // The title is in the file's name too; the folder is known before reading it.
+    u64 id = 0;
+    save_kind kind = SAVE_KIND_SAVE;
+    char name[LIST_ITEM_NAME_MAX];
+    const char* base = strrchr(path, '/');
+    if(!action_save_package_name(base != NULL ? base + 1 : path, &id, &kind, name, sizeof(name))) {
+        error_display(NULL, NULL, "Failed to unpack the data.");
+        free(job->buffer);
+        free(job);
+        free(w);
+        return;
+    }
+
+    snprintf(job->dir, sizeof(job->dir), SAVES_DIR "%016llX/%s/", (unsigned long long) id, job->stamp);
+
+    w->arg = job;
+    w->work = unpack_work;
+    w->finished = unpack_finished;
+    w->status = _("Unpacking...");
+    worker_start(w, "Unpacking");
 }

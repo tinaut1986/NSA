@@ -55,6 +55,7 @@ typedef struct {
     update_channel channel;
     bool autoUpdate;
     bool ftpServer;
+    bool webServer;   // The web page for a computer's browser: off until the owner turns it on.
 
     // Appearance: indices into theme.h's tables and i18n.h's languages.
     u32 theme;

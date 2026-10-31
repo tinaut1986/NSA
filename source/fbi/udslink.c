@@ -7,6 +7,7 @@
 #include <3ds.h>
 
 #include "ftpserver.h"
+#include "webserver.h"
 #include "relstream.h"
 #include "udslink.h"
 #include "../core/core.h"
@@ -148,9 +149,11 @@ bool udslink_enter() {
 
     // The Wi-Fi goes away with UDS: the FTP server with it.
     ftpserver_pause();
+    webserver_pause();
 
     if(R_FAILED(udsInit(UDS_SHARED_SIZE, NULL))) {
         ftpserver_resume_later();
+        webserver_resume_later();
         return false;
     }
 
@@ -176,6 +179,7 @@ void udslink_leave() {
     // The system brings the Wi-Fi back a few seconds after UDS closes: the FTP
     // server starts again once it has.
     ftpserver_resume_later();
+    webserver_resume_later();
 }
 
 bool udslink_active() {

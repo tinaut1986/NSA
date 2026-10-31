@@ -55,6 +55,8 @@ What `release` holds, in the order it was built:
     follows, seek bar, volume, +-10 s. Needs `sdmc:/3ds/dspfirm.cdc`.
 13b. **Saves** (`feat/save-export-import`, `feat/send-saves`, `feat/checkpoint-import`, `feat/import-list`): export, import and
     send the save data and extra data of 3DS titles; see item 3b under "Next".
+13c. **Web server** (`feat/web-server`, `source/fbi/webserver.c`, `romfs/web/index.html`; phase 1 of "Next" item 10): a page
+    in the computer's browser to manage the console. See that item for the design, the API and what is left.
 14. **Downloads, history, idle drawing** (`feat/fast-downloads`; issue #19 has the review
     points): curl on its own thread with a ring of buffers, big files in 512 KB segments over 8
     connections (2 on an Old 3DS) when the server sends `Accept-Ranges`, the system's HTTP
@@ -110,6 +112,14 @@ What `release` holds, in the order it was built:
 22. **README with pictures** taken on a real console (`docs/images/`), v0.4.0 and v0.4.1 published.
 
 ## Pending tests on the console (2026-10-31)
+
+**Web server** (item 10; `source/fbi/webserver.c`; tested only in Azahar with `tools/web_tests.py` and the page in a browser)
+- [ ] Settings -> Web server: On/Off; the row's top screen shows `http://IP:8080  PIN nnnnnn`; the PIN changes each time it starts; it starts at launch when it was left on.
+- [ ] From the PC: open the address, the PIN screen, wrong PIN (and the lock after 10), browse the SD card, download, upload (a big file, several at once), new folder, rename, delete.
+- [ ] Install a `.cia` from the page (an SD title; NSA itself restarts); the toast on the bottom screen shows it.
+- [ ] Speed of a big download and upload on the New 3DS XL and the 2DS (the FTP server's for comparison); the console stays usable meanwhile (UI, music).
+- [ ] The local wireless (Send / Receive without a router) stops the web server and brings it back after; nothing else breaks while it serves.
+- [ ] The page in a phone's browser and in Firefox / Chrome (dark and light).
 
 **Saves, extra data and SpotPass data** (item 3b; code in `source/fbi/action/savetransfer.c`; none of it tried on a console)
 - [ ] Export a save (Titles sheet) to `sdmc:/nsa/saves/<TITLEID>/<date>/save/` with `manifest.txt` (`source=NSA`): with subfolders, an empty save, a big one; cancel with B midway.
@@ -434,6 +444,31 @@ current, this list is the summary. What only the owner can test (local wireless)
      no Checkpoint equivalent so no Checkpoint backups are listed. Written like extra data: no commit is required.
    - Not built: exporting in Checkpoint's layout (the owner said it is not needed now);
      ext data to the right game still rests on the ID heuristics (4).
+10. **Web server** (the owner asked for it 2026-10-31: "a page to do all of this from the PC"). Phase 1 is built:
+    - **What**: an HTTP server on port 8080 while NSA is open, **off until turned on** in Settings ("Web server", saved as
+      `web_server` in `settings.json`; the row's top screen shows `http://IP:8080  PIN nnnnnn`). `webserver.c` copies the FTP
+      server's shape (own thread, polling with naps because libctru has one SOC session, pause/resume around the local wireless
+      in `udslink.c`, retry for two minutes when the Wi-Fi is not back). One request at a time, `Connection: close`.
+    - **Page**: `romfs/web/index.html`, one file with its CSS and JS (English or Spanish by `navigator.language`, dark by
+      `prefers-color-scheme`): PIN screen, breadcrumbs, sorted list, download, upload (button or drop, one at a time, with progress),
+      new folder, rename, delete (confirms), *Install* on `.cia`, free space. Test it in a desktop browser against Azahar.
+    - **API** (all under `/api`, listed at the top of `webserver.h`): `info`, `list`, `file` (GET with Range / PUT as `.part` then rename /
+      DELETE, folders recursive), `mkdir`, `rename`, `install` (reuses the FTP server's CIA install, `ftpserver_install`; SD titles only,
+      NSA itself restarts). Paths are plain `/dir/file` inside the SD card (no `..`, no `\`, no `:`), never the NAND; the root cannot be deleted.
+    - **Security**: a 6 digit PIN made when the server starts, kept only in memory (DEBUG builds also write it to `sdmc:/nsa/web-pin.txt`
+      for the tests). Sent as the cookie `pin` (reads, so links download) or the header `X-Pin`; **anything that changes something
+      needs the header**, which another site's page cannot send (no CORS), so no CSRF. 10 wrong PINs in a row lock it for a minute.
+      It is plain HTTP: anyone who can watch the Wi-Fi sees the PIN (no HTTPS on the 3DS in practice). Not for untrusted networks.
+    - **Tests**: `tools/web_tests.py --host 127.0.0.1` (Azahar with `"web_server": true`; PIN from `/nsa/web-pin.txt`) checks the page,
+      the PIN rules, upload/download/range/list/rename/delete and the path rules. Last run 2026-10-31: all pass in Azahar.
+    - **Phase 2 (next)**: the Titles list in the page (icons, sizes, kinds, filters), and from there export, import and download or upload
+      of saves, extra data and SpotPass data (the same code as `savetransfer.c`; a download is the `.nsasave` package, an upload is
+      received like a transfer), launch, delete, install from a URL; the history of Remote Install; the transfer log.
+    - **Phase 3**: the screens live (repeat `screen_capture`, now a BMP on the SD: a PNG/JPEG in memory would be better) and
+      sending buttons and touches (`SITE PRESS` / `TAP` already exist in `ftpserver.c`: move them to a shared module).
+    - **Ideas**: a `remote.flag`-like switch for the destructive calls; drag whole folders (`webkitGetAsEntry`); download a folder
+      as a zip; a QR code of the address on the console's top screen; HEAD and keep-alive; serving two requests at once.
+
 4. **Exact ext data link**: read the ExtData ID from each game's exheader (NCCH
    `ExHeader`, ARM11 local system capabilities, offset 0x230 by 3dbrew; check with the
    Program ID at 0x200) instead of the ID heuristics. The file path type for the exheader

@@ -75,6 +75,15 @@ void action_import_save_files(title_info* title, const char* name, save_kind kin
 // Sent as one file (a package, see savetransfer.c) over the console to console transfer.
 void action_send_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
 bool action_find_ext_data(title_info* info, u32* extId);
+typedef struct {
+    char path[512];      // The backup's folder, with the trailing slash.
+    char label[96];      // "[NSA] 2026-10-31 14:25:30", "[Checkpoint] name".
+    bool checkpoint;     // Checkpoint's layout: the tree right in the folder, no manifest.
+} save_backup;
+// The backups of a title's data, NSA's then Checkpoint's (free the array); the count is the return value.
+u32 action_save_backups(title_info* title, save_kind kind, save_backup** out);
+// Asks on the console (red) whether to replace the data with the backup in `path`; false when it is not one of those listed.
+bool action_save_import_backup(title_info* title, const char* name, save_kind kind, u32 extId, const char* path);
 // For the web server: the package of a save made at once, and whether the data exists.
 Result action_save_pack_sync(title_info* title, const char* name, save_kind kind, u32 extId, char* outPath, size_t outSize, u64* size);
 bool action_save_data_exists(title_info* title, save_kind kind, u32* extId);

@@ -689,18 +689,12 @@ static int save_compare_names_desc(const void* a, const void* b) {
 // ---- choosing what to import: a list of every backup, NSA's first (newest first), then Checkpoint's ----
 
 typedef struct {
-    char path[FILE_PATH_MAX];   // The backup's folder, with the trailing slash.
-    char label[96];
-    bool checkpoint;
-} import_choice;
-
-typedef struct {
     title_info title;
     char name[LIST_ITEM_NAME_MAX];
     save_kind kind;
     u32 extId;
 
-    import_choice* choices;
+    save_backup* choices;
     u32 count;
     u32 capacity;
     bool filled;
@@ -745,9 +739,9 @@ static void import_list_update(ui_view* view, void* data, linked_list* items, li
         return;
     }
 
-    import_choice choice = {{'\0'}, {'\0'}, false};
+    save_backup choice = {{'\0'}, {'\0'}, false};
     if(pick) {
-        choice = *(import_choice*) selected->data;
+        choice = *(save_backup*) selected->data;
     }
 
     title_info title = list->title;
@@ -779,7 +773,7 @@ static void import_list_update(ui_view* view, void* data, linked_list* items, li
 static bool import_list_add(import_list* list, const char* path, bool checkpoint, const char* label) {
     if(list->count == list->capacity) {
         u32 capacity = list->capacity == 0 ? 32 : list->capacity * 2;
-        import_choice* grown = (import_choice*) realloc(list->choices, capacity * sizeof(import_choice));
+        save_backup* grown = (save_backup*) realloc(list->choices, capacity * sizeof(save_backup));
         if(grown == NULL) {
             return false;
         }
@@ -788,7 +782,7 @@ static bool import_list_add(import_list* list, const char* path, bool checkpoint
         list->capacity = capacity;
     }
 
-    import_choice* choice = &list->choices[list->count++];
+    save_backup* choice = &list->choices[list->count++];
     string_copy(choice->path, path, sizeof(choice->path));
     string_copy(choice->label, label, sizeof(choice->label));
     choice->checkpoint = checkpoint;
@@ -837,26 +831,8 @@ static char (*save_list_dirs(FS_Archive sd, const char* dir, const char* prefix,
     return names;
 }
 
-void action_import_save_files(title_info* title, const char* name, save_kind kind, u32 extId) {
-    FS_Archive sd = 0;
-    Result res = save_open_sd(&sd);
-    if(R_FAILED(res)) {
-        error_display_res(title, task_draw_title_info, res, "Failed to open the SD card.");
-        return;
-    }
-
-    import_list* list = (import_list*) calloc(1, sizeof(import_list));
-    if(list == NULL) {
-        fs_close_archive(sd);
-        error_display(NULL, NULL, "Failed to allocate the import.");
-        return;
-    }
-
-    list->title = *title;
-    string_copy(list->name, name, sizeof(list->name));
-    list->kind = kind;
-    list->extId = extId;
-
+// Every backup of the title's data: NSA's exports, then Checkpoint's.
+static void import_collect(import_list* list, FS_Archive sd, title_info* title, save_kind kind) {
     // NSA's own exports.
     char base[FILE_PATH_MAX];
     snprintf(base, sizeof(base), SAVES_DIR "%016llX/", (unsigned long long) title->titleId);
@@ -912,8 +888,33 @@ void action_import_save_files(title_info* title, const char* name, save_kind kin
     }
 
     free(gameNames);
+}
+
+void action_import_save_files(title_info* title, const char* name, save_kind kind, u32 extId) {
+    FS_Archive sd = 0;
+    Result res = save_open_sd(&sd);
+    if(R_FAILED(res)) {
+        error_display_res(title, task_draw_title_info, res, "Failed to open the SD card.");
+        return;
+    }
+
+    import_list* list = (import_list*) calloc(1, sizeof(import_list));
+    if(list == NULL) {
+        fs_close_archive(sd);
+        error_display(NULL, NULL, "Failed to allocate the import.");
+        return;
+    }
+
+    list->title = *title;
+    string_copy(list->name, name, sizeof(list->name));
+    list->kind = kind;
+    list->extId = extId;
+
+    import_collect(list, sd, title, kind);
     fs_close_archive(sd);
 
+    char base[FILE_PATH_MAX];
+    snprintf(base, sizeof(base), SAVES_DIR "%016llX/", (unsigned long long) title->titleId);
     if(list->count == 0) {
         char text[FILE_PATH_MAX + 64];
         snprintf(text, sizeof(text), _("Nothing to import: there are no exports of this title in sdmc:%s, nor Checkpoint backups"), base);
@@ -1703,4 +1704,54 @@ void action_save_package_received(const char* path, bool importNow) {
     w->finished = unpack_finished;
     w->status = _("Unpacking...");
     worker_start(w, "Unpacking");
+}
+
+// ---- for the web server ----
+
+// The backups of the title's data (free the array). The count is the return value.
+u32 action_save_backups(title_info* title, save_kind kind, save_backup** out) {
+    *out = NULL;
+
+    FS_Archive sd = 0;
+    if(R_FAILED(save_open_sd(&sd))) {
+        return 0;
+    }
+
+    import_list* list = (import_list*) calloc(1, sizeof(import_list));
+    if(list == NULL) {
+        fs_close_archive(sd);
+        return 0;
+    }
+
+    import_collect(list, sd, title, kind);
+    fs_close_archive(sd);
+
+    u32 count = list->count;
+    *out = list->choices;
+    free(list);
+    return count;
+}
+
+// Asks on the console whether to replace the data with the backup in `path` (one of those listed above).
+bool action_save_import_backup(title_info* title, const char* name, save_kind kind, u32 extId, const char* path) {
+    save_backup* backups = NULL;
+    u32 count = action_save_backups(title, kind, &backups);
+    bool found = false;
+    for(u32 i = 0; i < count && !found; i++) {
+        if(strcmp(backups[i].path, path) != 0) {
+            continue;
+        }
+
+        found = true;
+        if(backups[i].checkpoint) {
+            import_ask(title, name, kind, extId, "", backups[i].path, backups[i].label);
+        } else {
+            char root[FILE_PATH_MAX];
+            snprintf(root, sizeof(root), "%s%s/", backups[i].path, save_kind_dir(kind));
+            import_ask(title, name, kind, extId, backups[i].path, root, backups[i].label);
+        }
+    }
+
+    free(backups);
+    return found;
 }

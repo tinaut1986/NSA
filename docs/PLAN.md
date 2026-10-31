@@ -114,6 +114,9 @@ What `release` holds, in the order it was built:
 ## Pending tests on the console (2026-10-31)
 
 **Web server** (item 10; `source/fbi/webserver.c`; tested only in Azahar with `tools/web_tests.py` and the page in a browser)
+- [ ] Import a backup from the page (an NSA export and a Checkpoint backup): the red question appears on the console, and accepting replaces the data (with the backup first and the rollback if it fails).
+- [ ] Launch and delete (with and without ticket) a title from the page: the console asks first; a second request while the first question is open says the console is busy.
+- [ ] Install from URLs from the page (and from the history): the console asks, downloads and installs; the URL is in Remote Install's history on the console.
 - [ ] The page wears the console's theme: change theme (Cards, Pixel, HOME), accent and night mode on the console and see the page follow within seconds.
 - [ ] Titles tab on a real console: the list, names and icons arrive (a console has many more titles than Azahar: how long, and does the console stay usable), filters.
 - [ ] Download a save, extra data and SpotPass data of a game as a package; send that package back from the page: the console unpacks it and asks about the import (red) there.
@@ -478,8 +481,16 @@ current, this list is the summary. What only the owner can test (local wireless)
       `/nsa/received/` and `POST /api/save/receive?import=1` hands it to the main thread (`webserver_poll_main`), which runs
       `action_save_package_received` as if it had been sent: unpacked into `nsa/saves/<TITLEID>/<date>/`, and, if the title or
       its data is here, the red *import* question appears **on the console** (nothing is replaced from the page alone).
-    - **Phase 2 left**: import from the page an export already on the SD card (list `nsa/saves/<TITLEID>/` and Checkpoint's, ask on the
-      console); launch and delete a title; install from a URL; Remote Install's history; the transfer log; tickets and ext save data.
+    - **Phase 2, the rest** (built): *Import* (⬆) beside each *Download* (⬇): `GET /api/save/backups` lists the title's NSA exports and Checkpoint's
+      (the same scan as the console's import list, `action_save_backups`), the page shows them in a dialog and `POST /api/save/import`
+      makes the console ask (red) there. *Launch*, *Delete* and *Delete with ticket* per title (`POST /api/title/launch|delete`): the
+      console asks first. A third tab, *Install*: URLs (one per line, http/https only) go to `POST /api/install-url`, which opens
+      Remote Install's own question on the console and adds them to its history; below, that history (`/nsa/history.json`, with *Install
+      again*) and the end of `transfer-log.txt`.
+    - **How a request that opens something on the console works**: `webserver.c` keeps one slot (`web_job`) that the main thread runs in
+      `webserver_poll_main`; a second request meanwhile gets 409. The page never changes the console's data on its own: every import,
+      launch, delete and install is confirmed on the console. Launch and delete keep a small title item alive for the question (not freed).
+    - **Left of phase 2**: tickets and ext save data lists (and their actions), the Files tab's long actions (copy, move), editing a text file.
     - **Phase 3**: the screens live (repeat `screen_capture`, now a BMP on the SD: a PNG/JPEG in memory would be better) and
       sending buttons and touches (`SITE PRESS` / `TAP` already exist in `ftpserver.c`: move them to a shared module).
     - **Ideas**: a `remote.flag`-like switch for the destructive calls; drag whole folders (`webkitGetAsEntry`); download a folder

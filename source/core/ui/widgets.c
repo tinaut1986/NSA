@@ -83,11 +83,25 @@ void widget_badge(float x, float y, const char* text, u32 background, u32 foregr
     screen_draw_text(text, x + 6, y + 1, WIDGET_SMALL_SCALE, foreground);
 }
 
-void widget_button(float x, float y, float width, float height, int icon, const char* label, bool selected) {
+// The colours of a button: the accent, or a soft red for what is dangerous.
+static void widget_button_colors(bool selected, bool danger, u32* fill, u32* edge, u32* ink) {
     const theme_current* t = theme();
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
+    if(danger) {
+        u32 onDanger = t->night ? t->palette->background : t->onAccent;
+        *fill = selected ? t->palette->danger : theme_mix(t->palette->surface, t->palette->danger, 0x26);
+        *edge = t->palette->danger;
+        *ink = selected ? onDanger : t->palette->danger;
+    } else {
+        *fill = selected ? t->accent : t->palette->surface;
+        *edge = selected ? t->accent : t->palette->border;
+        *ink = selected ? t->onAccent : t->palette->text;
+    }
+}
+
+static void widget_button_draw(float x, float y, float width, float height, int icon, const char* label, bool selected, bool danger) {
+    const theme_current* t = theme();
+    u32 fill, edge, ink;
+    widget_button_colors(selected, danger, &fill, &edge, &ink);
     screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
 
     float textHeight = widget_text_height(WIDGET_TEXT_SCALE);
@@ -103,6 +117,24 @@ void widget_button(float x, float y, float width, float height, int icon, const 
     float scale = widget_text_width(label, WIDGET_TEXT_SCALE) <= room ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
     textHeight = widget_text_height(scale);
     widget_text_fit(label, tx, y + (height - textHeight) / 2, scale, ink, room);
+}
+
+void widget_button(float x, float y, float width, float height, int icon, const char* label, bool selected) {
+    widget_button_draw(x, y, width, height, icon, label, selected, false);
+}
+
+void widget_button_danger(float x, float y, float width, float height, int icon, const char* label, bool selected) {
+    widget_button_draw(x, y, width, height, icon, label, selected, true);
+}
+
+void widget_button_centered_danger(float x, float y, float width, float height, const char* label, bool selected) {
+    const theme_current* t = theme();
+    u32 fill, edge, ink;
+    widget_button_colors(selected, true, &fill, &edge, &ink);
+    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+
+    float scale = widget_text_width(label, WIDGET_TEXT_SCALE) <= width - 12 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
+    widget_text_centered(label, x, x + width, y + (height - widget_text_height(scale)) / 2, scale, ink);
 }
 
 void widget_button_centered(float x, float y, float width, float height, const char* label, bool selected) {

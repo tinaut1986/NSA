@@ -110,6 +110,10 @@ dates). The owner will go through them one by one; tick each only when they say 
       is FBI's (`LOGO := plain`: the CIA carries the generic logo of buildtools/makerom); look at what
       shows on launch. A logo of NSA's own is left open in issue #15. The banner sound is still FBI's.
 
+**Advanced in a soft red** (`widget_button_danger`, `prompt_display_warning`)
+- [ ] On the console: the Advanced button, its top card and the warning prompt in red, day and
+      night, in several accents (seen only in Azahar, night mode, blue accent).
+
 **Remote install history**
 - [ ] History list: install again, forget, long-press sheet, top card with the links.
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.

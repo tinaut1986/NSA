@@ -173,8 +173,9 @@ static void mainmenu_draw_entry(const mainmenu_entry* entry, float x1, float y1,
     float tileY = cardY + (cardH - tile) / 2;
     float cardDepth = screen_get_depth();
     screen_set_depth(cardDepth + 1);
-    screen_fill_round_rect(tileX, tileY, tile, tile, t->def->radius, t->accentSoft);
-    screen_draw_icon(entry->icon, tileX + 14, tileY + 14, 36, t->accent);
+    // What warns before opening shows its tile in a soft red.
+    screen_fill_round_rect(tileX, tileY, tile, tile, t->def->radius, entry->warn ? theme_mix(t->palette->surface, t->palette->danger, 0x26) : t->accentSoft);
+    screen_draw_icon(entry->icon, tileX + 14, tileY + 14, 36, entry->warn ? t->palette->danger : t->accent);
     screen_set_depth(cardDepth);
 
     float textX = tileX + tile + 14;
@@ -193,7 +194,7 @@ static void mainmenu_draw_entry(const mainmenu_entry* entry, float x1, float y1,
                 break;
             }
 
-            widget_badge(bx, by, name, t->accentSoft, t->accent);
+            widget_badge(bx, by, name, entry->warn ? theme_mix(t->palette->surface, t->palette->danger, 0x26) : t->accentSoft, entry->warn ? t->palette->danger : t->accent);
             bx += w + 5;
         }
     }
@@ -316,7 +317,7 @@ static void mainmenu_open_entry(const mainmenu_entry* entry) {
     }
 
     if(entry->warn && !mainmenu_advanced_confirmed) {
-        prompt_display_yes_no(_(entry->name), _("Here you change the console's own memory and system data. A wrong change can stop it from starting.\n\nGo in?"), COLOR_TEXT, (void*) entry, NULL, mainmenu_advanced_onresponse);
+        prompt_display_warning(_(entry->name), _("Here you change the console's own memory and system data. A wrong change can stop it from starting.\n\nGo in?"), COLOR_TEXT, (void*) entry, NULL, mainmenu_advanced_onresponse);
         return;
     }
 
@@ -475,10 +476,21 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
         if(i < TILE_COUNT) {
             mainmenu_draw_tile(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
         } else {
-            widget_button(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
+            // Advanced warns before opening: its button is a soft red too.
+            bool danger = entries[i].warn;
+            if(danger) {
+                widget_button_danger(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
+            } else {
+                widget_button(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
+            }
         }
 
-        widget_press_draw(&menu->press, (int) i, x, y, w, h, i < TILE_COUNT ? t->def->radius : t->def->radiusSmall, selected ? t->onAccent : t->palette->text, false);
+        u32 pressInk = selected ? t->onAccent : t->palette->text;
+        if(entries[i].warn && selected) {
+            pressInk = t->night ? t->palette->background : t->onAccent;
+        }
+
+        widget_press_draw(&menu->press, (int) i, x, y, w, h, i < TILE_COUNT ? t->def->radius : t->def->radiusSmall, pressInk, false);
     }
 }
 

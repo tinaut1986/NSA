@@ -73,5 +73,11 @@ typedef enum {
     ICON_KEYBOARD,
     ICON_HISTORY,
     ICON_3DS,
+    ICON_SCISSORS,
+    ICON_FILE_TEXT,
+    ICON_ZOOM_IN,
+    ICON_ZOOM_OUT,
+    ICON_BOX,
+    ICON_ARROWS_MAXIMIZE,
     ICON_COUNT
 } icon_id;

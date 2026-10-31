@@ -32,6 +32,8 @@ void action_delete_dir_cias(linked_list* items, list_item* selected);
 void action_delete_dir_tickets(linked_list* items, list_item* selected);
 void action_new_folder(linked_list* items, list_item* selected);
 void action_paste_contents(linked_list* items, list_item* selected);
+// Like it, but a cut item on the same medium (`archiveId`) is renamed into the folder instead of copied.
+void action_paste_contents_in(linked_list* items, list_item* selected, FS_ArchiveID archiveId);
 void action_rename(linked_list* items, list_item* selected);
 
 void action_delete_pending_title(linked_list* items, list_item* selected);

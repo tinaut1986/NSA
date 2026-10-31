@@ -31,6 +31,8 @@ void screen_select(gfxScreen_t screen);
 // The top screen in 3D: one eye, whose drawings move `shift` pixels per unit
 // of depth (screen_set_depth; 0 is the screen's plane).
 void screen_select_eye(gfxScreen_t screen, gfx3dSide_t side, float shift);
+// The eye the top screen is being drawn for (GFX_LEFT too in 2D and on the bottom screen).
+gfx3dSide_t screen_get_eye();
 void screen_set_depth(float value);
 float screen_get_depth();
 // Moves and fades only text, icons and images drawn after it (not shapes);

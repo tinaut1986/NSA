@@ -67,3 +67,9 @@ device-desktop
 keyboard
 history
 3ds
+scissors
+file-text
+zoom-in
+zoom-out
+box
+arrows-maximize

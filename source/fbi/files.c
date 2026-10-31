@@ -9,6 +9,7 @@
 #include "action/action.h"
 #include "task/uitask.h"
 #include "../core/core.h"
+#include "viewers.h"
 #include "../core/data/smdh.h"
 #include "settings.h"
 #include "transfer.h"
@@ -426,7 +427,11 @@ static void files_install_ticket(void* data) { files_run(data, action_install_ti
 static void files_install_ticket_delete(void* data) { files_run(data, action_install_ticket_delete); }
 static void files_delete_file(void* data) { files_run(data, action_delete_file); }
 static void files_rename(void* data) { files_run(data, action_rename); }
-static void files_paste(void* data) { files_run(data, action_paste_contents); }
+static void files_paste(void* data) {
+    files_data* listData = (files_data*) data;
+    action_paste_contents_in(listData->actionItems, listData->actionSelected, listData->archiveId);
+}
+
 static void files_new_folder(void* data) { files_run(data, action_new_folder); }
 static void files_delete_dir(void* data) { files_run(data, action_delete_dir); }
 static void files_delete_contents(void* data) { files_run(data, action_delete_dir_contents); }
@@ -436,11 +441,67 @@ static void files_install_cias(void* data) { files_run_filtered(data, action_ins
 static void files_install_cias_delete(void* data) { files_run_filtered(data, action_install_cias_delete); }
 static void files_install_tickets(void* data) { files_run_filtered(data, action_install_tickets); }
 static void files_install_tickets_delete(void* data) { files_run_filtered(data, action_install_tickets_delete); }
+static void files_cut(void* data) {
+    files_data* listData = (files_data*) data;
+    file_info* info = (file_info*) listData->actionSelected->data;
+
+    Result res = 0;
+    if(R_SUCCEEDED(res = clipboard_set_cut(listData->archive, listData->archiveId, info->path))) {
+        prompt_display_notify(_("Cut"), files_is_dir(info) ? _("The folder will be moved when you paste it.") : _("The file will be moved when you paste it."),
+                              COLOR_TEXT, info, task_draw_file_info, NULL);
+    } else {
+        error_display_res(info, task_draw_file_info, res, "Failed to copy to clipboard.");
+    }
+}
+
 static void files_copy(void* data) { files_copy_item(data, false); }
 static void files_copy_contents(void* data) { files_copy_item(data, true); }
 static void files_send(void* data) {
     file_info* info = (file_info*) ((files_data*) data)->actionSelected->data;
     transfer_send_file(info->archive, info->path, info->name, info->size);
+}
+
+static void files_open_text(void* data) {
+    file_info* info = (file_info*) ((files_data*) data)->actionSelected->data;
+    textview_open(info->archive, info->path, info->name, false);
+}
+
+// The pictures of the folder (in the list's order) with `selected` among them; opens the viewer.
+static void files_open_image_in(files_data* data, linked_list* items, list_item* selected) {
+    u32 total = linked_list_size(items);
+    const char** paths = (const char**) calloc(total > 0 ? total : 1, sizeof(char*));
+    if(paths == NULL) {
+        error_display(NULL, NULL, "Failed to allocate picture viewer data.");
+        return;
+    }
+
+    u32 count = 0;
+    u32 index = 0;
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        if(files_is_base(item) || item->data == NULL) {
+            continue;
+        }
+
+        file_info* info = (file_info*) item->data;
+        if(!files_is_dir(info) && viewers_kind_of(info->name) == VIEWER_IMAGE) {
+            if(item == selected) {
+                index = count;
+            }
+
+            paths[count++] = info->path;
+        }
+    }
+
+    imageview_open(((file_info*) selected->data)->archive, paths, count, index);
+    free(paths);
+}
+
+static void files_open_image(void* data) {
+    files_data* listData = (files_data*) data;
+    files_open_image_in(listData, listData->actionItems, listData->actionSelected);
 }
 
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
@@ -452,6 +513,17 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
 
     sheet_action actions[SHEET_ACTIONS_MAX];
     u32 count = 0;
+
+    viewer_kind viewer = viewers_kind_of(info->name);
+    if(viewer == VIEWER_IMAGE) {
+        actions[count++] = (sheet_action) {ICON_PHOTO, _("View picture"), false, files_open_image};
+    }
+
+    if(viewer == VIEWER_TEXT) {
+        actions[count++] = (sheet_action) {ICON_FILE_TEXT, _("Open text"), false, files_open_text};
+    } else if(viewer == VIEWER_NONE && !info->isCia && !info->isTicket) {
+        actions[count++] = (sheet_action) {ICON_FILE_TEXT, _("Open as text"), false, files_open_text};
+    }
 
     if(info->isCia) {
         actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Install"), false, files_install_cia};
@@ -465,6 +537,7 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
 
     actions[count++] = (sheet_action) {ICON_3DS, _("Send to another 3DS"), false, files_send};
     actions[count++] = (sheet_action) {ICON_COPY, _("Copy"), false, files_copy};
+    actions[count++] = (sheet_action) {ICON_SCISSORS, _("Cut (move)"), false, files_cut};
     actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename"), false, files_rename};
     actions[count++] = (sheet_action) {ICON_TRASH, _("Delete"), true, files_delete_file};
 
@@ -486,6 +559,7 @@ static void files_dir_actions_open(files_data* data, linked_list* items, list_it
             {ICON_FOLDER, _("Open"), false, files_open_dir},
             {ICON_COPY, _("Copy folder"), false, files_copy},
             {ICON_COPY, _("Copy contents"), false, files_copy_contents},
+            {ICON_SCISSORS, _("Cut folder (move)"), false, files_cut},
             {ICON_PENCIL, _("Rename folder"), false, files_rename},
             {ICON_TRASH, _("Delete contents"), true, files_delete_contents},
             {ICON_TRASH_X, _("Delete folder"), true, files_delete_dir}
@@ -537,6 +611,7 @@ static void files_folder_actions_open(files_data* data, linked_list* items) {
     actions[count++] = (sheet_action) {ICON_COPY, _("Copy contents"), false, files_copy_contents};
     if(!root) {
         actions[count++] = (sheet_action) {ICON_COPY, _("Copy folder"), false, files_copy};
+        actions[count++] = (sheet_action) {ICON_SCISSORS, _("Cut folder (move)"), false, files_cut};
         actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename folder"), false, files_rename};
     }
 
@@ -572,7 +647,7 @@ static void files_clipboard_press(ui_view* view, void* data) {
     files_data* listData = (files_data*) data;
     list_item* base = files_base(files_items(listData));
     if(!clipboard_has_contents() || base == NULL) {
-        prompt_display_notify(_("Clipboard"), _("The clipboard is empty. Copy a file or folder from its actions first."), COLOR_TEXT, NULL, NULL, NULL);
+        prompt_display_notify(_("Clipboard"), _("The clipboard is empty. Copy or cut a file or folder from its actions first."), COLOR_TEXT, NULL, NULL, NULL);
         return;
     }
 
@@ -860,8 +935,13 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
     if(selected != NULL && selected->data != NULL && selectedTouched) {
         file_info* fileInfo = (file_info*) selected->data;
 
+        viewer_kind viewer = files_is_dir(fileInfo) ? VIEWER_NONE : viewers_kind_of(fileInfo->name);
         if(files_is_dir(fileInfo)) {
             files_navigate(listData, items, fileInfo->path);
+        } else if(viewer == VIEWER_IMAGE) {
+            files_open_image_in(listData, items, selected);
+        } else if(viewer == VIEWER_TEXT) {
+            textview_open(fileInfo->archive, fileInfo->path, fileInfo->name, false);
         } else {
             files_file_actions_open(listData, items, selected);
         }

@@ -18,6 +18,9 @@ typedef struct {
     linked_list contents;
 
     data_op_data pasteInfo;
+
+    // Cut and pasted onto another medium: the source goes once the copy is whole.
+    bool moveSource;
 } paste_contents_data;
 
 static void action_paste_contents_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -228,6 +231,25 @@ static void action_paste_contents_free_data(paste_contents_data* data) {
     free(data);
 }
 
+static Result action_paste_contents_delete_source() {
+    Result res = 0;
+
+    FS_Path* fsPath = fs_make_path_utf8(clipboard_get_path());
+    if(fsPath != NULL) {
+        if(fs_is_dir(clipboard_get_archive(), clipboard_get_path())) {
+            res = FSUSER_DeleteDirectoryRecursively(clipboard_get_archive(), *fsPath);
+        } else {
+            res = FSUSER_DeleteFile(clipboard_get_archive(), *fsPath);
+        }
+
+        fs_free_path_utf8(fsPath);
+    } else {
+        res = R_APP_OUT_OF_MEMORY;
+    }
+
+    return res;
+}
+
 static void action_paste_contents_update(ui_view* view, void* data, float* progress, char* text) {
     paste_contents_data* pasteData = (paste_contents_data*) data;
 
@@ -240,7 +262,17 @@ static void action_paste_contents_update(ui_view* view, void* data, float* progr
         info_destroy(view);
 
         if(R_SUCCEEDED(pasteData->pasteInfo.result)) {
-            prompt_display_notify("Success", "Contents pasted.", COLOR_TEXT, NULL, NULL, NULL);
+            if(pasteData->moveSource) {
+                Result delRes = action_paste_contents_delete_source();
+                clipboard_clear();
+                if(R_SUCCEEDED(delRes)) {
+                    prompt_display_notify("Success", "Moved.", COLOR_TEXT, NULL, NULL, NULL);
+                } else {
+                    error_display_res(NULL, NULL, delRes, "Copied, but failed to delete the original.");
+                }
+            } else {
+                prompt_display_notify("Success", "Contents pasted.", COLOR_TEXT, NULL, NULL, NULL);
+            }
         }
 
         action_paste_contents_free_data(pasteData);
@@ -300,7 +332,7 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
             loadingData->pasteData->pasteInfo.total = linked_list_size(&loadingData->pasteData->contents);
             loadingData->pasteData->pasteInfo.processed = loadingData->pasteData->pasteInfo.total;
 
-            prompt_display_yes_no("Confirmation", "Paste clipboard contents to the current directory?", COLOR_TEXT, loadingData->pasteData, action_paste_contents_draw_top, action_paste_contents_onresponse);
+            prompt_display_yes_no("Confirmation", loadingData->pasteData->moveSource ? "Move the cut item to the current directory? It is copied and then deleted from where it was." : "Paste clipboard contents to the current directory?", COLOR_TEXT, loadingData->pasteData, action_paste_contents_draw_top, action_paste_contents_onresponse);
         } else {
             error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate clipboard content list.");
 
@@ -318,6 +350,87 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
     snprintf(text, PROGRESS_TEXT_MAX, _("Fetching clipboard content list..."));
 }
 
+// Archives whose files can be renamed across folders: the whole medium is one archive.
+static bool action_paste_contents_renamable(FS_ArchiveID id) {
+    return id == ARCHIVE_SDMC || id == ARCHIVE_NAND_CTR_FS || id == ARCHIVE_NAND_TWL_FS || id == ARCHIVE_TWL_PHOTO || id == ARCHIVE_TWL_SOUND;
+}
+
+// A cut item on the same medium is renamed into the folder: no copy.
+static void action_paste_contents_move_here(linked_list* items, list_item* selected) {
+    file_info* target = (file_info*) selected->data;
+    const char* srcPath = clipboard_get_path();
+    bool isDir = fs_is_dir(clipboard_get_archive(), srcPath);
+
+    char name[FILE_NAME_MAX] = {'\0'};
+    string_get_path_file(name, srcPath, sizeof(name));
+
+    char baseDstPath[FILE_PATH_MAX] = {'\0'};
+    if(target->attributes & FS_ATTRIBUTE_DIRECTORY) {
+        string_copy(baseDstPath, target->path, FILE_PATH_MAX);
+    } else {
+        string_get_parent_path(baseDstPath, target->path, FILE_PATH_MAX);
+    }
+
+    char dstPath[FILE_PATH_MAX] = {'\0'};
+    snprintf(dstPath, FILE_PATH_MAX, isDir ? "%s%s/" : "%s%s", baseDstPath, name);
+
+    if(strncmp(srcPath, dstPath, FILE_PATH_MAX) == 0) {
+        prompt_display_notify("Failure", "It is already in this folder.", COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    if(isDir && strncmp(dstPath, srcPath, strlen(srcPath)) == 0) {
+        prompt_display_notify("Failure", "A folder cannot be moved into itself.", COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    Result res = 0;
+    FS_Path* srcFsPath = fs_make_path_utf8(srcPath);
+    if(srcFsPath != NULL) {
+        FS_Path* dstFsPath = fs_make_path_utf8(dstPath);
+        if(dstFsPath != NULL) {
+            if(isDir) {
+                res = FSUSER_RenameDirectory(clipboard_get_archive(), *srcFsPath, clipboard_get_archive(), *dstFsPath);
+            } else {
+                res = FSUSER_RenameFile(clipboard_get_archive(), *srcFsPath, clipboard_get_archive(), *dstFsPath);
+            }
+
+            fs_free_path_utf8(dstFsPath);
+        } else {
+            res = R_APP_OUT_OF_MEMORY;
+        }
+
+        fs_free_path_utf8(srcFsPath);
+    } else {
+        res = R_APP_OUT_OF_MEMORY;
+    }
+
+    if(R_FAILED(res)) {
+        error_display_res(NULL, NULL, res, "Failed to move the item.");
+        return;
+    }
+
+    FSUSER_ControlArchive(target->archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
+
+    list_item* dstItem = NULL;
+    if(R_SUCCEEDED(task_create_file_item(&dstItem, target->archive, dstPath, isDir ? FS_ATTRIBUTE_DIRECTORY : 0, true))) {
+        linked_list_add(items, dstItem);
+        linked_list_sort(items, NULL, task_compare_files);
+    }
+
+    clipboard_clear();
+    prompt_display_notify("Success", "Moved.", COLOR_TEXT, NULL, NULL, NULL);
+}
+
+void action_paste_contents_in(linked_list* items, list_item* selected, FS_ArchiveID archiveId) {
+    if(clipboard_has_contents() && clipboard_is_cut() && archiveId != 0 && archiveId == clipboard_get_archive_id() && action_paste_contents_renamable(archiveId)) {
+        action_paste_contents_move_here(items, selected);
+        return;
+    }
+
+    action_paste_contents(items, selected);
+}
+
 void action_paste_contents(linked_list* items, list_item* selected) {
     if(!clipboard_has_contents()) {
         prompt_display_notify("Failure", "Clipboard empty.", COLOR_TEXT, NULL, NULL, NULL);
@@ -330,6 +443,8 @@ void action_paste_contents(linked_list* items, list_item* selected) {
 
         return;
     }
+
+    data->moveSource = clipboard_is_cut();
 
     data->items = items;
 

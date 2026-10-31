@@ -9,6 +9,7 @@
 #include "action/action.h"
 #include "task/uitask.h"
 #include "../core/core.h"
+#include "launch3dsx.h"
 #include "thumbs.h"
 #include "viewers.h"
 #include "../core/data/smdh.h"
@@ -260,8 +261,8 @@ static void files_draw_icon(file_info* info, float x, float y, float size) {
         return;
     }
 
-    if(kind == KIND_FILE && viewers_kind_of(info->name) == VIEWER_IMAGE) {
-        u32 preview = thumbs_get(info->archive, info->path, info->size);
+    if(kind == KIND_FILE && (viewers_kind_of(info->name) == VIEWER_IMAGE || files_type_of(info) == TYPE_PROGRAM)) {
+        u32 preview = thumbs_get(info->archive, info->path, info->size, NULL);
         if(preview != 0) {
             screen_draw_texture(preview, x, y, size, size);
             return;
@@ -456,7 +457,12 @@ static void files_draw_file(file_info* info, const char* name, float x, float y,
 
     bool ticket = files_kind_of(info) == KIND_TICKET;
     const char* typeName = ticket ? _("Ticket") : files_type_label(files_type_of(info));
-    files_draw_card(info, name, info->path, "", typeName, x, y, w, 76);
+    thumbs_info program = {{0}, {0}};
+    if(files_type_of(info) == TYPE_PROGRAM && thumbs_get(info->archive, info->path, info->size, &program) != 0 && program.title[0] != '\0') {
+        files_draw_card(info, program.title, name, program.publisher, typeName, x, y, w, 76);
+    } else {
+        files_draw_card(info, name, info->path, "", typeName, x, y, w, 76);
+    }
 
     files_draw_cell(x, row1, cellW, _("Size"), size);
     files_draw_cell(x + cellW + gap, row1, cellW, _("Type"), typeName);
@@ -630,6 +636,38 @@ static void files_open_audio(void* data) {
     files_open_media_in(listData, listData->actionItems, listData->actionSelected, VIEWER_AUDIO);
 }
 
+static void files_launch_response(ui_view* view, void* data, u32 response) {
+    char* path = (char*) data;
+    if(response == PROMPT_YES) {
+        Result res = launch3dsx_start(path);
+        if(R_FAILED(res)) {
+            error_display_res(NULL, NULL, res, "Failed to start the program.");
+        }
+    }
+
+    free(path);
+}
+
+// Starts the selected .3dsx (its own confirmation first: NSA closes).
+static void files_launch(void* data) {
+    files_data* listData = (files_data*) data;
+    file_info* info = (file_info*) listData->actionSelected->data;
+
+    char why[200];
+    if(!launch3dsx_available(why, sizeof(why))) {
+        prompt_display_notify("Failure", why, COLOR_TEXT, info, task_draw_file_info, NULL);
+        return;
+    }
+
+    char* path = strdup(info->path);
+    if(path == NULL) {
+        error_display(NULL, NULL, "Failed to allocate program data.");
+        return;
+    }
+
+    prompt_display_yes_no("Confirmation", "Start this program? NSA closes first.", COLOR_TEXT, path, NULL, files_launch_response);
+}
+
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
 
 static void files_file_actions_open(files_data* data, linked_list* items, list_item* selected) {
@@ -639,6 +677,10 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
 
     sheet_action actions[SHEET_ACTIONS_MAX];
     u32 count = 0;
+
+    if(files_type_of(info) == TYPE_PROGRAM && data->archiveId == ARCHIVE_SDMC && viewers_has_ext(info->name, "3dsx")) {
+        actions[count++] = (sheet_action) {ICON_PLAYER_PLAY, _("Run program"), false, files_launch};
+    }
 
     viewer_kind viewer = viewers_kind_of(info->name);
     if(viewer == VIEWER_IMAGE) {

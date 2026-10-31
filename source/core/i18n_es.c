@@ -651,6 +651,12 @@ const i18n_entry i18n_es[] = {
         {"Binary", "Binario"},
         {"PDF", "PDF"},
         {"Compressed", "Comprimido"},
+        // Starting a 3DSX
+        {"This console has no 3DSX loader (Luma3DS 9 or newer with it on) or NSA cannot reach it: %08lX", "Esta consola no tiene el cargador de 3DSX (Luma3DS 9 o posterior con él activado) o NSA no puede usarlo: %08lX"},
+        {"The Homebrew Launcher title is not installed. Install its CIA, or put its title ID in sdmc:/nsa/hbl_title.txt.", "El título del Homebrew Launcher no está instalado. Instala su CIA, o pon su ID de título en sdmc:/nsa/hbl_title.txt."},
+        {"Start this program? NSA closes first.", "¿Iniciar este programa? NSA se cierra antes."},
+        {"Failed to start the program.", "No se pudo iniciar el programa."},
+        {"Run program", "Ejecutar programa"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

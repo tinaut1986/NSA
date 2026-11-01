@@ -181,8 +181,9 @@ dates). The owner will go through them one by one; tick each only when they say 
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
 - [ ] The 2DS stays smooth during a download and an FTP transfer (menus, music; FTP threads now on the app core).
-- [ ] Music during transfers on an Old 3DS: off made the 2DS's FTP 10-25% faster (New 3DS: 3-6%). Owner to decide
-      whether NSA pauses it while transferring. HTTP and console to console with music on/off not measured yet.
+- [ ] Music during transfers on an Old 3DS: off made the 2DS's FTP 10-25% faster (New 3DS: 3-6%); a URL install on the
+      2DS 520 -> 530 KB/s (2%, the install is its limit); a 16 MB send New 3DS -> 2DS 29.0 / 35.7 s with music on both,
+      29.8 / 30.8 s off (~6%, noisy). Owner to decide whether NSA pauses it during FTP transfers on an Old 3DS.
 - [ ] FTP and web after the non-blocking change: FileZilla and a browser on a real console (big files both ways, several
       at once, a client that disappears mid-transfer, turning the servers off mid-transfer).
 

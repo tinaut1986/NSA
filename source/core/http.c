@@ -260,7 +260,7 @@ static Result httpc_read(httpc_context context, u32* bytesRead, void* buffer, u3
 // ---- the system's HTTP service: what downloads went through before, kept for when curl can not connect ----
 
 static Result http_httpc_download(const char* url, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
-                                  Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr)) {
+                                  Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections)) {
     Result res = 0;
 
     void* buf = malloc(bufferSize);
@@ -273,7 +273,7 @@ static Result http_httpc_download(const char* url, u32 bufferSize, void* userDat
         u32 dlSize = 0;
         if(R_SUCCEEDED(res = httpc_get_size(context, &dlSize))) {
             if(progress != NULL) {
-                progress(userData, dlSize, 0);
+                progress(userData, dlSize, 0, 1);
             }
 
             u32 total = 0;
@@ -283,7 +283,7 @@ static Result http_httpc_download(const char* url, u32 bufferSize, void* userDat
                   && R_SUCCEEDED(res = httpc_read(context, &currSize, buf, bufferSize))
                   && R_SUCCEEDED(res = callback(userData, buf, currSize))) {
                 if(progress != NULL) {
-                    progress(userData, dlSize, total);
+                    progress(userData, dlSize, total, 1);
                 }
 
                 total += currSize;
@@ -451,7 +451,7 @@ static Thread http_fetch_start(http_fetch* f) {
 // `connected` says whether the server answered at all (else the system's
 // service may still get through).
 static Result http_curl_download(const char* url, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
-                                 Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr), bool* connected,
+                                 Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections), bool* connected,
                                  http_shared* shared) {
     *connected = false;
 
@@ -537,7 +537,7 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 
                 if(progress != NULL) {
                     u64 received = f->received;
-                    progress(userData, f->total > received ? f->total : received, received);
+                    progress(userData, f->total > received ? f->total : received, received, 1);
                 }
 
                 svcSleepThread(2000000);
@@ -581,24 +581,40 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 // flight (a few KB per round trip: ~50 KB/s at 130 ms). So a big file from a
 // server that serves ranges comes in segments over several connections, as
 // the console to console transfers do; the caller still gets it in order.
+//
+// The segments wait in a window of buffers ahead of the one the caller needs
+// next: a connection that is done takes the next free segment, so one slow
+// connection no longer holds the others up (each used to own one segment in
+// turn and waited for the caller to take it, so the download went at the
+// slowest one's pace).
+//
+// A segment can still stall (a connection that stops for seconds, often near
+// the end): when a connection has nothing else to take, it asks again for the
+// oldest segment that has been on its way for HTTP_HEDGE_MS, and whichever
+// copy arrives first is used. Each connection fetches into a buffer of its
+// own and copies a finished segment into the window, so the two never write
+// the same memory.
 
 #define HTTP_PARALLEL 8
-#define HTTP_PARALLEL_OLD 2
+#define HTTP_PARALLEL_OLD 4
 #define HTTP_SEGMENT (512 * 1024)
+#define HTTP_WINDOW_PER_CONNECTION 2
+#define HTTP_WINDOW_MIN 6
+#define HTTP_WINDOW_MAX (HTTP_PARALLEL * HTTP_WINDOW_PER_CONNECTION)
 #define HTTP_PARALLEL_MIN (4 * 1024 * 1024)   // Smaller files: one connection.
 #define HTTP_SEGMENT_TRIES 5
+#define HTTP_HEDGE_MS 2000
 
 typedef struct http_parallel_s http_parallel;
 
 typedef struct {
     http_parallel* p;
-    u32 index;
     CURL* curl;
-    u8* buf;
+    u8* buf;                 // Its own: the segment being fetched.
     u32 len;
     u32 want;
+    s32 segment;             // The one being fetched.
     volatile u64 received;   // Only this worker writes it; the caller adds them up.
-    volatile s64 segment;    // The segment whole in `buf` for the caller, or -1.
     Thread thread;
 } http_worker;
 
@@ -608,6 +624,18 @@ struct http_parallel_s {
     u32 segments;
     u32 workerCount;
     http_worker workers[HTTP_PARALLEL];
+
+    u32 window;                            // Slots; segment n goes to slot n % window.
+    u8* slots[HTTP_WINDOW_MAX];
+    volatile s32 ready[HTTP_WINDOW_MAX];   // The segment whole in the slot, or -1.
+    u32 lengths[HTTP_WINDOW_MAX];
+    u32 fetchers[HTTP_WINDOW_MAX];         // Connections on the slot's segment.
+    u64 started[HTTP_WINDOW_MAX];          // When its first connection took it.
+    LightLock lock;                        // Around everything above but the slots' data, and these:
+    u32 nextAssign;                        // The next segment no connection has taken.
+    volatile u32 nextDeliver;              // The next segment the caller needs.
+    u32 hedges;                            // Segments asked for twice.
+
     volatile bool abort;
     volatile Result failure;
 };
@@ -701,10 +729,16 @@ static bool http_probe(const char* url, char* effective, size_t effectiveSize, u
     return ok;
 }
 
+// Whether another copy of the worker's segment has already arrived (or been used).
+static bool http_worker_beaten(http_worker* w) {
+    http_parallel* p = w->p;
+    return (u32) w->segment < p->nextDeliver || p->ready[(u32) w->segment % p->window] == w->segment;
+}
+
 static size_t http_worker_write(char* ptr, size_t size, size_t nmemb, void* userdata) {
     http_worker* w = (http_worker*) userdata;
     size_t len = size * nmemb;
-    if(w->p->abort || w->len + len > w->want) {
+    if(w->p->abort || w->len + len > w->want || http_worker_beaten(w)) {
         return 0;
     }
 
@@ -714,19 +748,59 @@ static size_t http_worker_write(char* ptr, size_t size, size_t nmemb, void* user
     return len;
 }
 
+// Also called with no data coming: a stalled connection stops once the other copy is in.
 static int http_worker_info(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
-    return ((http_worker*) clientp)->p->abort || http_quit ? 1 : 0;
+    http_worker* w = (http_worker*) clientp;
+    return w->p->abort || http_quit || http_worker_beaten(w) ? 1 : 0;
+}
+
+// The next segment there is room for in the window; else the oldest one on
+// its way for too long, asked for again; else -1 (all delivered: done; or wait).
+static s32 http_worker_take(http_parallel* p, bool* done) {
+    s32 segment = -1;
+    u64 now = osGetTime();
+    LightLock_Lock(&p->lock);
+    if(p->nextDeliver >= p->segments) {
+        *done = true;
+    } else if(p->nextAssign < p->segments && p->nextAssign < p->nextDeliver + p->window) {
+        // Its slot held segment - window, which the caller has taken.
+        segment = (s32) p->nextAssign++;
+        u32 slot = (u32) segment % p->window;
+        p->fetchers[slot] = 1;
+        p->started[slot] = now;
+    } else {
+        for(u32 n = p->nextDeliver; n < p->nextAssign; n++) {
+            u32 slot = n % p->window;
+            if(p->ready[slot] != (s32) n && p->fetchers[slot] == 1 && now - p->started[slot] >= HTTP_HEDGE_MS) {
+                p->fetchers[slot]++;
+                p->hedges++;
+                segment = (s32) n;
+                break;
+            }
+        }
+    }
+
+    LightLock_Unlock(&p->lock);
+    return segment;
 }
 
 static void http_worker_thread(void* arg) {
     http_worker* w = (http_worker*) arg;
     http_parallel* p = w->p;
 
-    for(u32 segment = w->index; segment < p->segments && !p->abort; segment += p->workerCount) {
-        // The caller has not taken the last one yet.
-        while(w->segment >= 0 && !p->abort) {
-            svcSleepThread(1000000);
+    bool done = false;
+    while(!p->abort && !done) {
+        s32 segment = http_worker_take(p, &done);
+        if(segment < 0) {
+            if(!done) {
+                svcSleepThread(10000000);
+            }
+
+            continue;
         }
+
+        u32 slot = (u32) segment % p->window;
+        w->segment = segment;
 
         u64 start = (u64) segment * HTTP_SEGMENT;
         u64 end = start + HTTP_SEGMENT < p->size ? start + HTTP_SEGMENT : p->size;
@@ -736,7 +810,7 @@ static void http_worker_thread(void* arg) {
         CURLcode ret = CURLE_OK;
         long code = 0;
         w->len = 0;
-        for(u32 attempt = 0; attempt < HTTP_SEGMENT_TRIES && !p->abort; attempt++) {
+        for(u32 attempt = 0; attempt < HTTP_SEGMENT_TRIES && !p->abort && !http_worker_beaten(w); attempt++) {
             // Again: what the failed try got does not count.
             w->received -= w->len;
             w->len = 0;
@@ -751,25 +825,47 @@ static void http_worker_thread(void* arg) {
             ret = ret == CURLE_OK ? CURLE_PARTIAL_FILE : ret;
         }
 
-        if(ret != CURLE_OK || code != 206) {
+        bool whole = ret == CURLE_OK && code == 206 && w->len == w->want;
+        bool won = false;
+        bool failed = false;
+        LightLock_Lock(&p->lock);
+        if(!http_worker_beaten(w)) {
+            if(whole) {
+                memcpy(p->slots[slot], w->buf, w->len);
+                p->lengths[slot] = w->len;
+                __sync_synchronize();
+                p->ready[slot] = segment;
+                won = true;
+            } else {
+                // Another connection may still bring it.
+                failed = p->fetchers[slot] <= 1;
+            }
+        }
+
+        // Only the copy used counts for the bar.
+        if(!won) {
+            w->received -= w->len;
+        }
+
+        p->fetchers[slot]--;
+        LightLock_Unlock(&p->lock);
+
+        if(failed) {
             if(!p->abort) {
                 p->failure = ret == CURLE_HTTP_RETURNED_ERROR ? R_APP_HTTP_ERROR_BASE + code : R_APP_CURL_ERROR_BASE + ret;
                 if(http_log != NULL) {
-                    http_log("http: segment %lu failed: curl %d, http %ld\n", segment, (int) ret, code);
+                    http_log("http: segment %ld failed: curl %d, http %ld\n", segment, (int) ret, code);
                 }
             }
 
             p->abort = true;
             break;
         }
-
-        __sync_synchronize();
-        w->segment = segment;
     }
 }
 
 static Result http_parallel_download(const char* url, u64 size, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
-                                     Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr),
+                                     Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections),
                                      http_shared* shared) {
     http_parallel* p = (http_parallel*) calloc(1, sizeof(http_parallel));
     if(p == NULL) {
@@ -779,21 +875,40 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
     string_copy(p->url, url, sizeof(p->url));
     p->size = size;
     p->segments = (u32) ((size + HTTP_SEGMENT - 1) / HTTP_SEGMENT);
-    // An Old 3DS has not the CPU for many HTTPS connections at once: they starve and time out.
+    // An Old 3DS has not the CPU for many HTTPS connections at once. Two was the most before the
+    // waits stopped holding the SOC session and TLS sessions were shared; 3dsDL uses four there.
     bool isNew = false;
     APT_CheckNew3DS(&isNew);
     u32 connections = isNew ? HTTP_PARALLEL : HTTP_PARALLEL_OLD;
     p->workerCount = p->segments < connections ? p->segments : connections;
+    p->window = p->workerCount * HTTP_WINDOW_PER_CONNECTION;
+    p->window = p->window < HTTP_WINDOW_MIN ? HTTP_WINDOW_MIN : p->window;
+    p->window = p->window > p->segments ? p->segments : p->window;
+    LightLock_Init(&p->lock);
 
     Result res = 0;
     for(u32 i = 0; i < p->workerCount && R_SUCCEEDED(res); i++) {
+        if((p->workers[i].buf = (u8*) malloc(HTTP_SEGMENT)) == NULL) {
+            res = R_APP_OUT_OF_MEMORY;
+        }
+    }
+
+    // A smaller window when memory is short, as long as each connection has a slot.
+    u32 slots = 0;
+    while(R_SUCCEEDED(res) && slots < p->window && (p->slots[slots] = (u8*) malloc(HTTP_SEGMENT)) != NULL) {
+        p->ready[slots++] = -1;
+    }
+
+    if(R_SUCCEEDED(res) && slots < p->workerCount && slots < p->window) {
+        res = R_APP_OUT_OF_MEMORY;
+    }
+
+    p->window = slots;
+
+    for(u32 i = 0; i < p->workerCount && R_SUCCEEDED(res); i++) {
         http_worker* w = &p->workers[i];
         w->p = p;
-        w->index = i;
-        w->segment = -1;
-        if((w->buf = (u8*) malloc(HTTP_SEGMENT)) == NULL) {
-            res = R_APP_OUT_OF_MEMORY;
-        } else if((w->curl = curl_easy_init()) == NULL) {
+        if((w->curl = curl_easy_init()) == NULL) {
             res = R_APP_CURL_INIT_FAILED;
         } else {
             http_curl_common(w->curl, p->url, shared);
@@ -830,22 +945,26 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
 
         if(http_log != NULL && osGetTime() - lastLog >= 10000) {
             u64 received = http_parallel_received(p);
-            http_log("http: %llu KB so far (%llu KB written), %llu KB/s over %lu connections\n", received / 1024, delivered / 1024,
-                     received > lastReceived ? (received - lastReceived) / 1024 * 1000 / (osGetTime() - lastLog) : 0, p->workerCount);
+            http_log("http: %llu KB so far (%llu KB written), %llu KB/s over %lu connections, %lu segments ahead\n", received / 1024,
+                     delivered / 1024, received > lastReceived ? (received - lastReceived) / 1024 * 1000 / (osGetTime() - lastLog) : 0,
+                     p->workerCount, p->nextAssign - p->nextDeliver);
             lastReceived = received;
             lastLog = osGetTime();
         }
 
-        http_worker* w = &p->workers[segment % p->workerCount];
-        if(w->segment == (s64) segment) {
-            if(R_FAILED(res = callback(userData, w->buf, w->len))) {
+        u32 slot = segment % p->window;
+        if(p->ready[slot] == (s32) segment) {
+            __sync_synchronize();   // The slot's data and length, written before `ready`.
+            if(R_FAILED(res = callback(userData, p->slots[slot], p->lengths[slot]))) {
                 break;
             }
 
-            delivered += w->len;
-            __sync_synchronize();
-            w->segment = -1;
+            delivered += p->lengths[slot];
             segment++;
+            LightLock_Lock(&p->lock);
+            p->ready[slot] = -1;
+            p->nextDeliver = segment;
+            LightLock_Unlock(&p->lock);
         } else if(p->abort) {
             res = p->failure != 0 ? p->failure : R_APP_CANCELLED;
             break;
@@ -857,7 +976,7 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
         if(progress != NULL) {
             u64 received = http_parallel_received(p);
             shown = received > shown ? received : shown;
-            progress(userData, p->size, shown);
+            progress(userData, p->size, shown, p->workerCount);
         }
     }
 
@@ -876,10 +995,14 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
         free(w->buf);
     }
 
+    for(u32 i = 0; i < p->window; i++) {
+        free(p->slots[i]);
+    }
+
     if(http_log != NULL) {
         double secs = (osGetTime() - started) / 1000.0;
-        http_log("http: %lu connections %s: %llu of %llu bytes in %.1f s (%.0f KB/s), result %08lX\n", p->workerCount, url, delivered, p->size,
-                 secs, secs > 0 ? delivered / 1024 / secs : 0, res);
+        http_log("http: %lu connections %s: %llu of %llu bytes in %.1f s (%.0f KB/s), %lu segments asked for twice, result %08lX\n",
+                 p->workerCount, url, delivered, p->size, secs, secs > 0 ? delivered / 1024 / secs : 0, p->hedges, res);
     }
 
     free(p);
@@ -888,7 +1011,7 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
 
 Result http_download_callback(const char* url, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
                                                                                Result (*checkRunning)(void* userData),
-                                                                               Result (*progress)(void* userData, u64 total, u64 curr)) {
+                                                                               Result (*progress)(void* userData, u64 total, u64 curr, u32 connections)) {
     http_shared* shared = (http_shared*) calloc(1, sizeof(http_shared));
     if(shared == NULL) {
         return R_APP_OUT_OF_MEMORY;

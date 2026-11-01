@@ -637,46 +637,64 @@ static void http_curl_common(CURL* curl, const char* url, http_shared* shared) {
     }
 }
 
+typedef struct {
+    u64 total;    // From Content-Range: bytes 0-0/<total>.
+    u32 body;
+} http_probe_state;
+
 static size_t http_probe_header(char* buffer, size_t size, size_t nitems, void* userdata) {
     size_t len = size * nitems;
-    if(len >= 20 && strncasecmp(buffer, "accept-ranges:", 14) == 0) {
-        for(size_t i = 14; i + 5 <= len; i++) {
-            if(strncasecmp(buffer + i, "bytes", 5) == 0) {
-                *(bool*) userdata = true;
-                break;
-            }
+    if(len > 14 && strncasecmp(buffer, "content-range:", 14) == 0) {
+        char line[128];
+        size_t n = len < sizeof(line) - 1 ? len : sizeof(line) - 1;
+        memcpy(line, buffer, n);
+        line[n] = '\0';
+
+        char* slash = strchr(line, '/');
+        if(slash != NULL && slash[1] >= '0' && slash[1] <= '9') {
+            ((http_probe_state*) userdata)->total = strtoull(slash + 1, NULL, 10);
         }
     }
 
     return len;
 }
 
-// Asks for the headers only: where the file is after redirects, how big, and
-// whether ranges are served. False when it can not tell.
+// The one byte asked for; a server that ignores the range sends the whole file: stop it.
+static size_t http_probe_write(char* ptr, size_t size, size_t nmemb, void* userdata) {
+    http_probe_state* state = (http_probe_state*) userdata;
+    state->body += size * nmemb;
+    return state->body > 1 ? 0 : size * nmemb;
+}
+
+// Asks for the first byte only: where the file is after redirects, how big,
+// and whether ranges are served (a 206 with the total). Not HEAD and
+// Accept-Ranges, as before: some servers (catbox.moe) answer HEAD with no size
+// and no Accept-Ranges yet serve ranges, and the download then got one
+// connection. As 3dsDL asks. False when it can not tell.
 static bool http_probe(const char* url, char* effective, size_t effectiveSize, u64* size, http_shared* shared) {
     CURL* curl = curl_easy_init();
     if(curl == NULL) {
         return false;
     }
 
-    bool ranges = false;
+    http_probe_state state = {0, 0};
     http_curl_common(curl, url, shared);
-    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(curl, CURLOPT_RANGE, "0-0");
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, http_probe_header);
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void*) &ranges);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void*) &state);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, http_probe_write);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*) &state);
 
     bool ok = false;
     long code = 0;
-    curl_off_t length = -1;
     char* where = NULL;
     if(http_perform(curl) == CURLE_OK
-       && curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code) == CURLE_OK && code == 200
-       && curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &length) == CURLE_OK && length > 0
+       && curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code) == CURLE_OK && code == 206 && state.total > 0
        && curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &where) == CURLE_OK && where != NULL
        && strlen(where) < effectiveSize) {
         string_copy(effective, where, effectiveSize);
-        *size = (u64) length;
-        ok = ranges;
+        *size = state.total;
+        ok = true;
     }
 
     curl_easy_cleanup(curl);

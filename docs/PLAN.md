@@ -662,6 +662,11 @@ current, this list is the summary. What only the owner can test (local wireless)
   (CI sets `VERSION`) is always above. `make clean` before changing it (`make` does not rebuild on a version change).
   On 2026-11-01 the 2DS had title version 0.4.10 and got `VERSION_MICRO=11`: check a console's NSA version first
   (`/api/titles`, id `000400000FB1A000`; the install answers D8E08027 when the CIA is older).
+- **Titles cache** (`listtitles.c`): `sdmc:/nsa/titles-cache.bin` keeps each CTR title's name, publisher, region, product code and
+  icon, keyed by ID + version; only a small index is held in RAM and records are read one at a time. Version and size come from one
+  `AM_GetTitleInfo` call per media. Titles without an SMDH (updates, DLC) are remembered too. X on Titles ignores the cache and
+  rebuilds it; a full pass drops what is no longer installed. DEBUG builds log timings to `sdmc:/nsa/titles-log.txt`. On the
+  owner's New 3DS (204 titles): ~33 s without cache, ~5.4 s with it (2026-11-01). Not tried on the 2DS.
 - **Publishing a stable**: write `docs/release-notes/vX.Y.Z.md` (since the previous stable), merge it into `release`,
   `git merge --ff-only release` into `master` and push `master`, then tag `release`'s tip and push the tag: with
   `master` already containing the commit the workflow publishes it as stable straight away.

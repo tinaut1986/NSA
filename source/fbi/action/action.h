@@ -84,6 +84,10 @@ typedef struct {
 u32 action_save_backups(title_info* title, save_kind kind, save_backup** out);
 // Asks on the console (red) whether to replace the data with the backup in `path`; false when it is not one of those listed.
 bool action_save_import_backup(title_info* title, const char* name, save_kind kind, u32 extId, const char* path);
+// Deletes one of the backups listed for the title (only that kind's part of an NSA export; the folder once empty).
+Result action_save_delete_backup(title_info* title, save_kind kind, const char* path);
+// Goes up whenever a title's backups change, for the screens that list them.
+u32 action_save_generation();
 // For the web server: the package of a save, made on the console behind its progress screen (B cancels).
 // claim (any thread) reserves the one slot, false while one is being made; start runs on the main thread.
 typedef struct {

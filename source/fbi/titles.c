@@ -426,7 +426,6 @@ static void titles_extract_smdh(void* data) { titles_run(data, action_extract_sm
 static void titles_export_cia(void* data) { titles_run(data, action_export_cia); }
 static void titles_export_cia_send(void* data) { titles_run(data, action_export_cia_send); }
 static void titles_import_seed(void* data) { titles_run(data, action_import_seed); }
-static void titles_browse_save(void* data) { titles_run(data, action_browse_title_save_data); }
 static void titles_import_save(void* data) { titles_run(data, action_import_twl_save); }
 static void titles_export_save(void* data) { titles_run(data, action_export_twl_save); }
 static void titles_erase_save(void* data) { titles_run(data, action_erase_twl_save); }
@@ -480,36 +479,215 @@ static void titles_delete_ext(void* data) {
     }
 }
 
-// `mode`: 0 export, 1 import, 2 send to another 3DS.
-static void titles_save_files(titles_data* data, int mode, save_kind kind) {
-    title_info* info = (title_info*) data->actionSelected->data;
-    u32 extId = 0;
-    if(kind == SAVE_KIND_EXT && !titles_ext_find(info, &extId)) {
-        return;
-    }
+// ---- one kind of a title's data and its backups ----
+//
+// "Save data", "Extra data" and "SpotPass data" in the sheet open this list: what can be done with the data that is on
+// the console (back it up now, send it, browse it), then every backup of it (NSA's exports and Checkpoint's), newest
+// first; a backup's own sheet restores or deletes it.
 
-    if(kind == SAVE_KIND_BOSS && !action_find_boss_data(info, &extId)) {
-        return;
-    }
+typedef enum {
+    DATA_ROW_BACKUP_NOW,
+    DATA_ROW_SEND,
+    DATA_ROW_BROWSE,
+    DATA_ROW_DELETE,
+    DATA_ROW_COUNT
+} titles_data_row;
 
-    if(mode == 1) {
-        action_import_save_files(info, data->actionSelected->name, kind, extId);
-    } else if(mode == 2) {
-        action_send_save_files(info, data->actionSelected->name, kind, extId);
+static u8 titles_data_rows[DATA_ROW_COUNT];   // Their addresses tell the action rows from the backups.
+
+typedef struct {
+    titles_data* owner;
+    title_info title;
+    char name[LIST_ITEM_NAME_MAX];
+    save_kind kind;
+    u32 extId;
+
+    save_backup* backups;
+    u32 count;
+    bool filled;
+    u32 generation;
+    save_backup chosen;
+} titles_data_manager;
+
+static int titles_data_row_of(list_item* item) {
+    u8* row = (u8*) item->data;
+    return row >= titles_data_rows && row < titles_data_rows + DATA_ROW_COUNT ? (int) (row - titles_data_rows) : -1;
+}
+
+static void titles_data_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
+    task_draw_title_info(view, &((titles_data_manager*) data)->title, x1, y1, x2, y2);
+}
+
+static void titles_data_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
+    static const u32 icons[DATA_ROW_COUNT] = {ICON_DEVICE_FLOPPY, ICON_3DS, ICON_FOLDER, ICON_TRASH};
+    const theme_current* t = theme();
+    int row = titles_data_row_of(item);
+    if(row >= 0) {
+        widget_row(x, y, width, height, (int) icons[row], item->name, row == DATA_ROW_DELETE ? t->palette->danger : t->palette->text, NULL, selected);
     } else {
-        action_export_save_files(info, data->actionSelected->name, kind, extId);
+        save_backup* b = (save_backup*) item->data;
+        widget_row(x, y, width, height, b->checkpoint ? ICON_BOX : ICON_HISTORY, item->name, t->palette->text, NULL, selected);
     }
 }
 
-static void titles_export_save_files(void* data) { titles_save_files(data, 0, SAVE_KIND_SAVE); }
-static void titles_import_save_files(void* data) { titles_save_files(data, 1, SAVE_KIND_SAVE); }
-static void titles_export_ext_files(void* data) { titles_save_files(data, 0, SAVE_KIND_EXT); }
-static void titles_import_ext_files(void* data) { titles_save_files(data, 1, SAVE_KIND_EXT); }
-static void titles_send_save_files(void* data) { titles_save_files(data, 2, SAVE_KIND_SAVE); }
-static void titles_send_ext_files(void* data) { titles_save_files(data, 2, SAVE_KIND_EXT); }
-static void titles_export_boss_files(void* data) { titles_save_files(data, 0, SAVE_KIND_BOSS); }
-static void titles_import_boss_files(void* data) { titles_save_files(data, 1, SAVE_KIND_BOSS); }
-static void titles_send_boss_files(void* data) { titles_save_files(data, 2, SAVE_KIND_BOSS); }
+static void titles_data_clear(linked_list* items) {
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        free(linked_list_iter_next(&iter));
+        linked_list_iter_remove(&iter);
+    }
+}
+
+static void titles_data_add(linked_list* items, const char* name, void* data) {
+    list_item* item = (list_item*) calloc(1, sizeof(list_item));
+    if(item != NULL) {
+        string_copy(item->name, name, sizeof(item->name));
+        item->color = COLOR_TEXT;
+        item->data = data;
+        linked_list_add(items, item);
+    }
+}
+
+static void titles_data_fill(titles_data_manager* mgr, linked_list* items) {
+    titles_data_clear(items);
+    free(mgr->backups);
+    mgr->backups = NULL;
+    mgr->generation = action_save_generation();
+    mgr->count = action_save_backups(&mgr->title, mgr->kind, &mgr->backups);
+    mgr->filled = true;
+
+    titles_data_add(items, _("Back up now"), &titles_data_rows[DATA_ROW_BACKUP_NOW]);
+    titles_data_add(items, _("Send to another 3DS"), &titles_data_rows[DATA_ROW_SEND]);
+    if(mgr->kind == SAVE_KIND_SAVE) {
+        titles_data_add(items, _("Browse save data"), &titles_data_rows[DATA_ROW_BROWSE]);
+    } else if(mgr->kind == SAVE_KIND_EXT) {
+        titles_data_add(items, _("Browse extra data"), &titles_data_rows[DATA_ROW_BROWSE]);
+        titles_data_add(items, _("Delete extra data"), &titles_data_rows[DATA_ROW_DELETE]);
+    }
+
+    for(u32 i = 0; i < mgr->count; i++) {
+        titles_data_add(items, mgr->backups[i].label, &mgr->backups[i]);
+    }
+}
+
+static void titles_data_restore(void* data) {
+    titles_data_manager* mgr = (titles_data_manager*) data;
+    action_save_import_backup(&mgr->title, mgr->name, mgr->kind, mgr->extId, mgr->chosen.path);
+}
+
+static void titles_data_prompt_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    task_draw_title_info(view, &((titles_data_manager*) data)->title, x1, y1, x2, y2);
+}
+
+static void titles_data_delete_answer(ui_view* view, void* data, u32 response) {
+    titles_data_manager* mgr = (titles_data_manager*) data;
+    if(response != PROMPT_YES) {
+        return;
+    }
+
+    sheet_confirmed();
+    Result res = action_save_delete_backup(&mgr->title, mgr->kind, mgr->chosen.path);
+    if(R_FAILED(res)) {
+        error_display_res(&mgr->title, task_draw_title_info, res, "Failed to delete the backup.");
+    }
+}
+
+static void titles_data_delete(void* data) {
+    titles_data_manager* mgr = (titles_data_manager*) data;
+    char text[FILE_PATH_MAX + 160];
+    snprintf(text, sizeof(text), "%s\n%s%s", _("Delete this backup? It cannot be undone."), mgr->chosen.label,
+             mgr->chosen.checkpoint ? _("\n(Checkpoint's: it will not see it any more.)") : "");
+    prompt_display_warning("Confirmation", text, COLOR_TEXT, mgr, titles_data_prompt_top, titles_data_delete_answer);
+}
+
+static void titles_data_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
+    titles_data_manager* mgr = (titles_data_manager*) data;
+
+    if(!mgr->filled || mgr->generation != action_save_generation()) {
+        titles_data_fill(mgr, items);
+        return;
+    }
+
+    if(hidKeysDown() & KEY_B) {
+        ui_pop();
+        titles_data_clear(items);
+        list_destroy(view);
+        free(mgr->backups);
+        free(mgr);
+        return;
+    }
+
+    if(selected == NULL || !(selectedTouched || (hidKeysDown() & KEY_A))) {
+        return;
+    }
+
+    switch(titles_data_row_of(selected)) {
+        case DATA_ROW_BACKUP_NOW:
+            action_export_save_files(&mgr->title, mgr->name, mgr->kind, mgr->extId);
+            break;
+        case DATA_ROW_SEND:
+            action_send_save_files(&mgr->title, mgr->name, mgr->kind, mgr->extId);
+            break;
+        case DATA_ROW_BROWSE:
+            if(mgr->kind == SAVE_KIND_EXT) {
+                titles_browse_ext(mgr->owner);
+            } else {
+                titles_run(mgr->owner, action_browse_title_save_data);
+            }
+
+            break;
+        case DATA_ROW_DELETE:
+            titles_delete_ext(mgr->owner);
+            break;
+        default: {
+            mgr->chosen = *(save_backup*) selected->data;
+            sheet_action actions[2] = {
+                    {ICON_DOWNLOAD, _("Restore this backup"), true, titles_data_restore},
+                    {ICON_TRASH, _("Delete this backup"), true, titles_data_delete}
+            };
+            sheet_display_list(mgr->chosen.label, 0, actions, 2, mgr);
+            break;
+        }
+    }
+}
+
+static void titles_data_open(titles_data* data, save_kind kind) {
+    title_info* info = (title_info*) data->actionSelected->data;
+    u32 extId = 0;
+    if((kind == SAVE_KIND_EXT && !titles_ext_find(info, &extId)) || (kind == SAVE_KIND_BOSS && !action_find_boss_data(info, &extId))) {
+        return;
+    }
+
+    titles_data_manager* mgr = (titles_data_manager*) calloc(1, sizeof(titles_data_manager));
+    if(mgr == NULL) {
+        error_display(NULL, NULL, "Failed to allocate the list.");
+        return;
+    }
+
+    mgr->owner = data;
+    mgr->title = *info;
+    string_copy(mgr->name, data->actionSelected->name, sizeof(mgr->name));
+    mgr->kind = kind;
+    mgr->extId = extId;
+
+    ui_view* view = list_display(kind == SAVE_KIND_EXT ? "Extra data" : kind == SAVE_KIND_BOSS ? "SpotPass data" : "Save data", " open     back", mgr, titles_data_update, titles_data_draw_top);
+    if(view == NULL) {
+        free(mgr);
+        return;
+    }
+
+    list_style style = {
+            .rowHeight = 30,
+            .drawRow = titles_data_draw_row
+    };
+    list_set_style(view, &style);
+    list_show_title_bar(view);
+}
+
+static void titles_manage_save(void* data) { titles_data_open(data, SAVE_KIND_SAVE); }
+static void titles_manage_ext(void* data) { titles_data_open(data, SAVE_KIND_EXT); }
+static void titles_manage_boss(void* data) { titles_data_open(data, SAVE_KIND_BOSS); }
 
 static void titles_actions_open(titles_data* data, linked_list* items, list_item* selected) {
     title_info* info = (title_info*) selected->data;
@@ -526,24 +704,17 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
 
     actions[count++] = (sheet_action) {ICON_PLAYER_PLAY, _("Launch"), false, titles_launch};
     if(!info->twl) {
-        actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save data"), false, titles_browse_save};
-        actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Export save"), false, titles_export_save_files};
-        actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Import save"), true, titles_import_save_files};
-        actions[count++] = (sheet_action) {ICON_3DS, _("Send save to another 3DS"), false, titles_send_save_files};
-        actions[count++] = (sheet_action) {ICON_PHOTO, _("Extract icon"), false, titles_extract_smdh};
+        // Each opens its list (on top of the sheet: B comes back to it).
+        actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save data"), false, titles_manage_save, true};
         if(hasExt) {
-            // Browsing leaves the sheet open under it: B comes back to the sheet.
-            actions[count++] = (sheet_action) {ICON_DATABASE, _("Browse extra data"), false, titles_browse_ext, true};
-            actions[count++] = (sheet_action) {ICON_DATABASE, _("Export extra data"), false, titles_export_ext_files};
-            actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Import extra data"), true, titles_import_ext_files};
-            actions[count++] = (sheet_action) {ICON_3DS, _("Send extra data to another 3DS"), false, titles_send_ext_files};
+            actions[count++] = (sheet_action) {ICON_DATABASE, _("Extra data"), false, titles_manage_ext, true};
         }
 
         if(hasBoss) {
-            actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Export SpotPass data"), false, titles_export_boss_files};
-            actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Import SpotPass data"), true, titles_import_boss_files};
-            actions[count++] = (sheet_action) {ICON_3DS, _("Send SpotPass data to another 3DS"), false, titles_send_boss_files};
+            actions[count++] = (sheet_action) {ICON_WORLD_DOWNLOAD, _("SpotPass data"), false, titles_manage_boss, true};
         }
+
+        actions[count++] = (sheet_action) {ICON_PHOTO, _("Extract icon"), false, titles_extract_smdh};
 
         if(!card) {
             actions[count++] = (sheet_action) {ICON_PACKAGE, _("Export as CIA"), false, titles_export_cia};
@@ -560,10 +731,6 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
     }
 
     if(!card) {
-        if(hasExt) {
-            actions[count++] = (sheet_action) {ICON_TRASH, _("Delete extra data"), true, titles_delete_ext, false};
-        }
-
         actions[count++] = (sheet_action) {ICON_TRASH, _("Delete"), true, titles_delete};
         actions[count++] = (sheet_action) {ICON_TRASH_X, _("Delete with ticket"), true, titles_delete_ticket};
     }

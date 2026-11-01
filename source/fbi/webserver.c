@@ -1477,6 +1477,32 @@ static void web_api_save_backups(web_request* r) {
     web_send_json(r, 200, json_pack("{s:b,s:o}", "ok", 1, "backups", list));
 }
 
+// Only a backup the console lists for that title (NSA's exports, Checkpoint's) can be deleted.
+static void web_api_save_backup_delete(web_request* r) {
+    title_info title;
+    save_kind kind;
+    if(!web_parse_title(r, &title) || !web_parse_kind(r, &kind)) {
+        return;
+    }
+
+    char path[WEB_PATH_MAX];
+    if(!web_query_get(r->query, "path", path, sizeof(path))) {
+        web_send_error(r, 400, "path missing");
+        return;
+    }
+
+    Result res = action_save_delete_backup(&title, kind, path);
+    if(res == R_APP_INVALID_ARGUMENT) {
+        web_send_error(r, 404, "no such backup of this title");
+    } else if(R_FAILED(res)) {
+        char text[48];
+        snprintf(text, sizeof(text), "delete failed (%08lX)", res);
+        web_send_error(r, 500, text);
+    } else {
+        web_send_ok(r);
+    }
+}
+
 static void web_api_save_import(web_request* r) {
     title_info title;
     save_kind kind;
@@ -1840,6 +1866,8 @@ static void web_handle(web_request* r) {
         web_api_save_receive(r);
     } else if(get && strcmp(api, "save/backups") == 0) {
         web_api_save_backups(r);
+    } else if(post && strcmp(api, "save/backup/delete") == 0) {
+        web_api_save_backup_delete(r);
     } else if(post && strcmp(api, "save/import") == 0) {
         web_api_save_import(r);
     } else if(post && strcmp(api, "title/launch") == 0) {

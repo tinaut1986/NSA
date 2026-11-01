@@ -36,6 +36,7 @@
 //   POST   /api/save/receive?path=/nsa/received/x.nsasave&import=1   the console takes it like a sent one and asks there
 //   GET    /api/save/backups?id=&media=&kind=   [{path, label, checkpoint}]: NSA's exports and Checkpoint's
 //   POST   /api/save/import?id=&media=&kind=&path=&name=   the console asks (red) whether to replace the data with that backup
+//   POST   /api/save/backup/delete?id=&media=&kind=&path=   deletes one of the backups listed (that kind's part of an NSA export)
 //   POST   /api/title/launch?id=&media=    the console asks, then launches it
 //   POST   /api/title/delete?id=&media=&ticket=0|1   the console asks, then deletes it
 //   POST   /api/install-url                the body is http(s) URLs, one per line: the console asks, then installs (and notes them in Remote Install's history)

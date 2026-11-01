@@ -722,6 +722,8 @@ const i18n_entry i18n_es[] = {
         {"Packing for the web page", "Empaquetando para la página web"},
         {" open     back", " abrir     volver"},
         {"Back up now", "Hacer una copia ahora"},
+        {"Send the current data to another 3DS", "Enviar los datos actuales a otra 3DS"},
+        {"Failed to read the backup.", "No se pudo leer la copia."},
         {"Restore this backup", "Restaurar esta copia"},
         {"Delete this backup", "Borrar esta copia"},
         {"Delete this backup? It cannot be undone.", "¿Borrar esta copia? No se puede deshacer."},

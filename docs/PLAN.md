@@ -61,7 +61,8 @@ What `release` holds, in the order it was built:
     empty; a Checkpoint backup is deleted whole). The list reloads by itself after an export, import or deletion
     (`action_save_generation`). The web page has the same: a sheet per kind with the download and the backups (restore / delete,
     `POST /api/save/backup/delete`). Rows drawn with `COLOR_TEXT` as a raw colour were invisible in night mode (import list, the
-    transfer's folder picker): fixed.
+    transfer's folder picker): fixed. A backup's sheet also sends that backup to another 3DS (`action_send_save_backup`: the same package, read from the
+    backup's folder on the SD card through `pack_job.root`); a cancelled or failed export deletes its folder, so it is not listed.
     send the save data and extra data of 3DS titles; see item 3b under "Next".
 13c. **Web server** (`feat/web-server`, `source/fbi/webserver.c`, `romfs/web/index.html`; phase 1 of "Next" item 10): a page
     in the computer's browser to manage the console. See that item for the design, the API and what is left.
@@ -139,6 +140,7 @@ What `release` holds, in the order it was built:
 - [ ] The local wireless (Send / Receive without a router) stops the web server and brings it back after; nothing else breaks while it serves.
 - [ ] The page in a phone's browser and in Firefox / Chrome (dark and light).
 - [ ] Download a save / extra data / SpotPass package from the page on the 2DS: the console shows "Packing for the web page" with its bar, B there cancels and the page says so, the page's card shows packing then downloading, and NSA closes normally afterwards.
+- [ ] Cancel *Back up now* with B: no new backup in the list; send an old backup to the other console and import it there.
 - [ ] Titles sheet -> Save data / Extra data / SpotPass data (`feat/save-manager`): the list shows the backups (readable in night mode), *Back up now* adds one at the top, restoring asks in red, deleting asks and removes it (a folder holding save and extra data keeps the other); the same from the page.
 - [ ] The redesigned page (`feat/web-ux`): Settings from the page change the console at once (theme, accent, night, language, sounds, music and volumes) and stay after a restart; dragging rows onto folders and breadcrumbs moves them; dropping a folder from the PC uploads the tree; *Install a CIA from this PC*; how the titles list feels with many titles on a real console.
 

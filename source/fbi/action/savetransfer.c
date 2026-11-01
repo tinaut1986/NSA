@@ -378,6 +378,24 @@ static void save_read_manifest(const char* dir, const char* key, char* out, size
     fclose(f);
 }
 
+static Result save_delete_tree(FS_Archive sd, const char* dir) {
+    char path[FILE_PATH_MAX];
+    string_copy(path, dir, sizeof(path));
+    size_t len = strlen(path);
+    if(len > 1 && path[len - 1] == '/') {
+        path[len - 1] = '\0';
+    }
+
+    FS_Path* fsPath = fs_make_path_utf8(path);
+    if(fsPath == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Result res = FSUSER_DeleteDirectoryRecursively(sd, *fsPath);
+    fs_free_path_utf8(fsPath);
+    return res;
+}
+
 // ---- export ----
 
 typedef struct {
@@ -392,6 +410,13 @@ typedef struct {
 static void export_done(void* ctx, Result res) {
     export_ctx* exp = (export_ctx*) ctx;
     save_generation++;
+
+    // A cancelled or failed export is no backup: its folder (made for it alone, named by the time) goes.
+    FS_Archive sd = 0;
+    if(R_FAILED(res) && exp->dir[0] != '\0' && R_SUCCEEDED(save_open_sd(&sd))) {
+        save_delete_tree(sd, exp->dir);
+        fs_close_archive(sd);
+    }
 
     if(exp->then != NULL) {
         exp->then(exp->thenCtx, R_SUCCEEDED(res), exp->dir);
@@ -1108,6 +1133,7 @@ typedef struct {
     char sdPath[FILE_PATH_MAX];     // The same inside the SD archive.
     char fileName[FILE_NAME_MAX];
     FS_Archive src;
+    char root[FILE_PATH_MAX];       // What is packed, inside `src`, with the trailing slash: "/", or a backup's folder on the SD card.
     FILE* out;
     u32 entries;
     u64 bytes;
@@ -1241,7 +1267,7 @@ static Result pack_work(worker* w) {
     job->entries = 0;
     job->bytes = 0;
     job->out = NULL;
-    if(R_FAILED(res = pack_walk(w, job, "/", ""))) {
+    if(R_FAILED(res = pack_walk(w, job, job->root[0] != '\0' ? job->root : "/", ""))) {
         return res;
     }
 
@@ -1265,7 +1291,7 @@ static Result pack_work(worker* w) {
               && pack_write(job, &version, 4) && pack_write(job, &nameLen, 4) && pack_write(job, job->name, nameLen)
               && pack_write(job, &entries, 4);
 
-    res = ok ? pack_walk(w, job, "/", "") : R_APP_BAD_DATA;
+    res = ok ? pack_walk(w, job, job->root[0] != '\0' ? job->root : "/", "") : R_APP_BAD_DATA;
     if(R_SUCCEEDED(res) && job->entries != entries) {
         res = R_APP_BAD_DATA;   // The save changed while it was read.
     }
@@ -1376,6 +1402,57 @@ void action_send_save_files(title_info* title, const char* name, save_kind kind,
         return;
     }
 
+    pack_name(job, title, name, kind);
+
+    w->title = &job->title;
+    w->arg = job;
+    w->work = pack_work;
+    w->finished = pack_finished;
+    w->status = _("Counting...");
+    worker_start(w, "Packing");
+}
+
+// A backup instead of the data on the console: the same package, read from the backup's folder on the SD card, so the
+// other console takes it as any other.
+void action_send_save_backup(title_info* title, const char* name, save_kind kind, const char* path) {
+    save_backup* backups = NULL;
+    u32 count = action_save_backups(title, kind, &backups);
+    save_backup* found = NULL;
+    for(u32 i = 0; i < count && found == NULL; i++) {
+        if(strcmp(backups[i].path, path) == 0) {
+            found = &backups[i];
+        }
+    }
+
+    worker* w = found != NULL ? (worker*) calloc(1, sizeof(worker)) : NULL;
+    pack_job* job = w != NULL ? (pack_job*) calloc(1, sizeof(pack_job)) : NULL;
+    if(job != NULL) {
+        job->buffer = (u8*) malloc(PACK_BUFFER);
+    }
+
+    if(job == NULL || job->buffer == NULL || R_FAILED(save_open_sd(&job->src))) {
+        if(job != NULL) {
+            free(job->buffer);
+        }
+
+        free(job);
+        free(w);
+        free(backups);
+        error_display(NULL, NULL, "Failed to read the backup.");
+        return;
+    }
+
+    if(found->checkpoint) {
+        string_copy(job->root, found->path, sizeof(job->root));
+    } else {
+        snprintf(job->root, sizeof(job->root), "%s%s/", found->path, save_kind_dir(kind));
+    }
+
+    free(backups);
+
+    job->title = *title;
+    string_copy(job->name, name, sizeof(job->name));
+    job->kind = kind;
     pack_name(job, title, name, kind);
 
     w->title = &job->title;
@@ -1865,24 +1942,6 @@ bool action_save_import_backup(title_info* title, const char* name, save_kind ki
 
     free(backups);
     return found;
-}
-
-static Result save_delete_tree(FS_Archive sd, const char* dir) {
-    char path[FILE_PATH_MAX];
-    string_copy(path, dir, sizeof(path));
-    size_t len = strlen(path);
-    if(len > 1 && path[len - 1] == '/') {
-        path[len - 1] = '\0';
-    }
-
-    FS_Path* fsPath = fs_make_path_utf8(path);
-    if(fsPath == NULL) {
-        return R_APP_OUT_OF_MEMORY;
-    }
-
-    Result res = FSUSER_DeleteDirectoryRecursively(sd, *fsPath);
-    fs_free_path_utf8(fsPath);
-    return res;
 }
 
 Result action_save_delete_backup(title_info* title, save_kind kind, const char* path) {

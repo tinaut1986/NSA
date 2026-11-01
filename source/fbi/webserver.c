@@ -34,7 +34,7 @@
 #define WEB_IO_SIZE (64 * 1024)
 #define WEB_FILE_BUFFER (256 * 1024)
 #define WEB_NAP_MS 10
-#define WEB_SEND_CHUNK (8 * 1024)
+#define WEB_SEND_CHUNK (64 * 1024)
 #define WEB_IDLE_MS 30000
 #define WEB_PIN_DIGITS 6
 #define WEB_FAILS_MAX 10
@@ -111,7 +111,12 @@ static bool web_send_all(int fd, const char* data, size_t n) {
             return false;
         }
 
+        // The sockets do not block (net_set_nonblocking): what does not fit now waits for room.
         ssize_t w = send(fd, data, n > WEB_SEND_CHUNK ? WEB_SEND_CHUNK : n, 0);
+        if(w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            continue;
+        }
+
         if(w <= 0) {
             return false;
         }
@@ -231,7 +236,7 @@ static bool web_read_head(web_request* r) {
             return false;
         }
 
-        ssize_t n = recv(r->fd, r->head + r->have, WEB_HEAD_MAX - r->have, 0);
+        ssize_t n = net_recv(r->fd, r->head + r->have, WEB_HEAD_MAX - r->have, WEB_IDLE_MS);
         if(n <= 0) {
             return false;
         }
@@ -507,7 +512,7 @@ static void web_api_put_file(web_request* r) {
             break;
         }
 
-        ssize_t n = recv(r->fd, web_io, left > WEB_IO_SIZE ? WEB_IO_SIZE : (size_t) left, 0);
+        ssize_t n = net_recv(r->fd, web_io, left > WEB_IO_SIZE ? WEB_IO_SIZE : (size_t) left, WEB_IDLE_MS);
         if(n <= 0 || fwrite(web_io, 1, (size_t) n, f) != (size_t) n) {
             ok = false;
             break;
@@ -1592,7 +1597,7 @@ static void web_api_install_url(web_request* r) {
             break;
         }
 
-        ssize_t n = recv(r->fd, urls + got, (size_t) (r->contentLength - got), 0);
+        ssize_t n = net_recv(r->fd, urls + got, (size_t) (r->contentLength - got), WEB_IDLE_MS);
         if(n <= 0) {
             ok = false;
             break;
@@ -1917,11 +1922,12 @@ static void web_main(void* arg) {
             continue;
         }
 
+        net_set_nonblocking(fd);
         web_client = fd;
         r->fd = fd;
         web_handle(r);
-        web_close_socket(&fd);
         web_client = -1;
+        net_close_gently(fd);
     }
 
     free(r);
@@ -1956,6 +1962,7 @@ bool webserver_start() {
     if(web_listen >= 0) {
         int yes = 1;
         setsockopt(web_listen, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        net_set_nonblocking(web_listen);
     }
 
     struct sockaddr_in addr = {0};

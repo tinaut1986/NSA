@@ -21,6 +21,21 @@ u32 net_nap_ms(u32 waitedMs);
 
 void net_set_buffers(int fd);
 
+// The servers' sockets never block: a send to a client that has gone (no
+// room, no answer) would wait inside the SOC session until TCP gives up,
+// minutes, holding every other socket call of NSA, the shutdown() meant to
+// wake it included (the 2DS froze stopping the FTP server so).
+void net_set_nonblocking(int fd);
+
+// recv() on a non-blocking socket: waits (napping) while there is nothing yet;
+// -1 after timeoutMs or on an error, 0 when the other side closed.
+ssize_t net_recv(int fd, void* buffer, size_t size, u32 timeoutMs);
+
+// Closes a non-blocking socket without losing what is still to send: the SOC
+// service drops unsent data when such a socket closes, so say we are done,
+// wait (up to 2 s) for the other side to close once it has it all, then close.
+void net_close_gently(int fd);
+
 // A thread for the FTP and web servers, as ftpd runs its own: on the New 3DS's
 // third core, else on the app core just below the UI thread, so the UI stays
 // smooth on an Old 3DS. Not on the system core, where NSA gets 30% of the CPU

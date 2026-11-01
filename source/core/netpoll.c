@@ -1,4 +1,7 @@
+#include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
+#include <unistd.h>
 #include <sys/socket.h>
 
 #include <3ds.h>
@@ -13,6 +16,54 @@ void net_set_buffers(int fd) {
     int size = NET_SOCKET_BUFFER;
     setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
     setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
+}
+
+void net_set_nonblocking(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, (flags < 0 ? 0 : flags) | O_NONBLOCK);
+}
+
+ssize_t net_recv(int fd, void* buffer, size_t size, u32 timeoutMs) {
+    u32 waited = 0;
+    while(true) {
+        ssize_t r = recv(fd, buffer, size, 0);
+        if(r >= 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
+            return r;
+        }
+
+        if(waited >= timeoutMs) {
+            return -1;
+        }
+
+        u32 nap = net_nap_ms(waited);
+        svcSleepThread((s64) nap * 1000000);
+        waited += nap;
+    }
+}
+
+void net_close_gently(int fd) {
+    if(fd < 0) {
+        return;
+    }
+
+    shutdown(fd, SHUT_WR);
+
+    char rest[512];
+    u32 waited = 0;
+    while(waited < 2000) {
+        ssize_t r = recv(fd, rest, sizeof(rest), 0);
+        if(r == 0 || (r < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
+            break;
+        }
+
+        if(r < 0) {
+            u32 nap = net_nap_ms(waited);
+            svcSleepThread((s64) nap * 1000000);
+            waited += nap;
+        }
+    }
+
+    close(fd);
 }
 
 Thread net_server_thread(ThreadFunc entry, size_t stackSize) {

@@ -374,7 +374,14 @@ static void action_install_url_install_draw_top(ui_view* view, void* data, float
     char host[64];
     action_install_url_host(installData->urls[index], host, sizeof(host));
     char line[160];
-    snprintf(line, sizeof(line), _("From %s"), host);
+    // As 3dsDL does: how many connections the file comes over.
+    if(info->connections > 1) {
+        snprintf(line, sizeof(line), _("From %s, %lu connections"), host, info->connections);
+    } else if(info->connections == 1) {
+        snprintf(line, sizeof(line), _("From %s, 1 connection"), host);
+    } else {
+        snprintf(line, sizeof(line), _("From %s"), host);
+    }
     widget_text_fit(line, cx, y, WIDGET_TEXT_SCALE, t->palette->textMuted, right - cx);
     y += widget_text_height(WIDGET_TEXT_SCALE) + 10;
 

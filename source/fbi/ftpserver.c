@@ -93,8 +93,9 @@ static void ftp_close_socket(int* fd) {
 
 // Waits until fd is readable (or writable); false on timeout, error or stop.
 // libctru sends every socket call of the process through one SOC session, so
-// a blocking poll() would hold up the updater's and Remote Install's network
-// calls for its whole timeout: ask without waiting and nap between asks.
+// a blocking poll() would hold up the downloads' and Remote Install's network
+// calls for its whole timeout: ask without waiting and nap between asks
+// (net_nap_ms: short while data flows, longer once idle).
 static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
     int waited = 0;
     while(ftp_run) {
@@ -108,8 +109,9 @@ static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
             return false;
         }
 
-        svcSleepThread((s64) FTP_NAP_MS * 1000000);
-        waited += FTP_NAP_MS;
+        u32 nap = net_nap_ms((u32) waited);
+        svcSleepThread((s64) nap * 1000000);
+        waited += nap;
         if(timeoutMs > 0 && waited >= timeoutMs) {
             return false;
         }
@@ -265,6 +267,7 @@ static int ftp_open_pasv(ftp_session* s) {
 
         int yes = 1;
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        net_set_buffers(fd);
 
         struct sockaddr_in addr = {0};
         addr.sin_family = AF_INET;

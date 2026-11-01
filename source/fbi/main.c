@@ -114,6 +114,12 @@ Result init_services() {
                && INIT_SERVICE(pxiDevInit(), pxiDevExit)
                && INIT_SERVICE(httpcInit(0), httpcExit)
                && INIT_SERVICE(socInit(soc_buffer, 0x100000), (void (*)()) socExit));
+
+            // devkitPro's mbedTLS takes its randomness from sslcGenerateRandomData without checking
+            // the result: without an SSLC session curl's HTTPS keys would come from stack garbage.
+            if(R_SUCCEEDED(res) && R_SUCCEEDED(sslcInit(0))) {
+                exit_funcs[exit_func_count++] = sslcExit;
+            }
         }
     } else {
         res = R_APP_OUT_OF_MEMORY;

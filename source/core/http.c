@@ -11,6 +11,7 @@
 #include "appinfo.h"
 #include "error.h"
 #include "http.h"
+#include "netpoll.h"
 #include "stringutil.h"
 
 #define MAKE_HTTP_USER_AGENT_(major, minor, micro) ("Mozilla/5.0 (Nintendo 3DS; Mobile; rv:10.0) Gecko/20100101 " APP_NAME "/" #major "." #minor "." #micro)
@@ -309,7 +310,6 @@ static Result http_httpc_download(const char* url, u32 bufferSize, void* userDat
 
 #define HTTP_RING 4
 #define HTTP_CHUNK_MAX (128 * 1024)
-#define HTTP_SOCKET_BUFFER (128 * 1024)
 #define HTTP_FETCH_STACK 0x20000
 #define HTTP_FETCH_PRIORITY 0x31   // Below the UI thread.
 
@@ -377,11 +377,49 @@ static int http_fetch_info(void* clientp, curl_off_t dltotal, curl_off_t dlnow, 
     return f->abort || http_quit ? 1 : 0;
 }
 
-// Bigger socket buffers keep the data coming while curl is busy with a block.
+// Bigger socket buffers widen the TCP window and keep the data coming while
+// curl is busy with a block. Set before connecting, when the window is sized.
 static int http_fetch_sockopt(void* clientp, curl_socket_t fd, curlsocktype purpose) {
-    int size = HTTP_SOCKET_BUFFER;
-    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+    net_set_buffers(fd);
     return CURL_SOCKOPT_OK;
+}
+
+// What the connections of one download share: DNS answers and TLS sessions,
+// so that after the first one they skip most of the handshake (much of the
+// CPU an HTTPS connection costs, which an Old 3DS feels).
+typedef struct {
+    CURLSH* share;
+    LightLock locks[CURL_LOCK_DATA_LAST];
+} http_shared;
+
+static void http_shared_lock(CURL* handle, curl_lock_data data, curl_lock_access access, void* userptr) {
+    LightLock_Lock(&((http_shared*) userptr)->locks[data]);
+}
+
+static void http_shared_unlock(CURL* handle, curl_lock_data data, void* userptr) {
+    LightLock_Unlock(&((http_shared*) userptr)->locks[data]);
+}
+
+static void http_shared_open(http_shared* s) {
+    for(u32 i = 0; i < CURL_LOCK_DATA_LAST; i++) {
+        LightLock_Init(&s->locks[i]);
+    }
+
+    if((s->share = curl_share_init()) != NULL) {
+        curl_share_setopt(s->share, CURLSHOPT_LOCKFUNC, http_shared_lock);
+        curl_share_setopt(s->share, CURLSHOPT_UNLOCKFUNC, http_shared_unlock);
+        curl_share_setopt(s->share, CURLSHOPT_USERDATA, (void*) s);
+        curl_share_setopt(s->share, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+        curl_share_setopt(s->share, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+    }
+}
+
+// After every handle that used it is cleaned up.
+static void http_shared_close(http_shared* s) {
+    if(s->share != NULL) {
+        curl_share_cleanup(s->share);
+        s->share = NULL;
+    }
 }
 
 static void http_fetch_thread(void* arg) {
@@ -413,7 +451,8 @@ static Thread http_fetch_start(http_fetch* f) {
 // `connected` says whether the server answered at all (else the system's
 // service may still get through).
 static Result http_curl_download(const char* url, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
-                                 Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr), bool* connected) {
+                                 Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr), bool* connected,
+                                 http_shared* shared) {
     *connected = false;
 
     http_fetch* f = (http_fetch*) calloc(1, sizeof(http_fetch));
@@ -448,6 +487,9 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
         curl_easy_setopt(f->curl, CURLOPT_SSL_VERIFYPEER, 0L);
         curl_easy_setopt(f->curl, CURLOPT_HTTP_VERSION, (long) CURL_HTTP_VERSION_2TLS);
         curl_easy_setopt(f->curl, CURLOPT_SOCKOPTFUNCTION, http_fetch_sockopt);
+        if(shared->share != NULL) {
+            curl_easy_setopt(f->curl, CURLOPT_SHARE, shared->share);
+        }
         curl_easy_setopt(f->curl, CURLOPT_WRITEFUNCTION, http_fetch_write);
         curl_easy_setopt(f->curl, CURLOPT_WRITEDATA, (void*) f);
         curl_easy_setopt(f->curl, CURLOPT_NOPROGRESS, 0L);
@@ -579,7 +621,7 @@ static u64 http_parallel_received(http_parallel* p) {
     return total;
 }
 
-static void http_curl_common(CURL* curl, const char* url) {
+static void http_curl_common(CURL* curl, const char* url, http_shared* shared) {
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, HTTP_USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, (long) HTTP_TIMEOUT_SEC);
@@ -590,6 +632,9 @@ static void http_curl_common(CURL* curl, const char* url) {
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, http_fetch_sockopt);
+    if(shared->share != NULL) {
+        curl_easy_setopt(curl, CURLOPT_SHARE, shared->share);
+    }
 }
 
 static size_t http_probe_header(char* buffer, size_t size, size_t nitems, void* userdata) {
@@ -608,14 +653,14 @@ static size_t http_probe_header(char* buffer, size_t size, size_t nitems, void* 
 
 // Asks for the headers only: where the file is after redirects, how big, and
 // whether ranges are served. False when it can not tell.
-static bool http_probe(const char* url, char* effective, size_t effectiveSize, u64* size) {
+static bool http_probe(const char* url, char* effective, size_t effectiveSize, u64* size, http_shared* shared) {
     CURL* curl = curl_easy_init();
     if(curl == NULL) {
         return false;
     }
 
     bool ranges = false;
-    http_curl_common(curl, url);
+    http_curl_common(curl, url, shared);
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, http_probe_header);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void*) &ranges);
@@ -706,7 +751,8 @@ static void http_worker_thread(void* arg) {
 }
 
 static Result http_parallel_download(const char* url, u64 size, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
-                                     Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr)) {
+                                     Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr),
+                                     http_shared* shared) {
     http_parallel* p = (http_parallel*) calloc(1, sizeof(http_parallel));
     if(p == NULL) {
         return R_APP_OUT_OF_MEMORY;
@@ -732,7 +778,7 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
         } else if((w->curl = curl_easy_init()) == NULL) {
             res = R_APP_CURL_INIT_FAILED;
         } else {
-            http_curl_common(w->curl, p->url);
+            http_curl_common(w->curl, p->url, shared);
             curl_easy_setopt(w->curl, CURLOPT_BUFFERSIZE, (long) HTTP_CHUNK_MAX);
             curl_easy_setopt(w->curl, CURLOPT_WRITEFUNCTION, http_worker_write);
             curl_easy_setopt(w->curl, CURLOPT_WRITEDATA, (void*) w);
@@ -825,19 +871,30 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
 Result http_download_callback(const char* url, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
                                                                                Result (*checkRunning)(void* userData),
                                                                                Result (*progress)(void* userData, u64 total, u64 curr)) {
+    http_shared* shared = (http_shared*) calloc(1, sizeof(http_shared));
+    if(shared == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    http_shared_open(shared);
+
     // A big file from a server that serves ranges: several connections.
     char* effective = (char*) malloc(1024);
     u64 size = 0;
-    if(effective != NULL && http_probe(url, effective, 1024, &size) && size >= HTTP_PARALLEL_MIN) {
-        Result res = http_parallel_download(effective, size, userData, callback, checkRunning, progress);
+    if(effective != NULL && http_probe(url, effective, 1024, &size, shared) && size >= HTTP_PARALLEL_MIN) {
+        Result res = http_parallel_download(effective, size, userData, callback, checkRunning, progress, shared);
         free(effective);
+        http_shared_close(shared);
+        free(shared);
         return res;
     }
 
     free(effective);
 
     bool connected = false;
-    Result res = http_curl_download(url, bufferSize, userData, callback, checkRunning, progress, &connected);
+    Result res = http_curl_download(url, bufferSize, userData, callback, checkRunning, progress, &connected, shared);
+    http_shared_close(shared);
+    free(shared);
 
     // curl could not reach it (an old TLS, say): the system's service may.
     if(R_FAILED(res) && !connected && res != R_APP_CANCELLED && res != R_APP_OUT_OF_MEMORY) {

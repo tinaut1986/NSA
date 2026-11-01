@@ -11,7 +11,8 @@
 
 // The main menu: the three everyday entries as big tiles, then two groups
 // (Cleanup and data, Advanced) and System and Settings. A group opens a list
-// of its entries; Advanced asks once per session before opening.
+// of its entries; Advanced asks once per session before opening. System shows
+// the console at a glance and opens the list of its details.
 
 typedef struct mainmenu_entry_s mainmenu_entry;
 
@@ -46,6 +47,14 @@ static const mainmenu_entry advanced[] = {
         {ICON_DOWNLOAD, "Dump NAND", "Copy the whole system memory to the SD card as a backup.", "Backup to the SD card", dumpnand_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
 };
 
+// System's details: nothing to open, each draws its page on the top screen.
+static const mainmenu_entry details[] = {
+        {ICON_3DS, "Console", "", "Model, serial and versions", NULL, -1, -1, systeminfo_draw_console},
+        {ICON_WIFI, "Network", "", "Wi-Fi, addresses and servers", NULL, -1, -1, systeminfo_draw_network},
+        {ICON_DEVICE_SD_CARD, "Storage", "", "SD card and system memories", NULL, -1, -1, systeminfo_draw_storage},
+        {ICON_BATTERY_CHARGING, "Battery", "", "Charge, voltage, temperature, rate", NULL, -1, -1, systeminfo_draw_battery},
+};
+
 #define COUNT_OF(a) (sizeof(a) / sizeof(*(a)))
 
 static const mainmenu_entry entries[] = {
@@ -54,7 +63,7 @@ static const mainmenu_entry entries[] = {
         {ICON_WORLD_DOWNLOAD, "Remote install", "Install from the network: scan a QR code, type a URL or receive URLs from a computer.", NULL, remoteinstall_open, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_STACK_2, "Cleanup and data", "Licences, half-finished installs and the games' extra data.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, cleanup, COUNT_OF(cleanup), false},
         {ICON_ALERT_TRIANGLE, "Advanced", "The console's own memories and system data. Handle with care.", NULL, NULL, SYSTEM_MEDIATYPE_CTR_NAND, SYSTEM_MEDIATYPE_TWL_NAND, NULL, advanced, COUNT_OF(advanced), true},
-        {ICON_3DS, "System", "The console at a glance: model, versions, network, battery and space.", NULL, NULL, -1, -1, systeminfo_draw_top},
+        {ICON_3DS, "System", "The console at a glance: model, versions, network, battery and space.", NULL, NULL, -1, -1, systeminfo_draw_top, details, COUNT_OF(details), false},
         {ICON_SETTINGS, "Settings", "Theme, colours, language, updates and the FTP server.", NULL, settingsmenu_open, -1, -1},
 };
 
@@ -288,7 +297,9 @@ static void mainmenu_group_draw_top(ui_view* view, void* data, float x1, float y
 static void mainmenu_group_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     const mainmenu_entry* group = (const mainmenu_entry*) data;
     view->name = _(group->name);
-    view->info = _(" open    back");
+    // System's details only show: nothing to open.
+    bool opens = selected == NULL || ((const mainmenu_entry*) selected->data)->open != NULL;
+    view->info = opens ? _(" open    back") : _(" back");
 
     if(hidKeysDown() & KEY_B) {
         ui_pop();
@@ -316,7 +327,7 @@ static void mainmenu_group_update(ui_view* view, void* data, linked_list* items,
         }
     }
 
-    if(selected != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+    if(selected != NULL && ((const mainmenu_entry*) selected->data)->open != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
         ((const mainmenu_entry*) selected->data)->open();
     }
 }
@@ -366,7 +377,6 @@ static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, flo
 
     // Set every frame: the language can change in Settings.
     view->name = _("Main menu");
-    // System only shows: nothing to open.
     view->info = mainmenu_can_open(&entries[menu->selected]) ? _(" open   START exit") : _("START exit");
 
     if(hidKeysDown() & KEY_START) {

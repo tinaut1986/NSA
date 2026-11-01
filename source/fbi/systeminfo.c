@@ -4,11 +4,15 @@
 
 #include <3ds.h>
 
+#include "ftpserver.h"
 #include "section.h"
+#include "webserver.h"
 #include "../core/core.h"
 
 // The console at a glance, for the main menu's System entry: model, owner,
 // versions, network, battery, uptime and the space left on each medium.
+// System opens a list of the details (Console, Network, Storage, Battery),
+// each drawn on the top screen while its row is selected.
 
 static struct {
     bool loaded;
@@ -208,4 +212,673 @@ void systeminfo_draw_top(float x1, float y1, float x2, float y2) {
     widget_storage(SYSTEM_MEDIATYPE_SD, x + 2, bars, w - 4);
     widget_storage(SYSTEM_MEDIATYPE_CTR_NAND, x + 2, bars + 24, half);
     widget_storage(SYSTEM_MEDIATYPE_TWL_NAND, x + 2 + half + 8, bars + 24, half);
+}
+
+// ---- the details ----
+
+// "2 h 5 min", or "5 min".
+static void systeminfo_duration(char* out, size_t size, u64 seconds) {
+    if(seconds >= 3600) {
+        snprintf(out, size, "%llu h %llu min", seconds / 3600, (seconds / 60) % 60);
+    } else {
+        snprintf(out, size, "%llu min", seconds / 60);
+    }
+}
+
+#define CELL_HEIGHT 34
+#define CELL_GAP 6
+#define HEADER_HEIGHT 44
+
+// A card across the top: the icon in its tile, a title and a line under it.
+// Returns where what follows starts.
+static float systeminfo_header(float x, float y, float w, u32 icon, const char* title, const char* subtitle) {
+    const theme_current* t = theme();
+    widget_card(x, y, w, HEADER_HEIGHT);
+
+    float tile = 36;
+    float tileY = y + (HEADER_HEIGHT - tile) / 2;
+    float depth = screen_get_depth();
+    screen_set_depth(depth + 1);
+    screen_fill_round_rect(x + 5, tileY, tile, tile, t->def->radius, t->accentSoft);
+    screen_draw_icon(icon, x + 5 + 2, tileY + 2, 32, t->accent);
+    screen_set_depth(depth);
+
+    float tx = x + 5 + tile + 10;
+    float right = x + w - 10;
+    float titleH = widget_text_height(WIDGET_TITLE_SCALE);
+    float textY = y + (HEADER_HEIGHT - titleH - 2 - widget_text_height(WIDGET_SMALL_SCALE)) / 2;
+    widget_text_fit(title, tx, textY, WIDGET_TITLE_SCALE, t->palette->text, right - tx);
+    widget_text_fit(subtitle, tx, textY + titleH + 2, WIDGET_SMALL_SCALE, t->palette->textMuted, right - tx);
+    return y + HEADER_HEIGHT + CELL_GAP;
+}
+
+// A cell of a grid of three columns that starts at y; span: how many columns it takes.
+static void systeminfo_grid(float x, float y, float w, u32 column, u32 row, u32 span, const char* label, const char* value) {
+    float cellW = (w - 2 * CELL_GAP) / 3;
+    systeminfo_cell(x + column * (cellW + CELL_GAP), y + row * (CELL_HEIGHT + CELL_GAP), cellW * span + CELL_GAP * (span - 1), label, value);
+}
+
+static bool systeminfo_hwc() {
+    static bool tried = false;
+    static bool hwc = false;
+    if(!tried) {
+        hwc = R_SUCCEEDED(mcuHwcInit());
+        tried = true;
+    }
+
+    return hwc;
+}
+
+// ---- Console ----
+
+static struct {
+    bool loaded;
+    bool isNew;
+    char country[8];
+    char serial[24];
+    char deviceId[16];
+    char system[48];
+    char kernel[24];
+    char mcu[16];
+    char luma[48];
+    char screens[48];
+} info_console;
+
+static const char* systeminfo_panel_name(u8 vendor) {
+    switch(vendor) {
+        case 0x1: return "IPS";
+        case 0xC: return "TN";
+        default: return "?";
+    }
+}
+
+// The serial number printed under the console, from SecureInfo_A (or _B) on the CTR NAND.
+static void systeminfo_load_serial(char* out, size_t size) {
+    static const char* const files[] = {"/rw/sys/SecureInfo_A", "/rw/sys/SecureInfo_B"};
+    snprintf(out, size, "-");
+
+    // Opened as Files does: Azahar has no CTR NAND and crashes on OpenFileDirectly.
+    FS_Archive archive = 0;
+    if(R_FAILED(FSUSER_OpenArchive(&archive, ARCHIVE_NAND_CTR_FS, fsMakePath(PATH_EMPTY, "")))) {
+        return;
+    }
+
+    for(u32 i = 0; i < sizeof(files) / sizeof(*files); i++) {
+        Handle handle = 0;
+        if(R_FAILED(FSUSER_OpenFile(&handle, archive, fsMakePath(PATH_ASCII, files[i]), FS_OPEN_READ, 0))) {
+            continue;
+        }
+
+        char serial[0x10] = {0};
+        u32 read = 0;
+        Result res = FSFILE_Read(handle, &read, 0x102, serial, 0xF);
+        FSFILE_Close(handle);
+        if(R_SUCCEEDED(res) && read > 0 && serial[0] != '\0') {
+            snprintf(out, size, "%s", serial);
+            break;
+        }
+    }
+
+    FSUSER_CloseArchive(archive);
+}
+
+static void systeminfo_load_console() {
+    if(!info_static.loaded) {
+        systeminfo_load_static();
+    }
+
+    u8 model = 0;
+    info_console.isNew = R_SUCCEEDED(CFGU_GetSystemModel(&model)) && (model == CFG_MODEL_N3DS || model == CFG_MODEL_N3DSXL || model == CFG_MODEL_N2DSXL);
+
+    // The country: block 0xB0000 holds its code in the fourth byte.
+    u8 block[4] = {0};
+    u16 code = 0;
+    if(R_SUCCEEDED(CFGU_GetConfigInfoBlk2(sizeof(block), 0x000B0000, block)) && R_SUCCEEDED(CFGU_GetCountryCodeString(block[3], &code)) && code != 0) {
+        snprintf(info_console.country, sizeof(info_console.country), "%c%c", code & 0xFF, code >> 8);
+    } else {
+        snprintf(info_console.country, sizeof(info_console.country), "-");
+    }
+
+    systeminfo_load_serial(info_console.serial, sizeof(info_console.serial));
+
+    s32 internal = 0;
+    u32 deviceId = 0;
+    if(R_SUCCEEDED(AM_GetDeviceId(&internal, &deviceId))) {
+        snprintf(info_console.deviceId, sizeof(info_console.deviceId), "%lu", deviceId);
+    } else {
+        snprintf(info_console.deviceId, sizeof(info_console.deviceId), "-");
+    }
+
+    OS_VersionBin nver;
+    OS_VersionBin cver;
+    if(R_FAILED(osGetSystemVersionDataString(&nver, &cver, info_console.system, sizeof(info_console.system)))) {
+        snprintf(info_console.system, sizeof(info_console.system), "-");
+    }
+
+    u32 kernel = osGetKernelVersion();
+    snprintf(info_console.kernel, sizeof(info_console.kernel), "%d.%d-%d", (int) GET_VERSION_MAJOR(kernel), (int) GET_VERSION_MINOR(kernel), (int) GET_VERSION_REVISION(kernel));
+
+    // The MCU answers its major version plus 0x10.
+    u8 high = 0;
+    u8 low = 0;
+    if(systeminfo_hwc() && R_SUCCEEDED(MCUHWC_GetFwVerHigh(&high)) && R_SUCCEEDED(MCUHWC_GetFwVerLow(&low))) {
+        snprintf(info_console.mcu, sizeof(info_console.mcu), "%d.%d", high >= 0x10 ? high - 0x10 : high, low);
+    } else {
+        snprintf(info_console.mcu, sizeof(info_console.mcu), "-");
+    }
+
+    s64 version = 0;
+    s64 commit = 0;
+    if(R_SUCCEEDED(svcGetSystemInfo(&version, 0x10000, 0)) && ((version >> 8) & 0xFFFFFF) != 0) {
+        int length = snprintf(info_console.luma, sizeof(info_console.luma), "%d.%d.%d", (int) ((version >> 24) & 0xFF), (int) ((version >> 16) & 0xFF), (int) ((version >> 8) & 0xFF));
+        if(R_SUCCEEDED(svcGetSystemInfo(&commit, 0x10000, 1)) && commit != 0 && length > 0) {
+            snprintf(info_console.luma + length, sizeof(info_console.luma) - length, "  (%08lx)", (u32) commit);
+        }
+    } else {
+        snprintf(info_console.luma, sizeof(info_console.luma), "%s", _("Not found"));
+    }
+
+    // Only a New 3DS may have an IPS panel; the others are all TN.
+    u8 vendors = 0;
+    if(!info_console.isNew) {
+        snprintf(info_console.screens, sizeof(info_console.screens), "TN");
+    } else if(R_SUCCEEDED(gspLcdInit())) {
+        if(R_SUCCEEDED(GSPLCD_GetVendors(&vendors))) {
+            snprintf(info_console.screens, sizeof(info_console.screens), _("Top %s, bottom %s"), systeminfo_panel_name(vendors >> 4), systeminfo_panel_name(vendors & 0xF));
+        } else {
+            snprintf(info_console.screens, sizeof(info_console.screens), "-");
+        }
+
+        gspLcdExit();
+    } else {
+        snprintf(info_console.screens, sizeof(info_console.screens), "-");
+    }
+
+    info_console.loaded = true;
+}
+
+void systeminfo_draw_console(float x1, float y1, float x2, float y2) {
+    if(!info_console.loaded) {
+        systeminfo_load_console();
+    }
+
+    float x = x1 + 10;
+    float w = x2 - x1 - 20;
+    float y = systeminfo_header(x, y1 + 8, w, ICON_3DS, info_static.model, info_static.user[0] != '\0' ? info_static.user : info_console.system);
+
+    systeminfo_grid(x, y, w, 0, 0, 1, _("Region"), info_static.region);
+    systeminfo_grid(x, y, w, 1, 0, 1, _("Country"), info_console.country);
+    systeminfo_grid(x, y, w, 2, 0, 1, _("Language"), info_static.language);
+    systeminfo_grid(x, y, w, 0, 1, 1, _("Serial number"), info_console.serial);
+    systeminfo_grid(x, y, w, 1, 1, 1, _("Device ID"), info_console.deviceId);
+    systeminfo_grid(x, y, w, 2, 1, 1, _("Screens"), info_console.screens);
+    systeminfo_grid(x, y, w, 0, 2, 1, _("System version"), info_console.system);
+    systeminfo_grid(x, y, w, 1, 2, 1, _("Kernel"), info_console.kernel);
+    systeminfo_grid(x, y, w, 2, 2, 1, _("MCU firmware"), info_console.mcu);
+    systeminfo_grid(x, y, w, 0, 3, 2, "Luma3DS", info_console.luma);
+    systeminfo_grid(x, y, w, 2, 3, 1, _("Running as"), envIsHomebrew() ? "3DSX" : "CIA");
+}
+
+// ---- Network ----
+
+static struct {
+    u64 time;
+    bool connected;
+    char ssid[40];
+    char signal[16];
+    char mac[24];
+    char ip[24];
+    char netmask[24];
+    char gateway[24];
+    char dns[40];
+    char lease[24];
+    char proxy[16];
+    char ftp[48];
+    char web[48];
+} info_network;
+
+static void systeminfo_address(char* out, size_t size, struct in_addr addr) {
+    snprintf(out, size, "%s", addr.s_addr != 0 ? inet_ntoa(addr) : "-");
+}
+
+static void systeminfo_load_network() {
+    if(info_network.time != 0 && osGetTime() < info_network.time + 2000) {
+        return;
+    }
+
+    info_network.time = osGetTime();
+
+    u32 status = 0;
+    info_network.connected = R_SUCCEEDED(ACU_GetWifiStatus(&status)) && status != 0;
+    char ssid[0x21] = {0};
+    if(info_network.connected && R_SUCCEEDED(ACU_GetSSID(ssid)) && ssid[0] != '\0') {
+        snprintf(info_network.ssid, sizeof(info_network.ssid), "%s", ssid);
+    } else {
+        snprintf(info_network.ssid, sizeof(info_network.ssid), "Wi-Fi");
+    }
+
+    snprintf(info_network.signal, sizeof(info_network.signal), info_network.connected ? "%d/3" : "-", osGetWifiStrength());
+
+    u8 mac[6] = {0};
+    socklen_t length = sizeof(mac);
+    if(SOCU_GetNetworkOpt(SOL_CONFIG, NETOPT_MAC_ADDRESS, mac, &length) == 0 && (mac[0] | mac[1] | mac[2] | mac[3] | mac[4] | mac[5]) != 0) {
+        snprintf(info_network.mac, sizeof(info_network.mac), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    } else {
+        snprintf(info_network.mac, sizeof(info_network.mac), "-");
+    }
+
+    struct in_addr ip = {0};
+    struct in_addr netmask = {0};
+    struct in_addr broadcast = {0};
+    if(!info_network.connected || SOCU_GetIPInfo(&ip, &netmask, &broadcast) != 0) {
+        ip.s_addr = 0;
+        netmask.s_addr = 0;
+    }
+
+    systeminfo_address(info_network.ip, sizeof(info_network.ip), ip);
+    systeminfo_address(info_network.netmask, sizeof(info_network.netmask), netmask);
+
+    // The gateway: the route that goes through one.
+    struct in_addr gateway = {0};
+    SOCU_RoutingTableEntry routes[8];
+    length = sizeof(routes);
+    if(info_network.connected && SOCU_GetNetworkOpt(SOL_CONFIG, NETOPT_ROUTING_TABLE, routes, &length) == 0) {
+        for(u32 i = 0; i < length / sizeof(*routes); i++) {
+            if((routes[i].flags & ROUTING_FLAG_G) && routes[i].gateway.s_addr != 0) {
+                gateway = routes[i].gateway;
+                break;
+            }
+        }
+    }
+
+    systeminfo_address(info_network.gateway, sizeof(info_network.gateway), gateway);
+
+    // The DNS servers (two at most are set).
+    SOCU_DNSTableEntry dns[8];
+    length = sizeof(dns);
+    info_network.dns[0] = '\0';
+    if(info_network.connected && SOCU_GetNetworkOpt(SOL_CONFIG, NETOPT_DNS_TABLE, dns, &length) == 0) {
+        for(u32 i = 0; i < length / sizeof(*dns) && i < 2; i++) {
+            if(dns[i].ip.s_addr != 0) {
+                size_t used = strlen(info_network.dns);
+                snprintf(info_network.dns + used, sizeof(info_network.dns) - used, "%s%s", used > 0 ? ", " : "", inet_ntoa(dns[i].ip));
+            }
+        }
+    }
+
+    if(info_network.dns[0] == '\0') {
+        snprintf(info_network.dns, sizeof(info_network.dns), "-");
+    }
+
+    // What is left of the address the router lent, in seconds.
+    u32 lease = 0;
+    length = sizeof(lease);
+    if(info_network.connected && SOCU_GetNetworkOpt(SOL_CONFIG, NETOPT_DHCP_LEASE_TIME, &lease, &length) == 0 && lease != 0) {
+        systeminfo_duration(info_network.lease, sizeof(info_network.lease), lease);
+    } else {
+        snprintf(info_network.lease, sizeof(info_network.lease), "-");
+    }
+
+    bool proxy = false;
+    if(info_network.connected && R_SUCCEEDED(ACU_GetProxyEnable(&proxy))) {
+        snprintf(info_network.proxy, sizeof(info_network.proxy), "%s", proxy ? _("On") : _("Off"));
+    } else {
+        snprintf(info_network.proxy, sizeof(info_network.proxy), "-");
+    }
+
+    // The address is the IP above: only the port.
+    if(ftpserver_running()) {
+        snprintf(info_network.ftp, sizeof(info_network.ftp), _("Port %d"), FTP_SERVER_PORT);
+    } else {
+        snprintf(info_network.ftp, sizeof(info_network.ftp), "%s", _("Off"));
+    }
+
+    if(webserver_running()) {
+        snprintf(info_network.web, sizeof(info_network.web), _("Port %d"), WEB_SERVER_PORT);
+    } else {
+        snprintf(info_network.web, sizeof(info_network.web), "%s", _("Off"));
+    }
+}
+
+void systeminfo_draw_network(float x1, float y1, float x2, float y2) {
+    systeminfo_load_network();
+
+    float x = x1 + 10;
+    float w = x2 - x1 - 20;
+    float y = systeminfo_header(x, y1 + 8, w, info_network.connected ? ICON_WIFI : ICON_WIFI_OFF, info_network.ssid, info_network.connected ? _("Connected") : _("Not connected"));
+
+    systeminfo_grid(x, y, w, 0, 0, 1, "IP", info_network.ip);
+    systeminfo_grid(x, y, w, 1, 0, 1, _("Netmask"), info_network.netmask);
+    systeminfo_grid(x, y, w, 2, 0, 1, _("Gateway"), info_network.gateway);
+    systeminfo_grid(x, y, w, 0, 1, 2, "DNS", info_network.dns);
+    systeminfo_grid(x, y, w, 2, 1, 1, _("Signal"), info_network.signal);
+    systeminfo_grid(x, y, w, 0, 2, 2, _("MAC address"), info_network.mac);
+    systeminfo_grid(x, y, w, 2, 2, 1, _("DHCP lease"), info_network.lease);
+    systeminfo_grid(x, y, w, 0, 3, 1, _("FTP server"), info_network.ftp);
+    systeminfo_grid(x, y, w, 2, 3, 1, _("Proxy"), info_network.proxy);
+    systeminfo_grid(x, y, w, 1, 3, 1, _("Web server"), info_network.web);
+}
+
+// ---- Storage ----
+
+static struct {
+    bool loaded;
+    char maker[32];
+    char product[16];
+    char made[16];
+    char speed[32];
+    char writable[32];
+    char cluster[16];
+} info_storage;
+
+static const char* systeminfo_sd_maker(u8 id) {
+    switch(id) {
+        case 0x01: return "Panasonic";
+        case 0x02: return "Toshiba";
+        case 0x03: return "SanDisk";
+        case 0x1B: return "Samsung";
+        case 0x1D: return "ADATA";
+        case 0x27: return "Phison";
+        case 0x28: return "Lexar";
+        case 0x31: return "Silicon Power";
+        case 0x41: return "Kingston";
+        case 0x74: return "Transcend";
+        case 0x76: return "Patriot";
+        case 0x82: return "Sony";
+        case 0x9C: return "Angelbird";
+        default: return NULL;
+    }
+}
+
+// The card's CID (manufacturer, product name, date) in the SD order: byte 0 is
+// the manufacturer. The 3DS may hand it over reversed and without the CRC
+// byte; the order whose product name reads as text wins.
+static bool systeminfo_sd_cid(u8* cid) {
+    u8 raw[0x10] = {0};
+    if(R_FAILED(FSUSER_GetSdmcCid(raw, sizeof(raw)))) {
+        return false;
+    }
+
+    u8 reversed[0x10] = {0};
+    for(u32 i = 0; i < 15; i++) {
+        reversed[i] = raw[14 - i];
+    }
+
+    const u8* candidates[] = {raw, reversed};
+    for(u32 c = 0; c < 2; c++) {
+        bool text = true;
+        for(u32 i = 3; i < 8; i++) {
+            if(candidates[c][i] < 0x20 || candidates[c][i] > 0x7E) {
+                text = false;
+            }
+        }
+
+        if(text) {
+            memcpy(cid, candidates[c], 0x10);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void systeminfo_load_storage() {
+    u8 cid[0x10];
+    if(systeminfo_sd_cid(cid)) {
+        const char* maker = systeminfo_sd_maker(cid[0]);
+        if(maker != NULL) {
+            snprintf(info_storage.maker, sizeof(info_storage.maker), "%s", maker);
+        } else {
+            snprintf(info_storage.maker, sizeof(info_storage.maker), "0x%02X", cid[0]);
+        }
+
+        snprintf(info_storage.product, sizeof(info_storage.product), "%.5s", (const char*) &cid[3]);
+
+        u32 year = 2000 + (((cid[13] & 0x0F) << 4) | (cid[14] >> 4));
+        u32 month = cid[14] & 0x0F;
+        if(month >= 1 && month <= 12) {
+            snprintf(info_storage.made, sizeof(info_storage.made), "%04lu-%02lu", year, month);
+        } else {
+            snprintf(info_storage.made, sizeof(info_storage.made), "-");
+        }
+    } else {
+        snprintf(info_storage.maker, sizeof(info_storage.maker), "-");
+        snprintf(info_storage.product, sizeof(info_storage.product), "-");
+        snprintf(info_storage.made, sizeof(info_storage.made), "-");
+    }
+
+    FS_SdMmcSpeedInfo speed;
+    if(R_SUCCEEDED(FSUSER_GetSdmcSpeedInfo(&speed))) {
+        snprintf(info_storage.speed, sizeof(info_storage.speed), "%s", speed.highSpeedModeEnabled ? _("High speed") : _("Normal speed"));
+    } else {
+        snprintf(info_storage.speed, sizeof(info_storage.speed), "-");
+    }
+
+    bool writable = false;
+    if(R_SUCCEEDED(FSUSER_IsSdmcWritable(&writable))) {
+        snprintf(info_storage.writable, sizeof(info_storage.writable), "%s", writable ? _("Yes") : _("No (locked)"));
+    } else {
+        snprintf(info_storage.writable, sizeof(info_storage.writable), "-");
+    }
+
+    FS_ArchiveResource resource = {0};
+    if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_SD)) && resource.clusterSize != 0) {
+        snprintf(info_storage.cluster, sizeof(info_storage.cluster), "%.0f %s", ui_get_display_size(resource.clusterSize), ui_get_display_size_units(resource.clusterSize));
+    } else {
+        snprintf(info_storage.cluster, sizeof(info_storage.cluster), "-");
+    }
+
+    info_storage.loaded = true;
+}
+
+void systeminfo_draw_storage(float x1, float y1, float x2, float y2) {
+    if(!info_storage.loaded) {
+        systeminfo_load_storage();
+    }
+
+    float x = x1 + 10;
+    float w = x2 - x1 - 20;
+    char title[64];
+    if(info_storage.maker[0] != '-') {
+        snprintf(title, sizeof(title), "%s %s", info_storage.maker, info_storage.product);
+    } else {
+        snprintf(title, sizeof(title), "%s", _("SD card"));
+    }
+
+    char subtitle[64];
+    snprintf(subtitle, sizeof(subtitle), "%s: %s", _("Cluster size"), info_storage.cluster);
+    float y = systeminfo_header(x, y1 + 8, w, ICON_DEVICE_SD_CARD, title, subtitle);
+
+    systeminfo_grid(x, y, w, 0, 0, 1, _("Made"), info_storage.made);
+    systeminfo_grid(x, y, w, 1, 0, 1, _("Speed"), info_storage.speed);
+    systeminfo_grid(x, y, w, 2, 0, 1, _("Writable"), info_storage.writable);
+
+    // The space of each medium.
+    float bars = y + CELL_HEIGHT + 10;
+    widget_storage(SYSTEM_MEDIATYPE_SD, x + 2, bars, w - 4);
+    widget_storage(SYSTEM_MEDIATYPE_CTR_NAND, x + 2, bars + 24, w - 4);
+    widget_storage(SYSTEM_MEDIATYPE_TWL_NAND, x + 2, bars + 48, w - 4);
+    widget_storage(SYSTEM_MEDIATYPE_TWL_PHOTO, x + 2, bars + 72, w - 4);
+}
+
+// ---- Battery ----
+
+#define BATTERY_SAMPLES 180      // Half an hour, one every ten seconds.
+#define BATTERY_EVERY 10         // Seconds between samples.
+#define BATTERY_RATE_AFTER 120   // Seconds watched before a rate is shown.
+
+static struct {
+    u64 time;
+    bool fine;          // The MCU's registers were read.
+    float percent;
+    int temperature;
+    float voltage;
+    u8 level;           // PTM's 0..5.
+    bool charging;
+    bool adapter;
+
+    // The percentage over time while the page is shown, for the rate and the graph.
+    float samples[BATTERY_SAMPLES];
+    u64 sampleTimes[BATTERY_SAMPLES];
+    u32 count;
+    bool samplesCharging;
+} info_battery;
+
+static void systeminfo_load_battery() {
+    u64 now = osGetTime();
+    if(info_battery.time != 0 && now < info_battery.time + 1000) {
+        return;
+    }
+
+    info_battery.time = now;
+
+    // MCU registers 0x0A..0x0D: temperature (degrees C), percentage and its
+    // fraction (1/256), voltage (5/256 V).
+    u8 regs[4] = {0};
+    info_battery.fine = systeminfo_hwc() && R_SUCCEEDED(MCUHWC_ReadRegister(0x0A, regs, sizeof(regs)));
+    if(info_battery.fine) {
+        info_battery.temperature = (s8) regs[0];
+        info_battery.percent = regs[1] + regs[2] / 256.0f;
+        if(info_battery.percent > 100) {
+            info_battery.percent = 100;
+        }
+
+        info_battery.voltage = regs[3] * 5.0f / 256.0f;
+    }
+
+    if(R_FAILED(PTMU_GetBatteryLevel(&info_battery.level))) {
+        info_battery.level = 0;
+    }
+
+    if(!info_battery.fine) {
+        info_battery.percent = info_battery.level * 20.0f;
+    }
+
+    u8 state = 0;
+    info_battery.charging = R_SUCCEEDED(PTMU_GetBatteryChargeState(&state)) && state;
+    if(R_FAILED(PTMU_GetAdapterState(&info_battery.adapter))) {
+        info_battery.adapter = false;
+    }
+
+    // A new sample; the history starts again after a gap or when charging starts or stops.
+    u64 seconds = now / 1000;
+    u32 last = info_battery.count - 1;
+    if(info_battery.count > 0 && (seconds > info_battery.sampleTimes[last] + 3 * BATTERY_EVERY || info_battery.charging != info_battery.samplesCharging)) {
+        info_battery.count = 0;
+    }
+
+    if(info_battery.count == 0 || seconds >= info_battery.sampleTimes[info_battery.count - 1] + BATTERY_EVERY) {
+        if(info_battery.count == BATTERY_SAMPLES) {
+            memmove(info_battery.samples, info_battery.samples + 1, (BATTERY_SAMPLES - 1) * sizeof(*info_battery.samples));
+            memmove(info_battery.sampleTimes, info_battery.sampleTimes + 1, (BATTERY_SAMPLES - 1) * sizeof(*info_battery.sampleTimes));
+            info_battery.count--;
+        }
+
+        info_battery.samples[info_battery.count] = info_battery.percent;
+        info_battery.sampleTimes[info_battery.count] = seconds;
+        info_battery.count++;
+        info_battery.samplesCharging = info_battery.charging;
+    }
+}
+
+// The percentage over the samples, with the time it covers on top.
+static void systeminfo_battery_graph(float x, float y, float w, float h, const char* watched) {
+    const theme_current* t = theme();
+    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
+
+    float labelH = widget_text_height(WIDGET_SMALL_SCALE);
+    char label[64];
+    snprintf(label, sizeof(label), "%s: %s", _("Watched for"), watched);
+    screen_draw_text(label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
+
+    float gx = x + 8;
+    float gy = y + 3 + labelH + 3;
+    float gw = w - 16;
+    float gh = h - (gy - y) - 6;
+    if(info_battery.count < 2 || gh < 8) {
+        widget_text_centered(_("Measuring..."), x, x + w, gy + (gh - labelH) / 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
+        return;
+    }
+
+    float low = 100;
+    float high = 0;
+    for(u32 i = 0; i < info_battery.count; i++) {
+        low = info_battery.samples[i] < low ? info_battery.samples[i] : low;
+        high = info_battery.samples[i] > high ? info_battery.samples[i] : high;
+    }
+
+    low = low > 1 ? low - 1 : 0;
+    high = high < 99 ? high + 1 : 100;
+
+    char range[32];
+    snprintf(range, sizeof(range), "%.0f - %.0f %%", low, high);
+    screen_draw_text(range, x + w - 8 - widget_text_width(range, WIDGET_SMALL_SCALE), y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
+
+    // One column per sample, from the left as they come.
+    float step = gw / BATTERY_SAMPLES;
+    float column = step < 1 ? 1 : (float) (int) step;
+    for(u32 i = 0; i < info_battery.count; i++) {
+        float fraction = (info_battery.samples[i] - low) / (high - low);
+        float top = gy + gh - gh * fraction;
+        float cx = (float) (int) (gx + i * step);
+        screen_fill_rect(cx, top, column, gy + gh - top, t->accentSoft);
+        screen_fill_rect(cx, top, column, 2, t->accent);
+    }
+}
+
+void systeminfo_draw_battery(float x1, float y1, float x2, float y2) {
+    systeminfo_load_battery();
+
+    float x = x1 + 10;
+    float w = x2 - x1 - 20;
+
+    char percent[16];
+    snprintf(percent, sizeof(percent), info_battery.fine ? "%.1f %%" : "%.0f %%", info_battery.percent);
+    const char* state = info_battery.charging ? _("Charging") : info_battery.adapter ? _("On the charger, not charging") : _("On battery");
+    u32 icon = info_battery.charging ? ICON_BATTERY_CHARGING : info_battery.level >= 5 ? ICON_BATTERY_4 : info_battery.level >= 4 ? ICON_BATTERY_3 : info_battery.level >= 2 ? ICON_BATTERY_2 : ICON_BATTERY_1;
+    float y = systeminfo_header(x, y1 + 8, w, icon, percent, state);
+
+    char voltage[16];
+    char temperature[16];
+    char level[16];
+    if(info_battery.fine) {
+        snprintf(voltage, sizeof(voltage), "%.2f V", info_battery.voltage);
+        snprintf(temperature, sizeof(temperature), "%d °C", info_battery.temperature);
+    } else {
+        snprintf(voltage, sizeof(voltage), "-");
+        snprintf(temperature, sizeof(temperature), "-");
+    }
+
+    snprintf(level, sizeof(level), "%d/5", info_battery.level);
+
+    // How fast it goes, once it has been watched for a while.
+    char rate[24];
+    char left[32];
+    char watched[24];
+    u32 first = 0;
+    u32 last = info_battery.count > 0 ? info_battery.count - 1 : 0;
+    u64 span = info_battery.count > 1 ? info_battery.sampleTimes[last] - info_battery.sampleTimes[first] : 0;
+    systeminfo_duration(watched, sizeof(watched), span);
+    snprintf(left, sizeof(left), "-");
+    if(span >= BATTERY_RATE_AFTER && info_battery.fine) {
+        float perHour = (info_battery.samples[last] - info_battery.samples[first]) * 3600.0f / span;
+        snprintf(rate, sizeof(rate), "%+.1f %%/h", perHour);
+        if(info_battery.charging && perHour > 0.05f) {
+            systeminfo_duration(left, sizeof(left), (u64) ((100 - info_battery.percent) / perHour * 3600));
+        } else if(!info_battery.charging && perHour < -0.05f) {
+            systeminfo_duration(left, sizeof(left), (u64) (info_battery.percent / -perHour * 3600));
+        }
+    } else {
+        snprintf(rate, sizeof(rate), "%s", _("Measuring..."));
+    }
+
+    systeminfo_grid(x, y, w, 0, 0, 1, _("Voltage"), voltage);
+    systeminfo_grid(x, y, w, 1, 0, 1, _("Temperature"), temperature);
+    systeminfo_grid(x, y, w, 2, 0, 1, _("Charger"), info_battery.adapter ? _("Plugged in") : _("Unplugged"));
+    systeminfo_grid(x, y, w, 0, 1, 1, info_battery.charging ? _("Charging rate") : _("Draining rate"), rate);
+    systeminfo_grid(x, y, w, 1, 1, 1, info_battery.charging ? _("Full in") : _("Empty in"), left);
+    systeminfo_grid(x, y, w, 2, 1, 1, _("Level (0-5)"), level);
+
+    float graphY = y + 2 * (CELL_HEIGHT + CELL_GAP);
+    systeminfo_battery_graph(x, graphY, w, y2 - 8 - graphY, watched);
 }

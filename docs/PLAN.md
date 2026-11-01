@@ -122,6 +122,14 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**System's details** (issue #23; `source/fbi/systeminfo.c`; only the layout was checked, in Azahar, whose data is fake)
+- [ ] Main menu -> System opens a list (Console, Network, Storage, Battery); each row shows its page on the top screen; B goes back.
+- [ ] Console: serial number (read from `SecureInfo_A` on the CTR NAND) matches the sticker; device ID, country, system and kernel versions, MCU firmware (shown as major - 0x10 . minor: check it is plausible), Luma3DS version and commit, "Running as" CIA / 3DSX.
+- [ ] Console on the New 3DS XL: the screen types (IPS / TN from `GSPLCD_GetVendors`: vendor 1 = IPS, 0xC = TN is a guess to confirm).
+- [ ] Network: MAC, gateway, DNS, DHCP lease and proxy have real values (all empty in Azahar).
+- [ ] Storage: the SD card's maker, product name and date from its CID (the byte order is guessed: both are tried), speed, writable, cluster size.
+- [ ] Battery: percent with a decimal, voltage and temperature from MCU registers 0x0A-0x0D (plausible: about 3.6-4.2 V, room temperature); charging / on the charger / on battery; after 2 minutes on the page the rate and the time left appear and the graph fills; plugging or unplugging restarts the measure.
+
 **Web server** (item 10; `source/fbi/webserver.c`; tested only in Azahar with `tools/web_tests.py` and the page in a browser)
 - [ ] Screen tab on a real console: frames per second over the Wi-Fi on the New 3DS XL and the 2DS (and what it costs the console: UI, music, a transfer meanwhile); if too slow, try a smaller frame.
 - [ ] The buttons, keys, taps and drags from the page drive the console (a tap on a row, scrolling a list, A/B on a prompt); a stuck press does not stay held.

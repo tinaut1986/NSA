@@ -313,6 +313,7 @@ textarea.code{width:100%;height:56vh;font:13px/1.45 ui-monospace,Consolas,monosp
   .search input{width:130px}.search input:focus{width:170px}
   .scroll{padding:0 10px 90px}.titlebar{padding:10px}
   .ds .base{grid-template-columns:1fr;justify-items:center}
+  .dock{right:10px;bottom:78px}.toasts{bottom:80px}
 }
 </style>
 </head>
@@ -359,7 +360,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
   k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
   loaded:'%a of %b',notitles:'Nothing matches.',loading:'Loading…',version:'Version',size:'Size',code:'Product code',publisher:'Publisher',id:'Title ID',type:'Type',path:'Path',modified:'Modified',
   launch:'Launch',deleteTitle:'Delete',delticket:'Delete with ticket',data:'Data',dsave:'Download save',dext:'Download extra data',dboss:'Download SpotPass data',isave:'Import save',iext:'Import extra data',iboss:'Import SpotPass data',
-  sendpkg:'Send a save package',sendpkgsub:'A .nsasave package made by NSA: the console unpacks it and asks there.',packing:'Packing…',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and kept on the console (this title or its data is not there).',
+  sendpkg:'Send a save package',sendpkgsub:'A .nsasave package made by NSA: the console unpacks it and asks there.',packing:'Packing',packstart:'The console is packing it (B there cancels)…',counting:'Counting files…',downloading:'Downloading',cancelled:'Cancelled.',packbusy:'The console is still packing the last one.',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and kept on the console (this title or its data is not there).',
   nobackups:'No backups of this data (NSA\'s exports or Checkpoint\'s).',pickbackup:'Pick a backup: the console asks before replacing anything.',asked:'Look at the console: it asks there.',
   confirmlaunch:'Launch "%s" on the console? NSA closes.',confirmdelete:'Ask the console to delete "%s"? It asks again there.',danger:'Delete',
   readonly:'Read only here: delete tickets and extra data from the console\'s own screens, which ask first.',notinstalled:'Not installed',installedOn:'Installed on',
@@ -381,7 +382,7 @@ es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wron
   k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
   loaded:'%a de %b',notitles:'No hay nada que coincida.',loading:'Cargando…',version:'Versión',size:'Tamaño',code:'Código de producto',publisher:'Editor',id:'ID de título',type:'Tipo',path:'Ruta',modified:'Modificado',
   launch:'Lanzar',deleteTitle:'Borrar',delticket:'Borrar con ticket',data:'Datos',dsave:'Descargar partida',dext:'Descargar datos extra',dboss:'Descargar datos SpotPass',isave:'Importar partida',iext:'Importar datos extra',iboss:'Importar datos SpotPass',
-  sendpkg:'Enviar un paquete de partida',sendpkgsub:'Un paquete .nsasave hecho por NSA: la consola lo desempaqueta y pregunta allí.',packing:'Empaquetando…',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están).',
+  sendpkg:'Enviar un paquete de partida',sendpkgsub:'Un paquete .nsasave hecho por NSA: la consola lo desempaqueta y pregunta allí.',packing:'Empaquetando',packstart:'La consola lo está empaquetando (B allí lo cancela)…',counting:'Contando archivos…',downloading:'Descargando',cancelled:'Cancelado.',packbusy:'La consola aún está empaquetando el anterior.',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están).',
   nobackups:'No hay copias de estos datos (exportaciones de NSA ni de Checkpoint).',pickbackup:'Elige una copia: la consola pregunta antes de reemplazar nada.',asked:'Mira la consola: pregunta allí.',
   confirmlaunch:'¿Lanzar "%s" en la consola? NSA se cierra.',confirmdelete:'¿Pedir a la consola que borre "%s"? Pregunta otra vez allí.',danger:'Borrar',
   readonly:'Aquí solo se consultan: los tickets y los datos extra se borran desde las pantallas de la consola, que preguntan antes.',notinstalled:'No instalado',installedOn:'Instalado en',
@@ -736,9 +737,48 @@ function titleSheet(t, r){
 }
 async function launchTitle(t, name){ if(await confirmAsk(tr('confirmlaunch', {s:name}), false, T.launch)) run(async () => { await api('POST', 'title/launch', {id:t.id, media:t.media}); toast(T.asked); }); }
 async function deleteTitle(t, name, ticket){ if(await confirmAsk(tr('confirmdelete', {s:name}), true, T.del)) run(async () => { await api('POST', 'title/delete', {id:t.id, media:t.media, ticket:ticket?1:0}); toast(T.asked); }); }
+// A save package: the console makes it (showing its own progress, B cancels), the page follows it and then downloads it.
+let packing = false;
 function downloadSave(t, name, kind){
-  run(async () => { toast(T.packing); const j = await api('POST', 'save/pack', {id:t.id, media:t.media, kind, name});
-    const a = h('a', {href:fileUrl(j.path), download:j.path.split('/').pop()}); document.body.append(a); a.click(); a.remove(); sfx('success'); toast(T.done, 'ok'); });
+  if(packing){ toast(T.packbusy, 'err'); return; }
+  packing = true;
+  const card = taskCard('download', name, () => api('POST', 'save/pack/cancel').catch(() => {}));
+  (async () => {
+    try {
+      await api('POST', 'save/pack', {id:t.id, media:t.media, kind, name});
+      card.set(null, T.packstart);
+      let st;
+      for(;;){
+        await sleep(500); st = await api('GET', 'save/pack/status');
+        if(!st.running) break;
+        if(st.counting || !st.total) card.set(null, T.counting); else card.set(st.processed/st.total, T.packing+' '+fmtSize(st.processed)+' / '+fmtSize(st.total));
+      }
+      if(st.error) throw new ApiError(st.error==='cancelled' ? T.cancelled : st.error);
+      // The package, read with progress, then saved by the browser.
+      const blob = await getWithProgress(fileUrl(st.path), st.size, (n, total, speed) => card.set(n/total, T.downloading+' '+fmtSize(n)+' / '+fmtSize(total)+' · '+fmtSize(speed)+'/s'));
+      const a = h('a', {href:URL.createObjectURL(blob), download:st.path.split('/').pop()}); document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      card.done(true, fmtSize(st.size)); sfx('success');
+    } catch(e){ if(e.auth) showLogin(e.message); else { card.done(false, e.message); sfx('error'); } }
+    packing = false;
+  })();
+}
+function getWithProgress(url, size, onprogress){
+  return new Promise((resolve, reject) => { const x = new XMLHttpRequest(), t0 = performance.now(); x.open('GET', url); x.setRequestHeader('X-Pin', pin); x.responseType = 'blob';
+    x.onprogress = e => onprogress(e.loaded, e.lengthComputable ? e.total : size, e.loaded/Math.max(.001,(performance.now()-t0)/1000));
+    x.onload = () => x.status===200 ? resolve(x.response) : reject(new ApiError(x.statusText||String(x.status))); x.onerror = () => reject(new ApiError(T.lost)); x.send(); });
+}
+// A card in the corner for something that takes a while: a bar (null: still waiting), a line of text, and a way to stop it.
+function taskCard(icon, title, cancel){
+  const fill = h('i'), bar = h('div', {class:'prog ind'}, fill), text = h('div', {class:'note', text:T.loading});
+  const stop = cancel ? tool('x', T.cancel, () => { cancel(); stop.disabled = true; }) : null;
+  const el = h('div', {class:'ups'}, h('div', {class:'hd', style:'cursor:default'}, ic(icon, 16), h('span', {text:title, style:'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'}), h('span', {class:'sp'}), stop), h('div', {class:'items'}, text, bar));
+  $('dock').prepend(el);
+  return {
+    set(f, t){ bar.classList.toggle('ind', f==null); if(f!=null) fill.style.width = (100*Math.min(1,f))+'%'; text.textContent = t; },
+    done(ok, t){ bar.classList.remove('ind'); fill.style.width = '100%'; if(!ok) fill.style.background = 'var(--danger)'; text.textContent = (ok ? '✓ ' : '✕ ')+t; if(stop) stop.remove();
+      setTimeout(() => { el.style.transition = 'opacity .4s, transform .4s'; el.style.opacity = 0; el.style.transform = 'translateY(10px)'; setTimeout(() => el.remove(), 400); }, ok ? 4000 : 9000); }
+  };
 }
 function importSave(t, name, kind, label){
   run(async () => {

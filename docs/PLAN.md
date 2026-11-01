@@ -656,6 +656,8 @@ current, this list is the summary. What only the owner can test (local wireless)
   console refuses a lower one. Every DEBUG build between tags has the version of the last tag plus one patch, so the
   consoles got `make DEBUG=1 VERSION_MICRO=3` (title version 0.3.3, above the 0.3.2 they first got); a published tag
   (CI sets `VERSION`) is always above. `make clean` before changing it (`make` does not rebuild on a version change).
+  On 2026-11-01 the 2DS had title version 0.4.10 and got `VERSION_MICRO=11`: check a console's NSA version first
+  (`/api/titles`, id `000400000FB1A000`; the install answers D8E08027 when the CIA is older).
 - **Publishing a stable**: write `docs/release-notes/vX.Y.Z.md` (since the previous stable), merge it into `release`,
   `git merge --ff-only release` into `master` and push `master`, then tag `release`'s tip and push the tag: with
   `master` already containing the commit the workflow publishes it as stable straight away.

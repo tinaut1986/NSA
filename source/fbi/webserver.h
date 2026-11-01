@@ -30,7 +30,9 @@
 //   GET    /api/extdata                    [{id, media}]: extra data archives, SD and NAND
 //   GET    /api/extdata/info?id=&media=    {name, publisher};  /api/extdata/icon?id=&media=  its icon as a BMP
 //   GET    /api/icon?id=&media=            the 48x48 icon as a BMP
-//   POST   /api/save/pack?id=&media=&kind=save|ext|boss&name=   makes the .nsasave package: {path, size}
+//   POST   /api/save/pack?id=&media=&kind=save|ext|boss&name=   the console starts making the .nsasave package (409 while one is made)
+//   GET    /api/save/pack/status           {running, finished, counting, processed, total, path, size, error}: follow it, then download path
+//   POST   /api/save/pack/cancel           stops it (B on the console does too)
 //   POST   /api/save/receive?path=/nsa/received/x.nsasave&import=1   the console takes it like a sent one and asks there
 //   GET    /api/save/backups?id=&media=&kind=   [{path, label, checkpoint}]: NSA's exports and Checkpoint's
 //   POST   /api/save/import?id=&media=&kind=&path=&name=   the console asks (red) whether to replace the data with that backup

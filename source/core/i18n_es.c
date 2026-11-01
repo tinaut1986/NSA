@@ -719,6 +719,7 @@ const i18n_entry i18n_es[] = {
         {"Packing...", "Empaquetando..."},
         {"Unpacking...", "Desempaquetando..."},
         {"Packing", "Empaquetando"},
+        {"Packing for the web page", "Empaquetando para la página web"},
         {"Unpacking", "Desempaquetando"},
         {"Failed to start the task.", "No se pudo iniciar la tarea."},
         {"Failed to pack the data.", "No se pudieron empaquetar los datos."},

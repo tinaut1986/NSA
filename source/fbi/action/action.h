@@ -84,8 +84,24 @@ typedef struct {
 u32 action_save_backups(title_info* title, save_kind kind, save_backup** out);
 // Asks on the console (red) whether to replace the data with the backup in `path`; false when it is not one of those listed.
 bool action_save_import_backup(title_info* title, const char* name, save_kind kind, u32 extId, const char* path);
-// For the web server: the package of a save made at once, and whether the data exists.
-Result action_save_pack_sync(title_info* title, const char* name, save_kind kind, u32 extId, char* outPath, size_t outSize, u64* size);
+// For the web server: the package of a save, made on the console behind its progress screen (B cancels).
+// claim (any thread) reserves the one slot, false while one is being made; start runs on the main thread.
+typedef struct {
+    bool running;
+    bool finished;      // res, path (inside the SD archive) and size are the last package's.
+    bool counting;      // Still counting what to pack.
+    Result res;
+    u64 processed;
+    u64 total;
+    char path[512];
+    u64 size;
+} save_pack_status;
+bool action_save_pack_web_claim();
+// Gives the slot back when the claim could not be handed to the main thread.
+void action_save_pack_web_release();
+void action_save_pack_web_start(title_info* title, const char* name, save_kind kind, u32 extId);
+void action_save_pack_web_status(save_pack_status* out);
+void action_save_pack_web_cancel();
 bool action_save_data_exists(title_info* title, save_kind kind, u32* extId);
 bool action_find_boss_data(title_info* info, u32* extId);
 // The receiving side: a package's file name tells what it is; `path` is inside the SD archive.

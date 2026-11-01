@@ -74,6 +74,8 @@ void action_export_save_files(title_info* title, const char* name, save_kind kin
 void action_import_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
 // Sent as one file (a package, see savetransfer.c) over the console to console transfer.
 void action_send_save_files(title_info* title, const char* name, save_kind kind, u32 extId);
+// The same with one of the title's backups (as listed by action_save_backups) instead of the data on the console.
+void action_send_save_backup(title_info* title, const char* name, save_kind kind, const char* path);
 bool action_find_ext_data(title_info* info, u32* extId);
 typedef struct {
     char path[512];      // The backup's folder, with the trailing slash.

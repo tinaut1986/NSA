@@ -558,7 +558,7 @@ static void titles_data_fill(titles_data_manager* mgr, linked_list* items) {
     mgr->filled = true;
 
     titles_data_add(items, _("Back up now"), &titles_data_rows[DATA_ROW_BACKUP_NOW]);
-    titles_data_add(items, _("Send to another 3DS"), &titles_data_rows[DATA_ROW_SEND]);
+    titles_data_add(items, _("Send the current data to another 3DS"), &titles_data_rows[DATA_ROW_SEND]);
     if(mgr->kind == SAVE_KIND_SAVE) {
         titles_data_add(items, _("Browse save data"), &titles_data_rows[DATA_ROW_BROWSE]);
     } else if(mgr->kind == SAVE_KIND_EXT) {
@@ -574,6 +574,11 @@ static void titles_data_fill(titles_data_manager* mgr, linked_list* items) {
 static void titles_data_restore(void* data) {
     titles_data_manager* mgr = (titles_data_manager*) data;
     action_save_import_backup(&mgr->title, mgr->name, mgr->kind, mgr->extId, mgr->chosen.path);
+}
+
+static void titles_data_send(void* data) {
+    titles_data_manager* mgr = (titles_data_manager*) data;
+    action_send_save_backup(&mgr->title, mgr->name, mgr->kind, mgr->chosen.path);
 }
 
 static void titles_data_prompt_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -642,11 +647,12 @@ static void titles_data_update(ui_view* view, void* data, linked_list* items, li
             break;
         default: {
             mgr->chosen = *(save_backup*) selected->data;
-            sheet_action actions[2] = {
+            sheet_action actions[3] = {
                     {ICON_DOWNLOAD, _("Restore this backup"), true, titles_data_restore},
+                    {ICON_3DS, _("Send to another 3DS"), false, titles_data_send},
                     {ICON_TRASH, _("Delete this backup"), true, titles_data_delete}
             };
-            sheet_display_list(mgr->chosen.label, 0, actions, 2, mgr);
+            sheet_display_list(mgr->chosen.label, 0, actions, 3, mgr);
             break;
         }
     }

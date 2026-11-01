@@ -169,6 +169,15 @@ dates). The owner will go through them one by one; tick each only when they say 
       Receive screens); `ui_wake()` exists but nobody calls it yet.
 - [ ] `SITE CPU` (DEBUG) answers per core without disturbing the FTP server.
 
+**Download and FTP speed** (`fix/download-speed`, issue #21; worked in Azahar: both download paths
+installed a 53 MB CIA, FTP up and down byte for byte, HTTPS to GitHub)
+- [ ] Same big CIA (the 240 MB game of the Reddit report, or any big one) by URL/QR on the New 3DS
+      and the 2DS, against the previous build and against 3dsDL: the `http:` lines in
+      `transfer-log.txt` give KB/s. With the FTP and web servers on and off, to see they no longer matter.
+- [ ] FTP upload and download of a big file against FTPD (the issue says 350 KB/s vs 1.2 MB/s).
+- [ ] The console stays smooth meanwhile, above all the 2DS (menus, music).
+- [ ] Nothing broke: console to console send/receive (`tools/console_tests.py`), the web page, Remote Install.
+
 **NSA icon and banner** (`tools/make_branding.py` draws `meta/icon_3ds.png` and `banner_3ds.png`)
 - [ ] After installing the CIA the HOME menu shows the new icon and the banner (the CIA's
       version is still 0.3.1 for every dev build; if HOME keeps the old art, bump the version).
@@ -655,6 +664,13 @@ current, this list is the summary. What only the owner can test (local wireless)
   (`launch3dsx_poll`); the loader forgets the target after one load.
 - **Downloads**: one connection carries only what a 3DS keeps in flight (~50 KB/s at 130 ms
   from far away), hence segments over several connections; an Old 3DS starves with more than 2.
+- **No thread waits inside the SOC service** (`source/core/netpoll.c`): libctru sends every socket call through one
+  session that serves one request at a time, so a `poll()` with a timeout (curl calls it on every connection) holds up
+  every other thread's network. The link wraps `poll()` (`-Wl,--wrap=poll`) to ask with no timeout and nap 1, 5, 20, then
+  50 ms; the FTP and web servers nap the same way (`net_nap_ms`), so idle they cost little and need not be turned off
+  during a download. Sockets ask for 48 KB buffers (`net_set_buffers`; 3dsDL measured 48 KB fastest and 64 KB or more
+  breaking connections). A download's connections share DNS answers and TLS sessions (curl share). `sslcInit` is
+  called because devkitPro's mbedTLS takes its randomness from SSLC without checking. All learned from 3dsDL (2026-11-01).
 - **Drawing** only while something happens (`ui_should_draw`): CPU left to downloads and
   installs; animations that run with no input need `ui_wake()`.
 - Vendored libraries: `source/libs/stb_image`, `source/libs/dr_libs` (dr_mp3, dr_flac, dr_wav),
@@ -669,6 +685,11 @@ current, this list is the summary. What only the owner can test (local wireless)
   (CI sets `VERSION`) is always above. `make clean` before changing it (`make` does not rebuild on a version change).
   On 2026-11-01 the 2DS had title version 0.4.10 and got `VERSION_MICRO=11`: check a console's NSA version first
   (`/api/titles`, id `000400000FB1A000`; the install answers D8E08027 when the CIA is older).
+- **Titles cache** (`listtitles.c`): `sdmc:/nsa/titles-cache.bin` keeps each CTR title's name, publisher, region, product code and
+  icon, keyed by ID + version; only a small index is held in RAM and records are read one at a time. Version and size come from one
+  `AM_GetTitleInfo` call per media. Titles without an SMDH (updates, DLC) are remembered too. X on Titles ignores the cache and
+  rebuilds it; a full pass drops what is no longer installed. DEBUG builds log timings to `sdmc:/nsa/titles-log.txt`. On the
+  owner's New 3DS (204 titles): ~33 s without cache, ~5.4 s with it (2026-11-01). Not tried on the 2DS.
 - **Publishing a stable**: write `docs/release-notes/vX.Y.Z.md` (since the previous stable), merge it into `release`,
   `git merge --ff-only release` into `master` and push `master`, then tag `release`'s tip and push the tag: with
   `master` already containing the commit the workflow publishes it as stable straight away.

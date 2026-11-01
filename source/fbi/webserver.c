@@ -92,8 +92,10 @@ static bool web_wait_fd(int fd, short events, int timeoutMs) {
             return false;
         }
 
-        svcSleepThread((s64) WEB_NAP_MS * 1000000);
-        waited += WEB_NAP_MS;
+        // Short naps while data flows, longer once idle (see ftp_wait_fd).
+        int nap = (int) net_nap_ms((u32) waited);
+        svcSleepThread((s64) nap * 1000000);
+        waited += nap;
         if(timeoutMs > 0 && waited >= timeoutMs) {
             return false;
         }
@@ -1950,6 +1952,7 @@ bool webserver_start() {
     if(web_listen >= 0) {
         int yes = 1;
         setsockopt(web_listen, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        net_set_buffers(web_listen);
     }
 
     struct sockaddr_in addr = {0};

@@ -53,6 +53,10 @@ LOGO := plain
 
 include buildtools/make_base
 
+# Every poll(), curl's too, goes through source/core/netpoll.c: one blocking
+# poll() would hold up the whole process's socket calls.
+LD_FLAGS += -Wl,--wrap=poll
+
 .PHONY: print-version
 print-version:
 	@echo $(VERSION_STRING)

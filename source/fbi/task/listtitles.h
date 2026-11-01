@@ -16,6 +16,7 @@ typedef struct title_info_s {
     // Details are filled in after the title is listed (listtitles.c).
     bool loaded;
     u64 loadedTime;
+    bool infoKnown; // version and installedSize already set
 
     // Grouping (titles.c): a game counts the updates and DLC that share its
     // unique ID; those are `linked` when their game is in the list.
@@ -46,6 +47,9 @@ typedef struct populate_titles_data_s {
     void* userData;
     bool (*filter)(void* data, u64 titleId, FS_MediaType mediaType);
     int (*compare)(void* data, const void* p1, const void* p2);
+
+    // Set before a populate to read every SMDH again instead of using the cache.
+    bool refresh;
 
     volatile bool finished;
     Result result;

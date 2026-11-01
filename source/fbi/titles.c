@@ -1090,6 +1090,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         }
 
         listData->populateData.items = items;
+        listData->populateData.refresh = listData->populated;
         listData->sorted = false;
         listData->sortedLoaded = 0;
         Result res = task_populate_titles(&listData->populateData);

@@ -13,8 +13,16 @@ u32 net_nap_ms(u32 waitedMs);
 
 // The SOC service's default buffers keep the TCP window small, which caps a
 // connection with any latency; 3dsDL measured 48 KB fastest on a New 3DS and
-// 64 KB or more breaking connections mid-handshake. On a listening socket
-// before listen() its connections inherit them.
+// 64 KB or more breaking connections mid-handshake. For the connections NSA
+// makes (downloads). Not on the servers' listening sockets: on the FTP's
+// passive one the console reset every data connection, and ftpd, which is
+// faster, leaves the 3DS's buffers alone.
 #define NET_SOCKET_BUFFER (48 * 1024)
 
 void net_set_buffers(int fd);
+
+// A thread for the FTP and web servers, as ftpd runs its own: on the New 3DS's
+// third core, else on the app core just below the UI thread, so the UI stays
+// smooth on an Old 3DS. Not on the system core, where NSA gets 30% of the CPU
+// and the tasks run.
+Thread net_server_thread(ThreadFunc entry, size_t stackSize);

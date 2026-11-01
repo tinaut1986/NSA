@@ -32,6 +32,7 @@
 #define WEB_PATH_MAX 512
 #define WEB_HEAD_MAX 8192
 #define WEB_IO_SIZE (64 * 1024)
+#define WEB_FILE_BUFFER (256 * 1024)
 #define WEB_NAP_MS 10
 #define WEB_SEND_CHUNK (8 * 1024)
 #define WEB_IDLE_MS 30000
@@ -487,6 +488,9 @@ static void web_api_put_file(web_request* r) {
         web_send_error(r, 500, "cannot create the file");
         return;
     }
+
+    // Big writes to the SD card, not one per piece the network hands over (see the FTP server's STOR).
+    setvbuf(f, NULL, _IOFBF, WEB_FILE_BUFFER);
 
     // What came with the head, then the rest.
     u64 left = r->contentLength;
@@ -1952,7 +1956,6 @@ bool webserver_start() {
     if(web_listen >= 0) {
         int yes = 1;
         setsockopt(web_listen, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-        net_set_buffers(web_listen);
     }
 
     struct sockaddr_in addr = {0};
@@ -1982,7 +1985,7 @@ bool webserver_start() {
         }
     }
 
-    web_thread = threadCreate(web_main, NULL, 0x14000, 0x19, 1, false);
+    web_thread = net_server_thread(web_main, 0x14000);
     if(web_thread == NULL) {
         web_shutdown();
         snprintf(web_status, sizeof(web_status), "%s", _("No thread"));

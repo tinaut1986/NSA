@@ -726,3 +726,6 @@ current, this list is the summary. What only the owner can test (local wireless)
   (the 2DS was not on); a subnet scan of port 5021 (`/dev/tcp`) finds the open ones.
 - `make` does not rebuild when only the version string changes: the screens show the commit of the
   last full build, not of `HEAD`.
+
+Pending (2026-11-01): the default background music is now Shop (was Off), for installs with no `settings.json`; the banner
+jingle has four candidates from `tools/make_jingle.py --all DIR` (bossa, marimba, chime, pixel) waiting for the owner's pick.

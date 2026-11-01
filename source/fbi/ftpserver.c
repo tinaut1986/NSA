@@ -51,6 +51,9 @@ static u64 ftp_retry_end = 0;
 static int ftp_listen = -1;
 static volatile int ftp_ctrl = -1;
 static volatile int ftp_data = -1;
+static volatile u64 ftp_data_since = 0;   // When the data connection opened.
+static volatile u64 ftp_data_ended = 0;   // When the last one closed,
+static volatile bool ftp_data_long = false;   // and whether it lasted a second or more.
 static u32 ftp_ip = 0;
 static char ftp_status[48] = "Off";
 static char* ftp_io = NULL;
@@ -334,11 +337,15 @@ static int ftp_accept_data(ftp_session* s) {
     }
 
     ftp_close_pasv(s);
+    ftp_data_since = osGetTime();
     ftp_data = fd;
     return fd;
 }
 
 static void ftp_close_data(int* fd) {
+    u64 now = osGetTime();
+    ftp_data_long = now - ftp_data_since >= 1000;
+    ftp_data_ended = now;
     ftp_data = -1;
     net_close_gently(*fd);
     *fd = -1;
@@ -1169,6 +1176,19 @@ void ftpserver_address(char* out, size_t size) {
 
     struct in_addr addr = {.s_addr = ftp_ip};
     snprintf(out, size, "%s:%d", inet_ntoa(addr), FTP_SERVER_PORT);
+}
+
+bool ftpserver_transferring() {
+    return ftp_run && ftp_data >= 0;
+}
+
+bool ftpserver_holding_music() {
+    u64 now = osGetTime();
+    if(ftp_run && ftp_data >= 0 && now - ftp_data_since >= 1000) {
+        return true;
+    }
+
+    return ftp_data_long && ftp_data_ended != 0 && now - ftp_data_ended < 3000;
 }
 
 void ftpserver_corner(char* out, size_t size) {

@@ -59,6 +59,10 @@ static u32 settings_get_uint(json_t* object, const char* key, u32 fallback, u32 
 }
 
 void settings_load() {
+    bool isNew = false;
+    APT_CheckNew3DS(&isNew);
+    settings.ftpPausesMusic = !isNew;
+
     json_error_t err;
     json_t* json = json_load_file(SETTINGS_PATH, 0, &err);
     if(!json_is_object(json)) {
@@ -84,6 +88,11 @@ void settings_load() {
     json_t* webServer = json_object_get(json, "web_server");
     if(json_is_boolean(webServer)) {
         settings.webServer = json_is_true(webServer);
+    }
+
+    json_t* ftpPausesMusic = json_object_get(json, "ftp_pauses_music");
+    if(json_is_boolean(ftpPausesMusic)) {
+        settings.ftpPausesMusic = json_is_true(ftpPausesMusic);
     }
 
     json_t* theme = json_object_get(json, "theme");
@@ -178,11 +187,12 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
                              "web_server", settings.webServer,
+                             "ftp_pauses_music", settings.ftpPausesMusic,
                              "theme", theme_get(settings.theme)->id,
                              "accent", theme_accent_get(settings.accent)->id,
                              "night_mode", night_ids[settings.night < 3 ? settings.night : 0],

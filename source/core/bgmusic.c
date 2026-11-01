@@ -67,6 +67,8 @@ static volatile u32 bg_progress = 0;             // 0..100, for the animation.
 static volatile bool bg_cancel = false;
 
 static bool bg_ducked = false;
+static bool bg_held = false;
+static bool bg_was_held = false;   // To bring the song back once the hold ends.
 static bool bg_channels_ready = false;
 static u64 bg_last_update = 0;
 
@@ -696,6 +698,10 @@ void bgmusic_get_status(bgmusic_status* out) {
     }
 }
 
+void bgmusic_hold(bool held) {
+    bg_held = held;
+}
+
 void bgmusic_update() {
     u64 now = osGetTime();
     float dt = bg_last_update == 0 ? 0.0f : (float) (now - bg_last_update) / 1000.0f;
@@ -711,7 +717,7 @@ void bgmusic_update() {
         bg_data = NULL;
         if(data != NULL) {
             bool used = false;
-            if(bg_render_style == bg_wanted && sound_dsp_start()) {
+            if(bg_render_style == bg_wanted && !bg_held && sound_dsp_start()) {
                 bool another = false;
                 for(u32 i = 0; i < BG_CHANNELS; i++) {
                     if(bg_slots[i].playing && bg_slots[i].style == bg_wanted && bg_slots[i].target > 0) {
@@ -738,7 +744,15 @@ void bgmusic_update() {
         }
     }
 
-    if(bg_wanted == BGMUSIC_OFF) {
+    if(bg_held && bg_wanted != BGMUSIC_OFF) {
+        // A song being made goes on (it is saved for when the hold ends).
+        bg_was_held = true;
+        for(u32 i = 0; i < BG_CHANNELS; i++) {
+            if(bg_slots[i].playing && bg_slots[i].target > 0) {
+                bg_fade(i, 0.8f);
+            }
+        }
+    } else if(bg_wanted == BGMUSIC_OFF) {
         bg_session = BGMUSIC_OFF;
         if(bg_render_state == BG_RENDERING) {
             bg_cancel = true;
@@ -764,8 +778,8 @@ void bgmusic_update() {
             }
         }
 
-        // The last song of this style, from the SD card, so there is music at once.
-        if(!playingWanted && bg_session != bg_wanted) {
+        // The last song of this style, from the SD card, so there is music at once (also after a hold).
+        if(!playingWanted && (bg_session != bg_wanted || bg_was_held)) {
             s16* data = NULL;
             u32 frames = 0;
             if(bg_cache_load(bg_wanted, &data, &frames)) {
@@ -774,6 +788,8 @@ void bgmusic_update() {
                 }
             }
         }
+
+        bg_was_held = false;
 
         // A new one is made meanwhile (once for each time the music is turned on or the style changes).
         if(bg_session != bg_wanted) {

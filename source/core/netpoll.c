@@ -15,6 +15,20 @@ void net_set_buffers(int fd) {
     setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
 }
 
+Thread net_server_thread(ThreadFunc entry, size_t stackSize) {
+    bool isNew = false;
+    Thread thread = NULL;
+    if(R_SUCCEEDED(APT_CheckNew3DS(&isNew)) && isNew) {
+        thread = threadCreate(entry, NULL, stackSize, 0x31, 2, false);
+    }
+
+    if(thread == NULL) {
+        thread = threadCreate(entry, NULL, stackSize, 0x31, -2, false);
+    }
+
+    return thread;
+}
+
 int __real_poll(struct pollfd* fds, nfds_t nfds, int timeout);
 
 int __wrap_poll(struct pollfd* fds, nfds_t nfds, int timeout) {

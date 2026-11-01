@@ -173,7 +173,7 @@ dates). The owner will go through them one by one; tick each only when they say 
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
 - [ ] The 2DS stays smooth during a download and an FTP transfer (menus, music; FTP threads now on the app core).
-- [ ] FTP against ftpd-EX on the same console and file (the issue says 350 KB/s vs 1.2 MB/s).
+- [ ] NSA's FTP on the 2DS right after ftpd-EX (same conditions), to see whether the 10-15% gap is real.
 
 **NSA icon and banner** (`tools/make_branding.py` draws `meta/icon_3ds.png` and `banner_3ds.png`)
 - [ ] After installing the CIA the HOME menu shows the new icon and the banner (the CIA's
@@ -668,6 +668,9 @@ current, this list is the summary. What only the owner can test (local wireless)
   stdio buffer (`setvbuf`), not one write per piece the network hands over. Measured on the New 3DS XL, LAN, 2026-11-01,
   v0.5.0 -> v0.5.14: FTP up 340 -> 866 KB/s, down 480 -> 850-940 KB/s; URL install of a 100 MB CIA 902 -> 1080 KB/s
   (8 connections) and 869 -> 1143 KB/s (one); web page up 910, down 1004 KB/s.
+  Against ftpd-EX (the owner's fork, same 30 MB file, same evening): New 3DS up 758 / down 955 KB/s (NSA 866 / 850-940);
+  2DS up 387 / down 418 KB/s (NSA 350 / 365, measured an hour earlier). So the New 3DS is level; the 2DS ~10-15% behind,
+  near the ~400-500 KB/s both reach there.
 - **Whether a server serves ranges** is asked with a GET of byte 0 (`Range: 0-0`, a 206 with the total in Content-Range),
   as 3dsDL does, not HEAD + `Accept-Ranges`: catbox.moe answers HEAD with no size and no Accept-Ranges yet serves ranges,
   so NSA got one connection there (~350 KB/s at 156 ms) while 3dsDL split it in four (~600 KB/s, the owner, 2026-11-01).

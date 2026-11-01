@@ -171,10 +171,10 @@ dates). The owner will go through them one by one; tick each only when they say 
 
 **Download and FTP speed** (`fix/download-speed`, `fix/ftp-pasv-buffers`, issue #21). Measured on the New 3DS XL over
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
-- [ ] A big download from the internet (far server, HTTPS) on the New 3DS, against 3dsDL.
-- [ ] The 2DS: download and FTP speed, and the console stays smooth meanwhile (menus, music, FTP threads on the app core).
-- [ ] FTP against FTPD on the same console and file (the issue says 350 KB/s vs 1.2 MB/s).
-- [ ] Nothing broke: console to console send/receive (`tools/console_tests.py`, needs both consoles), Remote Install.
+- [ ] The catbox.moe QR CIA (the owner's test: 3dsDL ~600 KB/s, NSA ~350) with v0.5.15: `transfer-log.txt` should say
+      "8 connections" (2 on the 2DS); compare with 3dsDL's `sdmc:/3ds/3dsDL/log.txt` (bytes, ms, connections).
+- [ ] The 2DS stays smooth during a download and an FTP transfer (menus, music; FTP threads now on the app core).
+- [ ] FTP against ftpd-EX on the same console and file (the issue says 350 KB/s vs 1.2 MB/s).
 
 **NSA icon and banner** (`tools/make_branding.py` draws `meta/icon_3ds.png` and `banner_3ds.png`)
 - [ ] After installing the CIA the HOME menu shows the new icon and the banner (the CIA's
@@ -669,6 +669,12 @@ current, this list is the summary. What only the owner can test (local wireless)
   stdio buffer (`setvbuf`), not one write per piece the network hands over. Measured on the New 3DS XL, LAN, 2026-11-01,
   v0.5.0 -> v0.5.14: FTP up 340 -> 866 KB/s, down 480 -> 850-940 KB/s; URL install of a 100 MB CIA 902 -> 1080 KB/s
   (8 connections) and 869 -> 1143 KB/s (one); web page up 910, down 1004 KB/s.
+- **Whether a server serves ranges** is asked with a GET of byte 0 (`Range: 0-0`, a 206 with the total in Content-Range),
+  as 3dsDL does, not HEAD + `Accept-Ranges`: catbox.moe answers HEAD with no size and no Accept-Ranges yet serves ranges,
+  so NSA got one connection there (~350 KB/s at 156 ms) while 3dsDL split it in four (~600 KB/s, the owner, 2026-11-01).
+  A server that ignores the range is cut after the first byte and the download goes on one connection.
+- **2DS** (Old 3DS model, LAN, 2026-11-01), v0.4.14 -> v0.5.14: URL install 331 -> 459 KB/s (2 connections) and 364 ->
+  531 KB/s (one); FTP up 185 -> 350, down 300 -> 365 KB/s. `tools/console_tests.py` passed (15/15) with v0.5.14 on both.
 - **Drawing** only while something happens (`ui_should_draw`): CPU left to downloads and
   installs; animations that run with no input need `ui_wake()`.
 - Vendored libraries: `source/libs/stb_image`, `source/libs/dr_libs` (dr_mp3, dr_flac, dr_wav),

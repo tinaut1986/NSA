@@ -55,6 +55,12 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 - **Web page** (off until you turn it on in Settings): manage the console from your computer's browser (the SD card, titles with icons, saves,
   installing from files or URLs, saves and their backups to download, restore or delete, and the console's screens live with its buttons), in the console's own theme, protected by a PIN shown on the console. Plain HTTP, for your own network only.
 
+<p align="center">
+  <img src="docs/images/web-titles.png" width="560" alt="The web page: titles with their icons">
+  <img src="docs/images/web-files.png" width="560" alt="The web page: the SD card's files">
+  <img src="docs/images/web-screen.png" width="560" alt="The web page: the console's screens live, with its buttons">
+</p>
+
 ### Files
 
 - Browse the SD card (and the NAND under Advanced) with a file card on the top screen: size, type,

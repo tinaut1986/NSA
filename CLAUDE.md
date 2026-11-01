@@ -50,7 +50,8 @@ SendUserFile; installing it on a console still waits for them to ask (they usual
 - `advanced`: the risky tools (Dump NAND, Pending titles, System save data, Advanced's red look). Merge `release`
   into it after changing `release` (`git merge release`), and the owner's call decides when it goes into `release`.
 - DEBUG builds for the owner's consoles: **`make DEBUG=1 VERSION_MICRO=15`** (after a `make clean`). Both consoles hold
-  title version **0.5.15** since 2026-11-01 and the micro version is 4 bits (max 15): do not try to go above it.
+  title version **0.5.15** since 2026-11-01 and the micro version is 4 bits (max 15): do not try to go above it. Once a
+  console has the v0.6.0 beta (or later), build with that version instead (`VERSION_MINOR=6 VERSION_MICRO=0`).
   `SITE INSTALL` and the web page's install take the **same** version (`AM_StartCiaInstallOverwrite`; only HOME's icon,
   banner and sound stay old); a lower one is refused (D8E08027). See `docs/PLAN.md`, Decisions, "Updating a console".
 

@@ -573,6 +573,8 @@ const i18n_entry i18n_es[] = {
         // Installing from URLs
         {"Installing", "Instalando"},
         {"From %s", "Desde %s"},
+        {"From %s, %lu connections", "Desde %s, %lu conexiones"},
+        {"From %s, 1 connection", "Desde %s, 1 conexión"},
         {"%.2f %s / %.2f %s, %.2f %s/s, ETA %s", "%.2f %s / %.2f %s, %.2f %s/s, quedan %s"},
         {"%lu of %lu", "%lu de %lu"},
         {"Installed", "Instalado"},

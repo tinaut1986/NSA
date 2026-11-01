@@ -27,6 +27,9 @@ typedef struct data_op_data_s {
     u32 bytesPerSecond;
     u32 estimatedRemainingSeconds;
 
+    // Download: connections the file comes over (0 until the first data).
+    u32 connections;
+
     u32 bufferSize;
 
     Result (*openDst)(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle);

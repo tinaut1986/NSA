@@ -171,8 +171,8 @@ dates). The owner will go through them one by one; tick each only when they say 
 
 **Download and FTP speed** (`fix/download-speed`, `fix/ftp-pasv-buffers`, issue #21). Measured on the New 3DS XL over
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
-- [ ] The catbox.moe QR CIA (the owner's test: 3dsDL ~600 KB/s, NSA ~350) with v0.5.15: `transfer-log.txt` should say
-      "8 connections" (2 on the 2DS); compare with 3dsDL's `sdmc:/3ds/3dsDL/log.txt` (bytes, ms, connections).
+- [ ] The catbox.moe QR CIA with the segment window and second requests, one console at a time (8 connections on the New
+      3DS, 4 on the 2DS), against 3dsDL's `sdmc:/3ds/3dsDL/log.txt` (bytes, ms, connections): no long dips any more.
 - [ ] The 2DS stays smooth during a download and an FTP transfer (menus, music; FTP threads now on the app core).
 - [ ] FTP against ftpd-EX on the same console and file (the issue says 350 KB/s vs 1.2 MB/s).
 
@@ -673,6 +673,21 @@ current, this list is the summary. What only the owner can test (local wireless)
   as 3dsDL does, not HEAD + `Accept-Ranges`: catbox.moe answers HEAD with no size and no Accept-Ranges yet serves ranges,
   so NSA got one connection there (~350 KB/s at 156 ms) while 3dsDL split it in four (~600 KB/s, the owner, 2026-11-01).
   A server that ignores the range is cut after the first byte and the download goes on one connection.
+- **Segments in a window** (`http_parallel_download`): the connections fetch 512 KB segments into buffers of their own and
+  copy each finished one into a window of 2 per connection (at least 6) ahead of the one the install needs next; a
+  connection with nothing left to take asks again for the oldest segment on its way for 2 s (whichever copy comes first
+  is used). Before, each connection owned one segment in turn and waited for the install to take it, so the download went
+  at the slowest connection's pace: the catbox CIA on the New 3DS rose to ~600 KB/s and fell to ~100 again and again.
+  After the window it finished at 459 KB/s with the network steady at 530-630 KB/s, stalling only on single slow
+  segments, which is what the second request fixes. An Old 3DS now uses 4 connections, as 3dsDL does (2 before the SOC
+  and TLS fixes); the 2DS held 488 KB/s over the LAN with 4 against a server that stalls every 7th request for 6 s.
+  The install screen says how many connections ("From host, N connections"). The log says "segments ahead" every 10 s
+  and how many segments were asked for twice.
+- **DEBUG builds can reinstall the same title version**: `SITE INSTALL` and the web page's install use
+  `AM_StartCiaInstallOverwrite`, which takes the same version (only HOME's icon stays old); a lower one is refused
+  (D8E08027, AM description 39). The ports install over and over because NSA's Install CIA deletes the title first (and
+  its save). The micro version is 4 bits (max 15): the consoles hold 0.5.15 since 2026-11-01, so a published 0.5.x will
+  not install over it there (0.6.x will, or delete NSA first; its data in `sdmc:/nsa/` stays).
 - **2DS** (Old 3DS model, LAN, 2026-11-01), v0.4.14 -> v0.5.14: URL install 331 -> 459 KB/s (2 connections) and 364 ->
   531 KB/s (one); FTP up 185 -> 350, down 300 -> 365 KB/s. `tools/console_tests.py` passed (15/15) with v0.5.14 on both.
 - **Drawing** only while something happens (`ui_should_draw`): CPU left to downloads and

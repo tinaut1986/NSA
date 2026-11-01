@@ -177,9 +177,11 @@ static Result task_data_op_download_check_running(void* userData) {
     return task_data_op_check_running(downloadData->data);
 }
 
-static Result task_data_op_download_progress(void* userData, u64 total, u64 curr) {
+static Result task_data_op_download_progress(void* userData, u64 total, u64 curr, u32 connections) {
     data_op_download_data* downloadData = (data_op_download_data*) userData;
     data_op_data* data = downloadData->data;
+
+    data->connections = connections;
 
     downloadData->bytesSinceUpdate += curr - data->currProcessed;
 
@@ -217,6 +219,7 @@ static Result task_data_op_download(data_op_data* data, u32 index) {
 
     data->bytesPerSecond = 0;
     data->estimatedRemainingSeconds = 0;
+    data->connections = 0;
 
     Result res = 0;
 

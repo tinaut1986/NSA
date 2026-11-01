@@ -27,6 +27,13 @@ static const char* save_kind_dir(save_kind kind) {
     return kind == SAVE_KIND_EXT ? "ext" : kind == SAVE_KIND_BOSS ? "boss" : "save";
 }
 
+// Goes up whenever a title's backups change (an export, an import, a deletion): the screens that list them reload.
+static volatile u32 save_generation = 0;
+
+u32 action_save_generation() {
+    return save_generation;
+}
+
 // ---- tree copy: every file under one root of an archive into another root of another archive ----
 
 typedef struct {
@@ -384,6 +391,7 @@ typedef struct {
 
 static void export_done(void* ctx, Result res) {
     export_ctx* exp = (export_ctx*) ctx;
+    save_generation++;
 
     if(exp->then != NULL) {
         exp->then(exp->thenCtx, R_SUCCEEDED(res), exp->dir);
@@ -481,6 +489,7 @@ static void import_keep_backup(import_ctx* imp) {
 
 static void import_rolled_back(void* ctx, Result res) {
     import_ctx* imp = (import_ctx*) ctx;
+    save_generation++;
     if(R_FAILED(res)) {
         import_keep_backup(imp);
         return;
@@ -520,6 +529,7 @@ static void import_roll_back(import_ctx* imp) {
 
 static void import_copied(void* ctx, Result res) {
     import_ctx* imp = (import_ctx*) ctx;
+    save_generation++;
 
     if(R_SUCCEEDED(res)) {
         prompt_display_notify("Success", imp->kind == SAVE_KIND_EXT ? "Extra data imported." : imp->kind == SAVE_KIND_BOSS ? "SpotPass data imported." : "Save imported.", COLOR_TEXT, imp->title, task_draw_title_info, NULL);
@@ -705,7 +715,7 @@ static void import_list_draw_top(ui_view* view, void* data, float x1, float y1, 
 }
 
 static void import_list_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
-    widget_row(x, y, width, height, ICON_DOWNLOAD, item->name, COLOR_TEXT, NULL, selected);
+    widget_row(x, y, width, height, ICON_DOWNLOAD, item->name, theme()->palette->text, NULL, selected);
 }
 
 static void import_list_clear(linked_list* items) {
@@ -1855,4 +1865,68 @@ bool action_save_import_backup(title_info* title, const char* name, save_kind ki
 
     free(backups);
     return found;
+}
+
+static Result save_delete_tree(FS_Archive sd, const char* dir) {
+    char path[FILE_PATH_MAX];
+    string_copy(path, dir, sizeof(path));
+    size_t len = strlen(path);
+    if(len > 1 && path[len - 1] == '/') {
+        path[len - 1] = '\0';
+    }
+
+    FS_Path* fsPath = fs_make_path_utf8(path);
+    if(fsPath == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Result res = FSUSER_DeleteDirectoryRecursively(sd, *fsPath);
+    fs_free_path_utf8(fsPath);
+    return res;
+}
+
+Result action_save_delete_backup(title_info* title, save_kind kind, const char* path) {
+    save_backup* backups = NULL;
+    u32 count = action_save_backups(title, kind, &backups);
+    save_backup* found = NULL;
+    for(u32 i = 0; i < count && found == NULL; i++) {
+        if(strcmp(backups[i].path, path) == 0) {
+            found = &backups[i];
+        }
+    }
+
+    if(found == NULL) {
+        free(backups);
+        return R_APP_INVALID_ARGUMENT;
+    }
+
+    FS_Archive sd = 0;
+    Result res = save_open_sd(&sd);
+    if(R_SUCCEEDED(res)) {
+        if(found->checkpoint) {
+            res = save_delete_tree(sd, found->path);
+        } else {
+            // One export folder may hold several kinds: only this one goes, and the folder (with its manifest) once empty.
+            char sub[FILE_PATH_MAX];
+            snprintf(sub, sizeof(sub), "%s%s/", found->path, save_kind_dir(kind));
+            res = save_delete_tree(sd, sub);
+
+            bool others = false;
+            for(u32 k = 0; k < 3 && !others; k++) {
+                char other[FILE_PATH_MAX];
+                snprintf(other, sizeof(other), "%s%s", found->path, save_kind_dir((save_kind) k));
+                others = fs_is_dir(sd, other);
+            }
+
+            if(R_SUCCEEDED(res) && !others) {
+                res = save_delete_tree(sd, found->path);
+            }
+        }
+
+        fs_close_archive(sd);
+    }
+
+    free(backups);
+    save_generation++;
+    return res;
 }

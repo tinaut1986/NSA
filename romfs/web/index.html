@@ -359,7 +359,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
   search:'Search',filter:'Filter',sort:'Sort',view:'View',list:'List',grid:'Grid',more:'More',reload:'Reload',close:'Close',cancel:'Cancel',ok:'OK',save:'Save',
   k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
   loaded:'%a of %b',notitles:'Nothing matches.',loading:'Loading…',version:'Version',size:'Size',code:'Product code',publisher:'Publisher',id:'Title ID',type:'Type',path:'Path',modified:'Modified',
-  launch:'Launch',deleteTitle:'Delete',delticket:'Delete with ticket',data:'Data',dsave:'Download save',dext:'Download extra data',dboss:'Download SpotPass data',isave:'Import save',iext:'Import extra data',iboss:'Import SpotPass data',
+  launch:'Launch',deleteTitle:'Delete',delticket:'Delete with ticket',data:'Data',dsave:'Download save',dext:'Download extra data',dboss:'Download SpotPass data',m_save:'Save data',m_ext:'Extra data',m_boss:'SpotPass data',dpack:'Download (a .nsasave package)',backups:'Backups on the SD card',restore:'Restore (the console asks first)',confirmdelbackup:'Delete the backup "%s"? This cannot be undone.',cpnote:'It is Checkpoint\'s: Checkpoint will not see it any more.',
   sendpkg:'Send a save package',sendpkgsub:'A .nsasave package made by NSA: the console unpacks it and asks there.',packing:'Packing',packstart:'The console is packing it (B there cancels)…',counting:'Counting files…',downloading:'Downloading',cancelled:'Cancelled.',packbusy:'The console is still packing the last one.',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and kept on the console (this title or its data is not there).',
   nobackups:'No backups of this data (NSA\'s exports or Checkpoint\'s).',pickbackup:'Pick a backup: the console asks before replacing anything.',asked:'Look at the console: it asks there.',
   confirmlaunch:'Launch "%s" on the console? NSA closes.',confirmdelete:'Ask the console to delete "%s"? It asks again there.',danger:'Delete',
@@ -381,7 +381,7 @@ es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wron
   search:'Buscar',filter:'Filtrar',sort:'Ordenar',view:'Vista',list:'Lista',grid:'Cuadrícula',more:'Más',reload:'Recargar',close:'Cerrar',cancel:'Cancelar',ok:'Aceptar',save:'Guardar',
   k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
   loaded:'%a de %b',notitles:'No hay nada que coincida.',loading:'Cargando…',version:'Versión',size:'Tamaño',code:'Código de producto',publisher:'Editor',id:'ID de título',type:'Tipo',path:'Ruta',modified:'Modificado',
-  launch:'Lanzar',deleteTitle:'Borrar',delticket:'Borrar con ticket',data:'Datos',dsave:'Descargar partida',dext:'Descargar datos extra',dboss:'Descargar datos SpotPass',isave:'Importar partida',iext:'Importar datos extra',iboss:'Importar datos SpotPass',
+  launch:'Lanzar',deleteTitle:'Borrar',delticket:'Borrar con ticket',data:'Datos',dsave:'Descargar partida',dext:'Descargar datos extra',dboss:'Descargar datos SpotPass',m_save:'Partidas',m_ext:'Datos extra',m_boss:'Datos SpotPass',dpack:'Descargar (un paquete .nsasave)',backups:'Copias en la SD',restore:'Restaurar (la consola pregunta antes)',confirmdelbackup:'¿Borrar la copia "%s"? No se puede deshacer.',cpnote:'Es de Checkpoint: Checkpoint dejará de verla.',
   sendpkg:'Enviar un paquete de partida',sendpkgsub:'Un paquete .nsasave hecho por NSA: la consola lo desempaqueta y pregunta allí.',packing:'Empaquetando',packstart:'La consola lo está empaquetando (B allí lo cancela)…',counting:'Contando archivos…',downloading:'Descargando',cancelled:'Cancelado.',packbusy:'La consola aún está empaquetando el anterior.',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están).',
   nobackups:'No hay copias de estos datos (exportaciones de NSA ni de Checkpoint).',pickbackup:'Elige una copia: la consola pregunta antes de reemplazar nada.',asked:'Mira la consola: pregunta allí.',
   confirmlaunch:'¿Lanzar "%s" en la consola? NSA se cierra.',confirmdelete:'¿Pedir a la consola que borre "%s"? Pregunta otra vez allí.',danger:'Borrar',
@@ -721,15 +721,14 @@ function titleSheet(t, r){
   const d = r._d || {}, name = d.name || t.id;
   const big = r._pic.querySelector('img') ? h('img', {src:r._pic.querySelector('img').src, class:'px'}) : ic('apps', 48);
   const kindName = {game:T.k_game, demo:'Demo', update:T.k_update, dlc:T.k_dlc, system:T.k_system, dsiware:'DSiWare'}[t.kind] || t.kind;
-  const data = [['save','dsave','isave'],['ext','dext','iext'],['boss','dboss','iboss']].filter(([k]) => d[k]);
+  const data = [['save','m_save','device-floppy'],['ext','m_ext','database'],['boss','m_boss','world-download']].filter(([k]) => d[k]);
   let s;
   s = sheet({head:sheetHead(big, name, d.publisher), body:[
     cells([[T.id, t.id], [T.code, d.code], [T.version, fmtVer(t.version)+' ('+t.version+')'], [T.size, fmtSize(t.size)], [T.media, t.media.toUpperCase()], [T.kind, kindName]]),
     actions([
       (t.kind==='game'||t.kind==='demo') && ['player-play', T.launch, () => launchTitle(t, name)],
       data.length && T.data,
-      ...data.map(([k, dl]) => ['download', T[dl], () => downloadSave(t, name, k)]),
-      ...data.map(([k, , im]) => ['upload', T[im], () => importSave(t, name, k, T[im])]),
+      ...data.map(([k, label, icon]) => [icon, T[label], () => dataSheet(t, name, k, T[label]), {note:'›'}]),
       T.danger,
       ['trash', T.deleteTitle, () => deleteTitle(t, name, false), {danger:true}],
       t.kind!=='system' && ['trash-x', T.delticket, () => deleteTitle(t, name, true), {danger:true}]
@@ -780,14 +779,28 @@ function taskCard(icon, title, cancel){
       setTimeout(() => { el.style.transition = 'opacity .4s, transform .4s'; el.style.opacity = 0; el.style.transform = 'translateY(10px)'; setTimeout(() => el.remove(), 400); }, ok ? 4000 : 9000); }
   };
 }
-function importSave(t, name, kind, label){
-  run(async () => {
-    const j = await api('GET', 'save/backups', {id:t.id, media:t.media, kind});
-    let s;
-    s = sheet({head:sheetHead(ic('history', 32), label, name), body: j.backups.length ? [h('p', {class:'note', text:T.pickbackup}), actions(j.backups.map(b => [b.checkpoint ? 'box' : '3ds', b.label, () =>
-      run(async () => { await api('POST', 'save/import', {id:t.id, media:t.media, kind, path:b.path, name}); toast(T.asked); }), {note:b.checkpoint ? 'Checkpoint' : 'NSA'}]), c => s.close(c))] : emptyEl('history', T.nobackups),
-      foot:[h('button', {class:'btn', text:T.close, onclick:() => s.close()})]});
-  });
+// One kind of a title's data: download it as a package, and its backups on the SD card (NSA's exports and Checkpoint's),
+// each restored (the console asks, in red) or deleted.
+function dataSheet(t, name, kind, label){
+  const list = h('div', {class:'acts'}, ...skeletonRows(2));
+  let s;
+  s = sheet({head:sheetHead(ic(kind==='ext' ? 'database' : kind==='boss' ? 'world-download' : 'device-floppy', 32), label, name), body:[
+    actions([['download', T.dpack, () => downloadSave(t, name, kind)]], c => s.close(c)),
+    h('div', {class:'acts'}, h('div', {class:'lbl', text:T.backups})), list],
+    foot:[h('button', {class:'btn', text:T.close, onclick:() => s.close()})]});
+  const load = async () => {
+    let j; try { j = await api('GET', 'save/backups', {id:t.id, media:t.media, kind}); } catch(e){ if(e.auth) showLogin(e.message); else list.replaceChildren(emptyEl('alert-triangle', e.message)); return; }
+    list.replaceChildren();
+    if(!j.backups.length){ list.append(h('p', {class:'note', text:T.nobackups})); return; }
+    j.backups.forEach((b, i) => {
+      const restore = () => { s.close(true); run(async () => { await api('POST', 'save/import', {id:t.id, media:t.media, kind, path:b.path, name}); toast(T.asked); }); };
+      const del = async () => { if(!await confirmAsk(tr('confirmdelbackup', {s:b.label})+(b.checkpoint ? ' '+T.cpnote : ''), true, T.del)) return;
+        run(async () => { await api('POST', 'save/backup/delete', {id:t.id, media:t.media, kind, path:b.path}); sfx('success'); toast(T.done, 'ok'); load(); }); };
+      list.append(h('div', {class:'act', vars:{i}, style:'cursor:default'}, ic(b.checkpoint ? 'box' : 'history'), h('span', {text:b.label, style:'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'}),
+        tool('upload', T.restore, restore), tool('trash', T.del, del)));
+    });
+  };
+  load();
 }
 function sendPackage(){
   pick('.nsasave', false, async files => {

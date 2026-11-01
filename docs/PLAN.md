@@ -724,12 +724,14 @@ current, this list is the summary. What only the owner can test (local wireless)
   network for Tabler's CSS; it can take two minutes: run it again if it times out). New ones are
   appended, so existing icon IDs do not move.
 
-- **Updating a console during development**: HOME keeps a title's old icon until its version number goes up, and a
-  console refuses a lower one. Every DEBUG build between tags has the version of the last tag plus one patch, so the
-  consoles got `make DEBUG=1 VERSION_MICRO=3` (title version 0.3.3, above the 0.3.2 they first got); a published tag
-  (CI sets `VERSION`) is always above. `make clean` before changing it (`make` does not rebuild on a version change).
-  On 2026-11-01 the 2DS had title version 0.4.10 and got `VERSION_MICRO=11`: check a console's NSA version first
-  (`/api/titles`, id `000400000FB1A000`; the install answers D8E08027 when the CIA is older).
+- **Updating a console during development**: a console refuses a CIA of NSA older than the installed one (D8E08027, AM
+  description 39), but `SITE INSTALL` and the web page's install (`AM_StartCiaInstallOverwrite`) take the **same**
+  version; only HOME keeps the old icon, banner and sound until the version goes up. The micro version is 4 bits (max
+  15). **Since 2026-11-01 both consoles hold 0.5.15**: build DEBUG installs with `make DEBUG=1 VERSION_MICRO=15` (after
+  `make clean`; `make` does not rebuild on a version change) and do not try to go higher. Check a console's NSA version
+  first (`/api/titles`, id `000400000FB1A000`, `version` 95 = 0.5.15). A published 0.5.x will not install over 0.5.15
+  on those consoles: the next release they can take is 0.6.0, or delete NSA first (its data in `sdmc:/nsa/` stays).
+  Other titles (the ports) reinstall at any version because NSA's Install CIA deletes the installed title first.
 - **Titles cache** (`listtitles.c`): `sdmc:/nsa/titles-cache.bin` keeps each CTR title's name, publisher, region, product code and
   icon, keyed by ID + version; only a small index is held in RAM and records are read one at a time. Version and size come from one
   `AM_GetTitleInfo` call per media. Titles without an SMDH (updates, DLC) are remembered too. X on Titles ignores the cache and

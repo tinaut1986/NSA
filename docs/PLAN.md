@@ -54,6 +54,14 @@ What `release` holds, in the order it was built:
     (`-lvorbisidec -logg`) decode on a thread into four DSP buffers; the folder's next file
     follows, seek bar, volume, +-10 s. Needs `sdmc:/3ds/dspfirm.cdc`.
 13b. **Saves** (`feat/save-export-import`, `feat/send-saves`, `feat/checkpoint-import`, `feat/import-list`): export, import and
+    **Since 2026-11-01** (`feat/save-manager`) the Titles sheet has one row per kind of data (*Save data*, *Extra data*,
+    *SpotPass data*) opening a list: *Back up now* (export), *Send to another 3DS*, *Browse* (save and extra data), *Delete
+    extra data*, then every backup (NSA's and Checkpoint's) newest first; a backup's sheet restores it (the red question) or
+    deletes it (`action_save_delete_backup`: only that kind's folder of an NSA export, the whole folder with its manifest once
+    empty; a Checkpoint backup is deleted whole). The list reloads by itself after an export, import or deletion
+    (`action_save_generation`). The web page has the same: a sheet per kind with the download and the backups (restore / delete,
+    `POST /api/save/backup/delete`). Rows drawn with `COLOR_TEXT` as a raw colour were invisible in night mode (import list, the
+    transfer's folder picker): fixed.
     send the save data and extra data of 3DS titles; see item 3b under "Next".
 13c. **Web server** (`feat/web-server`, `source/fbi/webserver.c`, `romfs/web/index.html`; phase 1 of "Next" item 10): a page
     in the computer's browser to manage the console. See that item for the design, the API and what is left.
@@ -131,6 +139,7 @@ What `release` holds, in the order it was built:
 - [ ] The local wireless (Send / Receive without a router) stops the web server and brings it back after; nothing else breaks while it serves.
 - [ ] The page in a phone's browser and in Firefox / Chrome (dark and light).
 - [ ] Download a save / extra data / SpotPass package from the page on the 2DS: the console shows "Packing for the web page" with its bar, B there cancels and the page says so, the page's card shows packing then downloading, and NSA closes normally afterwards.
+- [ ] Titles sheet -> Save data / Extra data / SpotPass data (`feat/save-manager`): the list shows the backups (readable in night mode), *Back up now* adds one at the top, restoring asks in red, deleting asks and removes it (a folder holding save and extra data keeps the other); the same from the page.
 - [ ] The redesigned page (`feat/web-ux`): Settings from the page change the console at once (theme, accent, night, language, sounds, music and volumes) and stay after a restart; dragging rows onto folders and breadcrumbs moves them; dropping a folder from the PC uploads the tree; *Install a CIA from this PC*; how the titles list feels with many titles on a real console.
 
 **Saves, extra data and SpotPass data** (item 3b; code in `source/fbi/action/savetransfer.c`; none of it tried on a console)

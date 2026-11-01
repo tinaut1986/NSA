@@ -1855,7 +1855,7 @@ static void transfer_folder_fill(transfer_folder_data* data, linked_list* items)
 }
 
 static void transfer_folder_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
-    widget_row(x, y, width, height, item->data == NULL ? ICON_CHECK : ICON_FOLDER, item->data == NULL ? _("Save here") : item->name, COLOR_TEXT, NULL, selected);
+    widget_row(x, y, width, height, item->data == NULL ? ICON_CHECK : ICON_FOLDER, item->data == NULL ? _("Save here") : item->name, theme()->palette->text, NULL, selected);
 }
 
 static void transfer_folder_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {

@@ -20,7 +20,7 @@ static settings_data settings = {
         .night = THEME_NIGHT_OFF,
         .sounds = SOUNDS_ALL,
         .soundVolume = 60,
-        .music = 0,
+        .music = BGMUSIC_SHOP,
         .musicVolume = 50,
         .language = LANGUAGE_SYSTEM,
         .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false},

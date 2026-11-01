@@ -25,7 +25,8 @@
 #define FTP_IO_SIZE (64 * 1024)
 #define FTP_FILE_BUFFER (256 * 1024)
 #define FTP_NAP_MS 10
-#define FTP_SEND_CHUNK (8 * 1024)
+#define FTP_SEND_CHUNK (64 * 1024)
+#define FTP_GIVE_WAY_MS 30000
 #define FTP_DATA_ACCEPT_MS 15000
 #define FTP_IDLE_MS (10 * 60 * 1000)
 #define FTP_PASV_FIRST (FTP_SERVER_PORT + 1)
@@ -127,8 +128,12 @@ static bool ftp_send_all(int fd, const char* data, size_t n) {
             return false;
         }
 
-        // Small pieces keep each blocking send short (see ftp_wait_fd).
+        // The sockets do not block (net_set_nonblocking): what does not fit now waits for room.
         ssize_t w = send(fd, data, n > FTP_SEND_CHUNK ? FTP_SEND_CHUNK : n, 0);
+        if(w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            continue;
+        }
+
         if(w <= 0) {
             return false;
         }
@@ -161,6 +166,33 @@ static bool ftp_reply(ftp_session* s, const char* fmt, ...) {
     return ftp_send_all(s->ctrl, line, (size_t) n);
 }
 
+// Waits for the client's next command. One session at a time: a client that
+// vanished without closing (a dropped Wi-Fi) would keep everyone else out for
+// FTP_IDLE_MS, so a session silent for FTP_GIVE_WAY_MS gives way to a new one.
+static bool ftp_wait_command(ftp_session* s) {
+    u32 waited = 0;
+    while(ftp_run) {
+        struct pollfd p[2] = {{.fd = s->ctrl, .events = POLLIN, .revents = 0}, {.fd = ftp_listen, .events = POLLIN, .revents = 0}};
+        int r = poll(p, 2, 0);
+        if(r < 0 || (p[0].revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
+            return r >= 0;
+        }
+
+        if((p[1].revents & POLLIN) != 0 && waited >= FTP_GIVE_WAY_MS) {
+            return false;
+        }
+
+        u32 nap = net_nap_ms(waited);
+        svcSleepThread((s64) nap * 1000000);
+        waited += nap;
+        if(waited >= FTP_IDLE_MS) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
 // One command line, CR/LF stripped. False when the client left or we stop.
 static bool ftp_read_line(ftp_session* s, char* out, unsigned cap) {
     for(;;) {
@@ -188,11 +220,11 @@ static bool ftp_read_line(ftp_session* s, char* out, unsigned cap) {
             s->inUsed = 0;
         }
 
-        if(!ftp_wait_fd(s->ctrl, POLLIN, FTP_IDLE_MS)) {
+        if(!ftp_wait_command(s)) {
             return false;
         }
 
-        ssize_t r = recv(s->ctrl, s->in + s->inUsed, sizeof(s->in) - 1 - s->inUsed, 0);
+        ssize_t r = net_recv(s->ctrl, s->in + s->inUsed, sizeof(s->in) - 1 - s->inUsed, FTP_IDLE_MS);
         if(r <= 0) {
             return false;
         }
@@ -268,6 +300,7 @@ static int ftp_open_pasv(ftp_session* s) {
 
         int yes = 1;
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        net_set_nonblocking(fd);
 
         struct sockaddr_in addr = {0};
         addr.sin_family = AF_INET;
@@ -295,6 +328,9 @@ static int ftp_accept_data(ftp_session* s) {
         struct sockaddr_in peer;
         socklen_t len = sizeof(peer);
         fd = accept(s->pasv, (struct sockaddr*) &peer, &len);
+        if(fd >= 0) {
+            net_set_nonblocking(fd);
+        }
     }
 
     ftp_close_pasv(s);
@@ -303,8 +339,9 @@ static int ftp_accept_data(ftp_session* s) {
 }
 
 static void ftp_close_data(int* fd) {
-    ftp_close_socket(fd);
     ftp_data = -1;
+    net_close_gently(*fd);
+    *fd = -1;
 }
 
 static void ftp_set_phase(ftp_phase phase, const char* vpath) {
@@ -573,7 +610,7 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
             break;
         }
 
-        ssize_t r = recv(data, ftp_io, FTP_IO_SIZE, 0);
+        ssize_t r = net_recv(data, ftp_io, FTP_IO_SIZE, 30000);
         if(r == 0) {
             break;
         }
@@ -982,10 +1019,11 @@ static void ftp_main(void* arg) {
             continue;
         }
 
+        net_set_nonblocking(fd);
         ftp_ctrl = fd;
         ftp_handle_session(fd);
-        ftp_close_socket(&fd);
         ftp_ctrl = -1;
+        net_close_gently(fd);
     }
 }
 
@@ -1010,6 +1048,7 @@ bool ftpserver_start() {
         // Restarting right after a stop must not find the port still held.
         int yes = 1;
         setsockopt(ftp_listen, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        net_set_nonblocking(ftp_listen);
     }
 
     struct sockaddr_in addr = {0};

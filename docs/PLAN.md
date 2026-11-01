@@ -171,8 +171,7 @@ dates). The owner will go through them one by one; tick each only when they say 
 
 **Download and FTP speed** (`fix/download-speed`, `fix/ftp-pasv-buffers`, issue #21). Measured on the New 3DS XL over
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
-- [ ] The catbox.moe QR CIA with the segment window and second requests, one console at a time (8 connections on the New
-      3DS, 4 on the 2DS), against 3dsDL's `sdmc:/3ds/3dsDL/log.txt` (bytes, ms, connections): no long dips any more.
+- [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
 - [ ] The 2DS stays smooth during a download and an FTP transfer (menus, music; FTP threads now on the app core).
 - [ ] FTP against ftpd-EX on the same console and file (the issue says 350 KB/s vs 1.2 MB/s).
 
@@ -679,8 +678,11 @@ current, this list is the summary. What only the owner can test (local wireless)
   is used). Before, each connection owned one segment in turn and waited for the install to take it, so the download went
   at the slowest connection's pace: the catbox CIA on the New 3DS rose to ~600 KB/s and fell to ~100 again and again.
   After the window it finished at 459 KB/s with the network steady at 530-630 KB/s, stalling only on single slow
-  segments, which is what the second request fixes. An Old 3DS now uses 4 connections, as 3dsDL does (2 before the SOC
-  and TLS fixes); the 2DS held 488 KB/s over the LAN with 4 against a server that stalls every 7th request for 6 s.
+  segments, which is what the second request fixes. Both models use 8 connections now (an Old 3DS had 2 before the SOC
+  and TLS fixes). On the 2DS: the catbox CIA at 432 KB/s with 8 (CPU 19% / 9%), 354 with 4 (partly sharing the internet
+  with the New 3DS); over the LAN it tops out around 500 KB/s even with one connection, with the install keeping up (the
+  window never fills), so its limit is the network side (the system's Wi-Fi and SOC work at 268 MHz), not the SD card.
+  The New 3DS did the catbox CIA at 762 KB/s (3dsDL: 515-560).
   The install screen says how many connections ("From host, N connections"). The log says "segments ahead" every 10 s
   and how many segments were asked for twice.
 - **DEBUG builds can reinstall the same title version**: `SITE INSTALL` and the web page's install use

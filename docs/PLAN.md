@@ -729,3 +729,6 @@ current, this list is the summary. What only the owner can test (local wireless)
 
 Pending (2026-11-01): the default background music is now Shop (was Off), for installs with no `settings.json`; the banner
 jingle has four candidates from `tools/make_jingle.py --all DIR` (bossa, marimba, chime, pixel) waiting for the owner's pick.
+
+Banner jingle (2026-11-01): the owner chose **bossa** (`meta/audio_3ds.wav`). **marimba** is kept in `meta/alt/audio_3ds_marimba.wav`
+(copy it over `meta/audio_3ds.wav` to switch; both come from `tools/make_jingle.py --variant NAME`). Listen to it in HOME after installing the CIA.

@@ -23,6 +23,25 @@ void http_set_log(void (*log)(const char* format, ...)) {
     http_log = log;
 }
 
+// Transfers in flight, so that leaving the app (HOME -> close) can wait for them
+// before the sockets go away: a thread inside curl when socExit runs crashes.
+static volatile u32 http_active = 0;
+static volatile bool http_quit = false;
+
+static CURLcode http_perform(CURL* curl) {
+    __sync_fetch_and_add(&http_active, 1);
+    CURLcode ret = http_quit ? CURLE_ABORTED_BY_CALLBACK : curl_easy_perform(curl);
+    __sync_fetch_and_sub(&http_active, 1);
+    return ret;
+}
+
+void http_shutdown() {
+    http_quit = true;
+    for(u32 i = 0; i < 1000 && http_active > 0; i++) {
+        svcSleepThread(10000000);
+    }
+}
+
 #define HTTP_MAX_REDIRECTS 50
 #define HTTP_TIMEOUT_SEC 15
 #define HTTP_TIMEOUT_NS ((u64) HTTP_TIMEOUT_SEC * 1000000000)
@@ -355,7 +374,7 @@ static int http_fetch_info(void* clientp, curl_off_t dltotal, curl_off_t dlnow, 
         f->total = (u64) dltotal;
     }
 
-    return f->abort ? 1 : 0;
+    return f->abort || http_quit ? 1 : 0;
 }
 
 // Bigger socket buffers keep the data coming while curl is busy with a block.
@@ -368,7 +387,7 @@ static int http_fetch_sockopt(void* clientp, curl_socket_t fd, curlsocktype purp
 static void http_fetch_thread(void* arg) {
     http_fetch* f = (http_fetch*) arg;
 
-    f->ret = curl_easy_perform(f->curl);
+    f->ret = http_perform(f->curl);
     if(f->ret == CURLE_OK && f->fill > 0 && !f->abort) {
         http_fetch_hand_over(f);
     }
@@ -605,7 +624,7 @@ static bool http_probe(const char* url, char* effective, size_t effectiveSize, u
     long code = 0;
     curl_off_t length = -1;
     char* where = NULL;
-    if(curl_easy_perform(curl) == CURLE_OK
+    if(http_perform(curl) == CURLE_OK
        && curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code) == CURLE_OK && code == 200
        && curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &length) == CURLE_OK && length > 0
        && curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &where) == CURLE_OK && where != NULL
@@ -633,7 +652,7 @@ static size_t http_worker_write(char* ptr, size_t size, size_t nmemb, void* user
 }
 
 static int http_worker_info(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
-    return ((http_worker*) clientp)->p->abort ? 1 : 0;
+    return ((http_worker*) clientp)->p->abort || http_quit ? 1 : 0;
 }
 
 static void http_worker_thread(void* arg) {
@@ -660,7 +679,7 @@ static void http_worker_thread(void* arg) {
             w->len = 0;
             w->want = (u32) (end - start);
             curl_easy_setopt(w->curl, CURLOPT_RANGE, range);
-            ret = curl_easy_perform(w->curl);
+            ret = http_perform(w->curl);
             curl_easy_getinfo(w->curl, CURLINFO_RESPONSE_CODE, &code);
             if(ret == CURLE_OK && code == 206 && w->len == w->want) {
                 break;

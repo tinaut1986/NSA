@@ -271,6 +271,11 @@ static void mainmenu_group_draw_row(void* data, list_item* item, float x, float 
     screen_draw_icon(entry->icon, x + 9, y + (height - 16) / 2, 16, selected ? t->onAccent : t->accent);
     float tx = x + 33;
     float right = x + width - 9;
+    // What opens another screen says so; System's details only show.
+    if(entry->open != NULL) {
+        right = widget_row_chevron(right, y, height, selected);
+    }
+
     float textY = y + (height - widget_text_height(WIDGET_TEXT_SCALE)) / 2;
     const char* name = _(entry->name);
     widget_text_fit(name, tx, textY, WIDGET_TEXT_SCALE, ink, right - tx);

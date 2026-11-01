@@ -36,6 +36,8 @@ void widget_button_centered_danger(float x, float y, float width, float height, 
 void widget_button_centered(float x, float y, float width, float height, const char* label, bool selected);
 // A list row: icon (or -1), label on the left and, if given, a value on the
 // right between ‹ › (an option that changes in place).
+// The "opens another screen" mark at the right end of a row; returns where the row's text must stop.
+float widget_row_chevron(float right, float y, float height, bool selected);
 void widget_row(float x, float y, float width, float height, int icon, const char* label, u32 labelColor, const char* value, bool selected);
 // The same with a slider under the selector, in one box: `fraction` 0..1, `sliderText` at its right.
 #define WIDGET_SLIDER_EXTRA 20

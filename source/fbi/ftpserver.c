@@ -23,6 +23,7 @@
 #define FTP_PATH_MAX 512
 #define FTP_LINE_MAX 600
 #define FTP_IO_SIZE (64 * 1024)
+#define FTP_FILE_BUFFER (256 * 1024)
 #define FTP_NAP_MS 10
 #define FTP_SEND_CHUNK (8 * 1024)
 #define FTP_DATA_ACCEPT_MS 15000
@@ -267,7 +268,6 @@ static int ftp_open_pasv(ftp_session* s) {
 
         int yes = 1;
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-        net_set_buffers(fd);
 
         struct sockaddr_in addr = {0};
         addr.sin_family = AF_INET;
@@ -538,6 +538,10 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
         ftp_reply(s, "553 Cannot create the file.");
         return;
     }
+
+    // The network hands over a few KB at a time, and every write to the SD card costs a lot on its own:
+    // gather them into big writes, as ftpd does.
+    setvbuf(f, NULL, _IOFBF, FTP_FILE_BUFFER);
 
     // A CIA coming in is shown on the bottom screen; ALLO gave its size.
     size_t len = strlen(vpath);
@@ -1023,8 +1027,7 @@ bool ftpserver_start() {
     ftp_ip = (u32) gethostid();
     ftp_run = true;
 
-    // Below the UI thread's priority, on the system core like NSA's tasks.
-    ftp_thread = threadCreate(ftp_main, NULL, 0x10000, 0x19, 1, false);
+    ftp_thread = net_server_thread(ftp_main, 0x10000);
     if(ftp_thread == NULL) {
         ftp_shutdown();
         snprintf(ftp_status, sizeof(ftp_status), "%s", _("No thread"));

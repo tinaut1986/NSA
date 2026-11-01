@@ -203,6 +203,11 @@ static bool main_notice(char* out, size_t size, float* progress) {
     return relaunch_notice(out, size, progress) || ftpserver_notice(out, size, progress);
 }
 
+// The top bar's icons: the FTP server moving data, the web server running.
+static u32 main_activity() {
+    return (ftpserver_transferring() ? UI_STATUS_FTP_BUSY : 0) | (webserver_running() ? UI_STATUS_WEB : 0);
+}
+
 int main(int argc, const char* argv[]) {
     if(argc > 0 && envIsHomebrew()) {
         fs_set_3dsx_path(argv[0]);
@@ -212,7 +217,7 @@ int main(int argc, const char* argv[]) {
 
     settings_load();
     settings_apply();
-    ui_set_status(ftpserver_corner, main_notice);
+    ui_set_status(ftpserver_corner, main_notice, main_activity);
 
     mainmenu_open();
     startup_run();
@@ -222,6 +227,7 @@ int main(int argc, const char* argv[]) {
         ftpserver_poll_main();
         webserver_poll_main();
         udslink_poll_main();
+        bgmusic_hold(settings_get()->ftpPausesMusic && ftpserver_holding_music());
 
         // A new NSA is in place (updater or SITE INSTALL): exit so libctru relaunches it.
         if(relaunch_poll()) {

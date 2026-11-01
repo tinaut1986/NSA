@@ -33,7 +33,11 @@ void ui_wake();
 // `corner` fills a short line for the top screen's bottom bar (empty: none);
 // `notice` fills a toast for the bottom screen and its progress (0..1, < 0
 // when unknown), returning false when there is nothing to say.
-void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* out, size_t size, float* progress));
+// What the top bar shows besides the clock: `activity` gives UI_STATUS_* bits.
+#define UI_STATUS_FTP_BUSY 1   // The FTP server is moving data: its icon blinks.
+#define UI_STATUS_WEB 2        // The web server runs: its icon is shown.
+
+void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* out, size_t size, float* progress), u32 (*activity)());
 
 // What a view shows, for the tests (selftest.c): filled by the module that made it.
 #define UI_DESCRIPTION_OPTIONS_MAX 4

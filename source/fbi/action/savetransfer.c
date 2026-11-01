@@ -1272,6 +1272,27 @@ static Result pack_work(worker* w) {
     return res;
 }
 
+// Names the package (readable by the receiver, which sees only the name: what it is and whose) and makes its folder.
+static void pack_name(pack_job* job, title_info* title, const char* name, save_kind kind) {
+    char clean[PACK_NAME_MAX];
+    size_t n = 0;
+    for(const char* c = name; *c != '\0' && n + 1 < sizeof(clean); c++) {
+        bool plain = (*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') || (*c >= '0' && *c <= '9') || *c == ' ' || *c == '.' || *c == '(' || *c == ')';
+        clean[n++] = plain ? *c : '_';
+    }
+
+    clean[n] = '\0';
+    snprintf(job->fileName, sizeof(job->fileName), "%016llX-%s-%s" PACK_EXT, (unsigned long long) title->titleId, save_kind_dir(kind), clean);
+    snprintf(job->sdPath, sizeof(job->sdPath), PACK_DIR "%s", job->fileName);
+    snprintf(job->path, sizeof(job->path), "sdmc:%s", job->sdPath);
+
+    FS_Archive sd = 0;
+    if(R_SUCCEEDED(save_open_sd(&sd))) {
+        save_make_dirs(sd, PACK_DIR);
+        fs_close_archive(sd);
+    }
+}
+
 static FS_Archive pack_sd_kept = 0;
 
 static void pack_finished(worker* w, Result res) {
@@ -1345,24 +1366,7 @@ void action_send_save_files(title_info* title, const char* name, save_kind kind,
         return;
     }
 
-    // Readable by the receiver, which sees only the name: what it is and whose.
-    char clean[PACK_NAME_MAX];
-    size_t n = 0;
-    for(const char* c = name; *c != '\0' && n + 1 < sizeof(clean); c++) {
-        bool plain = (*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') || (*c >= '0' && *c <= '9') || *c == ' ' || *c == '.' || *c == '(' || *c == ')';
-        clean[n++] = plain ? *c : '_';
-    }
-
-    clean[n] = '\0';
-    snprintf(job->fileName, sizeof(job->fileName), "%016llX-%s-%s" PACK_EXT, (unsigned long long) title->titleId, save_kind_dir(kind), clean);
-    snprintf(job->sdPath, sizeof(job->sdPath), PACK_DIR "%s", job->fileName);
-    snprintf(job->path, sizeof(job->path), "sdmc:%s", job->sdPath);
-
-    FS_Archive sd = 0;
-    if(R_SUCCEEDED(save_open_sd(&sd))) {
-        save_make_dirs(sd, PACK_DIR);
-        fs_close_archive(sd);
-    }
+    pack_name(job, title, name, kind);
 
     w->title = &job->title;
     w->arg = job;
@@ -1372,65 +1376,162 @@ void action_send_save_files(title_info* title, const char* name, save_kind kind,
     worker_start(w, "Packing");
 }
 
-// The same package, made at once on the calling thread (the web server's), without a screen. The package
-// is at `outPath` (inside the SD archive) and `size` bytes long.
-Result action_save_pack_sync(title_info* title, const char* name, save_kind kind, u32 extId, char* outPath, size_t outSize, u64* size) {
-    worker w;
-    memset(&w, 0, sizeof(w));
+// ---- the package for the web page ----
+//
+// Made like the one that is sent: by a worker on the application's core, behind the console's progress screen (B
+// cancels). The web server's thread only asks for it and reads how it goes: it runs on the system core, which an Old
+// 3DS or 2DS gives very little time, so packing there took minutes and held NSA when it was closed.
+
+static LightLock pack_web_lock;
+static bool pack_web_lock_ready = false;
+static struct {
+    bool running;      // Asked for, or packing.
+    bool finished;     // `res`, `path` and `size` are the last one's.
+    worker* w;         // While packing.
+    Result res;
+    char path[FILE_PATH_MAX];
+    u64 size;
+} pack_web;
+
+static void pack_web_lock_init() {
+    if(!pack_web_lock_ready) {
+        LightLock_Init(&pack_web_lock);
+        pack_web_lock_ready = true;
+    }
+}
+
+static void pack_web_end(worker* w, Result res, const char* sdPath, u64 size) {
+    LightLock_Lock(&pack_web_lock);
+    pack_web.w = NULL;
+    pack_web.res = res;
+    string_copy(pack_web.path, R_SUCCEEDED(res) ? sdPath : "", sizeof(pack_web.path));
+    pack_web.size = size;
+    pack_web.finished = true;
+    pack_web.running = false;
+    LightLock_Unlock(&pack_web_lock);
+}
+
+static void pack_web_finished(worker* w, Result res) {
+    pack_job* job = (pack_job*) w->arg;
+
+    fs_close_archive(job->src);
+    free(job->buffer);
+
+    u64 size = 0;
+    if(R_SUCCEEDED(res)) {
+        FILE* f = fopen(job->path, "rb");
+        if(f != NULL) {
+            fseek(f, 0, SEEK_END);
+            size = (u64) ftell(f);
+            fclose(f);
+        }
+
+        if(size == 0) {
+            res = R_APP_IO_ERROR;
+        }
+    }
+
+    pack_web_end(w, res, job->sdPath, size);
+    if(R_SUCCEEDED(res)) {
+        sound_play(SOUND_SUCCESS);
+    }
+
+    free(job);
+    free(w);
+}
+
+bool action_save_pack_web_claim() {
+    pack_web_lock_init();
+    LightLock_Lock(&pack_web_lock);
+    bool free_ = !pack_web.running;
+    if(free_) {
+        pack_web.running = true;
+        pack_web.finished = false;
+    }
+
+    LightLock_Unlock(&pack_web_lock);
+    return free_;
+}
+
+void action_save_pack_web_release() {
+    pack_web_lock_init();
+    LightLock_Lock(&pack_web_lock);
+    if(pack_web.w == NULL) {
+        pack_web.running = false;
+    }
+
+    LightLock_Unlock(&pack_web_lock);
+}
+
+void action_save_pack_web_start(title_info* title, const char* name, save_kind kind, u32 extId) {
+    pack_web_lock_init();
+    worker* w = (worker*) calloc(1, sizeof(worker));
     pack_job* job = (pack_job*) calloc(1, sizeof(pack_job));
-    if(job == NULL) {
-        return R_APP_OUT_OF_MEMORY;
+    Result res = w != NULL && job != NULL ? 0 : R_APP_OUT_OF_MEMORY;
+    if(R_SUCCEEDED(res)) {
+        job->buffer = (u8*) malloc(PACK_BUFFER);
+        res = job->buffer != NULL ? 0 : R_APP_OUT_OF_MEMORY;
+    }
+
+    if(R_SUCCEEDED(res)) {
+        res = save_open_target(&job->src, title, kind, extId);
+    }
+
+    if(R_FAILED(res)) {
+        if(job != NULL) {
+            free(job->buffer);
+        }
+
+        free(job);
+        free(w);
+        pack_web_end(NULL, res, "", 0);
+        return;
     }
 
     job->title = *title;
     string_copy(job->name, name, sizeof(job->name));
     job->kind = kind;
     job->extId = extId;
-    job->buffer = (u8*) malloc(PACK_BUFFER);
+    pack_name(job, title, name, kind);
 
-    Result res = job->buffer != NULL ? 0 : R_APP_OUT_OF_MEMORY;
-    if(R_SUCCEEDED(res)) {
-        res = save_open_target(&job->src, title, kind, extId);
+    w->title = &job->title;
+    w->arg = job;
+    w->work = pack_work;
+    w->finished = pack_web_finished;
+    w->status = _("Counting...");
+
+    LightLock_Lock(&pack_web_lock);
+    pack_web.w = w;
+    LightLock_Unlock(&pack_web_lock);
+    worker_start(w, "Packing for the web page");
+}
+
+void action_save_pack_web_status(save_pack_status* out) {
+    pack_web_lock_init();
+    memset(out, 0, sizeof(*out));
+    LightLock_Lock(&pack_web_lock);
+    out->running = pack_web.running;
+    out->finished = pack_web.finished;
+    out->res = pack_web.res;
+    string_copy(out->path, pack_web.path, sizeof(out->path));
+    out->size = pack_web.size;
+    if(pack_web.w != NULL) {
+        out->counting = pack_web.w->total == 0;
+        out->processed = pack_web.w->processed;
+        out->total = pack_web.w->total;
     }
 
-    if(R_SUCCEEDED(res)) {
-        char clean[PACK_NAME_MAX];
-        size_t n = 0;
-        for(const char* c = name; *c != '\0' && n + 1 < sizeof(clean); c++) {
-            bool plain = (*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') || (*c >= '0' && *c <= '9') || *c == ' ' || *c == '.' || *c == '(' || *c == ')';
-            clean[n++] = plain ? *c : '_';
-        }
+    LightLock_Unlock(&pack_web_lock);
+}
 
-        clean[n] = '\0';
-        snprintf(job->fileName, sizeof(job->fileName), "%016llX-%s-%s" PACK_EXT, (unsigned long long) title->titleId, save_kind_dir(kind), clean);
-        snprintf(job->sdPath, sizeof(job->sdPath), PACK_DIR "%s", job->fileName);
-        snprintf(job->path, sizeof(job->path), "sdmc:%s", job->sdPath);
-
-        FS_Archive sd = 0;
-        if(R_SUCCEEDED(save_open_sd(&sd))) {
-            save_make_dirs(sd, PACK_DIR);
-            fs_close_archive(sd);
-        }
-
-        w.arg = job;
-        res = pack_work(&w);
-        fs_close_archive(job->src);
+void action_save_pack_web_cancel() {
+    pack_web_lock_init();
+    LightLock_Lock(&pack_web_lock);
+    if(pack_web.w != NULL) {
+        pack_web.w->cancel = true;
     }
 
-    if(R_SUCCEEDED(res)) {
-        string_copy(outPath, job->sdPath, outSize);
-        *size = 0;
-        FILE* f = fopen(job->path, "rb");
-        if(f != NULL) {
-            fseek(f, 0, SEEK_END);
-            *size = (u64) ftell(f);
-            fclose(f);
-        }
-    }
-
-    free(job->buffer);
-    free(job);
-    return res;
+    LightLock_Unlock(&pack_web_lock);
 }
 
 // Is there data of `kind` for this installed title? Fills `extId` for extra and SpotPass data.

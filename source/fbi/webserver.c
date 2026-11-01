@@ -1159,38 +1159,6 @@ static bool web_parse_kind(web_request* r, save_kind* kind) {
 }
 
 // Makes the package of a title's save, extra or SpotPass data: the page then downloads it as a file.
-static void web_api_save_pack(web_request* r) {
-    title_info title;
-    save_kind kind;
-    if(!web_parse_title(r, &title) || !web_parse_kind(r, &kind)) {
-        return;
-    }
-
-    char name[0x100] = "";
-    web_query_get(r->query, "name", name, sizeof(name));
-    if(name[0] == '\0') {
-        string_copy(name, "title", sizeof(name));
-    }
-
-    u32 extId = 0;
-    if(!action_save_data_exists(&title, kind, &extId)) {
-        web_send_error(r, 404, "this title has no such data (or it was never started)");
-        return;
-    }
-
-    char path[WEB_PATH_MAX];
-    u64 size = 0;
-    Result res = action_save_pack_sync(&title, name, kind, extId, path, sizeof(path), &size);
-    if(R_FAILED(res)) {
-        char text[48];
-        snprintf(text, sizeof(text), "packing failed (%08lX)", res);
-        web_send_error(r, 500, text);
-        return;
-    }
-
-    web_send_json(r, 200, json_pack("{s:b,s:s,s:I}", "ok", 1, "path", path, "size", (json_int_t) size));
-}
-
 // ---- the screens, live, and the buttons ----
 
 #define WEB_TOP_W 400
@@ -1322,7 +1290,8 @@ typedef enum {
     REQ_IMPORT,        // A backup already on the SD card.
     REQ_LAUNCH,
     REQ_DELETE,
-    REQ_INSTALL_URL
+    REQ_INSTALL_URL,
+    REQ_PACK           // A save package for the page to download.
 } web_request_kind;
 
 static struct {
@@ -1385,6 +1354,9 @@ static void web_job_run() {
 
             break;
         }
+        case REQ_PACK:
+            action_save_pack_web_start(&web_job.title, web_job.name, web_job.saveKind, web_job.extId);
+            break;
         case REQ_INSTALL_URL:
             action_install_url("Install from the URL(s) sent from the web page?", web_job.urls, NULL, NULL, NULL, NULL, NULL);
             break;
@@ -1394,6 +1366,67 @@ static void web_job_run() {
 
     web_job.kind = REQ_NONE;
     web_job.pending = false;
+}
+
+static void web_api_save_pack(web_request* r) {
+    title_info title;
+    save_kind kind;
+    if(!web_parse_title(r, &title) || !web_parse_kind(r, &kind)) {
+        return;
+    }
+
+    char name[0x100] = "";
+    web_query_get(r->query, "name", name, sizeof(name));
+    if(name[0] == '\0') {
+        string_copy(name, "title", sizeof(name));
+    }
+
+    u32 extId = 0;
+    if(!action_save_data_exists(&title, kind, &extId)) {
+        web_send_error(r, 404, "this title has no such data (or it was never started)");
+        return;
+    }
+
+    // Made on the console, which shows its progress there; the page follows it with save/pack/status.
+    if(!action_save_pack_web_claim()) {
+        web_send_error(r, 409, "the console is still packing the last one");
+        return;
+    }
+
+    if(!web_job_begin(r, REQ_PACK)) {
+        action_save_pack_web_release();
+        return;
+    }
+
+    web_job.title = title;
+    string_copy(web_job.name, name, sizeof(web_job.name));
+    web_job.saveKind = kind;
+    web_job.extId = extId;
+    web_job.pending = true;
+    web_send_ok(r);
+}
+
+static void web_api_save_pack_status(web_request* r) {
+    save_pack_status st;
+    action_save_pack_web_status(&st);
+
+    char error[48] = "";
+    if(st.finished && R_FAILED(st.res)) {
+        if(st.res == R_APP_CANCELLED) {
+            string_copy(error, "cancelled", sizeof(error));
+        } else {
+            snprintf(error, sizeof(error), "packing failed (%08lX)", st.res);
+        }
+    }
+
+    web_send_json(r, 200, json_pack("{s:b,s:b,s:b,s:b,s:I,s:I,s:s,s:I,s:s}", "ok", 1, "running", st.running, "finished", st.finished,
+                                    "counting", st.counting, "processed", (json_int_t) st.processed, "total", (json_int_t) st.total,
+                                    "path", st.path, "size", (json_int_t) st.size, "error", error));
+}
+
+static void web_api_save_pack_cancel(web_request* r) {
+    action_save_pack_web_cancel();
+    web_send_ok(r);
 }
 
 static void web_api_save_receive(web_request* r) {
@@ -1799,6 +1832,10 @@ static void web_handle(web_request* r) {
         web_api_icon(r);
     } else if(post && strcmp(api, "save/pack") == 0) {
         web_api_save_pack(r);
+    } else if(get && strcmp(api, "save/pack/status") == 0) {
+        web_api_save_pack_status(r);
+    } else if(post && strcmp(api, "save/pack/cancel") == 0) {
+        web_api_save_pack_cancel(r);
     } else if(post && strcmp(api, "save/receive") == 0) {
         web_api_save_receive(r);
     } else if(get && strcmp(api, "save/backups") == 0) {

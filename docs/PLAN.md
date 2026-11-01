@@ -130,6 +130,7 @@ What `release` holds, in the order it was built:
 - [ ] Speed of a big download and upload on the New 3DS XL and the 2DS (the FTP server's for comparison); the console stays usable meanwhile (UI, music).
 - [ ] The local wireless (Send / Receive without a router) stops the web server and brings it back after; nothing else breaks while it serves.
 - [ ] The page in a phone's browser and in Firefox / Chrome (dark and light).
+- [ ] Download a save / extra data / SpotPass package from the page on the 2DS: the console shows "Packing for the web page" with its bar, B there cancels and the page says so, the page's card shows packing then downloading, and NSA closes normally afterwards.
 - [ ] The redesigned page (`feat/web-ux`): Settings from the page change the console at once (theme, accent, night, language, sounds, music and volumes) and stay after a restart; dragging rows onto folders and breadcrumbs moves them; dropping a folder from the PC uploads the tree; *Install a CIA from this PC*; how the titles list feels with many titles on a real console.
 
 **Saves, extra data and SpotPass data** (item 3b; code in `source/fbi/action/savetransfer.c`; none of it tried on a console)
@@ -514,6 +515,13 @@ current, this list is the summary. What only the owner can test (local wireless)
       with volumes, changed on the console (`GET/POST /api/settings`, applied and saved by the main thread), plus this page's own sounds
       (the console's tones played by WebAudio, as the console's setting says) and animations. The icons are the console's atlas
       (`/icons.png` and `/icons.js`, made by `tools/make_icons.py`) tinted with CSS masks. Checked in Azahar with the built-in browser.
+    - **Save packages for the page** (`fix/web-pack-progress`): packing used to run on the web server's thread, which is on the system
+      core (30 % of it on an Old 3DS / 2DS): a SpotPass package took minutes there and the 2DS could not be closed meanwhile (exiting
+      waits for that thread). Now `POST /api/save/pack` only hands it to the main thread, which packs it with a worker on the
+      application's core behind the console's own progress screen ("Packing for the web page", B cancels); the page follows
+      `GET /api/save/pack/status` in a card (counting, packing with a bar, then the download with its speed) and can cancel it.
+      **Left**: copying folders, uploads and downloads still run on the web thread (system core): slow on an Old 3DS, and closing NSA
+      waits for one in progress.
     - **Phase 3 left**: sound is not sent; the 3D right eye; a smaller or JPEG frame if the Wi-Fi is slow (RGB565 at 345 KB is the first try);
       a text box that types into the console's keyboard; holding a button (press is a tap of N frames).
     - **Ideas**: a `remote.flag`-like switch for the destructive calls; drag whole folders (`webkitGetAsEntry`); download a folder

@@ -596,7 +596,7 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 // the same memory.
 
 #define HTTP_PARALLEL 8
-#define HTTP_PARALLEL_OLD 4
+#define HTTP_PARALLEL_OLD 8
 #define HTTP_SEGMENT (512 * 1024)
 #define HTTP_WINDOW_PER_CONNECTION 2
 #define HTTP_WINDOW_MIN 6
@@ -875,8 +875,9 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
     string_copy(p->url, url, sizeof(p->url));
     p->size = size;
     p->segments = (u32) ((size + HTTP_SEGMENT - 1) / HTTP_SEGMENT);
-    // An Old 3DS has not the CPU for many HTTPS connections at once. Two was the most before the
-    // waits stopped holding the SOC session and TLS sessions were shared; 3dsDL uses four there.
+    // Two was the most an Old 3DS took before the waits stopped holding the SOC session and TLS
+    // sessions were shared. Now the 2DS holds eight with its CPU at 20% (though its network tops out
+    // around 500 KB/s with any number of them).
     bool isNew = false;
     APT_CheckNew3DS(&isNew);
     u32 connections = isNew ? HTTP_PARALLEL : HTTP_PARALLEL_OLD;

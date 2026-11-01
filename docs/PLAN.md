@@ -173,7 +173,10 @@ dates). The owner will go through them one by one; tick each only when they say 
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
 - [ ] The 2DS stays smooth during a download and an FTP transfer (menus, music; FTP threads now on the app core).
-- [ ] NSA's FTP on the 2DS right after ftpd-EX (same conditions), to see whether the 10-15% gap is real.
+- [ ] Music during transfers on an Old 3DS: off made the 2DS's FTP 10-25% faster (New 3DS: 3-6%). Owner to decide
+      whether NSA pauses it while transferring. HTTP and console to console with music on/off not measured yet.
+- [ ] FTP and web after the non-blocking change: FileZilla and a browser on a real console (big files both ways, several
+      at once, a client that disappears mid-transfer, turning the servers off mid-transfer).
 
 **NSA icon and banner** (`tools/make_branding.py` draws `meta/icon_3ds.png` and `banner_3ds.png`)
 - [ ] After installing the CIA the HOME menu shows the new icon and the banner (the CIA's
@@ -688,6 +691,15 @@ current, this list is the summary. What only the owner can test (local wireless)
   The New 3DS did the catbox CIA at 762 KB/s (3dsDL: 515-560).
   The install screen says how many connections ("From host, N connections"). The log says "segments ahead" every 10 s
   and how many segments were asked for twice.
+- **The servers' sockets never block** (`net_set_nonblocking`, `net_recv`, `net_close_gently` in `netpoll.c`): a blocking
+  send to a client that had gone waited inside the SOC session until TCP gave up, holding every socket call of NSA, the
+  shutdown() meant to wake it too; the 2DS stopped answering FTP and web during a download test and froze when the FTP
+  server was turned off (2026-11-02). Closing waits (up to 2 s) for the other side to close, as the SOC service drops
+  unsent data when a non-blocking socket closes. The FTP serves one session at a time: one silent for 30 s gives way to a
+  new connection. Second requests for a segment only for the one the install waits for (near the end, any), once it has
+  taken three times the average: with a fixed 2 s the 2DS asked for 158 segments twice (~80 MB wasted); now 1, and the
+  same download went from 401 to 514 KB/s. The 2DS's install lags the network there (the window stays full).
+- `SITE CPU` leaves counting threads at the lowest priority on every core until `SITE CPU OFF`: send it after measuring.
 - **DEBUG builds can reinstall the same title version**: `SITE INSTALL` and the web page's install use
   `AM_StartCiaInstallOverwrite`, which takes the same version (only HOME's icon stays old); a lower one is refused
   (D8E08027, AM description 39). The ports install over and over because NSA's Install CIA deletes the title first (and

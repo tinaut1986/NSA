@@ -590,8 +590,11 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 //
 // A segment can still stall (a connection that stops for seconds, often near
 // the end): when a connection has nothing else to take, it asks again for the
-// oldest segment that has been on its way for HTTP_HEDGE_MS, and whichever
-// copy arrives first is used. Each connection fetches into a buffer of its
+// segment the install is waiting for (near the end, any left) once it has been
+// on its way three times as long as segments take (at least HTTP_HEDGE_MS),
+// and whichever copy arrives first is used. Not sooner: on a slow link every
+// segment takes many seconds (~10 s on the 2DS), and asking again for all of
+// them wasted half the bandwidth. Each connection fetches into a buffer of its
 // own and copies a finished segment into the window, so the two never write
 // the same memory.
 
@@ -635,6 +638,8 @@ struct http_parallel_s {
     u32 nextAssign;                        // The next segment no connection has taken.
     volatile u32 nextDeliver;              // The next segment the caller needs.
     u32 hedges;                            // Segments asked for twice.
+    u32 completed;                         // Segments in, for averageMs.
+    u32 averageMs;                         // How long a segment takes, lately.
 
     volatile bool abort;
     volatile Result failure;
@@ -768,10 +773,12 @@ static s32 http_worker_take(http_parallel* p, bool* done) {
         u32 slot = (u32) segment % p->window;
         p->fetchers[slot] = 1;
         p->started[slot] = now;
-    } else {
-        for(u32 n = p->nextDeliver; n < p->nextAssign; n++) {
+    } else if(p->completed >= p->workerCount) {
+        u64 late = (u64) p->averageMs * 3 > HTTP_HEDGE_MS ? (u64) p->averageMs * 3 : HTTP_HEDGE_MS;
+        u32 last = p->nextAssign >= p->segments ? p->nextAssign : p->nextDeliver + 1;
+        for(u32 n = p->nextDeliver; n < last && n < p->nextAssign; n++) {
             u32 slot = n % p->window;
-            if(p->ready[slot] != (s32) n && p->fetchers[slot] == 1 && now - p->started[slot] >= HTTP_HEDGE_MS) {
+            if(p->ready[slot] != (s32) n && p->fetchers[slot] == 1 && now - p->started[slot] >= late) {
                 p->fetchers[slot]++;
                 p->hedges++;
                 segment = (s32) n;
@@ -836,6 +843,10 @@ static void http_worker_thread(void* arg) {
                 __sync_synchronize();
                 p->ready[slot] = segment;
                 won = true;
+
+                u32 took = (u32) (osGetTime() - p->started[slot]);
+                p->averageMs = p->completed == 0 ? took : (p->averageMs * 7 + took) / 8;
+                p->completed++;
             } else {
                 // Another connection may still bring it.
                 failed = p->fetchers[slot] <= 1;

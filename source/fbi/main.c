@@ -172,6 +172,7 @@ void cleanup() {
     clipboard_clear();
 
     task_exit();
+    http_shutdown();
     thumbs_exit();
     bgmusic_exit();
     sound_exit();

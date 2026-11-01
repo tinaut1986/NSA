@@ -570,6 +570,9 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
             }
         } else {
             widget_row(rowX, y, rowW, WIDGET_ROW_HEIGHT, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, settingsmenu_value(option), i == menu->selected);
+            if(option == OPTION_CHANGELOG) {
+                widget_row_chevron(rowX + rowW - 8, y, WIDGET_ROW_HEIGHT, i == menu->selected);
+            }
         }
 
         widget_press_draw(&menu->press, (int) i, rowX, y, rowW, WIDGET_ROW_HEIGHT, theme()->def->radiusSmall, i == menu->selected ? theme()->onAccent : theme()->palette->text, false);

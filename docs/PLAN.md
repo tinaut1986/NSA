@@ -107,7 +107,7 @@ What `release` holds, in the order it was built:
     four big tiles per row and dialogs as a sheet from the bottom (`theme_def.sheetPrompts`, `menuLayout`).
     Icon grids in pages with dots (HOME) are **not done**.
 18. **NSA icon and banner** (`tools/make_branding.py`): drawn in code (48x48 and a 256x128 PNG banner). The boot logo
-    is now the generic one of `buildtools` and the banner jingle is still FBI's (issue #15). An old title version in HOME
+    is now the generic one of `buildtools` and the banner jingle is NSA's own (`tools/make_jingle.py`, 2.5 s, synthesised; issue #15). An old title version in HOME
     keeps its icon until the CIA's version number goes up (see Decisions).
 19. **FTP and remote use**: the server is on by default; outside DEBUG builds the `SITE` commands (screenshot, press, tap,
     drag, install) work only while `sdmc:/nsa/remote.flag` exists (`ftp_remote_allowed` in `ftpserver.c`).
@@ -174,7 +174,7 @@ dates). The owner will go through them one by one; tick each only when they say 
       version is still 0.3.1 for every dev build; if HOME keeps the old art, bump the version).
 - [ ] Banner on the console (3D rotation, tiny text readable). The boot logo animation no longer
       is FBI's (`LOGO := plain`: the CIA carries the generic logo of buildtools/makerom); look at what
-      shows on launch. A logo of NSA's own is left open in issue #15. The banner sound is still FBI's.
+      shows on launch. A logo of NSA's own is left open in issue #15. The banner jingle is NSA's own now: listen to it in HOME.
 
 **Advanced in a soft red** (`widget_button_danger`, `prompt_display_warning`)
 - [ ] On the console: the Advanced button, its top card and the warning prompt in red, day and

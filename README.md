@@ -46,12 +46,14 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
   extract the icon, browse the save data and the extra data, import and export secure values.
 - **Save data, extra data and SpotPass data** of a 3DS game can be exported to a folder on the SD card, imported back (the current
   data is exported first) and sent to another 3DS. Importing also finds [Checkpoint](https://github.com/FlagBrew/Checkpoint)'s
-  backups, each one tagged with the app it comes from.
+  backups, each one tagged with the app it comes from. Each kind of data has its own list in the title's
+  actions: back up now, send to another 3DS, browse, and every backup (NSA's and Checkpoint's) newest first;
+  a backup can be restored, sent to another 3DS or deleted.
 - **Tickets**, **Ext Save Data** and **Pending titles** (interrupted installs and downloads) on the
   same pattern: pictures, filters, search, and actions in a sheet, with what deletes in red.
 - Export, import and erase the save data of DS cartridges.
 - **Web page** (off until you turn it on in Settings): manage the console from your computer's browser (the SD card, titles with icons, saves,
-  installing from files or URLs, and the console's screens live with its buttons), in the console's own theme, protected by a PIN shown on the console. Plain HTTP, for your own network only.
+  installing from files or URLs, saves and their backups to download, restore or delete, and the console's screens live with its buttons), in the console's own theme, protected by a PIN shown on the console. Plain HTTP, for your own network only.
 
 ### Files
 
@@ -90,10 +92,11 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
   accent colours and a yellow one. Settings → Theme.
 - English and Spanish, stereoscopic 3D on the top screen, touch and button controls everywhere
   (pressed look, long press for an item's actions, flick scrolling, draggable scrollbars), and optional
-  interface sounds with their own volume.
+  interface sounds, each with its own volume slider (sounds and music).
 - Optional **background music** made by the console itself, with no files: soft lift music, a calm
   variation, or a bossa with marimba. The last song of each style is kept and plays at once next time
   while a new one is made, and they crossfade.
+- A banner and a short jingle of its own in the HOME menu.
 - A **System** page with the console's model, versions, network, battery and storage.
 
 <p align="center">

@@ -181,6 +181,13 @@ static void widget_row_draw(float x, float y, float width, float frameHeight, fl
     widget_text_fit(label, tx, ty, WIDGET_TEXT_SCALE, ink, right - tx);
 }
 
+float widget_row_chevron(float right, float y, float height, bool selected) {
+    const theme_current* t = theme();
+    float size = 16;
+    screen_draw_icon(ICON_CHEVRON_RIGHT, right - size, y + (float) (int) ((height - size) / 2), size, selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted);
+    return right - size - 6;
+}
+
 void widget_row(float x, float y, float width, float height, int icon, const char* label, u32 labelColor, const char* value, bool selected) {
     widget_row_draw(x, y, width, height, height, icon, label, labelColor, value, selected);
 }

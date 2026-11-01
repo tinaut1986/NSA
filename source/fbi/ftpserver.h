@@ -53,5 +53,12 @@ void ftpserver_corner(char* out, size_t size);
 // install of NSA itself is relaunch.h's.
 bool ftpserver_notice(char* out, size_t size, float* progress);
 
+// A data connection is open (a listing or a file going either way): the bar's server icon blinks.
+bool ftpserver_transferring();
+
+// Whether the background music should be held for the FTP server: a transfer that has lasted a second
+// (not a listing), and three seconds after one, so a batch of files does not bring it back between them.
+bool ftpserver_holding_music();
+
 // Installs a CIA of the SD card (an SD title; NSA itself restarts, see relaunch.h): for the web server.
 bool ftpserver_install(const char* vpath, char* error, size_t errorSize);

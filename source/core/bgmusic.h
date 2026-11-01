@@ -13,6 +13,9 @@ typedef enum {
 } bgmusic_style;
 
 void bgmusic_set(bgmusic_style style, u32 volumePercent);
+// While held the music fades out and stops (an FTP transfer on an Old 3DS goes faster without it); released,
+// the last song comes back from the SD card. The setting is left as it is. From the UI thread.
+void bgmusic_hold(bool held);
 // From the UI loop, once a frame: starts, stops and ducks the music.
 void bgmusic_update();
 void bgmusic_exit();

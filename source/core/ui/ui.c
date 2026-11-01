@@ -28,6 +28,7 @@ static Handle ui_stack_mutex = 0;
 
 static void (*ui_status_corner)(char* out, size_t size) = NULL;
 static bool (*ui_status_notice)(char* out, size_t size, float* progress) = NULL;
+static u32 (*ui_status_activity)() = NULL;
 
 static u64 ui_fade_begin_time = 0;
 static u8 ui_fade_alpha = 0;
@@ -146,6 +147,11 @@ static void ui_draw_top_bar() {
     x -= 8 + 13;
     widget_wifi(x, 6, height - 12);
 
+    u32 activity = ui_status_activity != NULL ? ui_status_activity() : 0;
+
+    // A blinking icon breathes like the music note below (and keeps the bar drawing while it does).
+    float pulse = 0.5f + 0.5f * sinf((float) (osGetTime() % 100000) / 1000.0f * 6.0f);
+
     if(ui_status_corner != NULL) {
         char corner[64] = "";
         ui_status_corner(corner, sizeof(corner));
@@ -165,15 +171,21 @@ static void ui_draw_top_bar() {
             x -= 8 + tailW;
             screen_draw_text(tail, x, textY, WIDGET_SMALL_SCALE, t->accent);
             x -= 15;
-            screen_draw_icon(ICON_SERVER, x, (height - 14) / 2, 14, t->accent);
+            u32 color = (activity & UI_STATUS_FTP_BUSY) ? THEME_ALPHA(t->accent, (u32) (0x50 + pulse * 0xAF)) : t->accent;
+            screen_draw_icon(ICON_SERVER, x, (height - 14) / 2, 14, color);
         }
+    }
+
+    // The web server: the page for a computer's browser.
+    if(activity & UI_STATUS_WEB) {
+        x -= 19;
+        screen_draw_icon(ICON_DEVICE_DESKTOP, x, (height - 14) / 2, 14, t->accent);
     }
 
     // While a song is being made for the background music, a note that breathes.
     bgmusic_status music;
     bgmusic_get_status(&music);
     if(music.generating) {
-        float pulse = 0.5f + 0.5f * sinf((float) (osGetTime() % 100000) / 1000.0f * 6.0f);
         x -= 15;
         screen_draw_icon(ICON_MUSIC, x, (height - 14) / 2, 14, THEME_ALPHA(t->accent, (u32) (0x50 + pulse * 0xAF)));
     }
@@ -237,9 +249,10 @@ static void ui_draw_top(ui_view* ui) {
     }
 }
 
-void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* out, size_t size, float* progress)) {
+void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* out, size_t size, float* progress), u32 (*activity)()) {
     ui_status_corner = corner;
     ui_status_notice = notice;
+    ui_status_activity = activity;
 }
 
 static void ui_draw_bottom(ui_view* ui) {

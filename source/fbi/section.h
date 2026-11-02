@@ -17,6 +17,7 @@ void remoteinstall_note_urls(const char* urls);
 void systemsavedata_open();
 void tickets_open();
 void titles_open();
+void wifi_open();
 void startup_run();
 void settingsmenu_open();
 void systeminfo_draw_top(float x1, float y1, float x2, float y2);

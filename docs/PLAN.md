@@ -123,6 +123,17 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Wi-Fi slots** (branch `feat/wifi-slots`, **not merged**: it does not work yet; System -> Network -> A, `source/fbi/wifi.c`, `wifislot.c`, `meta/nsa.rsf`)
+- Adapted from the owner's WiFiManager+ (`~/repos/WifiManager`): the three slots and the copies on the SD card (`sdmc:/nsa/wifi/`, and
+  WiFiManager's `sdmc:/3ds/WifiManager/`, same file format), show / scan a Wi-Fi QR code, edit, copy to another slot, empty a slot.
+  NSA got its own RSF (buildtools' template plus `cfg:i`); WPA slots made from a QR or an edit get their PSK (PBKDF2-SHA1, mbedtls).
+- **Open problem (2026-11-02, the 2DS)**: emptying a slot looked done, but after opening the console's own Internet settings and
+  leaving them the network was back. So the write may not reach the saved config: `CFG_SetConfigInfoBlk8` + `CFG_UpdateConfigSavegame`
+  through `cfg:i` (check that `cfguInit` really got `cfg:i`, the results, and whether System Settings writes its own copy back on
+  leaving). Read the slot again after writing, and after a restart, before trusting any write.
+- [ ] Reading: the three slots show their SSID, security and password (WPS slots: password not readable).
+- [ ] A write survives a restart and the console's Internet settings (empty, copy, write a backup, edit).
+
 **System's details** (issue #23; `source/fbi/systeminfo.c`; only the layout was checked, in Azahar, whose data is fake)
 - [ ] Main menu -> System opens a list (Console, Network, Storage, Battery); each row shows its page on the top screen; B goes back.
 - [ ] Console: serial number (read from `SecureInfo_A` on the CTR NAND) matches the sticker; device ID, country, system and kernel versions, MCU firmware (shown as major - 0x10 . minor: check it is plausible), Luma3DS version and commit, "Running as" CIA / 3DSX.

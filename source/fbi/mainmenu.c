@@ -47,10 +47,10 @@ static const mainmenu_entry advanced[] = {
         {ICON_DOWNLOAD, "Dump NAND", "Copy the whole system memory to the SD card as a backup.", "Backup to the SD card", dumpnand_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
 };
 
-// System's details: nothing to open, each draws its page on the top screen.
+// System's details: each draws its page on the top screen; Network opens the Wi-Fi slots.
 static const mainmenu_entry details[] = {
         {ICON_3DS, "Console", "", "Model, serial and versions", NULL, -1, -1, systeminfo_draw_console},
-        {ICON_WIFI, "Network", "", "Wi-Fi, addresses and servers", NULL, -1, -1, systeminfo_draw_network},
+        {ICON_WIFI, "Network", "", "Wi-Fi slots, addresses", wifi_open, -1, -1, systeminfo_draw_network},
         {ICON_DEVICE_SD_CARD, "Storage", "", "SD card and system memories", NULL, -1, -1, systeminfo_draw_storage},
         {ICON_BATTERY_CHARGING, "Battery", "", "Charge, voltage, temperature, rate", NULL, -1, -1, systeminfo_draw_battery},
 };

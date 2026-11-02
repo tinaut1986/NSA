@@ -53,6 +53,10 @@ LOGO := plain
 
 include buildtools/make_base
 
+# NSA's own RSF: buildtools' template plus cfg:i, which reads and writes the
+# console's Wi-Fi slots (config blocks 0x80000-0x80002).
+COMMON_MAKEROM_FLAGS := $(subst $(BUILDTOOLS_DIR)/3ds/template.rsf,meta/nsa.rsf,$(COMMON_MAKEROM_FLAGS))
+
 # Every poll(), curl's too, goes through source/core/netpoll.c: one blocking
 # poll() would hold up the whole process's socket calls.
 LD_FLAGS += -Wl,--wrap=poll

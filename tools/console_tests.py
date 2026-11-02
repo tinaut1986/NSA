@@ -69,9 +69,25 @@ class Console:
                 self.connect()
         raise TestFailed(f'{self.label}: no answer to {line}')
 
+    def build(self):
+        """(protocol, "built ..." text) of the NSA this console runs."""
+        reply = self.cmd('SITE TEST BUILD', ok_errors=True)
+        parts = reply.split()
+        if not reply.startswith('200') or len(parts) < 3 or parts[1] != 'protocol':
+            return None, reply   # An older build: it does not know the command.
+        return int(parts[2]), ' '.join(parts[3:])
+
     def ui(self):
-        reply = self.cmd('SITE TEST UI')
-        return json.loads(reply[4:])
+        # The console's main thread may be busy for a while (a blocking write to a dead
+        # connection waits 15 s): wait for it instead of failing the test.
+        for attempt in range(25):
+            try:
+                reply = self.cmd('SITE TEST UI')
+                return json.loads(reply[4:])
+            except TestFailed as e:
+                if 'did not answer in time' not in str(e) or attempt == 24:
+                    raise
+                time.sleep(3)
 
     def press(self, keys, frames=4):
         self.cmd(f'SITE PRESS {keys} {frames}')
@@ -563,7 +579,7 @@ def stray_connection(ctx):
     def poke(d):
         receiving = any(e[0] == 'B' and e[1] == 'Receiving' for e in d.events)
         if receiving and not strays:
-            hello = b'NSAT' + struct.pack('>I', 6) + b'stray'.ljust(32, b'\0') + b'x.bin'.ljust(256, b'\0') + bytes(20)
+            hello = b'NSAT' + struct.pack('>I', 7) + b'stray'.ljust(32, b'\0') + b'x.bin'.ljust(256, b'\0') + bytes(20 + 512)
             for payload in (hello, b''):
                 s = socket.create_connection((ctx.b.host, 5002), timeout=5)
                 if payload:
@@ -892,6 +908,168 @@ def send_folder_to_other_folder(ctx):
     rmtree(ctx.b, dest)
 
 
+
+# ---- keeping the original path ----
+
+ORIGIN_DIR = TESTS_DIR + '/orig'
+
+
+def origin_rules(ctx, overwrite=None):
+    rules = send_rules(ctx, receiver_choice='Original path')
+    if overwrite:
+        rules.append(Rule(ctx.b, 'Existing files', overwrite))
+    return rules
+
+
+def run_send_origin(ctx, name, files, folders, existing=None, overwrite=None, timeout=300, done=both_done):
+    """A sends ORIGIN_DIR/<name>; B saves it at the same path. `existing` ({path: bytes}) is on B first."""
+    base = f'{ORIGIN_DIR}/{name}'
+    for c in (ctx.a, ctx.b):
+        c.mkdir(TESTS_DIR)
+        c.mkdir(ORIGIN_DIR)
+    rmtree(ctx.b, base)
+    for suffix in ('.part', '.part.pos'):
+        ctx.b.delete(f'{TMP_DIR}/{name}{suffix}')
+    rmtree(ctx.b, f'{TMP_DIR}/{name}.part')
+    put_tree(ctx.a, base, files, folders)
+    if existing:
+        more, more_dirs = existing, sorted({'/'.join(p.split('/')[:i + 1]) for p in existing for i in range(p.count('/'))})
+        put_tree(ctx.b, base, more, more_dirs)
+    return run_send(ctx, f'SITE TEST SENDDIR {base}', rules=origin_rules(ctx, overwrite), done=done, timeout=timeout)
+
+
+def check_origin(ctx, name, expected, folders):
+    got = list_tree(ctx.b, f'{ORIGIN_DIR}/{name}')
+    check(got is not None, f'B has no {ORIGIN_DIR}/{name}')
+    check(got[0] == set(expected), f'files differ: missing {sorted(set(expected) - got[0])[:5]}, extra {sorted(got[0] - set(expected))[:5]}')
+    for path, data in expected.items():
+        if data:
+            check(ctx.b.sha256(f'{ORIGIN_DIR}/{name}/{path}') == hashlib.sha256(data).hexdigest(), f'{path} on B has other content than expected')
+    left = [n for n in ctx.b.listdir(TMP_DIR) if n.startswith((name + '.part', 'f.bin.part'))]
+    check(not left, f'left in nsa/tmp: {left}')
+
+
+@test(2)
+def origin_folder_new(ctx):
+    """B saves a folder at its original path where nothing exists: it arrives there, with no question
+    about overwriting, and nothing is left in nsa/tmp or nsa/received."""
+    files, folders = tree(31, SMALL_TREE[0], SMALL_TREE[1])
+    d = run_send_origin(ctx, 'o1', files, folders)
+    check(not d.saw('B', 'Existing files'), 'B asked about overwriting where nothing existed')
+    check_origin(ctx, 'o1', files, folders)
+    check(ctx.b.list_long(f'{RECEIVED_DIR}/o1') is None, 'the folder is also in nsa/received')
+    rmtree(ctx.b, f'{ORIGIN_DIR}/o1')
+
+
+@test(2)
+def origin_folder_overwrite(ctx):
+    """Some of the files exist at B: it asks, Overwrite replaces them, and files that are only on B stay."""
+    files, folders = tree(32, SMALL_TREE[0], SMALL_TREE[1])
+    old = {'one.bin': b'old', 'sub/exact.bin': b'old too', 'mine.txt': b'not in the sent folder'}
+    d = run_send_origin(ctx, 'o2', files, folders, existing=old, overwrite='Overwrite')
+    check(d.saw('B', 'Existing files'), 'B did not ask about the files that exist')
+    expected = dict(files)
+    expected['mine.txt'] = old['mine.txt']
+    check_origin(ctx, 'o2', expected, folders)
+    rmtree(ctx.b, f'{ORIGIN_DIR}/o2')
+
+
+@test(2)
+def origin_folder_skip(ctx):
+    """Skip existing: those files keep what B had, the others arrive."""
+    files, folders = tree(33, SMALL_TREE[0], SMALL_TREE[1])
+    old = {'one.bin': b'old', 'sub/exact.bin': b'old too', 'mine.txt': b'not in the sent folder'}
+    d = run_send_origin(ctx, 'o3', files, folders, existing=old, overwrite='Skip existing')
+    check(d.saw('B', 'Existing files'), 'B did not ask about the files that exist')
+    expected = dict(files)
+    expected.update(old)
+    check_origin(ctx, 'o3', expected, folders)
+    rmtree(ctx.b, f'{ORIGIN_DIR}/o3')
+
+
+@test(2)
+def origin_folder_cancel(ctx):
+    """Cancel on the question: nothing changes at B, nothing is left in nsa/tmp, A says it was declined."""
+    files, folders = tree(34, SMALL_TREE[0], SMALL_TREE[1])
+    old = {'one.bin': b'old', 'mine.txt': b'keep me'}
+    a = ctx.a
+    d = run_send_origin(ctx, 'o4', files, folders, existing=old, overwrite='Cancel',
+                        done=lambda d: d.saw('A', 'Failure') and a.ui()['kind'] != 'prompt')
+    check(d.saw('B', 'Existing files'), 'B did not ask')
+    got = list_tree(ctx.b, f'{ORIGIN_DIR}/o4')
+    check(got[0] == set(old), f'B changed: {sorted(got[0])}')
+    check(ctx.b.get(f'{ORIGIN_DIR}/o4/one.bin') == b'old', 'a file of B was replaced after Cancel')
+    left = [n for n in ctx.b.listdir(TMP_DIR) if n.startswith('o4.part')]
+    check(not left, f'left in nsa/tmp: {left}')
+    rmtree(ctx.b, f'{ORIGIN_DIR}/o4')
+
+
+@test(2)
+def origin_folder_cut(ctx):
+    """A cut transfer to the original path goes on and the files end up at their place."""
+    files, folders = tree(35, BIG_TREE)
+    mark = ctx.b.log_size()
+    ctx.a.fault('send.chunk', RESUME_SKIP, 1)
+    d = run_send_origin(ctx, 'o5', files, folders)
+    check(d.saw('A', 'Confirmation', 'Retry?'), 'A did not offer to retry')
+    check(sum(1 for e in d.events if e[0] == 'B' and e[1] == 'Incoming file') <= 1, 'B asked again for the same folder')
+    check_origin(ctx, 'o5', files, folders)
+    check_resumed(ctx, ctx.b.log_since(mark))
+    rmtree(ctx.b, f'{ORIGIN_DIR}/o5')
+
+
+@test(2)
+def origin_file(ctx):
+    """A single file at its original path: replaced when it exists (after asking), created when it does not."""
+    for existing in (False, True):
+        files, folders = tree(36 + existing, {'f.bin': 300000})
+        base = f'{ORIGIN_DIR}/o6'
+        ctx.a.mkdir(TESTS_DIR)
+        ctx.a.mkdir(ORIGIN_DIR)
+        ctx.b.mkdir(TESTS_DIR)
+        ctx.b.mkdir(ORIGIN_DIR)
+        rmtree(ctx.b, base)
+        for suffix in ('.part', '.part.pos'):
+            ctx.b.delete(f'{TMP_DIR}/f.bin{suffix}')
+        put_tree(ctx.a, base, files, folders)
+        if existing:
+            put_tree(ctx.b, base, {'f.bin': b'old'}, [])
+        d = run_send(ctx, f'SITE TEST SEND {base}/f.bin', rules=origin_rules(ctx, 'Overwrite'))
+        check(d.saw('B', 'Existing files') == existing, 'B asked wrongly about the existing file' if existing else 'B asked where nothing existed')
+        check_origin(ctx, 'o6', files, folders)
+    rmtree(ctx.b, f'{ORIGIN_DIR}/o6')
+
+
+@test(2)
+def origin_unsafe_not_offered(ctx):
+    """A sender whose original path is not safe (.., a colon, NSA's tmp folder, relative): B does not
+    offer "Original path". A good path is offered."""
+    import fake_peer
+    b = ctx.b
+    cases = [('/../x', False), ('/a/../../b', False), ('sdmc:/a', False), ('/nsa/tmp/x', False), ('/nsa/tmp', False),
+             ('rel/path', False), ('/', False), ('/ok/dir/f.bin', True)]
+    for index, (origin, good) in enumerate(cases):
+        data = b'x' * 2000
+        errors = []
+
+        def sender():
+            try:
+                fake_peer.send(b.host, data, [len(data)], b'o.bin', 0, 0, 0, 0, origin.encode())
+            except Exception as e:
+                errors.append(e)
+
+        b.cmd('SITE TEST RECEIVE')
+        time.sleep(1.5)
+        thread = threading.Thread(target=sender, daemon=True)
+        thread.start()
+        d = Driver([b], [Rule(b, 'Receive', 'Yes')], lambda d: d.saw('B', 'Incoming file'), timeout=60).run()
+        options = b.ui()['options']
+        check(('Original path' in options) == good, f'origin "{origin}": the options were {options}')
+        b.press('B')   # Reject.
+        thread.join(timeout=10)
+        b.home()
+
+
 @test(1)
 def send_folder_without_files(ctx):
     """A folder with only empty folders is not sent: A says it has no files."""
@@ -906,8 +1084,8 @@ def send_folder_without_files(ctx):
 
 @test(2)
 def send_folder_unsafe_paths(ctx):
-    """A sender that lists "../escape.txt" (or a path with a colon or a leading slash): B refuses
-    and writes nothing outside the folder."""
+    """A sender that lists "../escape.txt" (or a path with a colon or a leading slash): B refuses the
+    list before asking anything and writes nothing outside the folder."""
     import fake_peer
     for index, bad in enumerate(('../escape.txt', '/abs.txt', 'a/../../up.txt', 'c:evil.txt', 'ok/./dot.txt')):
         name = f'evil{index}'
@@ -923,15 +1101,17 @@ def send_folder_unsafe_paths(ctx):
                 errors.append(e)   # B closes the connection when it refuses: expected.
 
         b = ctx.b
-        rules = [Rule(b, 'Receive', 'Yes'), Rule(b, 'Incoming file', 'Save'), Rule(b, None, 'SAVE_HERE', kind='list'),
-                 Rule(b, 'Error', 'OK'), Rule(b, 'Success', 'OK'), Rule(b, 'Failure', 'OK')]
         b.cmd('SITE TEST RECEIVE')
         time.sleep(1.5)
         thread = threading.Thread(target=sender, daemon=True)
         thread.start()
-        d = Driver([b], rules, lambda d: d.saw('B', 'Error') or d.saw('B', 'Success'), timeout=90).run()
-        thread.join(timeout=5)
-        check(d.saw('B', 'Error'), f'B accepted the list with "{bad}"')
+        # B reads the list before it asks anything: a bad one is dropped at once, with no question
+        # and the sender's connection closed.
+        thread.join(timeout=30)
+        check(not thread.is_alive(), f'B kept the connection open with "{bad}"')
+        check(errors, f'B went ahead with "{bad}" (the sender saw no refusal)')
+        ui = b.ui()
+        check(ui['kind'] == 'info' and ui['name'] == 'Receive', f'B asked something about "{bad}": {ui}')
         check(b.sha256(f'{RECEIVED_DIR}/escape.txt') is None and b.sha256('/nsa/escape.txt') is None, f'"{bad}" wrote outside its folder')
         b.home()
         forget_received(ctx, name)
@@ -959,6 +1139,14 @@ def main():
     a = Console('A', args.a)
     b = Console('B', args.b) if args.b else None
     ctx = Context(a, b, args.title, out)
+
+    # Two consoles that run different builds can not talk: say so instead of failing every test.
+    builds = [(c.label, c.build()) for c in ctx.consoles()]
+    for label, (protocol, built) in builds:
+        print(f'{label}: protocol {protocol if protocol is not None else "unknown (an old build?)"}, {built}')
+    if b is not None and len({p for _, (p, _) in builds}) != 1:
+        print('The consoles run different builds (protocols differ or are unknown): install the same CIA on both first.')
+        return 2
 
     results = []
     for name, needs, fn in TESTS:

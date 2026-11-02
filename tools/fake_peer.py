@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""A stand-in for the other console, to test NSA's console to console transfer (protocol 6,
+"""A stand-in for the other console, to test NSA's console to console transfer (protocol 7,
 see docs/PLAN.md, "Console to console") against Azahar or a console, with no second console.
 
   fake_peer.py send HOST FILE        send a file to NSA's Receive (HOST: 127.0.0.1 for Azahar)
   fake_peer.py title HOST MB         send a made-up title package of about MB megabytes
   fake_peer.py folder HOST DIR       send a folder (its files and subfolders) as a folder transfer
+  --origin PATH                      with send or folder: the path it "had" on the sender's SD card
   fake_peer.py receive               be the receiver: answers probes and takes one transfer
                                      (list 127.0.0.1 in /nsa/peers.txt of the sender)
 
@@ -18,9 +19,9 @@ CHUNK = 256 * 1024
 PORT = 5002
 
 
-def hello(name, size, check, kind, head):
-    return (b'NSAT' + struct.pack('>I', 6) + b'fake peer'.ljust(32, b'\0') + name.ljust(256, b'\0')
-            + struct.pack('>IIIII', size >> 32, size & 0xFFFFFFFF, check, kind, head))
+def hello(name, size, check, kind, head, origin=b''):
+    return (b'NSAT' + struct.pack('>I', 7) + b'fake peer'.ljust(32, b'\0') + name.ljust(256, b'\0')
+            + struct.pack('>IIIII', size >> 32, size & 0xFFFFFFFF, check, kind, head) + origin.ljust(512, b'\0'))
 
 
 def package(mb):
@@ -70,13 +71,18 @@ def chunks(segments, start, keep_first):
     return out
 
 
-def send(host, payload, segments, name, check, kind, head, drop):
+def send(host, payload, segments, name, check, kind, head, drop, origin=b''):
     control = socket.create_connection((host, PORT), timeout=10)
-    control.sendall(hello(name, len(payload), check, kind, head))
+    control.sendall(hello(name, len(payload), check, kind, head, origin))
+    if kind == 2:
+        control.sendall(payload[:head])   # A folder's manifest follows the hello.
     control.settimeout(120)  # until the user of the receiver has answered
     answer = b''
     while len(answer) < 13:
-        answer += control.recv(13 - len(answer))
+        part = control.recv(13 - len(answer))
+        if not part:
+            raise ConnectionError('the receiver closed the connection')
+        answer += part
     status, start, session = struct.unpack('>BQI', answer)
     print('answer', status, 'from byte', start)
     if status != 1:
@@ -189,6 +195,11 @@ def receive():
 def main():
     args = sys.argv[1:]
     drop = 0.0
+    origin = b''
+    if '--origin' in args:
+        i = args.index('--origin')
+        origin = args[i + 1].encode()
+        del args[i:i + 2]
     if '--drop' in args:
         i = args.index('--drop')
         drop = float(args[i + 1])
@@ -200,7 +211,7 @@ def main():
         receive()
     elif args[0] == 'send':
         data = open(args[2], 'rb').read()
-        send(args[1], data, [len(data)], os.path.basename(args[2]).encode(), zlib.crc32(data[:4096]) & 0xFFFFFFFF, 0, 0, drop)
+        send(args[1], data, [len(data)], os.path.basename(args[2]).encode(), zlib.crc32(data[:4096]) & 0xFFFFFFFF, 0, 0, drop, origin)
     elif args[0] == 'title':
         head, contents = package(float(args[2]))
         payload = head + b''.join(contents)
@@ -208,7 +219,7 @@ def main():
              zlib.crc32(head[:4096]) & 0xFFFFFFFF, 1, len(head), drop)
     elif args[0] == 'folder':
         payload, segments, head, check = folder_package(folder_items(args[2]))
-        send(args[1], payload, segments, os.path.basename(os.path.abspath(args[2])).encode(), check & 0xFFFFFFFF, 2, head, drop)
+        send(args[1], payload, segments, os.path.basename(os.path.abspath(args[2])).encode(), check & 0xFFFFFFFF, 2, head, drop, origin)
     else:
         print(__doc__)
 

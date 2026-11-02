@@ -70,6 +70,12 @@ make -C tests                        # host tests (needs libjansson-dev)
 version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in `tools/bin/`.
 `make` does not rebuild on a version or `DEBUG` change: `make clean` first.
 
+**On Windows** (devkitPro's msys2 shell, `C:/devkitpro/msys2/usr/bin/bash.exe -l`, with Git's `usr/bin` on the PATH for
+`xxd`): pass `VERSION_MAJOR=0 VERSION_MINOR=6 VERSION_MICRO=N` (version.sh's parts are not picked up there), and package the
+CIA with the Linux `tools/bin/makerom` from WSL: devkitPro's `makerom.exe` ignores `-minor` (0.6.2 comes out as 0.0.2, which a
+console refuses as older, D8E08027). Take the line from `make -n ... output/3ds-arm/NSA.cia` (with the CIA moved away) and run
+it in WSL from the repo with `./tools/bin/makerom`; check the TMD's title version (98 = 0.6.2) before installing.
+
 ## Interface
 
 - `source/core/theme.c`: themes (palettes for day and night, radii, borders, menu layout),

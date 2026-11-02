@@ -182,6 +182,10 @@ dates). The owner will go through them one by one; tick each only when they say 
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
 - [ ] The 2DS stays smooth during a download and an FTP transfer (menus, music; FTP threads now on the app core).
+- [ ] Remote Install's confirmation (QR, typed URL, history, received URLs, the web page's install from URL): Install /
+      **Save** / Cancel. Save downloads the file to `sdmc:/cias/` as it is (name from the URL, decoded; an extension from
+      the content when it has none; a name in use gets " (2)"), with the same progress, connections and errors (issue #22).
+      Azahar: two saves of a 100 MB CIA byte for byte, Install unchanged.
 - [ ] Settings -> "Pause music for FTP" (`ftp_pauses_music`, on by default on an Old 3DS): the music fades out once an FTP
       transfer has lasted a second and comes back 3 s after the last one (from the SD cache, no new song is made). On the
       2DS an upload with music went at ~375 KB/s with it (254-316 before). The top bar's server icon blinks while the FTP

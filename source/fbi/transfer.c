@@ -444,7 +444,9 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
 
         u64 now = osGetTime();
         if(now - session->speedTime >= 1000) {
-            session->speed = (u32) ((session->sent - session->speedSent) * 1000 / (now - session->speedTime));
+            // An average over the last seconds (chunks and the card's writes come in bursts), as downloads do.
+            u32 last = (u32) ((session->sent - session->speedSent) * 1000 / (now - session->speedTime));
+            session->speed = session->speed == 0 ? last : (u32) (session->speed * 0.75f + last * 0.25f);
             session->speedSent = session->sent;
             session->speedTime = now;
         }
@@ -1598,7 +1600,9 @@ static void transfer_receive_progress_update(ui_view* view, void* data, float* p
     if(!done) {
         u64 now = osGetTime();
         if(now - receive->speedTime >= 1000) {
-            receive->speed = (u32) ((receive->received - receive->speedReceived) * 1000 / (now - receive->speedTime));
+            // An average over the last seconds (see the sender's).
+            u32 last = (u32) ((receive->received - receive->speedReceived) * 1000 / (now - receive->speedTime));
+            receive->speed = receive->speed == 0 ? last : (u32) (receive->speed * 0.75f + last * 0.25f);
             receive->speedReceived = receive->received;
             receive->speedTime = now;
         }

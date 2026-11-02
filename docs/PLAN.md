@@ -738,9 +738,10 @@ current, this list is the summary. What only the owner can test (local wireless)
 - **Updating a console during development**: a console refuses a CIA of NSA older than the installed one (D8E08027, AM
   description 39), but `SITE INSTALL` and the web page's install (`AM_StartCiaInstallOverwrite`) take the **same**
   version; only HOME keeps the old icon, banner and sound until the version goes up. The micro version is 4 bits (max
-  15). **Since 2026-11-01 both consoles hold 0.5.15.** Since the v0.6.0 tag (2026-11-02) build DEBUG installs with
-  `make DEBUG=1 VERSION_MICRO=0` (title version 0.6.0, after `make clean`; `make` does not rebuild on a version change).
-  Never pass 15 again: with 0.6 from `tools/version.sh` it would be 0.6.15 and burn the 0.6.x line. Check a console's NSA version
+  15). **Since 2026-11-01 both consoles hold 0.5.15.** Build DEBUG installs with the micro version of the latest tag (after v0.6.1:
+  `make DEBUG=1 VERSION_MICRO=1`, after `make clean`; `make` does not rebuild on a version change): the same version as
+  the consoles once they update, never above it (the 2DS got 0.6.15 from another session once and had to be reinstalled
+  through FBI, which deletes the title first). Check a console's NSA version
   first (`/api/titles`, id `000400000FB1A000`, `version` 95 = 0.5.15). A published 0.5.x will not install over 0.5.15
   on those consoles: the next release they can take is 0.6.0, or delete NSA first (its data in `sdmc:/nsa/` stays).
   Other titles (the ports) reinstall at any version because NSA's Install CIA deletes the installed title first.

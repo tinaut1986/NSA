@@ -160,6 +160,12 @@ from a computer. Design, API, security and the phases left are in `docs/PLAN.md`
 `tools/web_tests.py --host 127.0.0.1` (a DEBUG build writes the PIN to `sdmc:/nsa/web-pin.txt`), and open
 `http://127.0.0.1:8080/` in the built-in browser. Anything that changes something must be sent with the `X-Pin` header. `make` does not notice a change that is only in `romfs/` (the page): delete `output/3ds-arm/3ds/NSA/NSA.3dsx` and `output/3ds-arm/NSA.cia` and run it again.
 
+## Speed tests
+
+`tools/speed_tests.py --host IP` measures FTP, web and URL downloads (and `--server ftpd --ftp-port 5000` the FTP part against
+ftpd), with NSA's trace of every second (`sdmc:/nsa/speed-log.txt`, `source/core/speedlog.h`; release builds need
+`sdmc:/nsa/speed.flag`). See `docs/PLAN.md`, "Speed tests". Delete the flag on a user's console when done.
+
 ## Console to console: testing
 
 Read "Console to console" in `docs/PLAN.md` first. In short:

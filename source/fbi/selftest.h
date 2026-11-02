@@ -29,6 +29,9 @@ void selftest_fault_list(char* out, size_t size);
 // on each core; SITE CPU OFF stops them.
 void selftest_cpu_measure(u32 ms, char* out, size_t size);
 void selftest_cpu_stop();
+// For the speed traces: "c0 37 c1 12 c2 80", how busy each core was since the last call, while SITE CPU's
+// counting threads run; nothing otherwise. One caller at a time.
+void selftest_cpu_sample(char* out, size_t size);
 
 // SITE SHA256 (FTP thread): the hash of a file, in hex; false when it can not be read.
 bool selftest_sha256(const char* path, char* hex, size_t size);

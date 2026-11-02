@@ -202,6 +202,40 @@ void selftest_cpu_stop() {
     }
 }
 
+void selftest_cpu_sample(char* out, size_t size) {
+    static u64 lastLoops[CPU_CORES_MAX];
+    static u64 lastTick = 0;
+
+    out[0] = '\0';
+    if(!selftest_cpu_run || selftest_cpu[0].idleRate == 0) {
+        lastTick = 0;
+        return;
+    }
+
+    u64 now = svcGetSystemTick();
+    double secs = lastTick != 0 ? (double) (now - lastTick) / SYSCLOCK_ARM11 : 0;
+    size_t len = 0;
+    for(u32 i = 0; i < selftest_cpu_count && len < size; i++) {
+        u64 loops = selftest_cpu[i].loops;
+        if(secs > 0) {
+            double free = (loops - lastLoops[i]) / secs / (double) selftest_cpu[i].idleRate;
+            if(i == 1) {
+                u32 limit = 0;
+                if(R_SUCCEEDED(APT_GetAppCpuTimeLimit(&limit)) && limit > 0) {
+                    free = free * 100 / limit;
+                }
+            }
+
+            int busy = (int) ((1.0 - (free > 1 ? 1 : free)) * 100 + 0.5);
+            len += snprintf(out + len, size - len, "%sc%lu %d", i > 0 ? " " : "", i, busy);
+        }
+
+        lastLoops[i] = loops;
+    }
+
+    lastTick = now;
+}
+
 // "core0 37% core1 12% core2 80%" busy over the next `ms` (FTP thread).
 void selftest_cpu_measure(u32 ms, char* out, size_t size) {
     selftest_cpu_start();

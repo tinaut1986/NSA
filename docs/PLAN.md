@@ -471,6 +471,31 @@ The runner also checks every CIA (TMD hashes and each content's SHA-256) and mak
 connections to the receiver's port 5002 itself. Not covered: the local wireless (the FTP server
 is off there) and installing.
 
+## Speed tests (`tools/speed_tests.py`, `source/core/speedlog.c`)
+
+After reports of slow transfers (issue: a QR install at ~1 MB/s with small files; FTP starting at 800+ KB/s and falling to
+~500 on a 256 MB file; the web page at 300-550 KB/s; slower than ftpd), every transfer can leave a trace of each second in
+`sdmc:/nsa/speed-log.txt`: DEBUG builds always, release builds while `sdmc:/nsa/speed.flag` exists (a user can be asked to
+create it, transfer, and send the file). Traces are kept in memory and written when the transfer ends. Each `s,` line: KB/s,
+time waiting for the network (`wait`: nothing to read, no room to send), inside the socket calls (`net`), inside the card or
+the install (`disk`, and the slowest single call), bytes per socket call, UI frames drawn, a gauge (a download's segments
+ahead), music on/off and, after `SITE CPU`, each core's load. An `e,` line sums the transfer (first and last 10 s, slowest
+second). Traced: FTP RETR/STOR, the web page's file up/download, downloads by URL (one connection and segments; `net` there
+is only bytes, `disk` is the install's time, `wait` the time with no segment ready).
+
+    tools/speed_tests.py --host IP [--sizes 1,16,64,256] [--only ...] [--cpu] [--label 2ds-music-on]
+    tools/speed_tests.py --host IP --server ftpd --ftp-port 5000          the same FTP tests against ftpd
+
+Tests: `ftp-up`/`ftp-down` (checked byte for byte), `ftp-null`/`ftp-zero` (NSA's `STOR /dev/null` and `RETR /dev/zero/<MB>`:
+the network alone), `ftp-small` (many small files: the cost per file), `sd` (`SITE SDBENCH <MB> [buffer KB] [PRE]`: the card
+alone, with the 256 KB stdio buffer, with the size set first, unbuffered), `web-up`/`web-down`, `url` (the PC serves a file,
+the page's install-url asks for it, the script presses X = Save; `--cia` installs instead). Results in
+`test-results/speed-<time>-<server>-<label>/`: `summary.md`, `report.html` (a chart per test: KB/s of the PC and the console,
+and each second's share of card / waiting / socket calls), CSVs of both sides and the fetched log.
+
+First run (2026-11-02, the release build on 192.168.1.141, no traces): FTP up 363-405, down 224-336 KB/s; 20 files of 128 KB
+took ~626 ms each up and ~494 ms down, so most of a small file's time is fixed cost per file.
+
 ## What the owner asked for (the direction)
 
 The look is right, but navigation still feels like FBI: lists, Select for options,

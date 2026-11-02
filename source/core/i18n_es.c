@@ -323,7 +323,7 @@ const i18n_entry i18n_es[] = {
         {"Installing ticket(s)", "Instalando tickets"},
         {"Failed to install ticket.", "No se ha podido instalar el ticket."},
         {"Install finished.", "Instalación terminada."},
-        {"Save keeps the files in /cias/ to install later.", "Guardar deja los archivos en /cias/ para instalarlos después."},
+        {"Save keeps the files in /nsa/received/ to install later.", "Guardar deja los archivos en /nsa/received/ para instalarlos después."},
         {"Saved in %s", "Guardado en %s"},
         {"%lu files saved in %s", "%lu archivos guardados en %s"},
         {"Saved: %lu\nFailed: %lu\nSkipped: %lu", "Guardados: %lu\nFallidos: %lu\nOmitidos: %lu"},

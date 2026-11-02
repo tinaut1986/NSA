@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""A stand-in for the other console, to test NSA's console to console transfer (protocol 5,
+"""A stand-in for the other console, to test NSA's console to console transfer (protocol 6,
 see docs/PLAN.md, "Console to console") against Azahar or a console, with no second console.
 
   fake_peer.py send HOST FILE        send a file to NSA's Receive (HOST: 127.0.0.1 for Azahar)
   fake_peer.py title HOST MB         send a made-up title package of about MB megabytes
+  fake_peer.py folder HOST DIR       send a folder (its files and subfolders) as a folder transfer
   fake_peer.py receive               be the receiver: answers probes and takes one transfer
                                      (list 127.0.0.1 in /nsa/peers.txt of the sender)
 
@@ -18,7 +19,7 @@ PORT = 5002
 
 
 def hello(name, size, check, kind, head):
-    return (b'NSAT' + struct.pack('>I', 5) + b'fake peer'.ljust(32, b'\0') + name.ljust(256, b'\0')
+    return (b'NSAT' + struct.pack('>I', 6) + b'fake peer'.ljust(32, b'\0') + name.ljust(256, b'\0')
             + struct.pack('>IIIII', size >> 32, size & 0xFFFFFFFF, check, kind, head))
 
 
@@ -28,6 +29,36 @@ def package(mb):
     for i, c in enumerate(contents):
         head += struct.pack('>IHHQ', i, i, 1, len(c))
     return head, contents
+
+
+def manifest(entries):
+    """entries: (is_dir, path, size). The folder's list, as foldermanifest.h says."""
+    out = b'NSAF' + struct.pack('>I', len(entries))
+    for is_dir, path, size in entries:
+        raw = path.encode()
+        out += struct.pack('>BH', 0 if is_dir else 1, len(raw)) + raw + struct.pack('>Q', 0 if is_dir else size)
+    return out
+
+
+def folder_package(items):
+    """items: (path, bytes) for a file, (path, None) for a folder. Returns what send() needs:
+    payload, segments, head and check."""
+    head = manifest([(data is None, path, len(data or b'')) for path, data in items])
+    files = [data for _, data in items if data is not None]
+    return head + b''.join(files), [len(head)] + [len(f) for f in files], len(head), zlib.crc32(head[:4096])
+
+
+def folder_items(root):
+    items = []
+    for base, dirs, names in os.walk(root):
+        rel = os.path.relpath(base, root).replace(os.sep, '/')
+        prefix = '' if rel == '.' else rel + '/'
+        for d in sorted(dirs):
+            items.append((prefix + d, None))
+        for n in sorted(names):
+            with open(os.path.join(base, n), 'rb') as f:
+                items.append((prefix + n, f.read()))
+    return items
 
 
 def chunks(segments, start, keep_first):
@@ -50,7 +81,7 @@ def send(host, payload, segments, name, check, kind, head, drop):
     print('answer', status, 'from byte', start)
     if status != 1:
         return
-    todo = chunks(segments, start, kind == 1 and start > 0)
+    todo = chunks(segments, start, kind != 0 and start > 0)
     limit = int(len(todo) * drop) if drop else len(todo)
     lock, nxt = threading.Lock(), [0]
 
@@ -175,6 +206,9 @@ def main():
         payload = head + b''.join(contents)
         send(args[1], payload, [len(head)] + [len(c) for c in contents], b'Fake [0004000000123456] v1.cia',
              zlib.crc32(head[:4096]) & 0xFFFFFFFF, 1, len(head), drop)
+    elif args[0] == 'folder':
+        payload, segments, head, check = folder_package(folder_items(args[2]))
+        send(args[1], payload, segments, os.path.basename(os.path.abspath(args[2])).encode(), check & 0xFFFFFFFF, 2, head, drop)
     else:
         print(__doc__)
 

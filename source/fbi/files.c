@@ -621,6 +621,11 @@ static void files_send(void* data) {
     transfer_send_file(info->archive, info->path, info->name, info->size);
 }
 
+static void files_send_dir(void* data) {
+    file_info* info = (file_info*) ((files_data*) data)->actionSelected->data;
+    transfer_send_folder(info->archive, info->path, info->name);
+}
+
 static void files_open_text(void* data) {
     file_info* info = (file_info*) ((files_data*) data)->actionSelected->data;
     textview_open(info->archive, info->path, info->name, false);
@@ -769,6 +774,7 @@ static void files_dir_actions_open(files_data* data, linked_list* items, list_it
 
     sheet_action actions[] = {
             {ICON_FOLDER, _("Open"), false, files_open_dir},
+            {ICON_3DS, _("Send to another 3DS"), false, files_send_dir},
             {ICON_COPY, _("Copy folder"), false, files_copy},
             {ICON_COPY, _("Copy contents"), false, files_copy_contents},
             {ICON_SCISSORS, _("Cut folder (move)"), false, files_cut},
@@ -822,6 +828,7 @@ static void files_folder_actions_open(files_data* data, linked_list* items) {
 
     actions[count++] = (sheet_action) {ICON_COPY, _("Copy contents"), false, files_copy_contents};
     if(!root) {
+        actions[count++] = (sheet_action) {ICON_3DS, _("Send to another 3DS"), false, files_send_dir};
         actions[count++] = (sheet_action) {ICON_COPY, _("Copy folder"), false, files_copy};
         actions[count++] = (sheet_action) {ICON_SCISSORS, _("Cut folder (move)"), false, files_cut};
         actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename folder"), false, files_rename};

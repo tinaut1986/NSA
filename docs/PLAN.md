@@ -155,6 +155,12 @@ What `release` holds, in the order it was built:
 - [ ] Titles sheet -> Save data / Extra data / SpotPass data (`feat/save-manager`): the list shows the backups (readable in night mode), *Back up now* adds one at the top, restoring asks in red, deleting asks and removes it (a folder holding save and extra data keeps the other); the same from the page.
 - [ ] The redesigned page (`feat/web-ux`): Settings from the page change the console at once (theme, accent, night, language, sounds, music and volumes) and stay after a restart; dragging rows onto folders and breadcrumbs moves them; dropping a folder from the PC uploads the tree; *Install a CIA from this PC*; how the titles list feels with many titles on a real console.
 
+**Sending folders** (`feat/send-folders`; code in `transferfolder.c` and `foldermanifest.c`; `tests/foldermanifest_test.c` on the host and `tools/console_tests.py --only send_folder` (10 tests: clean, name taken, cuts on both sides, write and read failures, 250 small files, no files, unsafe paths, another destination) pass on the New 3DS XL <-> 2DS over the Wi-Fi; the owner has not tried it by hand)
+- [ ] Files -> a folder's ⋯ (or the open folder's sheet) -> *Send to another 3DS*: a small folder (a few files, subfolders, an empty file, an empty subfolder) arrives in `sdmc:/nsa/received/<name>/` with the same tree; the receiver is asked *Save* / *Reject* and picks the destination folder.
+- [ ] A folder with several CIAs (hundreds of MB): speed like a single file, nothing duplicated on the sender's card; cancel with B on each side; a name that already exists arrives as `<name> (2)`.
+- [ ] A cut transfer of a folder goes on from where it stopped (the `<name>.part` folder and `.part.pos` stay on the receiver); an empty folder and one with only empty subfolders are refused by the sender ("no files"); a folder with thousands of small files.
+- [ ] Wi-Fi and the local wireless (no router); an older NSA (protocol 5) on the other console must refuse cleanly.
+
 **Saves, extra data and SpotPass data** (item 3b; code in `source/fbi/action/savetransfer.c`; none of it tried on a console)
 - [ ] Export a save (Titles sheet) to `sdmc:/nsa/saves/<TITLEID>/<date>/save/` with `manifest.txt` (`source=NSA`): with subfolders, an empty save, a big one; cancel with B midway.
 - [ ] Same for extra data (`ext/`; fixed file layout) and for SpotPass data (`boss/`; the BOSS archive may refuse to create files or be emptied).
@@ -351,11 +357,22 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
   name; `/nsa/peers.txt` lists addresses to ask directly, one per line). Nearby: UDS
   beacons (below).
 - Control connection (TCP 5002, or the UDS stream): the sender sends a 316 byte hello
-  (protocol 5: magic, version, sender name, file name, size, `check` = CRC-32 of the first
-  4 KB of the file or of a package's header, `kind` 0 file / 1 title package, `head` = the
-  package header's size). The receiver asks its user (Allow, then Install now / Save /
+  (protocol 6: magic, version, sender name, file name, size, `check` = CRC-32 of the first
+  4 KB of the file or of a package's header, `kind` 0 file / 1 title package / 2 folder, `head` = the
+  package header's or folder manifest's size). The receiver asks its user (Allow, then Install now / Save /
   Reject; Install only for a CIA; Save opens a folder picker starting in `sdmc:/nsa/received/`)
   and answers 13 bytes: status, the byte to go on from, a transfer number.
+- A **folder** (kind 2) is one payload: the manifest (`foldermanifest.h`: every path relative to the folder,
+  type and size) and then each file's bytes in that order, one segment per file, so the chunks, the
+  resume (`prefix`) and the connections are the same as for a file. The sender reads files as chunks ask;
+  the receiver keeps the manifest chunks, parses and checks them (`folder_path_ok`: no `..`, no leading
+  slash, no `:`), makes the folders and writes each chunk into `nsa/tmp/<name>.part/<path>` (a file's bytes
+  wait, up to 60 s, for the manifest; `nsa/tmp/` is only NSA's, so clearing an old `.part` there never
+  touches the user's folders), makes the empty files at the end and moves the folder to the chosen one
+  (`<name>`, or `<name> (2)`... when it exists). Plain files still keep their `.part` in the chosen
+  folder: moving them to `nsa/tmp/` too is the next change. This is why
+  **no copy of the folder is made on the sender's card**. The same manifest will carry the original SD
+  paths for issue #24 (keep the original path).
 - Data: the payload is cut in chunks of 256 KB. Over the Wi-Fi four TCP connections (the
   control one and three more that quote the transfer number) carry chunks, each taken by
   whichever is free; a record is offset (8), length (4), bytes; a connection ends with a

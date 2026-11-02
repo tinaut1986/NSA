@@ -12,7 +12,7 @@ endif
 
 BUILD := build
 
-TESTS := update_manifest_test relstream_test
+TESTS := update_manifest_test relstream_test foldermanifest_test
 
 .PHONY: all clean
 all: $(addprefix $(BUILD)/,$(TESTS))
@@ -25,6 +25,10 @@ $(BUILD)/update_manifest_test: update_manifest_test.c ../source/fbi/update_manif
 $(BUILD)/relstream_test: relstream_test.c ../source/fbi/relstream.c ../source/fbi/relstream.h
 	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -o $@ relstream_test.c ../source/fbi/relstream.c
+
+$(BUILD)/foldermanifest_test: foldermanifest_test.c ../source/fbi/foldermanifest.c ../source/fbi/foldermanifest.h
+	@mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -o $@ foldermanifest_test.c ../source/fbi/foldermanifest.c
 
 clean:
 	rm -rf $(BUILD)

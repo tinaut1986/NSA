@@ -514,6 +514,23 @@ static void selftest_send_file(const char* path, char* reply, size_t size) {
     snprintf(reply, size, "200 Sending %s (%llu bytes).", path, fileSize);
 }
 
+static void selftest_send_dir(const char* path, char* reply, size_t size) {
+    if(selftest_sd == 0 && R_FAILED(FSUSER_OpenArchive(&selftest_sd, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
+        selftest_sd = 0;
+        snprintf(reply, size, "451 Could not open the SD card.");
+        return;
+    }
+
+    if(!fs_is_dir(selftest_sd, path)) {
+        snprintf(reply, size, "451 %s is not a folder.", path);
+        return;
+    }
+
+    const char* name = strrchr(path, '/');
+    transfer_send_folder(selftest_sd, path, name != NULL ? name + 1 : path);
+    snprintf(reply, size, "200 Sending the folder %s.", path);
+}
+
 #endif
 
 void selftest_run(const char* command, char* reply, size_t size) {
@@ -557,11 +574,18 @@ void selftest_run(const char* command, char* reply, size_t size) {
         }
 
         selftest_send_file(args, reply, size);
+    } else if(strcmp(verb, "SENDDIR") == 0) {
+        if(*args == ' ') {
+            snprintf(reply, size, "501 SITE TEST SENDDIR <folder on the SD card>");
+            return;
+        }
+
+        selftest_send_dir(args, reply, size);
     } else if(strcmp(verb, "RECEIVE") == 0) {
         transfer_receive_open();
         snprintf(reply, size, "200 Receiving.");
     } else {
-        snprintf(reply, size, "504 SITE TEST UI|TITLES|EXPORT|SENDTITLE|SEND|RECEIVE");
+        snprintf(reply, size, "504 SITE TEST UI|TITLES|EXPORT|SENDTITLE|SEND|SENDDIR|RECEIVE");
     }
 #else
     (void) command;

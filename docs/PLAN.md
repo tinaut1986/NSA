@@ -369,8 +369,10 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
   slash, no `:`), makes the folders and writes each chunk into `nsa/tmp/<name>.part/<path>` (a file's bytes
   wait, up to 60 s, for the manifest; `nsa/tmp/` is only NSA's, so clearing an old `.part` there never
   touches the user's folders), makes the empty files at the end and moves the folder to the chosen one
-  (`<name>`, or `<name> (2)`... when it exists). Plain files still keep their `.part` in the chosen
-  folder: moving them to `nsa/tmp/` too is the next change. This is why
+  (`<name>`, or `<name> (2)`... when it exists). Files and title packages do the same
+  (`feat/tmp-for-files`): their `<name>.part` and `<name>.part.pos` are in `nsa/tmp/` too, and the file is
+  moved to the chosen folder when whole. A `.part` that an older build left in another folder is not
+  resumed (it is only a leftover to delete). This is why
   **no copy of the folder is made on the sender's card**. The same manifest will carry the original SD
   paths for issue #24 (keep the original path).
 - Data: the payload is cut in chunks of 256 KB. Over the Wi-Fi four TCP connections (the

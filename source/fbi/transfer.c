@@ -27,8 +27,9 @@
 
 #define TRANSFER_NAME_MAX 32
 #define TRANSFER_RECEIVED_DIR APP_DATA_DIR "received/"
-// What arrives as a folder is built here (<name>.part, and <name>.part.pos beside it) and moved
-// to the chosen folder when it is whole: only NSA touches this one.
+// What arrives (a file, a title package or a folder) is built here, as <name>.part with
+// <name>.part.pos beside it, and moved to the chosen folder when it is whole: only NSA touches
+// this one, so a transfer never leaves half a file among the user's.
 #define TRANSFER_TMP_DIR APP_DATA_DIR "tmp/"
 
 // A transfer cut off in the middle can go on from the last place the receiver
@@ -1799,9 +1800,9 @@ static void transfer_receive_start(transfer_receive_data* data) {
         }
     }
 
-    // A folder is built in NSA's own tmp folder, wherever it is going to end up.
-    const char* partDir = data->kind == TRANSFER_KIND_FOLDER ? TRANSFER_TMP_DIR : data->dir;
-    if(R_SUCCEEDED(res) && data->kind == TRANSFER_KIND_FOLDER) {
+    // Built in NSA's own tmp folder, wherever it is going to end up.
+    const char* partDir = TRANSFER_TMP_DIR;
+    if(R_SUCCEEDED(res)) {
         res = fs_ensure_dir(sd, APP_DATA_DIR);
         if(R_SUCCEEDED(res)) {
             res = fs_ensure_dir(sd, TRANSFER_TMP_DIR);

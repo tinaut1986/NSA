@@ -496,6 +496,36 @@ and each second's share of card / waiting / socket calls), CSVs of both sides an
 First run (2026-11-02, the release build on 192.168.1.141, no traces): FTP up 363-405, down 224-336 KB/s; 20 files of 128 KB
 took ~626 ms each up and ~494 ms down, so most of a small file's time is fixed cost per file.
 
+Full battery, 2026-11-02 evening, both consoles on the LAN Wi-Fi, this branch's DEBUG build (`test-results/speed-20261102-*`),
+KB/s from the PC:
+
+| | 2DS | New 3DS XL |
+|---|---|---|
+| FTP up / down, 256 MB | 395 / 343 | 661 / 652 (16-64 MB: 624-649 / 715-728) |
+| FTP network only (`/dev/null` / `/dev/zero`), 64 MB | 389 / 374 | 851 / 875 |
+| Web page up / down, 256 MB | 360 / 323 | 731 / 766 |
+| URL download, 64 MB, 8 connections | 559 | 1223 |
+| 100 files of 256 KB, up / down (per file) | 1750 / 957 ms | 480 / 466 ms |
+| Card alone (SDBENCH 256 MB, 256 KB buffer): write / read; size set first; unbuffered | 3926 / 7693; 5502; 2058 | 4105 / 9547; 5190; 2570 |
+| Slowest card write (growing / size set first) | 1444 / 789 ms | 143 / 128 ms |
+
+What the traces say:
+- **No CPU limit**: the counting threads saw the cores ~3% busy on the New 3DS, ~15% (core 0) on the 2DS. The FTP and web
+  threads wait for the network 62-85% of each second (uploads: nothing to read; downloads on the 2DS: ~65% inside `send()`).
+  Each `recv()` brings ~2.9 KB on the New 3DS, ~6 KB on the 2DS: the data trickles in; the console drains it as it comes.
+- **Not the card** for big files: the network alone is as fast (2DS) or only a little faster (New 3DS: 850-900 against
+  620-730 with the card). One TCP connection is the limit: the URL download with 8 connections doubled it (1223 KB/s on the
+  New 3DS, which is the "~1 MB/s" of the report and normal there).
+- **The fall from 800+ to ~500 KB/s on a 256 MB file** shows in the network-only test too (`/dev/null`, 256 MB on the New 3DS:
+  30 s averages 826 -> 396-640 -> 950, with 42 seconds under 200 KB/s in which the thread waited ~1000 ms with nothing coming
+  and the card idle): the Wi-Fi delivered less, not NSA.
+- **Small files on the 2DS**: the first ~40 uploads spent ~65 ms each in the card; from the 45th on, ~1.47 s each (writing
+  and closing 256 KB), steadily; music off, CPU idle. On the New 3DS 480 ms a file. To compare with ftpd on the same console.
+- Candidate fixes, to measure afterwards with the same battery: set the file's size first on uploads (FTP `ALLO`, the web
+  page's length: +40% card speed, slowest write halved on the 2DS); and, under the owner's rule of **one transfer at a time**
+  (control stays free; the web page browses and shows the transfer, its live screens pause), a short blocking `poll()` for
+  the transfer that holds the turn instead of the naps. Next: the same FTP tests against ftpd-EX on both consoles.
+
 ## What the owner asked for (the direction)
 
 The look is right, but navigation still feels like FBI: lists, Select for options,

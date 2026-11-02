@@ -49,12 +49,29 @@ SendUserFile; installing it on a console still waits for them to ask (they usual
 - `release`: the working line; `master`: stable (only moves by merging `release`).
 - `advanced`: the risky tools (Dump NAND, Pending titles, System save data, Advanced's red look). Merge `release`
   into it after changing `release` (`git merge release`), and the owner's call decides when it goes into `release`.
-- DEBUG builds for the owner's consoles: **`make DEBUG=1 VERSION_MICRO=0`** (after a `make clean`). Since the v0.6.0
-  tag `tools/version.sh` gives 0.6, so that is title version **0.6.0**: above the 0.5.15 the consoles hold, the same as the
-  beta. **Never `VERSION_MICRO=15` any more**: it would make 0.6.15 and burn the whole 0.6.x line (the micro version is
-  4 bits, max 15). `SITE INSTALL` and the web page's install take the **same** version (`AM_StartCiaInstallOverwrite`;
-  only HOME's icon, banner and sound stay old); a lower one is refused (D8E08027). See `docs/PLAN.md`, Decisions,
-  "Updating a console".
+- DEBUG builds for the owner's consoles: build with the **micro version of the latest tag** (after a `make clean`):
+  `tools/version.sh` gives that tag's major and minor, so after `v0.6.1` that is `make DEBUG=1 VERSION_MICRO=1` (title
+  0.6.1, what the consoles hold once they update). `SITE INSTALL` and the web page's install take the **same** version
+  (`AM_StartCiaInstallOverwrite`; only HOME's icon, banner and sound stay old); a lower one is refused (D8E08027). **Never
+  go above it** (and never 15): the micro version is 4 bits and a console that holds a higher one refuses the next releases.
+  Check first (`/api/titles`, id `000400000FB1A000`). A console on a release build needs `sdmc:/nsa/remote.flag` (an
+  FTP upload works without it) for `SITE INSTALL`; delete it afterwards. See `docs/PLAN.md`, Decisions, "Updating a console"
+
+## Build
+
+```sh
+export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM
+git submodule update --init          # buildtools
+make -j"$(nproc)" DEBUG=1            # output/3ds-arm/NSA.cia and 3ds/NSA/NSA.3dsx
+make -C tests                        # host tests (needs libjansson-dev)
+```
+
+`DEBUG=1` starts the FTP server with NSA and shows DEBUG next to the version; the
+version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in `tools/bin/`.
+`make` does not rebuild on a version or `DEBUG` change: `make clean` first.
+
+## Interface
+
 - `source/core/theme.c`: themes (palettes for day and night, radii, borders, menu layout),
   accent colours and night mode. Widgets (`source/core/ui/widgets.c`) draw everything
   through the theme; never hard-code a colour in a screen.

@@ -653,6 +653,7 @@ const i18n_entry i18n_es[] = {
         {"and %lu more", "y %lu más"},
         {"\uE000 install   \uE001 back", "\uE000 instalar   \uE001 volver"},
         {"Install from the selected request?", "¿Instalar desde la petición elegida?"},
+        {"Install from the URL(s) sent from the web page?", "¿Instalar desde las URL enviadas desde la página web?"},
         // Installing from URLs
         {"Installing", "Instalando"},
         {"From %s", "Desde %s"},

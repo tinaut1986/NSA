@@ -23,6 +23,10 @@
 #define CONN_END_OFFSET 0xFFFFFFFFFFFFFFFFULL
 #define CONN_HELLO_TIMEOUT 5000
 #define TRANSFER_PENDING_MAX 8
+// A chunk's bytes go in slices of this, each counted as it moves: counted whole
+// chunks of 256 KB, four connections at ~125 KB/s each finished a chunk every
+// two seconds, and the speed on screen jumped between 0 and twice the real one.
+#define CONN_SLICE (32 * 1024)
 
 static void conn_put32(u8* out, u32 value) {
     out[0] = (u8) (value >> 24);
@@ -291,12 +295,19 @@ static void sender_worker(void* arg) {
         conn_put32(record + 8, chunk->len);
 
         if(R_SUCCEEDED(res = s->read(s->user, chunk, buffer))
-           && R_SUCCEEDED(res = transfer_link_io(&link, true, record, sizeof(record), 0, &s->stop))
-           && R_SUCCEEDED(res = transfer_link_io(&link, true, buffer, chunk->len, 0, &s->stop))) {
-            LightLock_Lock(&s->lock);
-            s->sent += chunk->len;
-            LightLock_Unlock(&s->lock);
+           && R_SUCCEEDED(res = transfer_link_io(&link, true, record, sizeof(record), 0, &s->stop))) {
+            for(u32 done = 0; done < chunk->len && R_SUCCEEDED(res); ) {
+                u32 slice = chunk->len - done > CONN_SLICE ? CONN_SLICE : chunk->len - done;
+                if(R_SUCCEEDED(res = transfer_link_io(&link, true, buffer + done, slice, 0, &s->stop))) {
+                    done += slice;
+                    LightLock_Lock(&s->lock);
+                    s->sent += slice;
+                    LightLock_Unlock(&s->lock);
+                }
+            }
+        }
 
+        if(R_SUCCEEDED(res)) {
             // As if the network dropped: the connection goes, the transfer fails.
             if(selftest_fault("send.chunk")) {
                 res = R_APP_IO_ERROR;
@@ -437,7 +448,8 @@ struct transfer_receiver {
     LightLock lock;
     volatile bool stop;
     Result result;
-    u64 received;
+    u64 received;   // Written, for `complete`.
+    u64 arrived;    // Come in so far (slices of chunks not yet written too), for the progress.
     bool complete;
     u32 running;
     u32 used;
@@ -502,7 +514,17 @@ static void receiver_worker(void* arg) {
             break;
         }
 
-        if(R_FAILED(res = transfer_link_io(&link, false, buffer, len, 0, &r->stop))) {
+        for(u32 done = 0; done < len && R_SUCCEEDED(res); ) {
+            u32 slice = len - done > CONN_SLICE ? CONN_SLICE : len - done;
+            if(R_SUCCEEDED(res = transfer_link_io(&link, false, buffer + done, slice, 0, &r->stop))) {
+                done += slice;
+                LightLock_Lock(&r->lock);
+                r->arrived += slice;
+                LightLock_Unlock(&r->lock);
+            }
+        }
+
+        if(R_FAILED(res)) {
             if(res != R_APP_CANCELLED) {
                 udslink_log("receiver: connection %u lost the data of the chunk at %llu: %08lX\n", slot, offset, res);
             }
@@ -695,7 +717,7 @@ bool transfer_receiver_progress(transfer_receiver* r, u64* received, Result* res
     }
 
     LightLock_Lock(&r->lock);
-    *received = r->received;
+    *received = r->complete || r->arrived < r->received ? r->received : r->arrived;
     bool idle = false;
     if(r->running == 0 && !r->complete && !pending) {
         if(r->idleSince == 0) {

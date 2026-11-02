@@ -183,7 +183,7 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
 - [ ] The 2DS stays smooth during a download and an FTP transfer (menus, music; FTP threads now on the app core).
 - [ ] Remote Install's confirmation (QR, typed URL, history, received URLs, the web page's install from URL): Install /
-      **Save** / Cancel. Save downloads the file to `sdmc:/cias/` as it is (name from the URL, decoded; an extension from
+      **Save** / Cancel. Save downloads the file to `sdmc:/nsa/received/` (with what comes from another 3DS; not the SD root, which is the owner's) as it is (name from the URL, decoded; an extension from
       the content when it has none; a name in use gets " (2)"), with the same progress, connections and errors (issue #22).
       Azahar: two saves of a 100 MB CIA byte for byte, Install unchanged. 2DS (2026-11-02): a 100 MB save from the web
       page at 557 KB/s, byte for byte. Left: a QR and a typed URL on a console.

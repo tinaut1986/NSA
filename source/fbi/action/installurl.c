@@ -16,8 +16,9 @@ typedef enum content_type_e {
     CONTENT_SAVED      // "Save": the file goes to INSTALL_URL_SAVE_DIR as it is, nothing is installed.
 } content_type;
 
-// Where "Save" keeps the downloads, to install later from Files.
-#define INSTALL_URL_SAVE_DIR "/cias/"
+// Where "Save" keeps the downloads, to install later from Files: with what arrives from another 3DS, as the SD
+// card's root is the owner's.
+#define INSTALL_URL_SAVE_DIR APP_DATA_DIR "received/"
 
 
 // What became of each URL, for the list on the install screen.
@@ -168,7 +169,7 @@ static Result action_install_url_open_save(install_url_data* installData, u32 in
         return res;
     }
 
-    if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, INSTALL_URL_SAVE_DIR))) {
+    if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR)) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, INSTALL_URL_SAVE_DIR))) {
         char base[FILE_NAME_MAX];
         string_get_file_name(base, name, sizeof(base));
         const char* ext = strlen(base) < strlen(name) ? name + strlen(base) : "";
@@ -724,6 +725,6 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
     static const char* options[3] = {"Install", "Save", "Cancel"};
     static u32 buttons[3] = {KEY_A, KEY_X, KEY_B};
     char text[512];
-    snprintf(text, sizeof(text), "%s\n%s", i18n_translate_text(confirmMessage), _("Save keeps the files in /cias/ to install later."));
+    snprintf(text, sizeof(text), "%s\n%s", i18n_translate_text(confirmMessage), _("Save keeps the files in /nsa/received/ to install later."));
     prompt_display_multi_choice("Confirmation", text, COLOR_TEXT, options, buttons, 3, data, action_install_url_draw_top, action_install_url_confirm_onresponse);
 }

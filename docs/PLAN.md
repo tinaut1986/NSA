@@ -15,7 +15,8 @@ start. Merged topic branches are kept on the remote and can be deleted.
 | `release` | The working line. Holds everything below, but "Advanced". |
 | `advanced` | **The risky tools**: Dump NAND as its own screen (space, progress, SHA-256 and a `.sha256`), Pending titles and System save data on the Titles pattern, Advanced's red look. Cut from `release` on 2026-10-31; the owner wants what is about the console's own data merged there first. Keep `release` merged into it (`git merge release`). |
 | `master` | Stable. Moves only by merging `release`. |
-| tag `v0.6.0` | **Beta**, published 2026-11-02 (notes: `docs/release-notes/v0.6.0.md`): download, FTP and web speed (issue #21), titles cache, System details, row chevrons. Not in `master` yet. |
+| tag `v0.6.1` | **Stable**, published 2026-11-02 (notes: `docs/release-notes/v0.6.1.md`): v0.6.0 plus Remote Install's Save (issue #22). |
+| tag `v0.6.0` | **Beta**, published 2026-11-02 (notes: `docs/release-notes/v0.6.0.md`): download, FTP and web speed (issue #21), titles cache, System details, row chevrons. Promoted with v0.6.1. |
 | tag `v0.4.1` | **Stable**, published 2026-10-31 (notes: `docs/release-notes/v0.4.1.md`). `v0.4.0` (stable the same day) and `v0.3.0` came before; `v0.1.0` and `v0.2.0` were betas. |
 
 What `release` holds, in the order it was built:

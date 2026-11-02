@@ -618,12 +618,12 @@ static void files_copy(void* data) { files_copy_item(data, false); }
 static void files_copy_contents(void* data) { files_copy_item(data, true); }
 static void files_send(void* data) {
     file_info* info = (file_info*) ((files_data*) data)->actionSelected->data;
-    transfer_send_file(info->archive, info->path, info->name, info->size);
+    transfer_send_file(info->archive, info->path, info->name, info->size, ((files_data*) data)->archiveId == ARCHIVE_SDMC ? info->path : NULL);
 }
 
 static void files_send_dir(void* data) {
     file_info* info = (file_info*) ((files_data*) data)->actionSelected->data;
-    transfer_send_folder(info->archive, info->path, info->name);
+    transfer_send_folder(info->archive, info->path, info->name, ((files_data*) data)->archiveId == ARCHIVE_SDMC ? info->path : NULL);
 }
 
 static void files_open_text(void* data) {

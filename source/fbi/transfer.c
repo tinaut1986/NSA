@@ -18,6 +18,7 @@
 #include "transfer.h"
 #include "transferconn.h"
 #include "transferfolder.h"
+#include "foldermanifest.h"
 #include "udslink.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -39,7 +40,7 @@
 // The receiver writes that place down after this many more bytes.
 #define TRANSFER_POSITION_EVERY (4 * 1024 * 1024)
 #define TRANSFER_CHECK_BYTES 4096
-#define TRANSFER_PROTOCOL 6
+#define TRANSFER_PROTOCOL 7
 
 // What the bytes after the hello are.
 #define TRANSFER_KIND_FILE 0
@@ -66,11 +67,18 @@
 #define TRANSFER_PROBE_INTERVAL 2000
 #define TRANSFER_HELLO_TIMEOUT 5000
 
+// What to do with files that already exist where the original path puts them.
+#define TRANSFER_OVERWRITE_ASK 0
+#define TRANSFER_OVERWRITE_ALL 1
+#define TRANSFER_OVERWRITE_SKIP 2
+
 static const char TRANSFER_MAGIC[4] = {'N', 'S', 'A', 'T'};
 static const char TRANSFER_PROBE[4] = {'N', 'S', 'A', '?'};
 static const char TRANSFER_ANSWER[4] = {'N', 'S', 'A', '!'};
 
-// What a sender says first. Numbers are big endian; 316 bytes, no padding.
+// What a sender says first. Numbers are big endian; 828 bytes, no padding. For a folder, the
+// manifest (`head` bytes) follows at once, before the receiver answers, so that it can say what
+// would be overwritten when the user chooses the original path.
 // `check` is the CRC-32 of the file's first 4 KB (of a title package's header):
 // it tells the receiver that a partial file it has is the same one. `head` is the
 // size of that header, which is sent again when a transfer goes on.
@@ -84,9 +92,14 @@ typedef struct {
     u32 check;
     u32 kind;
     u32 head;
+    char origin[FILE_PATH_MAX];   // Where it was on the sender's SD card ("" when it was not there): the file's path, or the folder's.
 } transfer_hello;
 
 // ---- shared ----
+
+u32 transfer_protocol() {
+    return TRANSFER_PROTOCOL;
+}
 
 static const char* transfer_model_name(u8 model) {
     switch(model) {
@@ -214,6 +227,7 @@ typedef struct {
     u64 size;
     export_cia_data* stream;   // A title to send as a package, instead of a file.
     transfer_folder_send* folder;   // A folder to send, instead of a file.
+    char origin[FILE_PATH_MAX];   // Where it is on the SD card ("" when it is not there).
 
     int udp;
     u64 lastProbe;
@@ -244,6 +258,7 @@ typedef struct {
     u64 size;
     export_cia_data* stream;   // Owned by the list.
     transfer_folder_send* folder;   // Owned by the list.
+    char origin[FILE_PATH_MAX];
 
     char peerName[TRANSFER_NAME_MAX + 1];
     struct in_addr addr;
@@ -642,8 +657,16 @@ static bool transfer_send_connect(transfer_send_session* session) {
     hello.check = htonl(session->check);
     hello.kind = htonl(session->folder != NULL ? TRANSFER_KIND_FOLDER : session->stream != NULL ? TRANSFER_KIND_TITLE : TRANSFER_KIND_FILE);
     hello.head = htonl(session->head);
+    string_copy(hello.origin, session->origin, sizeof(hello.origin));
 
     Result res = transfer_link_io(&session->link, true, &hello, sizeof(hello), 0, NULL);
+    if(R_SUCCEEDED(res) && session->folder != NULL) {
+        // The list of files goes first, so that the receiver can say what it would overwrite.
+        u32 manifestSize = 0;
+        const u8* manifest = transfer_folder_send_manifest(session->folder, &manifestSize);
+        res = transfer_link_io(&session->link, true, (void*) manifest, manifestSize, 0, NULL);
+    }
+
     if(R_FAILED(res)) {
         error_display_res(NULL, NULL, res, "Could not connect to the other console.");
         return false;
@@ -666,6 +689,7 @@ static void transfer_send_to(transfer_send_data* source, const transfer_peer* pe
     session->size = source->size;
     session->stream = source->stream;
     session->folder = source->folder;
+    string_copy(session->origin, source->origin, sizeof(session->origin));
     if(source->folder != NULL) {
         u32 manifestSize = 0;
         const u8* manifest = transfer_folder_send_manifest(source->folder, &manifestSize);
@@ -1087,7 +1111,7 @@ static void transfer_send_tool_press(ui_view* view, void* data) {
     ((transfer_send_data*) data)->toggleRequested = true;
 }
 
-static void transfer_send_begin(FS_Archive archive, const char* path, const char* name, u64 size, export_cia_data* stream, transfer_folder_send* folder) {
+static void transfer_send_begin(FS_Archive archive, const char* path, const char* name, u64 size, export_cia_data* stream, transfer_folder_send* folder, const char* origin) {
     if(size == 0) {
         prompt_display_notify("Failure", "The file is empty.", COLOR_TEXT, NULL, NULL, NULL);
         transfer_folder_send_free(folder);
@@ -1108,6 +1132,7 @@ static void transfer_send_begin(FS_Archive archive, const char* path, const char
 
     data->stream = stream;
     data->folder = folder;
+    string_copy(data->origin, origin != NULL ? origin : "", sizeof(data->origin));
 
     data->archive = archive;
     string_copy(data->path, path, sizeof(data->path));
@@ -1159,11 +1184,11 @@ static void transfer_send_begin(FS_Archive archive, const char* path, const char
     list_add_tool(view, ICON_WIFI_OFF, transfer_send_tool_active, transfer_send_tool_press);
 }
 
-void transfer_send_file(FS_Archive archive, const char* path, const char* name, u64 size) {
-    transfer_send_begin(archive, path, name, size, NULL, NULL);
+void transfer_send_file(FS_Archive archive, const char* path, const char* name, u64 size, const char* origin) {
+    transfer_send_begin(archive, path, name, size, NULL, NULL, origin);
 }
 
-void transfer_send_folder(FS_Archive archive, const char* path, const char* name) {
+void transfer_send_folder(FS_Archive archive, const char* path, const char* name, const char* origin) {
     transfer_folder_send* folder = NULL;
     Result res = transfer_folder_send_scan(&folder, archive, path);
     if(R_FAILED(res)) {
@@ -1182,11 +1207,19 @@ void transfer_send_folder(FS_Archive archive, const char* path, const char* name
         return;
     }
 
-    transfer_send_begin(archive, path, name, transfer_folder_send_total(folder), NULL, folder);
+    // The folder's own path, with no slash at the end.
+    char where[FILE_PATH_MAX];
+    string_copy(where, origin != NULL ? origin : "", sizeof(where));
+    size_t len = strlen(where);
+    while(len > 1 && where[len - 1] == '/') {
+        where[--len] = '\0';
+    }
+
+    transfer_send_begin(archive, path, name, transfer_folder_send_total(folder), NULL, folder, where);
 }
 
 void transfer_send_stream(export_cia_data* stream, const char* name, u64 size) {
-    transfer_send_begin(0, "", name, size, stream, NULL);
+    transfer_send_begin(0, "", name, size, stream, NULL, NULL);
 }
 
 // ---- receiving ----
@@ -1194,6 +1227,7 @@ void transfer_send_stream(export_cia_data* stream, const char* name, u64 size) {
 typedef enum {
     RECEIVE_IDLE,
     RECEIVE_HELLO,
+    RECEIVE_MANIFEST,
     RECEIVE_ASKING,
     RECEIVE_RECEIVING
 } transfer_receive_state;
@@ -1235,6 +1269,21 @@ typedef struct {
     u32 lastCheck;
     bool lastInstall;
     char lastDir[FILE_PATH_MAX];
+    bool lastKeepPath;
+    u32 lastOverwrite;
+
+    // The sender's original path (see transfer_hello): offered as a place to save when it is safe.
+    char origin[FILE_PATH_MAX];
+    bool offerOrigin;
+    bool keepPath;           // Chosen: the files go to `origin`, not to `dir`.
+    u32 overwrite;           // What to do with files that exist there: TRANSFER_OVERWRITE_*.
+    u8* preManifest;         // A folder's manifest as it arrives, before the question.
+    u32 preGot;
+    u64 preStart;
+    folder_layout layout;    // ... and read, to count what exists and to place the files.
+    bool haveLayout;
+    u32 existing;
+    u32 fileCount;
 
     char dir[FILE_PATH_MAX];
     char part[FILE_PATH_MAX];   // <name>.part while it arrives.
@@ -1452,6 +1501,13 @@ static void transfer_receive_reset(transfer_receive_data* data) {
     transfer_link_close(&data->client);
     data->state = RECEIVE_IDLE;
     data->got = 0;
+
+    free(data->preManifest);
+    data->preManifest = NULL;
+    if(data->haveLayout) {
+        folder_layout_free(&data->layout);
+        data->haveLayout = false;
+    }
 }
 
 // Answers the sender: 1 to go ahead from byte `offset` (and the transfer's
@@ -1653,6 +1709,185 @@ static void transfer_receive_finalize_thread(void* arg) {
     data->finalDone = true;
 }
 
+// ---- the sender's original path ----
+
+// An original path that is safe to write in: inside the SD card, with no ".." or odd characters,
+// and not inside NSA's own working folder.
+static bool transfer_origin_ok(const char* origin) {
+    size_t len = strlen(origin);
+    if(len < 2 || origin[0] != '/' || origin[len - 1] == '/' || !folder_path_ok(origin + 1)) {
+        return false;
+    }
+
+    static const char work[] = "/nsa/tmp";
+    return !(strncmp(origin, work, sizeof(work) - 1) == 0 && (origin[sizeof(work) - 1] == '/' || origin[sizeof(work) - 1] == '\0'));
+}
+
+static bool transfer_origin_join(char* out, size_t size, const char* origin, const char* rel) {
+    return (size_t) snprintf(out, size, "%s/%s", origin, rel) < size;
+}
+
+static bool transfer_path_exists(const char* path) {
+    return transfer_sd_exists(path) || fs_is_dir(transfer_sd_archive(), path);
+}
+
+// How many of the files would be overwritten at the original path.
+static void transfer_receive_count_existing(transfer_receive_data* data) {
+    data->existing = 0;
+    data->fileCount = 0;
+
+    if(data->kind == TRANSFER_KIND_FILE) {
+        data->fileCount = 1;
+        data->existing = transfer_path_exists(data->origin) ? 1 : 0;
+        return;
+    }
+
+    if(!data->haveLayout) {
+        return;
+    }
+
+    for(u32 i = 0; i < data->layout.fileCount; i++) {
+        const folder_entry* entry = &data->layout.entries[data->layout.files[i]];
+
+        char path[FILE_PATH_MAX];
+        data->fileCount++;
+        if(transfer_origin_join(path, sizeof(path), data->origin, entry->path) && transfer_path_exists(path)) {
+            data->existing++;
+        }
+    }
+}
+
+// One folder; a file in its place is an error, never deleted for it.
+static Result transfer_origin_make_dir(const char* path) {
+    if(fs_is_dir(transfer_sd_archive(), path)) {
+        return 0;
+    }
+
+    if(transfer_sd_exists(path)) {
+        return R_APP_BAD_DATA;
+    }
+
+    FS_Path* fsPath = fs_make_path_utf8(path);
+    if(fsPath == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Result res = FSUSER_CreateDirectory(transfer_sd_archive(), *fsPath, 0);
+    fs_free_path_utf8(fsPath);
+    return res;
+}
+
+// The folders above `path`.
+static Result transfer_origin_make_parents(const char* path) {
+    char copy[FILE_PATH_MAX];
+    string_copy(copy, path, sizeof(copy));
+
+    for(char* slash = strchr(copy + 1, '/'); slash != NULL; slash = strchr(slash + 1, '/')) {
+        *slash = '\0';
+        Result res = transfer_origin_make_dir(copy);
+        *slash = '/';
+
+        if(R_FAILED(res)) {
+            return res;
+        }
+    }
+
+    return 0;
+}
+
+// Moves a finished file into place. A file that is already there is replaced, or left as it is
+// when the user chose to skip the existing ones.
+static Result transfer_origin_move_file(const char* from, const char* to, u32 overwrite) {
+    Result res = transfer_origin_make_parents(to);
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    if(transfer_path_exists(to)) {
+        if(overwrite == TRANSFER_OVERWRITE_SKIP) {
+            return 0;
+        }
+
+        FS_Path* old = fs_make_path_utf8(to);
+        if(old == NULL) {
+            return R_APP_OUT_OF_MEMORY;
+        }
+
+        res = FSUSER_DeleteFile(transfer_sd_archive(), *old);   // Fails on a folder: an error, not a silent loss.
+        fs_free_path_utf8(old);
+        if(R_FAILED(res)) {
+            return res;
+        }
+    }
+
+    FS_Path* source = fs_make_path_utf8(from);
+    FS_Path* target = fs_make_path_utf8(to);
+    if(source != NULL && target != NULL) {
+        res = FSUSER_RenameFile(transfer_sd_archive(), *source, transfer_sd_archive(), *target);
+    } else {
+        res = R_APP_OUT_OF_MEMORY;
+    }
+
+    if(source != NULL) {
+        fs_free_path_utf8(source);
+    }
+
+    if(target != NULL) {
+        fs_free_path_utf8(target);
+    }
+
+    return res;
+}
+
+// The transfer is whole in nsa/tmp: puts the file, or each file of the folder, at the sender's path.
+static Result transfer_receive_place_original(transfer_receive_data* data) {
+    string_copy(data->dst, data->origin, sizeof(data->dst));
+
+    if(data->kind == TRANSFER_KIND_FILE) {
+        return transfer_origin_move_file(data->part, data->origin, data->overwrite);
+    }
+
+    if(!data->haveLayout) {
+        return R_APP_BAD_DATA;
+    }
+
+    char path[FILE_PATH_MAX];
+    if(!transfer_origin_join(path, sizeof(path), data->origin, "x")) {
+        return R_APP_OUT_OF_RANGE;
+    }
+
+    Result res = transfer_origin_make_parents(path);   // The folder itself and what is above it.
+
+    for(u32 i = 0; R_SUCCEEDED(res) && i < data->layout.count; i++) {
+        const folder_entry* entry = &data->layout.entries[i];
+
+        char dest[FILE_PATH_MAX];
+        if(!transfer_origin_join(dest, sizeof(dest), data->origin, entry->path)) {
+            res = R_APP_OUT_OF_RANGE;
+        } else if(entry->isDir) {
+            res = transfer_origin_make_dir(dest);
+        } else {
+            char source[FILE_PATH_MAX];
+            if((size_t) snprintf(source, sizeof(source), "%s/%s", data->part, entry->path) >= sizeof(source)) {
+                res = R_APP_OUT_OF_RANGE;
+            } else {
+                res = transfer_origin_move_file(source, dest, data->overwrite);
+            }
+        }
+    }
+
+    if(R_SUCCEEDED(res)) {
+        // What is left (the files that were skipped) is of no use.
+        FS_Path* left = fs_make_path_utf8(data->part);
+        if(left != NULL) {
+            FSUSER_DeleteDirectoryRecursively(transfer_sd_archive(), *left);
+            fs_free_path_utf8(left);
+        }
+    }
+
+    return res;
+}
+
 static void transfer_receive_progress_update(ui_view* view, void* data, float* progress, char* text) {
     transfer_receive_data* receive = (transfer_receive_data*) data;
 
@@ -1750,7 +1985,8 @@ static void transfer_receive_progress_update(ui_view* view, void* data, float* p
     transfer_clean_name(name, sizeof(name), receive->file);
 
     if(ok) {
-        Result renameRes = receive->kind == TRANSFER_KIND_FOLDER ? transfer_receive_finish_folder(receive, name) : transfer_receive_finish_file(receive, name);
+        Result renameRes = receive->keepPath ? transfer_receive_place_original(receive)
+                                             : receive->kind == TRANSFER_KIND_FOLDER ? transfer_receive_finish_folder(receive, name) : transfer_receive_finish_file(receive, name);
         if(R_FAILED(renameRes)) {
             ok = false;
             res = renameRes;
@@ -1828,6 +2064,8 @@ static void transfer_receive_start(transfer_receive_data* data) {
         data->lastKind = data->kind;
         data->lastCheck = data->check;
         data->lastInstall = data->install;
+        data->lastKeepPath = data->keepPath;
+        data->lastOverwrite = data->overwrite;
         string_copy(data->lastDir, data->dir, sizeof(data->lastDir));
 
         data->start = transfer_receive_resume_point(data);
@@ -2087,8 +2325,67 @@ static void transfer_receive_choose_folder(transfer_receive_data* receive) {
     list_show_title_bar(view);
 }
 
+static void transfer_receive_overwrite_onresponse(ui_view* view, void* data, u32 response) {
+    transfer_receive_data* receive = (transfer_receive_data*) data;
+
+    // Overwrite, Skip existing (folders only), Cancel.
+    u32 cancel = receive->kind == TRANSFER_KIND_FOLDER ? 2 : 1;
+    if(response == cancel) {
+        transfer_receive_answer(receive, 0, 0, 0);
+        transfer_receive_reset(receive);
+        return;
+    }
+
+    receive->overwrite = response == 0 ? TRANSFER_OVERWRITE_ALL : TRANSFER_OVERWRITE_SKIP;
+    transfer_receive_start(receive);
+}
+
+// "Original path" was chosen: it goes ahead at once, or asks first when files would be overwritten.
+static void transfer_receive_keep_path(transfer_receive_data* receive) {
+    receive->keepPath = true;
+    receive->install = false;
+    string_copy(receive->dir, TRANSFER_RECEIVED_DIR, sizeof(receive->dir));
+
+    transfer_receive_count_existing(receive);
+    if(receive->existing == 0) {
+        receive->overwrite = TRANSFER_OVERWRITE_ALL;
+        transfer_receive_start(receive);
+        return;
+    }
+
+    static const char* manyOptions[3] = {"Overwrite", "Skip existing", "Cancel"};
+    static u32 manyButtons[3] = {KEY_A, KEY_X, KEY_B};
+    static const char* oneOptions[2] = {"Overwrite", "Cancel"};
+    static u32 oneButtons[2] = {KEY_A, KEY_B};
+
+    if(receive->kind == TRANSFER_KIND_FOLDER) {
+        snprintf(receive->message, sizeof(receive->message), _("%lu of %lu files already exist in %s.\nWhat do you want to do with them?"),
+                 (unsigned long) receive->existing, (unsigned long) receive->fileCount, receive->origin);
+        prompt_display_multi_choice("Existing files", receive->message, COLOR_TEXT, manyOptions, manyButtons, 3, receive, transfer_receive_draw_top, transfer_receive_overwrite_onresponse);
+    } else {
+        snprintf(receive->message, sizeof(receive->message), _("%s already exists.\nWhat do you want to do with it?"), receive->origin);
+        prompt_display_multi_choice("Existing files", receive->message, COLOR_TEXT, oneOptions, oneButtons, 2, receive, transfer_receive_draw_top, transfer_receive_overwrite_onresponse);
+    }
+}
+
 static void transfer_receive_action_onresponse(ui_view* view, void* data, u32 response) {
     transfer_receive_data* receive = (transfer_receive_data*) data;
+
+    if(receive->offerOrigin) {
+        // Save, Original path, Reject.
+        if(response == 2) {
+            transfer_receive_answer(receive, 0, 0, 0);
+            transfer_receive_reset(receive);
+        } else if(response == 1) {
+            transfer_receive_keep_path(receive);
+        } else {
+            receive->keepPath = false;
+            receive->install = false;
+            transfer_receive_choose_folder(receive);
+        }
+
+        return;
+    }
 
     // Without Install the choices are Save and Reject.
     if(!receive->isCia && !(receive->isSave && receive->canImport)) {
@@ -2125,6 +2422,14 @@ static void transfer_receive_ask_action(transfer_receive_data* receive) {
     transfer_size_text(size, sizeof(size), receive->size);
     snprintf(receive->message, sizeof(receive->message), _("%s (%s)\nWhat do you want to do with it?"), receive->file, size);
 
+    if(receive->offerOrigin) {
+        static const char* originOptions[3] = {"Save", "Original path", "Reject"};
+        static u32 originButtons[3] = {KEY_A, KEY_X, KEY_B};
+        snprintf(receive->message, sizeof(receive->message), _("%s (%s)\nOriginal path: %s\nWhat do you want to do with it?"), receive->file, size, receive->origin);
+        prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, originOptions, originButtons, 3, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
+        return;
+    }
+
     if(receive->isSave) {
         // Importing needs the title (and for extra data, its archive) here: otherwise it is only kept.
         static const char* saveOptions[3] = {"Import now", "Save in a folder", "Reject"};
@@ -2158,6 +2463,8 @@ static void transfer_receive_allow_onresponse(ui_view* view, void* data, u32 res
 
     transfer_receive_ask_action(receive);
 }
+
+static void transfer_receive_hello_ready(transfer_receive_data* data);
 
 static void transfer_receive_hello_done(transfer_receive_data* data) {
     transfer_hello* hello = &data->hello;
@@ -2196,6 +2503,34 @@ static void transfer_receive_hello_done(transfer_receive_data* data) {
         return;
     }
 
+    hello->origin[FILE_PATH_MAX - 1] = '\0';
+    string_copy(data->origin, hello->origin, sizeof(data->origin));
+    data->offerOrigin = (data->kind == TRANSFER_KIND_FILE || data->kind == TRANSFER_KIND_FOLDER) && !data->isCia && !data->isSave && transfer_origin_ok(data->origin);
+    data->keepPath = false;
+    data->overwrite = TRANSFER_OVERWRITE_ASK;
+    data->existing = 0;
+    data->fileCount = 0;
+
+    if(data->kind == TRANSFER_KIND_FOLDER) {
+        // The manifest follows the hello: read it before asking anything.
+        free(data->preManifest);
+        data->preManifest = data->head <= FOLDER_MANIFEST_MAX_SIZE ? (u8*) malloc(data->head) : NULL;
+        if(data->preManifest == NULL) {
+            transfer_receive_reset(data);
+            return;
+        }
+
+        data->preGot = 0;
+        data->preStart = osGetTime();
+        data->state = RECEIVE_MANIFEST;
+        return;
+    }
+
+    transfer_receive_hello_ready(data);
+}
+
+// Everything the hello (and a folder's manifest) said is known: asks the user, or goes ahead.
+static void transfer_receive_hello_ready(transfer_receive_data* data) {
     // Tests: no questions.
     if(udslink_auto()) {
         data->install = false;
@@ -2209,6 +2544,8 @@ static void transfer_receive_hello_done(transfer_receive_data* data) {
     if(data->haveLast && data->lastKind == data->kind && data->lastSize == data->size && data->lastCheck == data->check
        && strcmp(data->lastSender, data->sender) == 0 && strcmp(data->lastFile, data->file) == 0) {
         data->install = data->lastInstall;
+        data->keepPath = data->lastKeepPath;
+        data->overwrite = data->lastOverwrite;
         string_copy(data->dir, data->lastDir, sizeof(data->dir));
         data->state = RECEIVE_ASKING;
         transfer_receive_start(data);
@@ -2256,6 +2593,11 @@ static void transfer_receive_free(transfer_receive_data* data) {
         udslink_leave();
     }
 
+    free(data->preManifest);
+    if(data->haveLayout) {
+        folder_layout_free(&data->layout);
+    }
+
     free(data);
 }
 
@@ -2266,7 +2608,7 @@ static void transfer_receive_set_button(ui_view* view, transfer_receive_data* da
 static void transfer_receive_update(ui_view* view, void* data, float* progress, char* text) {
     transfer_receive_data* receive = (transfer_receive_data*) data;
 
-    if(receive->state == RECEIVE_IDLE || receive->state == RECEIVE_HELLO) {
+    if(receive->state == RECEIVE_IDLE || receive->state == RECEIVE_HELLO || receive->state == RECEIVE_MANIFEST) {
         if(hidKeysDown() & KEY_B) {
             ui_pop();
             info_destroy(view);
@@ -2372,6 +2714,35 @@ static void transfer_receive_update(ui_view* view, void* data, float* progress, 
             transfer_receive_reset(receive);
         } else if(receive->got == sizeof(receive->hello)) {
             transfer_receive_hello_done(receive);
+        }
+    }
+
+    if(receive->state == RECEIVE_MANIFEST) {
+        int n = transfer_link_recv_some(&receive->client, receive->preManifest + receive->preGot, receive->head - receive->preGot);
+        if(n > 0) {
+            receive->preGot += (u32) n;
+            receive->preStart = osGetTime();
+        }
+
+        if(n == 0 || n == -2 || osGetTime() - receive->preStart > 3 * TRANSFER_HELLO_TIMEOUT) {
+            transfer_receive_reset(receive);
+        } else if(receive->preGot == receive->head) {
+            folder_layout layout;
+            bool ok = folder_manifest_parse(receive->preManifest, receive->head, &layout);
+            free(receive->preManifest);
+            receive->preManifest = NULL;
+
+            if(ok && layout.total == receive->size) {
+                receive->layout = layout;
+                receive->haveLayout = true;
+                transfer_receive_hello_ready(receive);
+            } else {
+                if(ok) {
+                    folder_layout_free(&layout);
+                }
+
+                transfer_receive_reset(receive);
+            }
         }
     }
 

@@ -510,7 +510,7 @@ static void selftest_send_file(const char* path, char* reply, size_t size) {
     }
 
     const char* name = strrchr(path, '/');
-    transfer_send_file(selftest_sd, path, name != NULL ? name + 1 : path, fileSize);
+    transfer_send_file(selftest_sd, path, name != NULL ? name + 1 : path, fileSize, path);
     snprintf(reply, size, "200 Sending %s (%llu bytes).", path, fileSize);
 }
 
@@ -527,7 +527,7 @@ static void selftest_send_dir(const char* path, char* reply, size_t size) {
     }
 
     const char* name = strrchr(path, '/');
-    transfer_send_folder(selftest_sd, path, name != NULL ? name + 1 : path);
+    transfer_send_folder(selftest_sd, path, name != NULL ? name + 1 : path, path);
     snprintf(reply, size, "200 Sending the folder %s.", path);
 }
 
@@ -574,8 +574,11 @@ void selftest_run(const char* command, char* reply, size_t size) {
         }
 
         selftest_send_file(args, reply, size);
+    } else if(strcmp(verb, "BUILD") == 0) {
+        // Which build this is, so that a test never pairs consoles that speak different protocols.
+        snprintf(reply, size, "200 protocol %lu built %s %s", (unsigned long) transfer_protocol(), __DATE__, __TIME__);
     } else if(strcmp(verb, "SENDDIR") == 0) {
-        if(*args == ' ') {
+        if(*args == '\0') {
             snprintf(reply, size, "501 SITE TEST SENDDIR <folder on the SD card>");
             return;
         }
@@ -585,7 +588,7 @@ void selftest_run(const char* command, char* reply, size_t size) {
         transfer_receive_open();
         snprintf(reply, size, "200 Receiving.");
     } else {
-        snprintf(reply, size, "504 SITE TEST UI|TITLES|EXPORT|SENDTITLE|SEND|SENDDIR|RECEIVE");
+        snprintf(reply, size, "504 SITE TEST UI|TITLES|EXPORT|SENDTITLE|SEND|SENDDIR|BUILD|RECEIVE");
     }
 #else
     (void) command;

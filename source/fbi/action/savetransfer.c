@@ -1352,7 +1352,7 @@ static void pack_finished(worker* w, Result res) {
 
         if(size > 0 && pack_sd_kept != 0) {
             // The Send screen keeps the archive open: it stays open for good (one handle).
-            transfer_send_file(pack_sd_kept, job->sdPath, job->fileName, size);
+            transfer_send_file(pack_sd_kept, job->sdPath, job->fileName, size, NULL);
         } else {
             error_display(NULL, NULL, "Failed to read the package.");
         }

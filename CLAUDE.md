@@ -49,27 +49,12 @@ SendUserFile; installing it on a console still waits for them to ask (they usual
 - `release`: the working line; `master`: stable (only moves by merging `release`).
 - `advanced`: the risky tools (Dump NAND, Pending titles, System save data, Advanced's red look). Merge `release`
   into it after changing `release` (`git merge release`), and the owner's call decides when it goes into `release`.
-- DEBUG builds for the owner's consoles: **`make DEBUG=1 VERSION_MICRO=15`** (after a `make clean`). Both consoles hold
-  title version **0.5.15** since 2026-11-01 and the micro version is 4 bits (max 15): do not try to go above it. Once a
-  console has the v0.6.0 beta (or later), build with that version instead (`VERSION_MINOR=6 VERSION_MICRO=0`).
-  `SITE INSTALL` and the web page's install take the **same** version (`AM_StartCiaInstallOverwrite`; only HOME's icon,
-  banner and sound stay old); a lower one is refused (D8E08027). See `docs/PLAN.md`, Decisions, "Updating a console".
-
-## Build
-
-```sh
-export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM
-git submodule update --init          # buildtools
-make -j"$(nproc)" DEBUG=1            # output/3ds-arm/NSA.cia and 3ds/NSA/NSA.3dsx
-make -C tests                        # host tests (needs libjansson-dev)
-```
-
-`DEBUG=1` starts the FTP server with NSA and shows DEBUG next to the version; the
-version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in `tools/bin/`.
-`make` does not rebuild on a version or `DEBUG` change: `make clean` first.
-
-## Interface
-
+- DEBUG builds for the owner's consoles: **`make DEBUG=1 VERSION_MICRO=0`** (after a `make clean`). Since the v0.6.0
+  tag `tools/version.sh` gives 0.6, so that is title version **0.6.0**: above the 0.5.15 the consoles hold, the same as the
+  beta. **Never `VERSION_MICRO=15` any more**: it would make 0.6.15 and burn the whole 0.6.x line (the micro version is
+  4 bits, max 15). `SITE INSTALL` and the web page's install take the **same** version (`AM_StartCiaInstallOverwrite`;
+  only HOME's icon, banner and sound stay old); a lower one is refused (D8E08027). See `docs/PLAN.md`, Decisions,
+  "Updating a console".
 - `source/core/theme.c`: themes (palettes for day and night, radii, borders, menu layout),
   accent colours and night mode. Widgets (`source/core/ui/widgets.c`) draw everything
   through the theme; never hard-code a colour in a screen.

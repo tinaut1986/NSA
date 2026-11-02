@@ -12,15 +12,21 @@
 typedef enum content_type_e {
     CONTENT_CIA,
     CONTENT_TICKET,
-    CONTENT_3DSX_SMDH
+    CONTENT_3DSX_SMDH,
+    CONTENT_SAVED      // "Save": the file goes to INSTALL_URL_SAVE_DIR as it is, nothing is installed.
 } content_type;
+
+// Where "Save" keeps the downloads, to install later from Files.
+#define INSTALL_URL_SAVE_DIR "/cias/"
+
 
 // What became of each URL, for the list on the install screen.
 typedef enum {
     URL_QUEUED,
     URL_INSTALLED,
     URL_FAILED,
-    URL_SKIPPED
+    URL_SKIPPED,
+    URL_SAVED
 } url_state;
 
 typedef struct {
@@ -34,6 +40,7 @@ typedef struct {
     void (*finishedAll)(void* data);
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index);
 
+    bool saveOnly;   // "Save" was chosen: keep the files instead of installing them.
     content_type contentType;
     u64 currTitleId;
     volatile bool n3dsContinue;
@@ -94,6 +101,96 @@ static Result action_install_url_get_src_url(void* data, u32 index, char* url, s
     return 0;
 }
 
+// "Game Name.cia" from ".../Game%20Name.cia?x=1": the URL's last part, decoded, without the characters FAT refuses.
+static void action_install_url_save_name(const char* url, const void* initialReadBlock, char* out, size_t size) {
+    const char* start = strstr(url, "://");
+    start = start != NULL ? start + 3 : url;
+    const char* slash = strrchr(start, '/');
+    const char* name = slash != NULL && slash[1] != '\0' ? slash + 1 : "";
+
+    char decoded[FILE_NAME_MAX];
+    size_t len = 0;
+    for(const char* c = name; *c != '\0' && *c != '?' && *c != '#' && len < sizeof(decoded) - 1; c++) {
+        unsigned hex = 0;
+        if(c[0] == '%' && c[1] != '\0' && c[2] != '\0' && sscanf(c + 1, "%2x", &hex) == 1 && hex >= 0x20) {
+            decoded[len++] = (char) hex;
+            c += 2;
+        } else {
+            decoded[len++] = *c == '+' ? ' ' : *c;
+        }
+    }
+
+    decoded[len] = '\0';
+    if(len == 0) {
+        string_copy(decoded, "download", sizeof(decoded));
+    }
+
+    // No extension: the one its content says.
+    if(strchr(decoded, '.') == NULL) {
+        u32 magic = *(const u32*) initialReadBlock;
+        const char* ext = *(const u16*) initialReadBlock == 0x2020 ? ".cia"
+                          : *(const u16*) initialReadBlock == 0x0100 ? ".tik"
+                          : magic == 0x58534433 ? ".3dsx" : "";
+        size_t used = strlen(decoded);
+        string_copy(decoded + used, ext, sizeof(decoded) - used);
+    }
+
+    string_escape_file_name(out, decoded, size);
+    out[size - 1] = '\0';
+}
+
+static bool action_install_url_exists(FS_Archive archive, const char* path) {
+    FS_Path* fsPath = fs_make_path_utf8(path);
+    if(fsPath == NULL) {
+        return false;
+    }
+
+    Handle file = 0;
+    bool exists = R_SUCCEEDED(FSUSER_OpenFile(&file, archive, *fsPath, FS_OPEN_READ, 0));
+    if(exists) {
+        FSFILE_Close(file);
+    }
+
+    fs_free_path_utf8(fsPath);
+    return exists || fs_is_dir(archive, path);
+}
+
+// "Save": opens INSTALL_URL_SAVE_DIR's file for the download; a name in use gets " (2)", " (3)"...
+static Result action_install_url_open_save(install_url_data* installData, u32 index, void* initialReadBlock, u32* handle) {
+    installData->contentType = CONTENT_SAVED;
+
+    char name[FILE_NAME_MAX];
+    action_install_url_save_name(installData->urls[index], initialReadBlock, name, sizeof(name));
+
+    FS_Archive sdmcArchive = 0;
+    Result res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""));
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, INSTALL_URL_SAVE_DIR))) {
+        char base[FILE_NAME_MAX];
+        string_get_file_name(base, name, sizeof(base));
+        const char* ext = strlen(base) < strlen(name) ? name + strlen(base) : "";
+
+        snprintf(installData->currPath, FILE_PATH_MAX, INSTALL_URL_SAVE_DIR "%s", name);
+        for(u32 n = 2; n < 1000 && action_install_url_exists(sdmcArchive, installData->currPath); n++) {
+            snprintf(installData->currPath, FILE_PATH_MAX, INSTALL_URL_SAVE_DIR "%s (%lu)%s", base, n, ext);
+        }
+
+        FS_Path* path = fs_make_path_utf8(installData->currPath);
+        if(path != NULL) {
+            res = FSUSER_OpenFile(handle, sdmcArchive, *path, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);
+            fs_free_path_utf8(path);
+        } else {
+            res = R_APP_OUT_OF_MEMORY;
+        }
+    }
+
+    FSUSER_CloseArchive(sdmcArchive);
+    return res;
+}
+
 static Result action_install_url_open_dst(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle) {
     install_url_data* installData = (install_url_data*) data;
 
@@ -104,6 +201,10 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
     installData->n3dsContinue = false;
     memset(&installData->ticketInfo, 0, sizeof(installData->ticketInfo));
     memset(&installData->currPath, 0, sizeof(installData->currPath));
+
+    if(installData->saveOnly) {
+        return action_install_url_open_save(installData, index, initialReadBlock, handle);
+    }
 
     if(*(u16*) initialReadBlock == 0x2020) {
         installData->contentType = CONTENT_CIA;
@@ -208,7 +309,7 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
             }
         } else if(installData->contentType == CONTENT_TICKET) {
             res = AMNET_InstallTicketFinish(handle);
-        } else if(installData->contentType == CONTENT_3DSX_SMDH) {
+        } else if(installData->contentType == CONTENT_3DSX_SMDH || installData->contentType == CONTENT_SAVED) {
             res = FSFILE_Close(handle);
         }
     } else {
@@ -216,7 +317,7 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
             res = AM_CancelCIAInstall(handle);
         } else if(installData->contentType == CONTENT_TICKET) {
             res = AMNET_InstallTicketAbort(handle);
-        } else if(installData->contentType == CONTENT_3DSX_SMDH) {
+        } else if(installData->contentType == CONTENT_3DSX_SMDH || installData->contentType == CONTENT_SAVED) {
             res = FSFILE_Close(handle);
 
             FS_Archive sdmcArchive = 0;
@@ -234,7 +335,7 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
     }
 
     if(succeeded && R_SUCCEEDED(res)) {
-        installData->states[index] = URL_INSTALLED;
+        installData->states[index] = installData->contentType == CONTENT_SAVED ? URL_SAVED : URL_INSTALLED;
     }
 
     if(R_SUCCEEDED(res) && installData->finishedURL != NULL) {
@@ -261,7 +362,9 @@ static bool action_install_url_error(void* data, u32 index, Result res, ui_view*
     installData->states[index] = URL_FAILED;
 
     char* url = installData->urls[index];
-    if(strlen(url) > 38) {
+    if(installData->saveOnly) {
+        *errorView = error_display_res(data, action_install_url_install_draw_top, res, strlen(url) > 38 ? "Failed to download from URL.\n%.35s..." : "Failed to download from URL.\n%.38s", url);
+    } else if(strlen(url) > 38) {
         *errorView = error_display_res(data, action_install_url_install_draw_top, res, "Failed to install from URL.\n%.35s...", url);
     } else {
         *errorView = error_display_res(data, action_install_url_install_draw_top, res, "Failed to install from URL.\n%.38s", url);
@@ -322,16 +425,30 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
 
         // A cancel has said so already, and so has a single URL that failed.
         u32 installed = action_install_url_count(installData, URL_INSTALLED);
+        u32 saved = action_install_url_count(installData, URL_SAVED);
         u32 failed = action_install_url_count(installData, URL_FAILED);
         u32 skipped = action_install_url_count(installData, URL_SKIPPED);
         if(installData->installInfo.result != R_APP_CANCELLED) {
             if(failed == 0 && skipped == 0) {
-                if(installed > 0) {
+                if(saved > 0) {
+                    char text[FILE_PATH_MAX + 64];
+                    if(saved == 1) {
+                        snprintf(text, sizeof(text), _("Saved in %s"), installData->currPath);
+                    } else {
+                        snprintf(text, sizeof(text), _("%lu files saved in %s"), saved, INSTALL_URL_SAVE_DIR);
+                    }
+
+                    prompt_display_notify("Success", text, COLOR_TEXT, NULL, NULL, NULL);
+                } else if(installed > 0) {
                     prompt_display_notify("Success", "Install finished.", COLOR_TEXT, NULL, NULL, NULL);
                 }
             } else if(installData->installInfo.total > 1) {
                 char text[128];
-                snprintf(text, sizeof(text), _("Installed: %lu\nFailed: %lu\nSkipped: %lu"), installed, failed, skipped);
+                if(installData->saveOnly) {
+                    snprintf(text, sizeof(text), _("Saved: %lu\nFailed: %lu\nSkipped: %lu"), saved, failed, skipped);
+                } else {
+                    snprintf(text, sizeof(text), _("Installed: %lu\nFailed: %lu\nSkipped: %lu"), installed, failed, skipped);
+                }
                 prompt_display_notify(failed > 0 ? "Failure" : "Success", text, COLOR_TEXT, NULL, NULL, NULL);
             }
         }
@@ -438,10 +555,10 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
             icon = ICON_DOWNLOAD;
             iconColor = t->accent;
             snprintf(status, sizeof(status), "%d %%", info->currTotal != 0 ? (int) (info->currProcessed * 100 / info->currTotal) : 0);
-        } else if(installData->states[i] == URL_INSTALLED) {
+        } else if(installData->states[i] == URL_INSTALLED || installData->states[i] == URL_SAVED) {
             icon = ICON_CHECK;
             iconColor = t->palette->success;
-            string_copy(status, _("Installed"), sizeof(status));
+            string_copy(status, installData->states[i] == URL_SAVED ? _("Saved") : _("Installed"), sizeof(status));
         } else if(installData->states[i] == URL_FAILED) {
             icon = ICON_X;
             iconColor = t->palette->danger;
@@ -467,8 +584,8 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
 
 static void action_install_url_install_show(install_url_data* data) {
     ui_view* view = ui_create();
-    view->name = _("Installing");
-    view->id = "Installing";
+    view->name = data->saveOnly ? _("Downloading") : _("Installing");
+    view->id = data->saveOnly ? "Downloading" : "Installing";
     view->info = _(" cancel");
     view->data = data;
     view->update = action_install_url_install_update;
@@ -477,10 +594,15 @@ static void action_install_url_install_show(install_url_data* data) {
     ui_push(view);
 }
 
+// The confirmation's choices: install, only save the files, or nothing.
+#define INSTALL_URL_CHOICE_INSTALL 0
+#define INSTALL_URL_CHOICE_SAVE 1
+
 static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32 response) {
     install_url_data* installData = (install_url_data*) data;
 
-    if(response == PROMPT_YES) {
+    installData->saveOnly = response == INSTALL_URL_CHOICE_SAVE;
+    if(response == INSTALL_URL_CHOICE_INSTALL || response == INSTALL_URL_CHOICE_SAVE) {
         Result res = task_data_op(&installData->installInfo);
         if(R_SUCCEEDED(res)) {
             action_install_url_install_show(installData);
@@ -594,9 +716,14 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
 
     // No message: the caller already asked (the updater shows its own prompt).
     if(confirmMessage == NULL) {
-        action_install_url_confirm_onresponse(NULL, data, PROMPT_YES);
+        action_install_url_confirm_onresponse(NULL, data, INSTALL_URL_CHOICE_INSTALL);
         return;
     }
 
-    prompt_display_yes_no("Confirmation", confirmMessage, COLOR_TEXT, data, action_install_url_draw_top, action_install_url_confirm_onresponse);
+    // Install, or only download the files to install them later (asked on r/3dshomebrew, issue #22).
+    static const char* options[3] = {"Install", "Save", "Cancel"};
+    static u32 buttons[3] = {KEY_A, KEY_X, KEY_B};
+    char text[512];
+    snprintf(text, sizeof(text), "%s\n%s", i18n_translate_text(confirmMessage), _("Save keeps the files in /cias/ to install later."));
+    prompt_display_multi_choice("Confirmation", text, COLOR_TEXT, options, buttons, 3, data, action_install_url_draw_top, action_install_url_confirm_onresponse);
 }

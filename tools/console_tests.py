@@ -383,8 +383,10 @@ class Context:
         self.a.mkdir(folder)
         path = f'{folder}/{name}'
         self.a.put(path, data)
-        for suffix in ('', '.part', '.part.pos'):
-            self.b.delete(f'{RECEIVED_DIR}/{name}{suffix}')
+        self.b.delete(f'{RECEIVED_DIR}/{name}')
+        for suffix in ('.part', '.part.pos'):
+            self.b.delete(f'{TMP_DIR}/{name}{suffix}')
+            self.b.delete(f'{RECEIVED_DIR}/{name}{suffix}')   # Where older builds kept them.
         return path, hashlib.sha256(data).hexdigest()
 
 
@@ -488,7 +490,9 @@ def check_received(ctx, name, digest):
     got = ctx.b.sha256(f'{RECEIVED_DIR}/{name}')
     check(got is not None, f'B has no {RECEIVED_DIR}/{name}')
     check(got == digest, f'{name} on B differs from what A sent')
-    check(ctx.b.sha256(f'{RECEIVED_DIR}/{name}.part.pos') is None, 'the .part.pos is still there')
+    check(ctx.b.sha256(f'{TMP_DIR}/{name}.part.pos') is None, 'the .part.pos is still there')
+    check(ctx.b.sha256(f'{TMP_DIR}/{name}.part') is None, 'the .part is still there')
+    check(ctx.b.sha256(f'{RECEIVED_DIR}/{name}.part') is None, 'a .part was left in the received folder')
 
 
 def check_resumed(ctx, log):
@@ -604,6 +608,30 @@ def reaccept_needs_same_file(ctx):
     a.cmd(f'SITE TEST SEND {other}')
     d.run()
     check(d.saw('B', 'Receive'), 'B took a different file without asking')
+
+
+@test(2)
+def send_file_partial_stays_in_tmp(ctx):
+    """A transfer given up halfway leaves its .part and .part.pos in nsa/tmp, and nothing
+    in the folder it was going to."""
+    path, _ = ctx.payload(10)
+    ctx.a.fault('send.chunk', RESUME_SKIP, 1)
+
+    def gave_up(d):
+        if not d.saw('A', 'Confirmation', 'Retry?') or ctx.a.ui()['kind'] == 'prompt':
+            return False
+        ui = ctx.b.ui()
+        return ui['name'] == 'Receive' and ui['kind'] == 'info'
+
+    run_send(ctx, f'SITE TEST SEND {path}', rules=send_rules(ctx, retry='No'), done=gave_up)
+    check(ctx.b.size(f'{TMP_DIR}/payload.bin.part') is not None, 'no .part in nsa/tmp')
+    check(ctx.b.size(f'{TMP_DIR}/payload.bin.part.pos') is not None, 'no .part.pos in nsa/tmp')
+    left = [n for n in ctx.b.listdir(RECEIVED_DIR) if n.startswith('payload.bin')]
+    check(not left, f'left in the received folder: {left}')
+    ctx.a.home()
+    ctx.a.clear_faults()
+    for suffix in ('.part', '.part.pos'):
+        ctx.b.delete(f'{TMP_DIR}/payload.bin{suffix}')
 
 
 @test(2)

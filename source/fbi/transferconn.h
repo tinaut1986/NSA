@@ -22,6 +22,10 @@ struct udslink;
 #define TRANSFER_CHUNK (256 * 1024)
 #define TRANSFER_IO_TIMEOUT 15000
 
+// Tests (SITE CONNS, DEBUG): the most connections a send opens over the Wi-Fi, 1 to TRANSFER_CONNECTIONS.
+void transfer_conn_set_limit(u32 limit);
+u32 transfer_conn_get_limit();
+
 // A chunk lies inside one segment of the payload (a title package has its
 // header and each content as segments), so the one who reads it needs no more.
 typedef struct {

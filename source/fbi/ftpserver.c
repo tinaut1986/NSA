@@ -22,6 +22,7 @@
 #include "../core/speedlog.h"
 #include "../core/xferturn.h"
 #include "action/action.h"
+#include "transferconn.h"
 
 #define FTP_PATH_MAX 512
 #define FTP_LINE_MAX 600
@@ -1041,6 +1042,15 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
 
         action_install_url_save_in_order(inOrder);
         ftp_reply(s, "200 Save from a URL takes the file %s (SITE SAVEORDER ANY|INORDER).", inOrder ? "in order, as an install" : "in any order");
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "CONNS") == 0) {
+        if(path != NULL && path[0] >= '1' && path[0] <= '9') {
+            transfer_conn_set_limit((u32) (path[0] - '0'));
+        }
+
+        ftp_reply(s, "200 A send to another 3DS opens at most %lu connections (SITE CONNS 1-%d).", transfer_conn_get_limit(), TRANSFER_CONNECTIONS);
         return;
     }
 

@@ -32,6 +32,10 @@ typedef struct data_op_data_s {
 
     u32 bufferSize;
 
+    // Download: writeDst takes the file's pieces in any order (saving to a file, not installing), so a big
+    // file comes in long pieces over several connections (http_download_file).
+    bool dstAnyOrder;
+
     Result (*openDst)(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle);
     Result (*closeDst)(void* data, u32 index, bool succeeded, u32 handle);
 

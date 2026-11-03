@@ -167,6 +167,31 @@ static void widget_row_draw(float x, float y, float width, float frameHeight, fl
         screen_fill_round_rect(tx - 2, iy - 2, size + 4, size + 4, 4, THEME_RGB(0x0E1936));
         screen_draw_icon((u32) icon, tx, iy, size, THEME_RGB(0xA8E2F0));
         tx += size + 8;
+    } else if(icon == WIDGET_ICON_NSA) {
+        // NSA's icon made small: the blue window with its title bar, and the N of its "NSA", pixel by pixel.
+        static const char* n[] = {"##....##", "###...##", "####..##", "##.##.##", "##..####", "##...###", "##....##"};
+        u32 dark = THEME_RGB(0x185FA5);
+        u32 mid = THEME_RGB(0x378ADD);
+        u32 white = THEME_RGB(0xFFFFFF);
+        float bx = tx - 2;
+        float by = (float) (int) (y + (height - 16) / 2) - 2;
+        screen_fill_round_rect(bx, by, 20, 20, 4, dark);
+        screen_fill_rect(bx + 2, by + 2, 16, 4, mid);
+        screen_fill_rect(bx + 2, by + 6, 16, 12, white);
+        for(int dot = 0; dot < 3; dot++) {
+            screen_fill_rect(bx + 4 + dot * 3, by + 3, 1, 2, white);
+        }
+
+        for(int row = 0; row < 7; row++) {
+            for(int col = 0; col < 8; col++) {
+                if(n[row][col] == '#') {
+                    screen_fill_rect(bx + 6 + col, by + 7 + row, 1, 1, dark);
+                }
+            }
+        }
+
+        screen_fill_rect(bx + 4, by + 15, 12, 1, mid);
+        tx += 16 + 8;
     } else if(icon >= 0) {
         float size = 16;
         screen_draw_icon((u32) icon, tx, y + (height - size) / 2, size, ink);

@@ -81,7 +81,7 @@ typedef struct {
     char path[512];      // The backup's folder, with the trailing slash.
     char label[96];      // "[NSA] 2026-10-31 14:25:30", "[Checkpoint] name".
     bool checkpoint;     // Checkpoint's layout: the tree right in the folder, no manifest.
-    u8 nameAt;           // Where the name starts in label: after "[Checkpoint] " (lists show Checkpoint's badge instead).
+    u8 nameAt;           // Where the name starts in label: after "[NSA] " or "[Checkpoint] " (lists show a badge instead).
 } save_backup;
 // The backups of a title's data, NSA's then Checkpoint's (free the array); the count is the return value.
 u32 action_save_backups(title_info* title, save_kind kind, save_backup** out);

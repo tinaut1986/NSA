@@ -62,7 +62,8 @@ NSA = a.server == 'nsa'
 a.ftp_port = a.ftp_port or (5021 if NSA else 5000)
 SIZES = [int(x) for x in a.sizes.split(',') if x.strip()]
 ALL = ['ftp-up', 'ftp-down', 'ftp-null', 'ftp-zero', 'ftp-small', 'sd', 'web-up', 'web-down', 'url']
-NSA_ONLY = {'ftp-null', 'ftp-zero', 'sd', 'web-up', 'web-down', 'url'}
+# ftpd has /devZero for the network-only tests (its RETR never ends: the script stops it).
+NSA_ONLY = {'sd', 'web-up', 'web-down', 'url'}
 ONLY = [t.strip() for t in a.only.split(',')] if a.only else [t for t in ALL if NSA or t not in NSA_ONLY]
 for t in ONLY:
     if t not in ALL:
@@ -116,6 +117,8 @@ class Meter:
             self.last = t
 
     def finish(self):
+        if hasattr(self, 'secs'):
+            return self
         self.secs = time.perf_counter() - self.start
         self.points.append((self.secs, self.bytes))
         return self
@@ -179,12 +182,13 @@ def ftp_upload(f, path, total, seed, meter):
         conn.close()
     return f.voidresp()
 
-def ftp_download(f, path, meter, check=None):
+def ftp_download(f, path, meter, check=None, limit=None):
+    """`limit`: stop after that many bytes (ftpd's endless /devZero); any reply is taken then."""
     h = hashlib.sha256() if check else None
     conn = f.transfercmd(f'RETR {path}')
     try:
-        while True:
-            d = conn.recv(PIECE)
+        while limit is None or meter.bytes < limit:
+            d = conn.recv(PIECE if limit is None else min(PIECE, limit - meter.bytes))
             if not d:
                 break
             meter.add(len(d))
@@ -192,6 +196,13 @@ def ftp_download(f, path, meter, check=None):
                 h.update(d)
     finally:
         conn.close()
+    if limit is not None:
+        meter.finish()
+        try:
+            f.getresp()
+        except ftplib.all_errors:
+            pass
+        return '226 stopped', None
     reply = f.voidresp()
     return reply, (h.hexdigest() == check) if check else None
 
@@ -268,7 +279,7 @@ def test_ftp_network():
         if 'ftp-null' in ONLY:
             m = Meter()
             try:
-                ok = ftp_upload(f, '/dev/null', mb * MB, mb, m).startswith('226')
+                ok = ftp_upload(f, '/dev/null' if NSA else '/devZero', mb * MB, mb, m).startswith('226')
                 note = ''
             except ftplib.all_errors as e:
                 ok, note = False, str(e)
@@ -277,14 +288,24 @@ def test_ftp_network():
         if 'ftp-zero' in ONLY:
             m = Meter()
             try:
-                reply, _ = ftp_download(f, f'/dev/zero/{mb}', m)
+                reply, _ = ftp_download(f, f'/dev/zero/{mb}', m) if NSA else ftp_download(f, '/devZero', m, limit=mb * MB)
                 ok = reply.startswith('226') and m.bytes == mb * MB
                 note = '' if ok else f'{m.bytes} bytes, {reply}'
             except ftplib.all_errors as e:
                 ok, note = False, str(e)
             row('ftp-zero', mb, m.finish(), ok, note, ('ftp-zero', f'/dev/zero/{mb}'))
             time.sleep(a.pause)
-    f.quit()
+            if not NSA:
+                # ftpd drops the session after the stopped RETR: a new one for the next test.
+                try:
+                    f.quit()
+                except ftplib.all_errors:
+                    pass
+                f = ftp_open(300)
+    try:
+        f.quit()
+    except ftplib.all_errors:
+        pass
 
 def test_ftp_small():
     f = ftp_open(120)

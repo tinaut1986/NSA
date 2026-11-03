@@ -926,7 +926,7 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
     if(strcmp(sub, "SDBENCH") == 0) {
         unsigned mb = 0, bufferKb = FTP_FILE_BUFFER / 1024;
         char flag[8] = "";
-        if(sscanf(path != NULL ? path : "", "%u %u %7s", &mb, &bufferKb, flag) < 1 || mb == 0 || mb > 1024 || bufferKb > 4096) {
+        if(sscanf(path != NULL ? path : "", "%u %u %7s", &mb, &bufferKb, flag) < 1 || mb == 0 || mb > 2047 || bufferKb > 4096) {
             ftp_reply(s, "501 SITE SDBENCH <MB> [buffer KB, 0 for none] [PRE]");
             return;
         }

@@ -12,8 +12,8 @@
 #define SPEEDLOG_PATH "sdmc:/nsa/speed-log.txt"
 #define SPEEDLOG_FLAG "/nsa/speed.flag"
 #define SPEEDLOG_FILE_MAX (2 * 1024 * 1024)
-// About 100 bytes a second: over half an hour of a transfer.
-#define SPEEDLOG_TEXT_MAX (192 * 1024)
+// About 100-120 bytes a second: a 2 GB file at ~350 KB/s (the 2DS) is about 6000 s.
+#define SPEEDLOG_TEXT_MAX (768 * 1024)
 #define SPEEDLOG_EDGE 10   // Seconds averaged at the start and at the end.
 
 struct speedlog {

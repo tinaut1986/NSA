@@ -185,6 +185,16 @@ transfer_chunk* transfer_chunks_build(const u64* segmentLengths, u32 segmentCoun
     return out;
 }
 
+static u32 transfer_conn_limit = TRANSFER_CONNECTIONS;
+
+void transfer_conn_set_limit(u32 limit) {
+    transfer_conn_limit = limit < 1 ? 1 : limit > TRANSFER_CONNECTIONS ? TRANSFER_CONNECTIONS : limit;
+}
+
+u32 transfer_conn_get_limit() {
+    return transfer_conn_limit;
+}
+
 // Connections 2 and 3 try the New 3DS's extra core, as 3dsDL does; the others
 // (and these on an Old 3DS) run on the app core.
 static Thread conn_thread(ThreadFunc fn, void* arg, u32 index) {
@@ -368,7 +378,7 @@ Result transfer_sender_start(transfer_sender** out, transfer_link* control, stru
     LightLock_Init(&s->lock);
 
     // The local wireless has one connection: it is the radio that is the limit.
-    u32 workers = control->uds != NULL ? 1 : (count < TRANSFER_CONNECTIONS ? count : TRANSFER_CONNECTIONS);
+    u32 workers = control->uds != NULL ? 1 : (count < transfer_conn_limit ? count : transfer_conn_limit);
     s->running = workers;
 
     u32 started = 0;

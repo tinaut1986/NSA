@@ -215,6 +215,14 @@ Dropbox, catbox and the LAN, byte for byte, and an install by URL of an 8 MB CIA
 - [ ] Whether NSA stops answering again right after "the rest over one connection" (it did once): if it does, a photo of
       the screen and `transfer-log.txt` at once.
 
+**Console to console: how many connections** (`SITE CONNS 1-4`, DEBUG, on the sender; 2026-11-03, New 3DS XL -> 2DS over
+the Wi-Fi, 64 MB, two rounds, every copy identical; the 2DS's receive time, and its web page's slowest answer meanwhile):
+1 connection 223-288 s (228-294 KB/s, 0.35-1.43 s); 2: 145-160 s (408-453, 0.63-1.69 s); 3: 136-155 s (424-482,
+0.67-1.22 s); 4: 114-152 s (430-575, 2.0-4.1 s), and once all four failed together twice in 80 s (`io: poll failed,
+errno 115` on the 2DS; Retry went on from where it was). So one connection is too few, and 2 to 4 are within the Wi-Fi's
+noise: no ramp as for downloads. Kept at 4.
+- [ ] Why all four connections fail at the same moment on the 2DS (errno 115 in poll): seen once in four sends.
+
 **Download and FTP speed** (`fix/download-speed`, `fix/ftp-pasv-buffers`, issue #21). Measured on the New 3DS XL over
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.

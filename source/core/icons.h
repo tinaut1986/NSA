@@ -97,5 +97,6 @@ typedef enum {
     ICON_SQUARE,
     ICON_EXTERNAL_LINK,
     ICON_ARROW_RIGHT,
+    ICON_CHECKPOINT,
     ICON_COUNT
 } icon_id;

@@ -101,6 +101,8 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .row .chev{color:var(--muted);opacity:0;transform:translateX(-4px);transition:opacity var(--fast),transform var(--fast)}
 .row:hover .chev{opacity:1;transform:none}
 .badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:1px 7px;border-radius:20px;background:var(--soft);color:var(--accent);letter-spacing:.03em}
+.cpb{display:inline-flex;flex:none;width:22px;height:22px;padding:2px;box-sizing:border-box;border-radius:5px;background:#0E1936}.cpb svg{width:100%;height:100%}
+.nsab{display:inline-flex;flex:none;width:22px;height:22px}.nsab svg{width:100%;height:100%}
 .badge.n{background:var(--bg);color:var(--muted)}
 .list.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
 .list.grid .row{flex-direction:column;justify-content:flex-start;padding:12px 8px 10px;gap:8px;min-height:0;text-align:center}
@@ -418,6 +420,10 @@ function h(tag, props, ...kids){
 const NAMES = typeof ICON_NAMES!=='undefined' ? ICON_NAMES : [], COLS = typeof ICON_COLUMNS!=='undefined' ? ICON_COLUMNS : 16;
 function setIcon(e, name){ const i = NAMES.indexOf(name); e.style.visibility = i<0 ? 'hidden' : ''; e.style.setProperty('--c', i%COLS); e.style.setProperty('--r', Math.floor(i/COLS)); return e; }
 const ic = (name, size) => setIcon(h('span', {class:'ic'+(size?' s'+size:'')}), name);
+// Checkpoint's logo in its own colours (a pale flag on navy): the badge of its backups.
+const cpBadge = () => { const e = h('span', {class:'cpb', title:'Checkpoint'}); e.innerHTML = '<svg viewBox="0 0 24 24" fill="#A8E2F0"><path d="M3 4h10.5l1.5 7.5h-10.5z"/><path d="M15.2 7h4.8l1.5 8h-10.5l-0.45-2.5h5.3z"/><path d="M4.4 12.5h2l1.6 7.5h-2z"/></svg>'; return e; };
+// NSA's icon made small, as on the console: the blue window with its title bar and the N of its "NSA".
+const nsaBadge = () => { const e = h('span', {class:'nsab', title:'NSA'}); e.innerHTML = '<svg viewBox="0 0 20 20" shape-rendering="crispEdges"><rect width="20" height="20" rx="4" fill="#185FA5"/><rect x="2" y="2" width="16" height="4" fill="#378ADD"/><rect x="2" y="6" width="16" height="12" fill="#fff"/><path fill="#fff" d="M4 3h1v2h-1zM7 3h1v2h-1zM10 3h1v2h-1z"/><path fill="#185FA5" d="M6 7h2v7h-2zM12 7h2v7h-2zM8 8h1v2h-1zM9 9h1v2h-1zM10 10h1v2h-1zM11 11h1v2h-1z"/><rect x="4" y="15" width="12" height="1" fill="#378ADD"/></svg>'; return e; };
 document.querySelectorAll('[data-ic]').forEach(e => setIcon(e, e.dataset.ic));
 function fmtSize(n){ if(n<1024) return n+' B'; const u=['KB','MB','GB','TB']; let i=-1; do { n/=1024; i++; } while(n>=1024 && i<3); return n.toFixed(n<10?2:n<100?1:0)+' '+u[i]; }
 function fmtDate(s){ if(!s) return ''; const d = new Date(s*1000); return d.toLocaleDateString(L,{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString(L,{hour:'2-digit',minute:'2-digit'}); }
@@ -817,7 +823,7 @@ function dataSheet(t, name, kind, label){
       const restore = () => { s.close(true); run(async () => { await api('POST', 'save/import', {id:t.id, media:t.media, kind, path:b.path, name}); toast(T.asked); }); };
       const del = async () => { if(!await confirmAsk(tr('confirmdelbackup', {s:b.label})+(b.checkpoint ? ' '+T.cpnote : ''), true, T.del)) return;
         run(async () => { await api('POST', 'save/backup/delete', {id:t.id, media:t.media, kind, path:b.path}); sfx('success'); toast(T.done, 'ok'); load(); }); };
-      list.append(h('div', {class:'act', vars:{i}, style:'cursor:default'}, ic(b.checkpoint ? 'box' : 'history'), h('span', {text:b.label, style:'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'}),
+      list.append(h('div', {class:'act', vars:{i}, style:'cursor:default'}, b.checkpoint ? cpBadge() : nsaBadge(), h('span', {text:b.label.replace(/^\[(NSA|Checkpoint)\] /, ''), style:'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'}),
         tool('upload', T.restore, restore), tool('trash', T.del, del)));
     });
   };

@@ -615,6 +615,12 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 // them wasted half the bandwidth. Each connection fetches into a buffer of its
 // own and copies a finished segment into the window, so the two never write
 // the same memory.
+//
+// The connections ask for the file where the redirects ended (no redirects
+// for each segment), unless that address refuses a second request: Dropbox's
+// `dl.dropboxusercontent.com/cd/0/get/...` serves one and answers 403 to the
+// rest. Then they go back to the address given, which every connection
+// follows on its own (as 3dsDL does).
 
 #define HTTP_PARALLEL 8
 #define HTTP_PARALLEL_OLD 8
@@ -631,6 +637,7 @@ typedef struct http_parallel_s http_parallel;
 typedef struct {
     http_parallel* p;
     CURL* curl;
+    bool onOriginal;         // Asking at p->original.
     u8* buf;                 // Its own: the segment being fetched.
     u32 len;
     u32 want;
@@ -640,7 +647,9 @@ typedef struct {
 } http_worker;
 
 struct http_parallel_s {
-    char url[1024];
+    char url[1024];                        // Where the redirects ended.
+    char original[1024];                   // The address given, when the redirects went elsewhere.
+    volatile bool useOriginal;             // `url` refused a request.
     u64 size;
     u32 segments;
     u32 workerCount;
@@ -840,11 +849,27 @@ static void http_worker_thread(void* arg) {
             w->received -= w->len;
             w->len = 0;
             w->want = (u32) (end - start);
+            if(p->useOriginal && !w->onOriginal) {
+                curl_easy_setopt(w->curl, CURLOPT_URL, p->original);
+                w->onOriginal = true;
+            }
+
             curl_easy_setopt(w->curl, CURLOPT_RANGE, range);
             ret = http_perform(w->curl);
             curl_easy_getinfo(w->curl, CURLINFO_RESPONSE_CODE, &code);
             if(ret == CURLE_OK && code == 206 && w->len == w->want) {
                 break;
+            }
+
+            // The address the redirects ended at served once and refuses the rest: back to the one given.
+            if(ret == CURLE_HTTP_RETURNED_ERROR && (code == 403 || code == 410) && !w->onOriginal && p->original[0] != '\0') {
+                if(!p->useOriginal && http_log != NULL) {
+                    http_log("http: segment %ld: http %ld where the redirects ended, asking at the address given\n", segment, code);
+                }
+
+                p->useOriginal = true;
+                attempt--;
+                continue;
             }
 
             ret = ret == CURLE_OK ? CURLE_PARTIAL_FILE : ret;
@@ -893,7 +918,7 @@ static void http_worker_thread(void* arg) {
     }
 }
 
-static Result http_parallel_download(const char* url, u64 size, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
+static Result http_parallel_download(const char* url, const char* original, u64 size, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
                                      Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections),
                                      http_shared* shared) {
     http_parallel* p = (http_parallel*) calloc(1, sizeof(http_parallel));
@@ -902,6 +927,10 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
     }
 
     string_copy(p->url, url, sizeof(p->url));
+    if(original != NULL && strcmp(original, url) != 0) {
+        string_copy(p->original, original, sizeof(p->original));
+    }
+
     p->size = size;
     p->segments = (u32) ((size + HTTP_SEGMENT - 1) / HTTP_SEGMENT);
     // Two was the most an Old 3DS took before the waits stopped holding the SOC session and TLS
@@ -1071,7 +1100,7 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
     char* effective = (char*) malloc(1024);
     u64 size = 0;
     if(effective != NULL && http_probe(url, effective, 1024, &size, shared) && size >= HTTP_PARALLEL_MIN) {
-        Result res = http_parallel_download(effective, size, userData, callback, checkRunning, progress, shared);
+        Result res = http_parallel_download(effective, url, size, userData, callback, checkRunning, progress, shared);
         free(effective);
         http_shared_close(shared);
         free(shared);

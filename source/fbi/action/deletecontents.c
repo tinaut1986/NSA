@@ -161,7 +161,7 @@ static void action_delete_loading_update(ui_view* view, void* data, float* progr
             loadingData->deleteData->deleteInfo.total = linked_list_size(&loadingData->deleteData->contents);
             loadingData->deleteData->deleteInfo.processed = loadingData->deleteData->deleteInfo.total;
 
-            prompt_display_yes_no("Confirmation", loadingData->message, COLOR_TEXT, loadingData->deleteData, action_delete_draw_top, action_delete_onresponse);
+            prompt_display_warning("Confirmation", loadingData->message, COLOR_TEXT, loadingData->deleteData, action_delete_draw_top, action_delete_onresponse);
         } else {
             error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate content list.");
 

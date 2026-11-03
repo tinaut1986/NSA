@@ -451,7 +451,8 @@ static Thread http_fetch_start(http_fetch* f) {
 
 // `connected` says whether the server answered at all (else the system's
 // service may still get through).
-static Result http_curl_download(const char* url, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
+// From byte `from` on (a download that began over several connections), the caller's progress counting from 0.
+static Result http_curl_download(const char* url, u64 from, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
                                  Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections), bool* connected,
                                  http_shared* shared) {
     *connected = false;
@@ -475,6 +476,10 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 
     if(R_SUCCEEDED(res)) {
         curl_easy_setopt(f->curl, CURLOPT_URL, url);
+        if(from > 0) {
+            curl_easy_setopt(f->curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t) from);
+        }
+
         curl_easy_setopt(f->curl, CURLOPT_BUFFERSIZE, (long) HTTP_CHUNK_MAX);
         curl_easy_setopt(f->curl, CURLOPT_ACCEPT_ENCODING, "");
         curl_easy_setopt(f->curl, CURLOPT_USERAGENT, HTTP_USER_AGENT);
@@ -551,7 +556,7 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 
                 if(progress != NULL) {
                     u64 received = f->received;
-                    progress(userData, f->total > received ? f->total : received, received, 1);
+                    progress(userData, from + (f->total > received ? f->total : received), from + received, 1);
                 }
 
                 u64 start = speedlog_ticks();
@@ -619,8 +624,13 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 // The connections ask for the file where the redirects ended (no redirects
 // for each segment), unless that address refuses a second request: Dropbox's
 // `dl.dropboxusercontent.com/cd/0/get/...` serves one and answers 403 to the
-// rest. Then they go back to the address given, which every connection
-// follows on its own (as 3dsDL does).
+// rest. Then the rest of the file comes over one connection from the address
+// given (HTTP_RES_ONE_LINK), as 3dsDL installs: going through the redirects
+// for every segment (a new host and TLS handshake each) went at half the
+// speed (~470 KB/s from Dropbox).
+
+// http_parallel_download's own: the rest goes over one connection (never returned to the caller).
+#define HTTP_RES_ONE_LINK MAKERESULT(RL_TEMPORARY, RS_NOTSUPPORTED, RM_APPLICATION, 801)
 
 #define HTTP_PARALLEL 8
 #define HTTP_PARALLEL_OLD 8
@@ -637,7 +647,6 @@ typedef struct http_parallel_s http_parallel;
 typedef struct {
     http_parallel* p;
     CURL* curl;
-    bool onOriginal;         // Asking at p->original.
     u8* buf;                 // Its own: the segment being fetched.
     u32 len;
     u32 want;
@@ -649,7 +658,6 @@ typedef struct {
 struct http_parallel_s {
     char url[1024];                        // Where the redirects ended.
     char original[1024];                   // The address given, when the redirects went elsewhere.
-    volatile bool useOriginal;             // `url` refused a request.
     u64 size;
     u32 segments;
     u32 workerCount;
@@ -873,11 +881,6 @@ static void http_worker_thread(void* arg) {
             w->received -= w->len;
             w->len = 0;
             w->want = (u32) (end - start);
-            if(p->useOriginal && !w->onOriginal) {
-                curl_easy_setopt(w->curl, CURLOPT_URL, p->original);
-                w->onOriginal = true;
-            }
-
             curl_easy_setopt(w->curl, CURLOPT_RANGE, range);
             ret = http_perform(w->curl);
             curl_easy_getinfo(w->curl, CURLINFO_RESPONSE_CODE, &code);
@@ -885,15 +888,17 @@ static void http_worker_thread(void* arg) {
                 break;
             }
 
-            // The address the redirects ended at served once and refuses the rest: back to the one given.
-            if(ret == CURLE_HTTP_RETURNED_ERROR && (code == 403 || code == 410) && !w->onOriginal && p->original[0] != '\0') {
-                if(!p->useOriginal && http_log != NULL) {
-                    http_log("http: segment %ld: http %ld where the redirects ended, asking at the address given\n", segment, code);
+            // The address the redirects ended at served once and refuses the rest: one connection from the one given.
+            if(ret == CURLE_HTTP_RETURNED_ERROR && (code == 403 || code == 410) && p->original[0] != '\0') {
+                if(!p->abort) {
+                    p->failure = HTTP_RES_ONE_LINK;
+                    if(http_log != NULL) {
+                        http_log("http: segment %ld: http %ld where the redirects ended, the rest over one connection\n", segment, code);
+                    }
                 }
 
-                p->useOriginal = true;
-                attempt--;
-                continue;
+                p->abort = true;
+                break;
             }
 
             ret = ret == CURLE_OK ? CURLE_PARTIAL_FILE : ret;
@@ -947,9 +952,10 @@ static void http_worker_thread(void* arg) {
     }
 }
 
+// `*handed` is what the caller got, in order.
 static Result http_parallel_download(const char* url, const char* original, u64 size, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
                                      Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections),
-                                     http_shared* shared) {
+                                     http_shared* shared, u64* handed) {
     http_parallel* p = (http_parallel*) calloc(1, sizeof(http_parallel));
     if(p == NULL) {
         return R_APP_OUT_OF_MEMORY;
@@ -1115,6 +1121,7 @@ static Result http_parallel_download(const char* url, const char* original, u64 
                  p->workerCount, url, delivered, p->size, secs, secs > 0 ? delivered / 1024 / secs : 0, p->hedges, res);
     }
 
+    *handed = delivered;
     free(p);
     return res;
 }
@@ -1133,7 +1140,13 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
     char* effective = (char*) malloc(1024);
     u64 size = 0;
     if(effective != NULL && http_probe(url, effective, 1024, &size, NULL, NULL, shared) && size >= HTTP_PARALLEL_MIN) {
-        Result res = http_parallel_download(effective, url, size, userData, callback, checkRunning, progress, shared);
+        u64 handed = 0;
+        Result res = http_parallel_download(effective, url, size, userData, callback, checkRunning, progress, shared, &handed);
+        if(res == HTTP_RES_ONE_LINK) {
+            bool connected = false;
+            res = http_curl_download(url, handed, bufferSize, userData, callback, checkRunning, progress, &connected, shared);
+        }
+
         free(effective);
         http_shared_close(shared);
         free(shared);
@@ -1143,7 +1156,7 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
     free(effective);
 
     bool connected = false;
-    Result res = http_curl_download(url, bufferSize, userData, callback, checkRunning, progress, &connected, shared);
+    Result res = http_curl_download(url, 0, bufferSize, userData, callback, checkRunning, progress, &connected, shared);
     http_shared_close(shared);
     free(shared);
 
@@ -1176,14 +1189,17 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
 // server refused makes the download keep the connections still open as its
 // most (some servers turn extra ones away), as 3dsDL does.
 //
-// It starts with one connection and opens another every HTTP_SCATTER_RAMP_MS
-// while the last one made it HTTP_SCATTER_RAMP_GAIN faster; the first that
-// does not is the last. A fast server (Dropbox: ~900 KB/s on one) keeps one or
-// two and leaves the console's Wi-Fi room for the FTP and the web page, which
-// eight saturated for the same speed (850 KB/s); a slow one per connection
-// (catbox.moe) gets more.
+// It starts with two connections and opens another while the last one made it
+// HTTP_SCATTER_RAMP_GAIN faster (measured over HTTP_SCATTER_RAMP_MS, from
+// HTTP_SCATTER_RAMP_SETTLE_MS after it opened: its handshake and redirects
+// would count against it); the first that does not is the last. A fast server
+// (Dropbox: ~1000 KB/s on two) keeps two and leaves the console's Wi-Fi room
+// for the FTP and the web page, which eight saturated for less (790 KB/s); a
+// slow one per connection (catbox.moe) gets more (five).
 
-#define HTTP_SCATTER_RAMP_MS 8000
+#define HTTP_SCATTER_START 2
+#define HTTP_SCATTER_RAMP_MS 5000
+#define HTTP_SCATTER_RAMP_SETTLE_MS 1500
 #define HTTP_SCATTER_RAMP_GAIN 115              // Percent of the speed before.
 #define HTTP_SCATTER_PIECES 64
 #define HTTP_SCATTER_MIN_PIECE (1024 * 1024)   // Pieces are split only if both halves are at least this.
@@ -1528,7 +1544,7 @@ static Result http_scatter_download(const char* url, const char* direct, u64 sta
     s->pieceCount = count;
     s->workerCount = count;
     s->maxConnections = count;
-    s->level = 1;
+    s->level = count < HTTP_SCATTER_START ? count : HTTP_SCATTER_START;
 
     bool isNew = false;
     APT_CheckNew3DS(&isNew);
@@ -1574,16 +1590,17 @@ static Result http_scatter_download(const char* url, const char* direct, u64 sta
     u64 lastLog = started;
     u64 lastWritten = 0;
     u64 traced = 0;
-    u64 rampStart = 0;
+    u64 rampAt = 0;         // When the next measure begins (0: at the first data).
+    u64 rampStart = 0;      // When this one began (0: not yet).
     u64 rampWritten = 0;
     u32 rampRate = 0;
     bool ramping = true;
     while(R_SUCCEEDED(res) && s->running > 0) {
         u64 written = http_scatter_written(s);
 
-        // Another connection while the last one paid off; timed from the first data.
+        // Another connection while the last one paid off.
         u64 now = osGetTime();
-        if(ramping && written > 0 && rampStart == 0) {
+        if(ramping && written > 0 && rampStart == 0 && now >= rampAt) {
             rampStart = now;
             rampWritten = written;
         } else if(ramping && rampStart != 0 && now - rampStart >= HTTP_SCATTER_RAMP_MS) {
@@ -1600,8 +1617,8 @@ static Result http_scatter_download(const char* url, const char* direct, u64 sta
                 http_log("http: %lu KB/s over %lu connections (%lu KB/s with one less): %s\n", rate, level, before, ramping ? "one more" : "keeping them");
             }
 
-            rampStart = now;
-            rampWritten = written;
+            rampAt = now + HTTP_SCATTER_RAMP_SETTLE_MS;
+            rampStart = 0;
         }
 
         if(written > traced) {

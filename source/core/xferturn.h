@@ -39,6 +39,8 @@ void xferturn_init();
 u32 xferturn_take(xfer_kind kind, const char* name, u64 total);
 // How far it is: also says the transfer is alive. A ticket that lost the turn is ignored.
 void xferturn_progress(u32 ticket, u64 done);
+// The size, once known (a download learns it from the server's first answer).
+void xferturn_total(u32 ticket, u64 total);
 void xferturn_release(u32 ticket);
 // Whether `ticket` still holds the turn.
 bool xferturn_holds(u32 ticket);

@@ -208,6 +208,7 @@ static Result task_data_op_download_progress(void* userData, u64 total, u64 curr
 
     data->currTotal = total;
     data->currProcessed = curr;
+    xferturn_total(downloadData->turn, total);
     xferturn_progress(downloadData->turn, curr);
 
     u64 time = osGetTime();

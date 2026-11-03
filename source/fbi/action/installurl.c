@@ -608,12 +608,18 @@ static void action_install_url_install_show(install_url_data* data) {
 #define INSTALL_URL_CHOICE_INSTALL 0
 #define INSTALL_URL_CHOICE_SAVE 1
 
+static bool action_install_url_in_order = false;
+
+void action_install_url_save_in_order(bool inOrder) {
+    action_install_url_in_order = inOrder;
+}
+
 static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32 response) {
     install_url_data* installData = (install_url_data*) data;
 
     installData->saveOnly = response == INSTALL_URL_CHOICE_SAVE;
     // A file being saved takes its pieces in any order: long pieces over several connections.
-    installData->installInfo.dstAnyOrder = installData->saveOnly;
+    installData->installInfo.dstAnyOrder = installData->saveOnly && !action_install_url_in_order;
     if(response == INSTALL_URL_CHOICE_INSTALL || response == INSTALL_URL_CHOICE_SAVE) {
         Result res = task_data_op(&installData->installInfo);
         if(R_SUCCEEDED(res)) {

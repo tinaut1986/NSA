@@ -21,6 +21,7 @@
 #include "../core/core.h"
 #include "../core/speedlog.h"
 #include "../core/xferturn.h"
+#include "action/action.h"
 
 #define FTP_PATH_MAX 512
 #define FTP_LINE_MAX 600
@@ -1027,6 +1028,19 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         }
 
         ftp_reply(s, "200 The transfer with the turn waits by %s (SITE POLL POLL|NAP|HYBRID).", names[net_get_wait_mode()]);
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "SAVEORDER") == 0) {
+        static bool inOrder = false;
+        if(path != NULL && strcasecmp(path, "INORDER") == 0) {
+            inOrder = true;
+        } else if(path != NULL && strcasecmp(path, "ANY") == 0) {
+            inOrder = false;
+        }
+
+        action_install_url_save_in_order(inOrder);
+        ftp_reply(s, "200 Save from a URL takes the file %s (SITE SAVEORDER ANY|INORDER).", inOrder ? "in order, as an install" : "in any order");
         return;
     }
 

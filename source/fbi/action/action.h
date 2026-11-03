@@ -19,6 +19,9 @@ void action_delete_system_save_data(linked_list* items, list_item* selected);
 void action_install_cia(linked_list* items, list_item* selected);
 void action_install_cia_delete(linked_list* items, list_item* selected);
 void action_install_cia_delete_now(linked_list* items, list_item* selected);
+// Installs CIAs on the SD card one after another with no question (Remote Install's "Save and install"):
+// `paths` one a line; `delete` deletes each once it is installed.
+void action_install_cia_paths_now(const char* paths, bool delete);
 void action_install_cias(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_cias_delete(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_ticket(linked_list* items, list_item* selected);

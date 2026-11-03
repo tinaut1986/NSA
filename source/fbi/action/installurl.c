@@ -157,7 +157,7 @@ static bool action_install_url_exists(FS_Archive archive, const char* path) {
 }
 
 // "Save": opens INSTALL_URL_SAVE_DIR's file for the download; a name in use gets " (2)", " (3)"...
-static Result action_install_url_open_save(install_url_data* installData, u32 index, void* initialReadBlock, u32* handle) {
+static Result action_install_url_open_save(install_url_data* installData, u32 index, void* initialReadBlock, u64 size, u32* handle) {
     installData->contentType = CONTENT_SAVED;
 
     char name[FILE_NAME_MAX];
@@ -182,6 +182,15 @@ static Result action_install_url_open_save(install_url_data* installData, u32 in
         FS_Path* path = fs_make_path_utf8(installData->currPath);
         if(path != NULL) {
             res = FSUSER_OpenFile(handle, sdmcArchive, *path, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);
+
+            // Its whole size at once: the pieces are written where they go, and a write far past the end would
+            // first fill the gap. A card without room for it gets no file.
+            if(R_SUCCEEDED(res) && size > 0 && R_FAILED(res = FSFILE_SetSize(*handle, size))) {
+                FSFILE_Close(*handle);
+                *handle = 0;
+                FSUSER_DeleteFile(sdmcArchive, *path);
+            }
+
             fs_free_path_utf8(path);
         } else {
             res = R_APP_OUT_OF_MEMORY;
@@ -204,7 +213,7 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
     memset(&installData->currPath, 0, sizeof(installData->currPath));
 
     if(installData->saveOnly) {
-        return action_install_url_open_save(installData, index, initialReadBlock, handle);
+        return action_install_url_open_save(installData, index, initialReadBlock, size, handle);
     }
 
     if(*(u16*) initialReadBlock == 0x2020) {
@@ -599,10 +608,18 @@ static void action_install_url_install_show(install_url_data* data) {
 #define INSTALL_URL_CHOICE_INSTALL 0
 #define INSTALL_URL_CHOICE_SAVE 1
 
+static bool action_install_url_in_order = false;
+
+void action_install_url_save_in_order(bool inOrder) {
+    action_install_url_in_order = inOrder;
+}
+
 static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32 response) {
     install_url_data* installData = (install_url_data*) data;
 
     installData->saveOnly = response == INSTALL_URL_CHOICE_SAVE;
+    // A file being saved takes its pieces in any order: long pieces over several connections.
+    installData->installInfo.dstAnyOrder = installData->saveOnly && !action_install_url_in_order;
     if(response == INSTALL_URL_CHOICE_INSTALL || response == INSTALL_URL_CHOICE_SAVE) {
         Result res = task_data_op(&installData->installInfo);
         if(R_SUCCEEDED(res)) {

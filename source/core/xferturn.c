@@ -75,6 +75,18 @@ void xferturn_progress(u32 ticket, u64 done) {
     LightLock_Unlock(&xferturn_lock);
 }
 
+void xferturn_total(u32 ticket, u64 total) {
+    if(ticket == 0) {
+        return;
+    }
+
+    LightLock_Lock(&xferturn_lock);
+    if(xferturn.ticket == ticket) {
+        xferturn.total = total;
+    }
+    LightLock_Unlock(&xferturn_lock);
+}
+
 void xferturn_release(u32 ticket) {
     if(ticket == 0) {
         return;

@@ -203,6 +203,15 @@ dates). The owner will go through them one by one; tick each only when they say 
 - [ ] A QR / URL install while an FTP upload runs: the console says another transfer is in progress; after it ends it works.
 - [ ] The 2DS: the same speed tests (`speed_tests.py --wait-mode poll|nap`) to see whether the short poll helps there too.
 
+**Downloads from Dropbox and in long pieces** (Decisions, "Saving comes in long pieces"; the New 3DS XL passed Save from
+Dropbox, catbox and the LAN, byte for byte, and an install by URL of an 8 MB CIA over 8 connections)
+- [ ] A QR install from a Dropbox link (a game not installed yet): it says "one connection" after the first segments and
+      installs at ~1 MB/s.
+- [ ] The whole Dragon Quest VIII with Save (3.4 GB): ends, and the file is the right size.
+- [ ] The 2DS: Save and install from Dropbox and catbox (how many connections it opens there).
+- [ ] Whether NSA stops answering again right after "the rest over one connection" (it did once): if it does, a photo of
+      the screen and `transfer-log.txt` at once.
+
 **Download and FTP speed** (`fix/download-speed`, `fix/ftp-pasv-buffers`, issue #21). Measured on the New 3DS XL over
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
@@ -854,6 +863,30 @@ current, this list is the summary. What only the owner can test (local wireless)
   The New 3DS did the catbox CIA at 762 KB/s (3dsDL: 515-560).
   The install screen says how many connections ("From host, N connections"). The log says "segments ahead" every 10 s
   and how many segments were asked for twice.
+- **Saving comes in long pieces; links good for one request** (2026-11-03, the owner's Dropbox link, Dragon Quest VIII
+  3.4 GB, New 3DS XL). Dropbox redirects three times to `uc….dl.dropboxusercontent.com/cd/0/get/…`, which serves **one**
+  request (even on the same connection) and answers 403 to the rest: the segments over 8 connections got 403 ("Forbidden"
+  in NSA), and going through the redirects for each one (a new host and TLS handshake every 512 KB) ran the console out
+  of sockets (curl 7 "Couldn't connect" ~100 ms after the redirect: each connection kept the old ones open). 3dsDL
+  (`source/net/download_engine.cpp`) fetches long pieces, one request each, and when an extra connection gets an HTTP
+  error it goes back to the link and keeps the connections still open as its most: from Dropbox it ended on **one**
+  (its log's `connections=4` is the most ever open), 758 KB/s over the whole file.
+  - **Save** (`http_download_file`, `data_op_data.dstAnyOrder`): the file is set to its size first (`FSFILE_SetSize`; a file
+    FAT32 can not hold, or no room, fails at once and leaves nothing), split among the connections, each fetches its
+    piece in one request and writes it where it goes; one that is done takes half of the biggest piece left. Refused
+    where the redirects ended: the link given (free); refused there: no more connections than are open. Each request
+    closes its connection (`FORBID_REUSE`: kept ones caused the curl 7). It **starts with 2 and opens another while the
+    last one made it 15% faster** (5 s measures, 1.5 s after it opened). Measured: Dropbox 3 connections, 918 KB/s from
+    the start (8 connections: 789 KB/s in minutes 1-3, and the console's ping at 150-200 ms with FTP data connections
+    reset; with 2-3, ping ~50 ms, FTP 1-3 s, web 0.3 s); catbox.moe 4 connections, 603 KB/s (34 MB, the same bytes);
+    LAN 256 MB 4 connections, 1311 KB/s; a cancelled save leaves nothing in `/nsa/received/`.
+  - **Install** keeps the segments in order (the installer needs them so). When the address the redirects ended at
+    refuses one (403/410), the rest comes over one connection from the link given, from where it was
+    (`HTTP_RES_ONE_LINK`), as 3dsDL installs: Dropbox **1087 KB/s** (segments through the redirects: ~470). Tried with
+    `SITE SAVEORDER INORDER` (DEBUG: Save takes the in-order path) and a local server whose addresses answer once or 30
+    times (`onceserver`-style): the same bytes, 1112-1194 KB/s, also when the switch comes after 12 MB.
+  - Once, on the first try of the switch to one connection, NSA stopped answering (an `abort` or ErrDisp: no Luma dump)
+    and the log, which starts over at 96 KB, had just started over. Four runs after that and the Dropbox one went well.
 - **One transfer at a time** (`source/core/xferturn.c`, the owner's rule, 2026-11-03): a download (URL, QR, updater, Save),
   an FTP RETR (1 MB and up, and `/dev/zero`) or STOR, a file up or down through the web page (down: 1 MB and up) and a console
   to console send (from connecting to the end; not while asking whether to retry) or receive (from accepting) take the turn.

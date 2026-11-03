@@ -41,3 +41,12 @@ void net_close_gently(int fd);
 // smooth on an Old 3DS. Not on the system core, where NSA gets 30% of the CPU
 // and the tasks run.
 Thread net_server_thread(ThreadFunc entry, size_t stackSize);
+
+// For the transfer that holds the turn (xferturn.h) only: a real poll() that waits inside the SOC
+// service, at most NET_OWNER_POLL_MS (less when `timeoutMs` is smaller), and wakes as soon as the
+// socket is ready, as ftpd waits. Nothing else moves data meanwhile, so the session is held only
+// that long for a control request. Never longer: a wait with no end was what froze NSA before.
+#define NET_OWNER_POLL_MS 20
+
+struct pollfd;
+int net_poll_owner(struct pollfd* fds, u32 count, u32 timeoutMs);

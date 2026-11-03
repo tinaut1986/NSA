@@ -82,6 +82,10 @@ Thread net_server_thread(ThreadFunc entry, size_t stackSize) {
 
 int __real_poll(struct pollfd* fds, nfds_t nfds, int timeout);
 
+int net_poll_owner(struct pollfd* fds, u32 count, u32 timeoutMs) {
+    return __real_poll(fds, (nfds_t) count, (int) (timeoutMs < NET_OWNER_POLL_MS ? timeoutMs : NET_OWNER_POLL_MS));
+}
+
 int __wrap_poll(struct pollfd* fds, nfds_t nfds, int timeout) {
     if(nfds == 0) {
         // How curl sleeps when it has no socket to watch; libctru turns that

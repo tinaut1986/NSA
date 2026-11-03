@@ -337,6 +337,7 @@ textarea.code{width:100%;height:56vh;font:13px/1.45 ui-monospace,Consolas,monosp
     <span class="sp"></span>
     <div class="status">
       <span class="opt-wide" id="sd"><span class="ic s16" data-ic="device-sd-card"></span><span id="sdtext"></span><span class="sdbar"><i id="sdfill"></i></span></span>
+      <span class="opt-wide" id="xfer" hidden><span class="ic s16" data-ic="download"></span><span id="xfertext"></span></span>
       <span id="wifi"><span class="ic s16" data-ic="wifi"></span></span>
       <span id="battery"></span>
       <span id="clock"></span>
@@ -372,7 +373,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
   t_type:{text:'Text',code:'Code',data:'Data',image:'Picture',audio:'Sound',video:'Video',archive:'Compressed',program:'Program',rom:'Game ROM',save:'Save file',binary:'Binary',pdf:'PDF',cia:'CIA',ticket:'Ticket',file:'File'},
   i_urls:'Install from URLs',i_urlssub:'Paste links to CIAs: the console asks there, downloads and installs.',i_cia:'Install a CIA from this PC',i_ciasub:'Upload it and install it; the copy on the SD card is deleted after.',
   i_hist:'History',i_histsub:'What was sent to Remote Install before.',i_log:'Transfer log',i_logsub:'The end of transfer-log.txt.',urls:'One URL per line',send:'Send to the console',again:'Install again',nohist:'Nothing yet.',nolog:'(no log)',
-  live:'Live',nolive:'The console does not answer.',padnote:'Click the bottom screen to touch it, drag up or down to scroll. Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',
+  live:'Live',nolive:'The console does not answer.',busy:'The console is busy with %k: %n%p. One transfer at a time: try again when it ends.',busylive:'Paused while the console transfers (%k: %n%p).',k_ftp:'FTP',k_web:'this page',k_download:'a download',k_console:'another 3DS',padnote:'Click the bottom screen to touch it, drag up or down to scroll. Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',
   ap:'Appearance',theme:'Theme',themesub:'How every screen looks, here and on the console.',accent:'Accent colour',night:'Night mode',nightsub:'Auto: from 20:00 to 8:00 by the console\'s clock.',off:'Off',on:'On',auto:'Auto',language:'Language',lsystem:'Console\'s',
   snd:'Sound',sounds:'Interface sounds',soundssub:'Ticks and clicks; Alerts plays only success and error.',alerts:'Alerts',all:'All',music:'Background music',musicsub:'Made on the console as it plays.',m_lift:'Lift',m_calm:'Calm',m_shop:'Shop',
   page:'This page',psound:'Sounds in this page',psoundsub:'The console\'s tones, played by the browser (as set above).',pmotion:'Animations',pmotionsub:'Movement in lists, sheets and screens.',signout:'Sign out',signoutsub:'Forget the PIN in this browser.',about:'Console',address:'Address'},
@@ -394,7 +395,7 @@ es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wron
   t_type:{text:'Texto',code:'Código',data:'Datos',image:'Imagen',audio:'Sonido',video:'Vídeo',archive:'Comprimido',program:'Programa',rom:'ROM de juego',save:'Partida',binary:'Binario',pdf:'PDF',cia:'CIA',ticket:'Ticket',file:'Archivo'},
   i_urls:'Instalar desde URLs',i_urlssub:'Pega enlaces a CIAs: la consola pregunta allí, descarga e instala.',i_cia:'Instalar un CIA desde este PC',i_ciasub:'Se sube y se instala; la copia en la SD se borra después.',
   i_hist:'Historial',i_histsub:'Lo que se envió antes a Remote Install.',i_log:'Registro de transferencias',i_logsub:'El final de transfer-log.txt.',urls:'Una URL por línea',send:'Enviar a la consola',again:'Instalar otra vez',nohist:'Nada todavía.',nolog:'(sin registro)',
-  live:'En vivo',nolive:'La consola no responde.',padnote:'Pulsa la pantalla de abajo para tocarla, arrastra arriba o abajo para desplazar. Teclas: flechas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Intro = Start, Retroceso = Select.',
+  live:'En vivo',nolive:'La consola no responde.',busy:'La consola está ocupada con %k: %n%p. Una transferencia a la vez: vuelve a probar cuando acabe.',busylive:'En pausa mientras la consola transfiere (%k: %n%p).',k_ftp:'FTP',k_web:'esta página',k_download:'una descarga',k_console:'otra 3DS',padnote:'Pulsa la pantalla de abajo para tocarla, arrastra arriba o abajo para desplazar. Teclas: flechas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Intro = Start, Retroceso = Select.',
   ap:'Apariencia',theme:'Tema',themesub:'Cómo se ven todas las pantallas, aquí y en la consola.',accent:'Color de acento',night:'Modo noche',nightsub:'Auto: de 20:00 a 8:00 según el reloj de la consola.',off:'No',on:'Sí',auto:'Auto',language:'Idioma',lsystem:'El de la consola',
   snd:'Sonido',sounds:'Sonidos de la interfaz',soundssub:'Ticks y clics; Avisos solo suena al acabar bien o mal.',alerts:'Avisos',all:'Todos',music:'Música de fondo',musicsub:'La consola la compone mientras suena.',m_lift:'Lift',m_calm:'Calma',m_shop:'Tienda',
   page:'Esta página',psound:'Sonidos en esta página',psoundsub:'Los tonos de la consola, sonando en el navegador (como arriba).',pmotion:'Animaciones',pmotionsub:'Movimiento en listas, hojas y pantallas.',signout:'Cerrar sesión',signoutsub:'Olvidar el PIN en este navegador.',about:'Consola',address:'Dirección'}
@@ -451,12 +452,19 @@ function sfx(name){
 // ---- talking to the console ----
 let pin = '';
 class ApiError extends Error {}
+// What the console is transferring (info.transfer, or a 503's "busy"), in words: one transfer at a time.
+const XFER_KINDS = {'FTP':'k_ftp', 'web page':'k_web', 'download':'k_download', 'another 3DS':'k_console'};
+function busyText(b, key){
+  const name = (b.name||'').replace(/\/+$/, '').split('/').pop() || b.name || '';
+  return tr(key, {k:T[XFER_KINDS[b.kind]] || b.kind, n:name, p:b.total ? ' ('+Math.floor(100*b.done/b.total)+' %)' : ''});
+}
 async function api(method, path, params, body){
   let r;
   try { r = await fetch('/api/'+path+(params ? '?'+(typeof params==='string' ? params : q(params)) : ''), {method, headers:{'X-Pin':pin}, body}); }
   catch(e){ throw new ApiError(T.lost); }
   let j = null; try { j = await r.json(); } catch(e){}
   if(r.status===401 || r.status===429){ const e = new ApiError(r.status===401 ? T.wrong : T.locked); e.auth = true; throw e; }
+  if(r.status===503 && j && j.busy){ const e = new ApiError(busyText(j.busy, 'busy')); e.status = 503; e.busy = j.busy; throw e; }
   if(!r.ok || (j && j.ok===false)){ const e = new ApiError((j && j.error) || r.statusText); e.status = r.status; throw e; }
   return j;
 }
@@ -611,9 +619,19 @@ function drawStatus(){
   if(info.total){ $('sdtext').textContent = fmtSize(info.free)+' / '+fmtSize(info.total); $('sdfill').style.width = (100*(1-info.free/info.total)).toFixed(1)+'%'; }
   const b = $('battery'); b.textContent = '';
   if(info.battery!=null) b.append(ic(info.charging ? 'battery-charging' : ['battery','battery-1','battery-1','battery-2','battery-3','battery-4'][Math.min(5, info.battery)], 16));
+  const x = info.transfer;
+  $('xfer').hidden = !x;
+  if(x){ const name = (x.name||'').split('/').pop() || x.name; $('xfertext').textContent = name+(x.total ? ' '+Math.floor(100*x.done/x.total)+' %' : '')+(x.kbs ? ' · '+x.kbs+' KB/s' : '');
+    $('xfer').title = busyText(x, 'busy'); }
 }
 setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString(L, {hour:'2-digit', minute:'2-digit'}); }, 1000);
-setInterval(async () => { if($('app').hidden || document.hidden) return; try { info = await api('GET','info'); drawStatus(); $('wifi').style.opacity = 1; } catch(e){ $('wifi').style.opacity = .3; } }, 30000);
+// The status every 30 s; every 3 s while the console transfers, to show how far it is.
+(function poll(){
+  setTimeout(async () => {
+    if(!$('app').hidden && !document.hidden){ try { info = await api('GET','info'); drawStatus(); $('wifi').style.opacity = 1; } catch(e){ $('wifi').style.opacity = .3; } }
+    poll();
+  }, info && info.transfer ? 3000 : 30000);
+})();
 
 // ---- the menu and the screens (#titles, #files/sd/path...) ----
 const SCREENS = [['g_manage'], ['titles','apps'], ['files','folder'], ['tickets','ticket'], ['extdata','database'], ['g_tools'], ['install','world-download'], ['screen','device-desktop'], ['settings','settings']];
@@ -765,7 +783,10 @@ function downloadSave(t, name, kind){
 function getWithProgress(url, size, onprogress){
   return new Promise((resolve, reject) => { const x = new XMLHttpRequest(), t0 = performance.now(); x.open('GET', url); x.setRequestHeader('X-Pin', pin); x.responseType = 'blob';
     x.onprogress = e => onprogress(e.loaded, e.lengthComputable ? e.total : size, e.loaded/Math.max(.001,(performance.now()-t0)/1000));
-    x.onload = () => x.status===200 ? resolve(x.response) : reject(new ApiError(x.statusText||String(x.status))); x.onerror = () => reject(new ApiError(T.lost)); x.send(); });
+    x.onload = async () => { if(x.status===200){ resolve(x.response); return; }
+      if(x.status===503){ try { const j = JSON.parse(await x.response.text()); if(j.busy){ reject(new ApiError(busyText(j.busy, 'busy'))); return; } } catch(e){} }
+      reject(new ApiError(x.statusText||String(x.status))); };
+    x.onerror = () => reject(new ApiError(T.lost)); x.send(); });
 }
 // A card in the corner for something that takes a while: a bar (null: still waiting), a line of text, and a way to stop it.
 function taskCard(icon, title, cancel){
@@ -1098,10 +1119,14 @@ function upItem(name, size){
 }
 function put(path, file, onprogress){
   return new Promise(resolve => { const x = new XMLHttpRequest(); x.open('PUT', fileUrl(path)); x.setRequestHeader('X-Pin', pin);
-    x.upload.onprogress = e => { if(e.lengthComputable) onprogress(e.loaded/e.total, e.loaded); }; x.onloadend = () => resolve(x.status===200); x.send(file); });
+    x.upload.onprogress = e => { if(e.lengthComputable) onprogress(e.loaded/e.total, e.loaded); };
+    x.onloadend = () => { if(x.status===503){ try { const j = JSON.parse(x.responseText); if(j.busy) toast(busyText(j.busy, 'busy'), 'err'); } catch(e){} } resolve(x.status===200); };
+    x.send(file); });
 }
 async function uploadOne(file, path, el){
   el = el || upItem(file.name, fmtSize(file.size)); const t0 = performance.now();
+  try { info = await api('GET', 'info'); drawStatus(); } catch(e){}
+  if(info.transfer){ toast(busyText(info.transfer, 'busy'), 'err'); el._st.textContent = '✕'; el._fill.style.width = '100%'; el._fill.style.background = 'var(--danger)'; return false; }
   const ok = await put(path, file, (f, n) => { el._fill.style.width = (100*f)+'%'; const s = n/Math.max(.001,(performance.now()-t0)/1000); el._st.textContent = Math.round(100*f)+'% · '+fmtSize(s)+'/s'; });
   el._st.textContent = ok ? el._size : '✕'; el._fill.style.width = '100%'; if(!ok) el._fill.style.background = 'var(--danger)';
   setTimeout(() => { el.style.transition = 'opacity .4s'; el.style.opacity = 0; setTimeout(() => { el.remove(); if(upPanel && !upPanel.lastChild.children.length){ upPanel.remove(); upPanel = null; } }, 400); }, ok ? 2500 : 8000);
@@ -1250,6 +1275,7 @@ function paint(img, ctx, u16, offset, count){
 async function frame(){
   const r = await fetch('/api/screens', {headers:{'X-Pin':pin}});
   if(r.status===401){ const e = new ApiError(T.wrong); e.auth = true; throw e; }
+  if(r.status===503){ let j = null; try { j = await r.json(); } catch(e){} if(j && j.busy) throw new ApiError(busyText(j.busy, 'busylive')); }
   if(!r.ok) throw new ApiError(T.nolive);
   const u16 = new Uint16Array(await r.arrayBuffer()); if(!$('cv_top')) return;
   paint(imgTop, ctxTop, u16, 0, 400*240); paint(imgBottom, ctxBottom, u16, 400*240, 320*240);

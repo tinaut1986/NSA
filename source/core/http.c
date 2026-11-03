@@ -873,6 +873,11 @@ static void http_worker_thread(void* arg) {
             }
 
             ret = ret == CURLE_OK ? CURLE_PARTIAL_FILE : ret;
+
+            // A connection that could not get through tries again in a moment, not at once.
+            if(ret == CURLE_COULDNT_CONNECT || ret == CURLE_COULDNT_RESOLVE_HOST) {
+                svcSleepThread(500000000LL * (attempt + 1));
+            }
         }
 
         bool whole = ret == CURLE_OK && code == 206 && w->len == w->want;
@@ -972,6 +977,10 @@ static Result http_parallel_download(const char* url, const char* original, u64 
         } else {
             http_curl_common(w->curl, p->url, shared);
             curl_easy_setopt(w->curl, CURLOPT_BUFFERSIZE, (long) HTTP_CHUNK_MAX);
+            // Each connection keeps two open (the server it redirects from and the one it ends at), not curl's five:
+            // at the address given, every segment ends at a new Dropbox host, and eight connections' worth of the
+            // old ones left the console without sockets (curl 7).
+            curl_easy_setopt(w->curl, CURLOPT_MAXCONNECTS, 2L);
             curl_easy_setopt(w->curl, CURLOPT_WRITEFUNCTION, http_worker_write);
             curl_easy_setopt(w->curl, CURLOPT_WRITEDATA, (void*) w);
             curl_easy_setopt(w->curl, CURLOPT_NOPROGRESS, 0L);

@@ -41,3 +41,28 @@ void net_close_gently(int fd);
 // smooth on an Old 3DS. Not on the system core, where NSA gets 30% of the CPU
 // and the tasks run.
 Thread net_server_thread(ThreadFunc entry, size_t stackSize);
+
+// For the transfer that holds the turn (xferturn.h) only: a real poll() that waits inside the SOC
+// service, at most NET_OWNER_POLL_MS (less when `timeoutMs` is smaller), and wakes as soon as the
+// socket is ready, as ftpd waits. Nothing else moves data meanwhile, so the session is held only
+// that long for a control request. Never longer: a wait with no end was what froze NSA before.
+#define NET_OWNER_POLL_MS 20
+
+struct pollfd;
+int net_poll_owner(struct pollfd* fds, u32 count, u32 timeoutMs);
+
+// How the turn's transfer waits, to compare them on a console (SITE POLL, DEBUG builds): NET_WAIT_POLL
+// (net_poll_owner every time), NET_WAIT_NAP (naps, as everything else) or NET_WAIT_HYBRID (1 ms naps for
+// the first NET_HYBRID_NAP_MS of a wait, then net_poll_owner).
+typedef enum {
+    NET_WAIT_POLL,
+    NET_WAIT_NAP,
+    NET_WAIT_HYBRID
+} net_wait_mode;
+
+#define NET_HYBRID_NAP_MS 5
+
+void net_set_wait_mode(net_wait_mode mode);
+net_wait_mode net_get_wait_mode();
+// Whether a turn's wait that has lasted `waitedMs` polls (true) or naps (false).
+bool net_owner_polls(u32 waitedMs);

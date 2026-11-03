@@ -70,6 +70,12 @@ make -C tests                        # host tests (needs libjansson-dev)
 version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in `tools/bin/`.
 `make` does not rebuild on a version or `DEBUG` change: `make clean` first.
 
+**On Windows** (devkitPro's msys2 shell, `C:/devkitpro/msys2/usr/bin/bash.exe -l`, with Git's `usr/bin` on the PATH for
+`xxd`): pass `VERSION_MAJOR=0 VERSION_MINOR=6 VERSION_MICRO=N` (version.sh's parts are not picked up there), and package the
+CIA with the Linux `tools/bin/makerom` from WSL: devkitPro's `makerom.exe` ignores `-minor` (0.6.2 comes out as 0.0.2, which a
+console refuses as older, D8E08027). Take the line from `make -n ... output/3ds-arm/NSA.cia` (with the CIA moved away) and run
+it in WSL from the repo with `./tools/bin/makerom`; check the TMD's title version (98 = 0.6.2) before installing.
+
 ## Interface
 
 - `source/core/theme.c`: themes (palettes for day and night, radii, borders, menu layout),
@@ -159,6 +165,12 @@ from a computer. Design, API, security and the phases left are in `docs/PLAN.md`
 `webserver.h`. To try it: Azahar with `"web_server": true` in its `sdmc:/nsa/settings.json`, then
 `tools/web_tests.py --host 127.0.0.1` (a DEBUG build writes the PIN to `sdmc:/nsa/web-pin.txt`), and open
 `http://127.0.0.1:8080/` in the built-in browser. Anything that changes something must be sent with the `X-Pin` header. `make` does not notice a change that is only in `romfs/` (the page): delete `output/3ds-arm/3ds/NSA/NSA.3dsx` and `output/3ds-arm/NSA.cia` and run it again.
+
+## Speed tests
+
+`tools/speed_tests.py --host IP` measures FTP, web and URL downloads (and `--server ftpd --ftp-port 5000` the FTP part against
+ftpd), with NSA's trace of every second (`sdmc:/nsa/speed-log.txt`, `source/core/speedlog.h`; release builds need
+`sdmc:/nsa/speed.flag`). See `docs/PLAN.md`, "Speed tests". Delete the flag on a user's console when done.
 
 ## Console to console: testing
 

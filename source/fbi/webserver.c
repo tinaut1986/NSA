@@ -26,6 +26,8 @@
 #include "task/uitask.h"
 #include "../core/bgmusic.h"
 #include "../core/core.h"
+#include "../core/speedlog.h"
+#include "../core/xferturn.h"
 #include "../core/input.h"
 #include "../core/data/smdh.h"
 
@@ -36,6 +38,9 @@
 #define WEB_NAP_MS 10
 #define WEB_SEND_CHUNK (64 * 1024)
 #define WEB_IDLE_MS 30000
+// A file transfer stalled this long gives up when another request is waiting: the page is served one
+// request at a time, and the 3DS does not always see a client's reset.
+#define WEB_STALL_MS 10000
 #define WEB_PIN_DIGITS 6
 #define WEB_FAILS_MAX 10
 #define WEB_LOCK_MS 60000
@@ -54,6 +59,9 @@ static char web_pin[WEB_PIN_DIGITS + 1] = "";
 static u32 web_fails = 0;
 static u64 web_locked_until = 0;
 static char* web_io = NULL;
+// The transfer turn (xferturn.h) held by the file going up or down, and its socket; 0 / -1 when none.
+static u32 web_turn = 0;
+static int web_turn_fd = -1;
 
 typedef struct {
     int fd;
@@ -80,11 +88,16 @@ static void web_close_socket(int* fd) {
     }
 }
 
+// The socket of a file transfer that holds the turn waits inside poll(), a few ms at a time, as the
+// FTP server's does (ftp_wait_fd).
 static bool web_wait_fd(int fd, short events, int timeoutMs) {
+    bool owner = web_turn != 0 && fd == web_turn_fd;
     int waited = 0;
     while(web_run) {
         struct pollfd p = {.fd = fd, .events = events, .revents = 0};
-        int r = poll(&p, 1, 0);
+        bool polls = owner && net_owner_polls((u32) waited);
+        u64 start = polls ? osGetTime() : 0;
+        int r = polls ? net_poll_owner(&p, 1, NET_OWNER_POLL_MS) : poll(&p, 1, 0);
         if(r > 0) {
             return (p.revents & (events | POLLHUP | POLLERR)) != 0;
         }
@@ -94,9 +107,14 @@ static bool web_wait_fd(int fd, short events, int timeoutMs) {
         }
 
         // Short naps while data flows, longer once idle (see ftp_wait_fd).
-        int nap = (int) net_nap_ms((u32) waited);
-        svcSleepThread((s64) nap * 1000000);
-        waited += nap;
+        if(polls) {
+            u64 took = osGetTime() - start;
+            waited += took > 0 ? (int) took : 1;
+        } else {
+            int nap = (int) net_nap_ms((u32) waited);
+            svcSleepThread((s64) nap * 1000000);
+            waited += nap;
+        }
         if(timeoutMs > 0 && waited >= timeoutMs) {
             return false;
         }
@@ -105,14 +123,37 @@ static bool web_wait_fd(int fd, short events, int timeoutMs) {
     return false;
 }
 
-static bool web_send_all(int fd, const char* data, size_t n) {
+// A file transfer's wait, up to WEB_IDLE_MS; after WEB_STALL_MS with nothing, it gives up if another
+// request is waiting (see WEB_STALL_MS).
+static bool web_wait_transfer(int fd, short events) {
+    for(int waited = 0; waited < WEB_IDLE_MS; waited += WEB_STALL_MS) {
+        if(web_wait_fd(fd, events, WEB_STALL_MS)) {
+            return true;
+        }
+
+        struct pollfd p = {.fd = web_listen, .events = POLLIN, .revents = 0};
+        if(!web_run || (poll(&p, 1, 0) > 0 && (p.revents & POLLIN) != 0)) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+// `log` (may be NULL) gets the time spent waiting for room and inside send().
+static bool web_send_logged(int fd, const char* data, size_t n, speedlog* log) {
     while(n > 0) {
-        if(!web_wait_fd(fd, POLLOUT, WEB_IDLE_MS)) {
+        u64 start = speedlog_ticks();
+        bool ready = web_wait_transfer(fd, POLLOUT);
+        speedlog_wait(log, speedlog_ticks() - start);
+        if(!ready) {
             return false;
         }
 
         // The sockets do not block (net_set_nonblocking): what does not fit now waits for room.
+        start = speedlog_ticks();
         ssize_t w = send(fd, data, n > WEB_SEND_CHUNK ? WEB_SEND_CHUNK : n, 0);
+        speedlog_net(log, w > 0 ? (u64) w : 0, speedlog_ticks() - start);
         if(w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             continue;
         }
@@ -126,6 +167,10 @@ static bool web_send_all(int fd, const char* data, size_t n) {
     }
 
     return true;
+}
+
+static bool web_send_all(int fd, const char* data, size_t n) {
+    return web_send_logged(fd, data, n, NULL);
 }
 
 // ---- responses ----
@@ -191,6 +236,50 @@ static void web_send_error(web_request* r, int status, const char* message) {
 
 static void web_send_ok(web_request* r) {
     web_send_json(r, 200, json_pack("{s:b}", "ok", 1));
+}
+
+// ---- one transfer at a time ----
+
+// What moves data now, for the page: null when nothing does.
+static json_t* web_transfer_json() {
+    xferturn_status status;
+    xferturn_get(&status);
+    if(!status.busy) {
+        return json_null();
+    }
+
+    return json_pack("{s:s,s:s,s:I,s:I,s:i,s:i}", "kind", xferturn_kind_name(status.kind), "name", status.name, "done", (json_int_t) status.done,
+                     "total", (json_int_t) status.total, "kbs", (int) status.kbs, "seconds", (int) status.seconds);
+}
+
+// 503 with what holds the turn: the page says so and lets the user try again when it ends.
+static void web_send_busy(web_request* r) {
+    char text[128];
+    if(!xferturn_describe(text, sizeof(text))) {
+        string_copy(text, "Busy", sizeof(text));
+    }
+
+    web_send_json(r, 503, json_pack("{s:b,s:s,s:o}", "ok", 0, "error", text, "busy", web_transfer_json()));
+}
+
+// Files from this size up take the turn to go down; smaller ones (a text, a picture) do not.
+#define WEB_TURN_MIN_GET (1024 * 1024)
+
+static bool web_take_turn(web_request* r, const char* vpath, u64 total) {
+    web_turn = xferturn_take(XFER_WEB, vpath, total);
+    if(web_turn == 0) {
+        web_send_busy(r);
+        return false;
+    }
+
+    web_turn_fd = r->fd;
+    return true;
+}
+
+static void web_release_turn() {
+    xferturn_release(web_turn);
+    web_turn = 0;
+    web_turn_fd = -1;
 }
 
 // ---- request ----
@@ -397,8 +486,9 @@ static void web_api_info(web_request* r) {
     PTMU_GetBatteryLevel(&battery);
     PTMU_GetBatteryChargeState(&charging);
 
-    web_send_json(r, 200, json_pack("{s:b,s:s,s:s,s:I,s:I,s:i,s:b}", "ok", 1, "console", name, "version", VERSION_STRING,
-                                    "free", (json_int_t) free_, "total", (json_int_t) total, "battery", (int) battery, "charging", charging != 0));
+    web_send_json(r, 200, json_pack("{s:b,s:s,s:s,s:I,s:I,s:i,s:b,s:o}", "ok", 1, "console", name, "version", VERSION_STRING,
+                                    "free", (json_int_t) free_, "total", (json_int_t) total, "battery", (int) battery, "charging", charging != 0,
+                                    "transfer", web_transfer_json()));
 }
 
 static void web_api_list(web_request* r) {
@@ -456,6 +546,11 @@ static void web_api_get_file(web_request* r) {
     u64 from = r->hasRange && r->rangeFrom < size ? r->rangeFrom : 0;
     bool partial = r->hasRange && from > 0;
 
+    if(size - from >= WEB_TURN_MIN_GET && !web_take_turn(r, vpath, size - from)) {
+        fclose(f);
+        return;
+    }
+
     const char* name = strrchr(vpath, '/');
     name = name != NULL ? name + 1 : vpath;
     char extra[400];
@@ -466,17 +561,30 @@ static void web_api_get_file(web_request* r) {
 
     if(!web_send_head(r, partial ? 206 : 200, "application/octet-stream", (s64) (size - from), extra)) {
         fclose(f);
+        web_release_turn();
         return;
     }
 
     fseek(f, (long) from, SEEK_SET);
-    size_t got;
+    speedlog* log = speedlog_begin("web-down", vpath, size - from);
+    u64 sent = 0;
     bool ok = true;
-    while(ok && (got = fread(web_io, 1, WEB_IO_SIZE, f)) > 0) {
-        ok = web_send_all(r->fd, web_io, got);
+    while(ok) {
+        u64 start = speedlog_ticks();
+        size_t got = fread(web_io, 1, WEB_IO_SIZE, f);
+        speedlog_disk(log, got, speedlog_ticks() - start);
+        if(got == 0) {
+            break;
+        }
+
+        ok = web_send_logged(r->fd, web_io, got, log);
+        sent += got;
+        xferturn_progress(web_turn, sent);
     }
 
     fclose(f);
+    web_release_turn();
+    speedlog_end(log, ok);
 }
 
 static void web_api_put_file(web_request* r) {
@@ -486,10 +594,15 @@ static void web_api_put_file(web_request* r) {
         return;
     }
 
+    if(!web_take_turn(r, vpath, r->contentLength)) {
+        return;
+    }
+
     char part[WEB_PATH_MAX + 16];
     snprintf(part, sizeof(part), "%s.part", rpath);
     FILE* f = fopen(part, "wb");
     if(f == NULL) {
+        web_release_turn();
         web_send_error(r, 500, "cannot create the file");
         return;
     }
@@ -504,26 +617,51 @@ static void web_api_put_file(web_request* r) {
         early = (u32) left;
     }
 
+    speedlog* log = speedlog_begin("web-up", vpath, r->contentLength);
     bool ok = early == 0 || fwrite(r->head + r->headLen, 1, early, f) == early;
+    bool gone = false;   // The client went away: nobody to answer.
     left -= early;
     while(ok && left > 0) {
-        if(!web_wait_fd(r->fd, POLLIN, WEB_IDLE_MS)) {
+        u64 start = speedlog_ticks();
+        bool ready = web_wait_transfer(r->fd, POLLIN);
+        speedlog_wait(log, speedlog_ticks() - start);
+        if(!ready) {
             ok = false;
+            gone = true;
             break;
         }
 
-        ssize_t n = net_recv(r->fd, web_io, left > WEB_IO_SIZE ? WEB_IO_SIZE : (size_t) left, WEB_IDLE_MS);
-        if(n <= 0 || fwrite(web_io, 1, (size_t) n, f) != (size_t) n) {
+        start = speedlog_ticks();
+        // The socket said it is readable: nothing within a second means a client that reset (the 3DS flags
+        // the socket but recv() keeps saying "not yet").
+        ssize_t n = net_recv(r->fd, web_io, left > WEB_IO_SIZE ? WEB_IO_SIZE : (size_t) left, 1000);
+        speedlog_net(log, n > 0 ? (u64) n : 0, speedlog_ticks() - start);
+        if(n <= 0) {
+            ok = false;
+            gone = true;
+            break;
+        }
+
+        start = speedlog_ticks();
+        bool written = fwrite(web_io, 1, (size_t) n, f) == (size_t) n;
+        speedlog_disk(log, (u64) n, speedlog_ticks() - start);
+        if(!written) {
             ok = false;
             break;
         }
 
         left -= (u64) n;
+        xferturn_progress(web_turn, r->contentLength - left);
     }
 
+    web_release_turn();
+    u64 closing = speedlog_ticks();
     if(fclose(f) != 0) {
         ok = false;
     }
+
+    speedlog_disk(log, 0, speedlog_ticks() - closing);
+    speedlog_end(log, ok);
 
     if(ok) {
         remove(rpath);
@@ -532,7 +670,10 @@ static void web_api_put_file(web_request* r) {
 
     if(!ok) {
         remove(part);
-        web_send_error(r, 500, "the upload failed");
+        if(!gone) {
+            web_send_error(r, 500, "the upload failed");
+        }
+
         return;
     }
 
@@ -1183,6 +1324,14 @@ static volatile int web_frame_state = 0;   // 0 nothing asked, 1 asked, 2 made, 
 // Both screens as RGB565 (the top's 400x240, then the bottom's 320x240), as the last frame drawn. The
 // main thread reads the framebuffers (webserver_poll_main).
 static void web_api_screens(web_request* r) {
+    // Not while something transfers: a frame is ~340 KB, and the owner does not need the live view then.
+    xferturn_status status;
+    xferturn_get(&status);
+    if(status.busy) {
+        web_send_busy(r);
+        return;
+    }
+
     if(web_frame == NULL) {
         web_frame = (u16*) malloc(WEB_FRAME_BYTES);
         if(web_frame == NULL) {
@@ -1572,6 +1721,13 @@ static void web_api_title_delete(web_request* r) {
 
 // The body is the URLs, one per line: the console asks before installing them.
 static void web_api_install_url(web_request* r) {
+    xferturn_status status;
+    xferturn_get(&status);
+    if(status.busy) {
+        web_send_busy(r);
+        return;
+    }
+
     if(r->contentLength == 0 || r->contentLength >= sizeof(web_job.urls)) {
         web_send_error(r, 400, "send between 1 and 4000 bytes of URLs");
         return;

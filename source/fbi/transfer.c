@@ -23,6 +23,7 @@
 #include "action/action.h"
 #include "task/uitask.h"
 #include "../core/core.h"
+#include "../core/xferturn.h"
 
 #define TRANSFER_DISCOVERY_PORT 5001
 
@@ -279,6 +280,7 @@ typedef struct {
     u64 speedSent;
     u32 speed;
     u64 engineStart;
+    u32 turn;           // The transfer turn (xferturn.h), from connecting (sending) or accepting (receiving) to the end.
 } transfer_send_session;
 
 // Fills the chunk from the file, or from the package: its header is in memory
@@ -337,6 +339,7 @@ static void transfer_send_draw_top(ui_view* view, void* data, float x1, float y1
 }
 
 static void transfer_send_free(transfer_send_session* session) {
+    xferturn_release(session->turn);
     transfer_sender_free(session->engine);
     transfer_link_close(&session->link);
     free(session);
@@ -372,6 +375,9 @@ static void transfer_send_failed(ui_view* view, transfer_send_session* session, 
 
     transfer_sender_free(session->engine);
     session->engine = NULL;
+    // Not held while the user is asked whether to try again: connecting takes it back.
+    xferturn_release(session->turn);
+    session->turn = 0;
 
     u8 status = 0;
     int got = -1;
@@ -450,6 +456,8 @@ static Result transfer_send_begin_engine(transfer_send_session* session, u32 id)
 
 static void transfer_send_update(ui_view* view, void* data, float* progress, char* text) {
     transfer_send_session* session = (transfer_send_session*) data;
+    // Every frame, also while the other console's user decides: the turn stays alive.
+    xferturn_progress(session->turn, session->sent);
 
     if(session->state == SEND_SENDING) {
         Result result = 0;
@@ -610,6 +618,12 @@ static bool transfer_send_connect(transfer_send_session* session) {
     transfer_link_close(&session->link);
     session->answerGot = 0;
     session->state = SEND_WAITING;
+
+    // One transfer at a time: an FTP, web page or download under way is let finish.
+    if(session->turn == 0 && (session->turn = xferturn_take(XFER_CONSOLE, session->name, session->size)) == 0) {
+        error_display_res(NULL, NULL, R_APP_BUSY, "Could not send the file.");
+        return false;
+    }
 
     if(session->uds) {
         Result res = udslink_connect(&session->udsPeer, &session->link.uds);
@@ -1319,6 +1333,7 @@ typedef struct {
     u64 speedReceived;
     u32 speed;
     u64 engineStart;
+    u32 turn;           // The transfer turn (xferturn.h), from connecting (sending) or accepting (receiving) to the end.
 } transfer_receive_data;
 
 static FS_Archive transfer_sd_archive() {
@@ -1494,6 +1509,9 @@ static void transfer_receive_draw_top(ui_view* view, void* data, float x1, float
 }
 
 static void transfer_receive_reset(transfer_receive_data* data) {
+    xferturn_release(data->turn);
+    data->turn = 0;
+
     if(data->client.uds != NULL) {
         data->ignoreUntil = osGetTime() + 4000;
     }
@@ -1673,6 +1691,8 @@ static Result transfer_receive_close_transfer(transfer_receive_data* data, bool 
 
     transfer_receiver_free(data->engine);
     data->engine = NULL;
+    xferturn_release(data->turn);
+    data->turn = 0;
 
     if(data->finalizer != NULL) {
         threadJoin(data->finalizer, U64_MAX);
@@ -1898,6 +1918,7 @@ static void transfer_receive_progress_update(ui_view* view, void* data, float* p
         transfer_receiver_accept(receive->engine);
 
         done = transfer_receiver_progress(receive->engine, &receive->received, &res);
+        xferturn_progress(receive->turn, receive->received);
 
         if(!done && (hidKeysDown() & KEY_B)) {
             transfer_receiver_cancel(receive->engine);
@@ -2043,6 +2064,11 @@ static void transfer_receive_start(transfer_receive_data* data) {
         if(R_SUCCEEDED(res)) {
             res = fs_ensure_dir(sd, TRANSFER_TMP_DIR);
         }
+    }
+
+    // One transfer at a time: the sender is refused (and told) while another holds the turn.
+    if(R_SUCCEEDED(res) && (data->turn = xferturn_take(XFER_CONSOLE, name, data->size)) == 0) {
+        res = R_APP_BUSY;
     }
 
     u32 id = (u32) osGetTime() ^ (u32) svcGetSystemTick();

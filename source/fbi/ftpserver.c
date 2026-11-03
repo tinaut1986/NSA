@@ -19,6 +19,8 @@
 #include "relaunch.h"
 #include "selftest.h"
 #include "../core/core.h"
+#include "../core/speedlog.h"
+#include "../core/xferturn.h"
 
 #define FTP_PATH_MAX 512
 #define FTP_LINE_MAX 600
@@ -27,6 +29,9 @@
 #define FTP_NAP_MS 10
 #define FTP_SEND_CHUNK (64 * 1024)
 #define FTP_GIVE_WAY_MS 30000
+// A transfer stalled this long gives up when another client is waiting to connect: the 3DS does not
+// always see a client's reset, and the server serves one session at a time.
+#define FTP_STALL_MS 10000
 #define FTP_DATA_ACCEPT_MS 15000
 #define FTP_IDLE_MS (10 * 60 * 1000)
 #define FTP_PASV_FIRST (FTP_SERVER_PORT + 1)
@@ -64,6 +69,8 @@ static char ftp_phase_file[64];
 static volatile u64 ftp_allo = 0;
 static volatile u64 ftp_done = 0;
 static volatile u64 ftp_total = 0;
+// The transfer turn (xferturn.h) held by the RETR or STOR under way, 0 when none.
+static u32 ftp_turn = 0;
 
 // A screenshot asked for by SITE SCREENSHOT, taken by the main thread.
 static volatile bool shot_requested = false;
@@ -84,6 +91,7 @@ typedef struct {
     char rnfr[FTP_PATH_MAX];
     char in[FTP_LINE_MAX * 2];
     unsigned inUsed;
+    bool broken;   // The last transfer failed: the client may have gone, so a new connection is let in at once.
 } ftp_session;
 
 // ---- sockets ----
@@ -101,11 +109,19 @@ static void ftp_close_socket(int* fd) {
 // a blocking poll() would hold up the downloads' and Remote Install's network
 // calls for its whole timeout: ask without waiting and nap between asks
 // (net_nap_ms: short while data flows, longer once idle).
+//
+// The data connection of a transfer that holds the turn waits inside poll() instead, a few ms at a
+// time (net_poll_owner), so it wakes as soon as the data or the room is there: nothing else moves
+// data meanwhile. The sockets still never block, so a client that went away costs those ms, not
+// minutes (see netpoll.h).
 static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
+    bool owner = ftp_turn != 0 && fd == ftp_data;
     int waited = 0;
     while(ftp_run) {
         struct pollfd p = {.fd = fd, .events = events, .revents = 0};
-        int r = poll(&p, 1, 0);
+        bool polls = owner && net_owner_polls((u32) waited);
+        u64 start = polls ? osGetTime() : 0;
+        int r = polls ? net_poll_owner(&p, 1, NET_OWNER_POLL_MS) : poll(&p, 1, 0);
         if(r > 0) {
             return (p.revents & (events | POLLHUP | POLLERR)) != 0;
         }
@@ -114,9 +130,15 @@ static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
             return false;
         }
 
-        u32 nap = net_nap_ms((u32) waited);
-        svcSleepThread((s64) nap * 1000000);
-        waited += nap;
+        if(polls) {
+            u64 took = osGetTime() - start;
+            waited += took > 0 ? (int) took : 1;
+        } else {
+            u32 nap = net_nap_ms((u32) waited);
+            svcSleepThread((s64) nap * 1000000);
+            waited += nap;
+        }
+
         if(timeoutMs > 0 && waited >= timeoutMs) {
             return false;
         }
@@ -125,14 +147,37 @@ static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
     return false;
 }
 
-static bool ftp_send_all(int fd, const char* data, size_t n) {
+// A data connection's wait, up to `timeoutMs`; after FTP_STALL_MS with nothing, it gives up if another
+// client is waiting to connect (see FTP_STALL_MS).
+static bool ftp_wait_data(int fd, short events, int timeoutMs) {
+    for(int waited = 0; waited < timeoutMs; waited += FTP_STALL_MS) {
+        if(ftp_wait_fd(fd, events, FTP_STALL_MS)) {
+            return true;
+        }
+
+        struct pollfd p = {.fd = ftp_listen, .events = POLLIN, .revents = 0};
+        if(!ftp_run || (poll(&p, 1, 0) > 0 && (p.revents & POLLIN) != 0)) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+// `log` (may be NULL) gets the time spent waiting for room and inside send().
+static bool ftp_send_logged(int fd, const char* data, size_t n, speedlog* log) {
     while(n > 0) {
-        if(!ftp_wait_fd(fd, POLLOUT, 30000)) {
+        u64 start = speedlog_ticks();
+        bool ready = ftp_wait_data(fd, POLLOUT, 30000);
+        speedlog_wait(log, speedlog_ticks() - start);
+        if(!ready) {
             return false;
         }
 
         // The sockets do not block (net_set_nonblocking): what does not fit now waits for room.
+        start = speedlog_ticks();
         ssize_t w = send(fd, data, n > FTP_SEND_CHUNK ? FTP_SEND_CHUNK : n, 0);
+        speedlog_net(log, w > 0 ? (u64) w : 0, speedlog_ticks() - start);
         if(w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             continue;
         }
@@ -146,6 +191,10 @@ static bool ftp_send_all(int fd, const char* data, size_t n) {
     }
 
     return true;
+}
+
+static bool ftp_send_all(int fd, const char* data, size_t n) {
+    return ftp_send_logged(fd, data, n, NULL);
 }
 
 static bool ftp_reply(ftp_session* s, const char* fmt, ...) {
@@ -181,7 +230,7 @@ static bool ftp_wait_command(ftp_session* s) {
             return r >= 0;
         }
 
-        if((p[1].revents & POLLIN) != 0 && waited >= FTP_GIVE_WAY_MS) {
+        if((p[1].revents & POLLIN) != 0 && (s->broken || waited >= FTP_GIVE_WAY_MS)) {
             return false;
         }
 
@@ -538,35 +587,121 @@ static void ftp_cmd_list(ftp_session* s, const char* arg, list_kind kind) {
     ftp_reply(s, ok ? "226 Done." : "426 Transfer aborted.");
 }
 
+// RETR and STOR take the transfer turn; a small download (NSA's own logs, a PIN, a screenshot) does
+// not, so that those stay readable while something else transfers.
+#define FTP_TURN_MIN_RETR (1024 * 1024)
+
+// Takes the turn for `vpath`, or says who has it (450) and gives the PASV socket up.
+static bool ftp_take_turn(ftp_session* s, const char* vpath, u64 total) {
+    ftp_turn = xferturn_take(XFER_FTP, vpath, total);
+    if(ftp_turn != 0) {
+        return true;
+    }
+
+    char busy[128];
+    if(!xferturn_describe(busy, sizeof(busy))) {
+        string_copy(busy, "Busy", sizeof(busy));
+    }
+
+    ftp_close_pasv(s);
+    ftp_reply(s, "450 %s. One transfer at a time: try again when it ends.", busy);
+    return false;
+}
+
+static void ftp_release_turn() {
+    xferturn_release(ftp_turn);
+    ftp_turn = 0;
+}
+
+// Test files for tools/speed_tests.py, to tell the network from the card: RETR /dev/zero/<MB> sends
+// that many MB from memory, STOR /dev/null (or anything under it) throws what comes away.
+#define FTP_DEV_ZERO "/dev/zero/"
+#define FTP_DEV_NULL "/dev/null"
+
 static void ftp_cmd_retr(ftp_session* s, const char* arg) {
     char vpath[FTP_PATH_MAX];
     char rpath[FTP_PATH_MAX + 8];
     ftp_resolve_path(s, arg, vpath, sizeof(vpath));
     ftp_real_path(vpath, rpath, sizeof(rpath));
 
-    FILE* f = fopen(rpath, "rb");
-    if(f == NULL) {
+    bool zero = strncmp(vpath, FTP_DEV_ZERO, strlen(FTP_DEV_ZERO)) == 0;
+    u64 size = 0;
+    FILE* f = NULL;
+    if(zero) {
+        size = (u64) strtoul(vpath + strlen(FTP_DEV_ZERO), NULL, 10) * 1024 * 1024;
+    } else {
+        struct stat st;
+        if(stat(rpath, &st) == 0 && !S_ISDIR(st.st_mode)) {
+            size = (u64) st.st_size;
+            f = fopen(rpath, "rb");
+        }
+    }
+
+    if(zero ? size == 0 : f == NULL) {
         ftp_close_pasv(s);
         ftp_reply(s, "550 Cannot open the file.");
+        return;
+    }
+
+    // NSA's own speed traces are read while something transfers (tools/speed_tests.py): never the turn for them.
+    bool traces = strcmp(vpath, APP_DATA_DIR "speed-log.txt") == 0;
+    if(!traces && (zero || size >= FTP_TURN_MIN_RETR) && !ftp_take_turn(s, vpath, size)) {
+        if(f != NULL) {
+            fclose(f);
+        }
+
         return;
     }
 
     ftp_reply(s, "150 Sending.");
     int data = ftp_accept_data(s);
     if(data < 0) {
-        fclose(f);
+        if(f != NULL) {
+            fclose(f);
+        }
+
+        ftp_release_turn();
         ftp_reply(s, "425 No data connection.");
         return;
     }
 
-    bool ok = true;
-    size_t n;
-    while(ok && (n = fread(ftp_io, 1, FTP_IO_SIZE, f)) > 0) {
-        ok = ftp_send_all(data, ftp_io, n);
+    // Not the trace of fetching the traces (tools/speed_tests.py reads them while a download runs).
+    speedlog* log = traces ? NULL : speedlog_begin(zero ? "ftp-zero" : "ftp-down", vpath, size);
+    if(zero) {
+        memset(ftp_io, 0, FTP_IO_SIZE);
     }
 
-    fclose(f);
+    bool ok = true;
+    u64 left = size;
+    u64 sent = 0;
+    while(ok) {
+        size_t n;
+        if(zero) {
+            n = left > FTP_IO_SIZE ? FTP_IO_SIZE : (size_t) left;
+            left -= n;
+        } else {
+            u64 start = speedlog_ticks();
+            n = fread(ftp_io, 1, FTP_IO_SIZE, f);
+            speedlog_disk(log, n, speedlog_ticks() - start);
+        }
+
+        if(n == 0) {
+            break;
+        }
+
+        ok = ftp_send_logged(data, ftp_io, n, log);
+        sent += n;
+        xferturn_progress(ftp_turn, sent);
+    }
+
+    if(f != NULL) {
+        fclose(f);
+    }
+
     ftp_close_data(&data);
+    ftp_release_turn();
+    speedlog_end(log, ok);
+    s->broken = !ok;
     ftp_reply(s, ok ? "226 Done." : "426 Transfer aborted.");
 }
 
@@ -576,8 +711,17 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
     ftp_resolve_path(s, arg, vpath, sizeof(vpath));
     ftp_real_path(vpath, rpath, sizeof(rpath));
 
-    FILE* f = fopen(rpath, append ? "ab" : "wb");
-    if(f == NULL) {
+    bool null = strncmp(vpath, FTP_DEV_NULL, strlen(FTP_DEV_NULL)) == 0 && (vpath[strlen(FTP_DEV_NULL)] == '\0' || vpath[strlen(FTP_DEV_NULL)] == '/');
+
+    // Before opening: "wb" would empty a file that is not going to be written.
+    if(!ftp_take_turn(s, vpath, ftp_allo)) {
+        ftp_allo = 0;
+        return;
+    }
+
+    FILE* f = null ? NULL : fopen(rpath, append ? "ab" : "wb");
+    if(!null && f == NULL) {
+        ftp_release_turn();
         ftp_close_pasv(s);
         ftp_reply(s, "553 Cannot create the file.");
         return;
@@ -585,7 +729,9 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
 
     // The network hands over a few KB at a time, and every write to the SD card costs a lot on its own:
     // gather them into big writes, as ftpd does.
-    setvbuf(f, NULL, _IOFBF, FTP_FILE_BUFFER);
+    if(f != NULL) {
+        setvbuf(f, NULL, _IOFBF, FTP_FILE_BUFFER);
+    }
 
     // A CIA coming in is shown on the bottom screen; ALLO gave its size.
     size_t len = strlen(vpath);
@@ -596,49 +742,78 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
         ftp_set_phase(PHASE_RECEIVING, vpath);
     }
 
+    u64 allo = ftp_allo;
     ftp_allo = 0;
 
     ftp_reply(s, "150 Receiving.");
     int data = ftp_accept_data(s);
     if(data < 0) {
-        fclose(f);
+        if(f != NULL) {
+            fclose(f);
+        }
         if(cia) {
             ftp_set_phase(PHASE_NONE, NULL);
         }
 
+        ftp_release_turn();
         ftp_reply(s, "425 No data connection.");
         return;
     }
 
+    speedlog* log = speedlog_begin(null ? "ftp-null" : "ftp-up", vpath, allo);
+    u64 received = 0;
     bool ok = true;
     for(;;) {
-        if(!ftp_wait_fd(data, POLLIN, 30000)) {
+        u64 start = speedlog_ticks();
+        bool ready = ftp_wait_data(data, POLLIN, 30000);
+        speedlog_wait(log, speedlog_ticks() - start);
+        if(!ready) {
             ok = false;
             break;
         }
 
-        ssize_t r = net_recv(data, ftp_io, FTP_IO_SIZE, 30000);
+        start = speedlog_ticks();
+        // The socket said it is readable: nothing within a second means a client that reset (see the web server's).
+        ssize_t r = net_recv(data, ftp_io, FTP_IO_SIZE, 1000);
+        speedlog_net(log, r > 0 ? (u64) r : 0, speedlog_ticks() - start);
         if(r == 0) {
             break;
         }
 
-        if(r < 0 || fwrite(ftp_io, 1, (size_t) r, f) != (size_t) r) {
+        if(r < 0) {
             ok = false;
             break;
         }
 
+        if(f != NULL) {
+            start = speedlog_ticks();
+            bool written = fwrite(ftp_io, 1, (size_t) r, f) == (size_t) r;
+            speedlog_disk(log, (u64) r, speedlog_ticks() - start);
+            if(!written) {
+                ok = false;
+                break;
+            }
+        }
+
         ftp_done += (u64) r;
+        received += (u64) r;
+        xferturn_progress(ftp_turn, received);
     }
 
-    if(fclose(f) != 0) {
+    u64 start = speedlog_ticks();
+    if(f != NULL && fclose(f) != 0) {
         ok = false;
     }
 
+    speedlog_disk(log, 0, speedlog_ticks() - start);
     ftp_close_data(&data);
+    ftp_release_turn();
+    speedlog_end(log, ok);
     if(cia) {
         ftp_set_phase(PHASE_NONE, NULL);
     }
 
+    s->broken = !ok;
     ftp_reply(s, ok ? "226 Done." : "451 Transfer failed.");
 }
 
@@ -660,6 +835,82 @@ static bool ftp_remote_allowed() {
     }
 
     return false;
+}
+
+// SITE SDBENCH: how fast the card writes and reads a file of `mb` MB, through a stdio buffer of
+// `bufferKb` KB (0: none) in 64 KB pieces, as STOR and RETR do; `preallocate` sets the size first. The
+// speed traces have each second ("sd-write", "sd-read"). Without the network, to tell the two apart.
+#define FTP_SDBENCH_FILE "sdmc:" APP_DATA_DIR "sdbench.tmp"
+
+static void ftp_sdbench(u32 mb, u32 bufferKb, bool preallocate, char* out, size_t size) {
+    u64 total = (u64) mb * 1024 * 1024;
+    for(u32 i = 0; i < FTP_IO_SIZE; i++) {
+        ftp_io[i] = (char) (i * 7 + 3);
+    }
+
+    char* buffer = bufferKb > 0 ? (char*) malloc(bufferKb * 1024) : NULL;
+    FILE* f = fopen(FTP_SDBENCH_FILE, "wb");
+    if(f == NULL || (bufferKb > 0 && buffer == NULL)) {
+        if(f != NULL) {
+            fclose(f);
+        }
+
+        free(buffer);
+        snprintf(out, size, "550 Could not open " FTP_SDBENCH_FILE " (or no memory).");
+        return;
+    }
+
+    setvbuf(f, buffer, buffer != NULL ? _IOFBF : _IONBF, bufferKb * 1024);
+    if(preallocate) {
+        fflush(f);
+        ftruncate(fileno(f), (off_t) total);
+    }
+
+    speedlog* log = speedlog_begin("sd-write", preallocate ? "preallocated" : "growing", total);
+    u64 start = speedlog_ticks();
+    u64 maxWrite = 0;
+    bool ok = true;
+    for(u64 done = 0; ok && done < total; done += FTP_IO_SIZE) {
+        u64 t = speedlog_ticks();
+        ok = fwrite(ftp_io, 1, FTP_IO_SIZE, f) == FTP_IO_SIZE;
+        t = speedlog_ticks() - t;
+        maxWrite = t > maxWrite ? t : maxWrite;
+        // The bytes count as the "network" column so that the lines' KB/s is the card's.
+        speedlog_net(log, FTP_IO_SIZE, 0);
+        speedlog_disk(log, FTP_IO_SIZE, t);
+    }
+
+    u64 t = speedlog_ticks();
+    ok = fclose(f) == 0 && ok;
+    speedlog_disk(log, 0, speedlog_ticks() - t);
+    u64 writeTicks = speedlog_ticks() - start;
+    speedlog_end(log, ok);
+
+    u64 readTicks = 0;
+    if(ok && (f = fopen(FTP_SDBENCH_FILE, "rb")) != NULL) {
+        setvbuf(f, buffer, buffer != NULL ? _IOFBF : _IONBF, bufferKb * 1024);
+        log = speedlog_begin("sd-read", preallocate ? "preallocated" : "growing", total);
+        start = speedlog_ticks();
+        size_t n;
+        do {
+            t = speedlog_ticks();
+            n = fread(ftp_io, 1, FTP_IO_SIZE, f);
+            speedlog_net(log, n, 0);
+            speedlog_disk(log, n, speedlog_ticks() - t);
+        } while(n > 0);
+
+        readTicks = speedlog_ticks() - start;
+        fclose(f);
+        speedlog_end(log, true);
+    }
+
+    remove(FTP_SDBENCH_FILE);
+    free(buffer);
+
+    u32 writeKbs = writeTicks > 0 ? (u32) (total * SYSCLOCK_ARM11 / writeTicks / 1024) : 0;
+    u32 readKbs = readTicks > 0 ? (u32) (total * SYSCLOCK_ARM11 / readTicks / 1024) : 0;
+    snprintf(out, size, "%s %lu MB, buffer %lu KB%s: write %lu KB/s (slowest write %lu ms), read %lu KB/s.", ok ? "200" : "451 Failed:",
+             mb, bufferKb, preallocate ? ", preallocated" : "", writeKbs, (u32) (maxWrite * 1000 / SYSCLOCK_ARM11), readKbs);
 }
 
 static void ftp_cmd_site(ftp_session* s, char* arg) {
@@ -764,6 +1015,32 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         } else {
             ftp_reply(s, "550 Could not read %s.", vpath);
         }
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "POLL") == 0) {
+        static const char* names[] = {"POLL", "NAP", "HYBRID"};
+        for(u32 i = 0; path != NULL && i < sizeof(names) / sizeof(*names); i++) {
+            if(strcasecmp(path, names[i]) == 0) {
+                net_set_wait_mode((net_wait_mode) i);
+            }
+        }
+
+        ftp_reply(s, "200 The transfer with the turn waits by %s (SITE POLL POLL|NAP|HYBRID).", names[net_get_wait_mode()]);
+        return;
+    }
+
+    if(strcmp(sub, "SDBENCH") == 0) {
+        unsigned mb = 0, bufferKb = FTP_FILE_BUFFER / 1024;
+        char flag[8] = "";
+        if(sscanf(path != NULL ? path : "", "%u %u %7s", &mb, &bufferKb, flag) < 1 || mb == 0 || mb > 2047 || bufferKb > 4096) {
+            ftp_reply(s, "501 SITE SDBENCH <MB> [buffer KB, 0 for none] [PRE]");
+            return;
+        }
+
+        char reply[200];
+        ftp_sdbench(mb, bufferKb, strcasecmp(flag, "PRE") == 0, reply, sizeof(reply));
+        ftp_reply(s, "%s", reply);
         return;
     }
 

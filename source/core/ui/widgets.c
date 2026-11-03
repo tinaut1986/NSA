@@ -160,7 +160,14 @@ static void widget_row_draw(float x, float y, float width, float frameHeight, fl
     float textHeight = widget_text_height(WIDGET_TEXT_SCALE);
     float ty = y + (height - textHeight) / 2;
     float tx = x + 9;
-    if(icon >= 0) {
+    if(icon == ICON_CHECKPOINT) {
+        // Checkpoint's logo keeps its own colours (a pale flag on navy): a badge that tells its backups apart.
+        float size = 16;
+        float iy = (float) (int) (y + (height - size) / 2);
+        screen_fill_round_rect(tx - 2, iy - 2, size + 4, size + 4, 4, THEME_RGB(0x0E1936));
+        screen_draw_icon((u32) icon, tx, iy, size, THEME_RGB(0xA8E2F0));
+        tx += size + 8;
+    } else if(icon >= 0) {
         float size = 16;
         screen_draw_icon((u32) icon, tx, y + (height - size) / 2, size, ink);
         tx += size + 6;

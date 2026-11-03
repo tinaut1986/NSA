@@ -526,7 +526,7 @@ static void titles_data_draw_row(void* data, list_item* item, float x, float y, 
         widget_row(x, y, width, height, (int) icons[row], item->name, row == DATA_ROW_DELETE ? t->palette->danger : t->palette->text, NULL, selected);
     } else {
         save_backup* b = (save_backup*) item->data;
-        widget_row(x, y, width, height, b->checkpoint ? ICON_BOX : ICON_HISTORY, item->name, t->palette->text, NULL, selected);
+        widget_row(x, y, width, height, b->checkpoint ? ICON_CHECKPOINT : ICON_HISTORY, item->name, t->palette->text, NULL, selected);
     }
 }
 
@@ -567,7 +567,7 @@ static void titles_data_fill(titles_data_manager* mgr, linked_list* items) {
     }
 
     for(u32 i = 0; i < mgr->count; i++) {
-        titles_data_add(items, mgr->backups[i].label, &mgr->backups[i]);
+        titles_data_add(items, mgr->backups[i].label + mgr->backups[i].nameAt, &mgr->backups[i]);
     }
 }
 

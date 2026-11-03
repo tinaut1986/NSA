@@ -125,6 +125,10 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Red confirmations and going up a folder** (2026-11-03; built, not run)
+- [ ] Every delete / erase confirmation (Files: delete, delete contents, folder, CIAs, tickets; Titles: delete, with ticket, erase save, secure value; Tickets; Ext save data; Pending titles) shows the red prompt with the warning icon.
+- [ ] Files: B in a folder selects that folder in the parent at once, also in a big folder full of CIAs; a D-Pad or A pressed meanwhile does nothing until it is selected.
+
 **System's details** (issue #23; `source/fbi/systeminfo.c`; only the layout was checked, in Azahar, whose data is fake)
 - [ ] Main menu -> System opens a list (Console, Network, Storage, Battery); each row shows its page on the top screen; B goes back.
 - [ ] Console: serial number (read from `SecureInfo_A` on the CTR NAND) matches the sticker; device ID, country, system and kernel versions, MCU firmware (shown as major - 0x10 . minor: check it is plausible), Luma3DS version and commit, "Running as" CIA / 3DSX.

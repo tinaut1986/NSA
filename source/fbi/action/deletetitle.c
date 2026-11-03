@@ -63,7 +63,7 @@ static void action_delete_title_internal(linked_list* items, list_item* selected
     data->selected = selected;
     data->ticket = ticket;
 
-    prompt_display_yes_no("Confirmation", message, COLOR_TEXT, data, action_delete_title_draw_top, action_delete_title_onresponse);
+    prompt_display_warning("Confirmation", message, COLOR_TEXT, data, action_delete_title_draw_top, action_delete_title_onresponse);
 }
 
 void action_delete_title(linked_list* items, list_item* selected) {

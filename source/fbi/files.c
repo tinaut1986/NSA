@@ -1126,19 +1126,27 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
 
     files_sort_items(listData, items);
 
-    if(listData->reselect[0] != '\0' && listData->populated && listData->populateData.finished) {
+    // Selected as soon as it is listed, before the rest (and the CIAs' icons) are
+    // read; until then the list takes no presses, which would land on the first item.
+    if(listData->reselect[0] != '\0' && listData->populated) {
+        bool done = listData->populateData.finished;
         linked_list_iter iter;
         linked_list_iterate(items, &iter);
         while(linked_list_iter_has_next(&iter)) {
             list_item* item = (list_item*) linked_list_iter_next(&iter);
             if(!files_is_base(item) && strncmp(((file_info*) item->data)->path, listData->reselect, FILE_PATH_MAX) == 0) {
                 list_select(view, item);
+                done = true;
                 break;
             }
         }
 
-        listData->reselect[0] = '\0';
+        if(done) {
+            listData->reselect[0] = '\0';
+        }
     }
+
+    list_hold(view, listData->reselect[0] != '\0');
 
     if(listData->populateData.finished && R_FAILED(listData->populateData.result)) {
         error_display_res(NULL, NULL, listData->populateData.result, "Failed to populate file list.");

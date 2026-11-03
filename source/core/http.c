@@ -1175,7 +1175,16 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
 // opened again a moment later (HTTP_SCATTER_RECONNECTS in all); one the
 // server refused makes the download keep the connections still open as its
 // most (some servers turn extra ones away), as 3dsDL does.
+//
+// It starts with one connection and opens another every HTTP_SCATTER_RAMP_MS
+// while the last one made it HTTP_SCATTER_RAMP_GAIN faster; the first that
+// does not is the last. A fast server (Dropbox: ~900 KB/s on one) keeps one or
+// two and leaves the console's Wi-Fi room for the FTP and the web page, which
+// eight saturated for the same speed (850 KB/s); a slow one per connection
+// (catbox.moe) gets more.
 
+#define HTTP_SCATTER_RAMP_MS 8000
+#define HTTP_SCATTER_RAMP_GAIN 115              // Percent of the speed before.
 #define HTTP_SCATTER_PIECES 64
 #define HTTP_SCATTER_MIN_PIECE (1024 * 1024)   // Pieces are split only if both halves are at least this.
 #define HTTP_SCATTER_ALIGN (64 * 1024)         // Where they are split: the card's writes stay aligned.
@@ -1211,7 +1220,8 @@ struct http_scatter_s {
     u64 size;
     http_piece pieces[HTTP_SCATTER_PIECES];
     u32 pieceCount;
-    u32 maxConnections;
+    u32 maxConnections;      // The most the server takes.
+    volatile u32 level;      // The connections opened so far (HTTP_SCATTER_RAMP_MS).
     u32 active;              // Connections in a request.
     u32 reconnectsLeft;
     LightLock lock;          // Around the pieces and the counts above.
@@ -1363,7 +1373,7 @@ static void http_scatter_thread(void* arg) {
     while(!s->abort && !http_quit) {
         LightLock_Lock(&s->lock);
         bool done = http_scatter_done(s);
-        bool allowed = w->index < s->maxConnections;
+        bool allowed = w->index < s->maxConnections && w->index < s->level;
         s32 piece = !done && allowed ? http_scatter_take(s) : -1;
         u64 from = 0;
         u64 to = 0;
@@ -1376,13 +1386,13 @@ static void http_scatter_thread(void* arg) {
 
         LightLock_Unlock(&s->lock);
 
-        if(done || !allowed) {
+        if(done) {
             break;
         }
 
-        // Nothing to take: the others are on the last pieces, and one that fails frees its own.
+        // Not opened (yet), or nothing to take: the others are on the last pieces, and one that fails frees its own.
         if(piece < 0) {
-            svcSleepThread(20000000);
+            svcSleepThread(allowed ? 20000000 : 100000000);
             continue;
         }
 
@@ -1518,6 +1528,7 @@ static Result http_scatter_download(const char* url, const char* direct, u64 sta
     s->pieceCount = count;
     s->workerCount = count;
     s->maxConnections = count;
+    s->level = 1;
 
     bool isNew = false;
     APT_CheckNew3DS(&isNew);
@@ -1563,8 +1574,36 @@ static Result http_scatter_download(const char* url, const char* direct, u64 sta
     u64 lastLog = started;
     u64 lastWritten = 0;
     u64 traced = 0;
+    u64 rampStart = 0;
+    u64 rampWritten = 0;
+    u32 rampRate = 0;
+    bool ramping = true;
     while(R_SUCCEEDED(res) && s->running > 0) {
         u64 written = http_scatter_written(s);
+
+        // Another connection while the last one paid off; timed from the first data.
+        u64 now = osGetTime();
+        if(ramping && written > 0 && rampStart == 0) {
+            rampStart = now;
+            rampWritten = written;
+        } else if(ramping && rampStart != 0 && now - rampStart >= HTTP_SCATTER_RAMP_MS) {
+            u32 rate = (u32) ((written - rampWritten) * 1000 / (now - rampStart) / 1024);
+            u32 level = s->level;
+            u32 before = rampRate;
+            ramping = (before == 0 || rate * 100 >= before * HTTP_SCATTER_RAMP_GAIN) && level < s->workerCount && level < s->maxConnections;
+            if(ramping) {
+                s->level = level + 1;
+                rampRate = rate;
+            }
+
+            if(http_log != NULL) {
+                http_log("http: %lu KB/s over %lu connections (%lu KB/s with one less): %s\n", rate, level, before, ramping ? "one more" : "keeping them");
+            }
+
+            rampStart = now;
+            rampWritten = written;
+        }
+
         if(written > traced) {
             speedlog_net(s->trace, written - traced, 0);
             traced = written;
@@ -1616,8 +1655,8 @@ static Result http_scatter_download(const char* url, const char* direct, u64 sta
     if(http_log != NULL) {
         double secs = (osGetTime() - started) / 1000.0;
         u64 written = http_scatter_written(s);
-        http_log("http: %lu connections (%lu at the end) %s: %llu of %llu bytes in %.1f s (%.0f KB/s), %lu pieces, result %08lX\n",
-                 s->workerCount, s->maxConnections, url, start + written, size, secs, secs > 0 ? written / 1024 / secs : 0, s->pieceCount, res);
+        http_log("http: %lu connections (%lu opened, %lu taken) %s: %llu of %llu bytes in %.1f s (%.0f KB/s), %lu pieces, result %08lX\n",
+                 s->workerCount, s->level, s->maxConnections, url, start + written, size, secs, secs > 0 ? written / 1024 / secs : 0, s->pieceCount, res);
     }
 
     free(s);

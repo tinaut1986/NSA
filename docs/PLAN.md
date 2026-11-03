@@ -526,6 +526,26 @@ What the traces say:
   (control stays free; the web page browses and shows the transfer, its live screens pause), a short blocking `poll()` for
   the transfer that holds the turn instead of the naps. Next: the same FTP tests against ftpd-EX on both consoles.
 
+2026-11-03, New 3DS XL (192.168.1.132), ftpd-EX 1.3.2 at 08:35 then NSA at 09:43, same morning's Wi-Fi, KB/s from the PC:
+
+| | NSA | ftpd-EX |
+|---|---|---|
+| FTP up 16 / 64 / 256 MB | 530 / 525 / 509 | 527 / 531 / 490 |
+| FTP down 16 / 64 / 256 MB | 566 / 652 / 625 | 573 / 795 / 635 |
+| Network only up (NSA `/dev/null`, ftpd `/devZero`) 16 / 64 / 256 MB | 666 / 535 / 583 | 637 / 605 / 619 |
+| Network only down 16 / 64 / 256 MB | 671 / 652 / 782 | 879 / 740 / 809 |
+| 100 files of 256 KB up / down, per file | 506 / 500 ms | 475 / 457 ms |
+
+Uploads level; ftpd 5-20% ahead on downloads and ~8% on small files, where NSA waits 75-86% of the time for room to send
+and naps between asks while ftpd sleeps in `poll()`: what the one-transfer turn with a short blocking `poll()` would change.
+Both show the same dips mid-transfer in the network-only tests: the Wi-Fi.
+
+2000 MB on the same console (NSA, 10:45-13:15, `speed-20261103-104517-nsa-new3ds-2000`; traces whole, 3126 and 2817 lines):
+FTP up 647 KB/s in 53 min (10-minute averages 670, 621, 599, 689, 657, 671; card 14-16% of the time, slowest write 206 ms),
+down 720 KB/s in 47 min (714-737 throughout), byte for byte, 8 seconds under 200 KB/s in each. Card alone: 4261 KB/s write
+(slowest 145 ms), 5363 with the size set first (94 ms), 2369 unbuffered (2186 in the first 10 s, 2348 in the last), read
+9642. A long file neither slows the card nor makes the transfer sink on this console.
+
 ## What the owner asked for (the direction)
 
 The look is right, but navigation still feels like FBI: lists, Select for options,

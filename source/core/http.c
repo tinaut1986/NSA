@@ -12,6 +12,7 @@
 #include "error.h"
 #include "http.h"
 #include "netpoll.h"
+#include "speedlog.h"
 #include "stringutil.h"
 
 #define MAKE_HTTP_USER_AGENT_(major, minor, micro) ("Mozilla/5.0 (Nintendo 3DS; Mobile; rv:10.0) Gecko/20100101 " APP_NAME "/" #major "." #minor "." #micro)
@@ -504,7 +505,16 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
             u64 delivered = 0;
             u64 lastLog = started;
             u64 lastReceived = 0;
+            // The trace: what the network brought, the card's (the install's) time, the time with nothing to hand over.
+            speedlog* trace = speedlog_begin("url", url, 0);
+            u64 traced = 0;
             while(true) {
+                u64 got = f->received;
+                if(got > traced) {
+                    speedlog_net(trace, got - traced, 0);
+                    traced = got;
+                }
+
                 // Every 10 s while it lasts, how fast it goes.
                 if(http_log != NULL && osGetTime() - lastLog >= 10000) {
                     u64 received = f->received;
@@ -520,7 +530,11 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 
                 if(f->taken != f->filled) {
                     u32 index = f->taken % HTTP_RING;
-                    if(R_FAILED(res = callback(userData, f->bufs[index], f->sizes[index]))) {
+                    speedlog_gauge(trace, f->filled - f->taken);
+                    u64 start = speedlog_ticks();
+                    res = callback(userData, f->bufs[index], f->sizes[index]);
+                    speedlog_disk(trace, f->sizes[index], speedlog_ticks() - start);
+                    if(R_FAILED(res)) {
                         break;
                     }
 
@@ -540,8 +554,12 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
                     progress(userData, f->total > received ? f->total : received, received, 1);
                 }
 
+                u64 start = speedlog_ticks();
                 svcSleepThread(2000000);
+                speedlog_wait(trace, speedlog_ticks() - start);
             }
+
+            speedlog_end(trace, R_SUCCEEDED(res) && f->ret == CURLE_OK);
 
             f->abort = R_FAILED(res);
             threadJoin(thread, U64_MAX);
@@ -950,7 +968,19 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
     u64 lastReceived = 0;
     u64 shown = 0;
     u64 delivered = 0;
+    // The trace: what the network brought, the card's (the install's) time, the time waiting for the next segment,
+    // and the segments ahead as the gauge.
+    speedlog* trace = speedlog_begin("url", url, p->size);
+    u64 traced = 0;
     for(u32 segment = 0; segment < p->segments && R_SUCCEEDED(res);) {
+        u64 got = http_parallel_received(p);
+        if(got > traced) {
+            speedlog_net(trace, got - traced, 0);
+            traced = got;
+        }
+
+        speedlog_gauge(trace, p->nextAssign - p->nextDeliver);
+
         if(checkRunning != NULL && R_FAILED(res = checkRunning(userData))) {
             break;
         }
@@ -967,7 +997,10 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
         u32 slot = segment % p->window;
         if(p->ready[slot] == (s32) segment) {
             __sync_synchronize();   // The slot's data and length, written before `ready`.
-            if(R_FAILED(res = callback(userData, p->slots[slot], p->lengths[slot]))) {
+            u64 start = speedlog_ticks();
+            res = callback(userData, p->slots[slot], p->lengths[slot]);
+            speedlog_disk(trace, p->lengths[slot], speedlog_ticks() - start);
+            if(R_FAILED(res)) {
                 break;
             }
 
@@ -981,7 +1014,9 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
             res = p->failure != 0 ? p->failure : R_APP_CANCELLED;
             break;
         } else {
+            u64 start = speedlog_ticks();
             svcSleepThread(2000000);
+            speedlog_wait(trace, speedlog_ticks() - start);
         }
 
         // A segment tried again goes back: the bar does not.
@@ -992,6 +1027,7 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
         }
     }
 
+    speedlog_end(trace, R_SUCCEEDED(res));
     p->abort = true;
     for(u32 i = 0; i < p->workerCount; i++) {
         http_worker* w = &p->workers[i];

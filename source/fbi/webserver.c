@@ -26,6 +26,7 @@
 #include "task/uitask.h"
 #include "../core/bgmusic.h"
 #include "../core/core.h"
+#include "../core/speedlog.h"
 #include "../core/input.h"
 #include "../core/data/smdh.h"
 
@@ -105,14 +106,20 @@ static bool web_wait_fd(int fd, short events, int timeoutMs) {
     return false;
 }
 
-static bool web_send_all(int fd, const char* data, size_t n) {
+// `log` (may be NULL) gets the time spent waiting for room and inside send().
+static bool web_send_logged(int fd, const char* data, size_t n, speedlog* log) {
     while(n > 0) {
-        if(!web_wait_fd(fd, POLLOUT, WEB_IDLE_MS)) {
+        u64 start = speedlog_ticks();
+        bool ready = web_wait_fd(fd, POLLOUT, WEB_IDLE_MS);
+        speedlog_wait(log, speedlog_ticks() - start);
+        if(!ready) {
             return false;
         }
 
         // The sockets do not block (net_set_nonblocking): what does not fit now waits for room.
+        start = speedlog_ticks();
         ssize_t w = send(fd, data, n > WEB_SEND_CHUNK ? WEB_SEND_CHUNK : n, 0);
+        speedlog_net(log, w > 0 ? (u64) w : 0, speedlog_ticks() - start);
         if(w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             continue;
         }
@@ -126,6 +133,10 @@ static bool web_send_all(int fd, const char* data, size_t n) {
     }
 
     return true;
+}
+
+static bool web_send_all(int fd, const char* data, size_t n) {
+    return web_send_logged(fd, data, n, NULL);
 }
 
 // ---- responses ----
@@ -470,13 +481,21 @@ static void web_api_get_file(web_request* r) {
     }
 
     fseek(f, (long) from, SEEK_SET);
-    size_t got;
+    speedlog* log = speedlog_begin("web-down", vpath, size - from);
     bool ok = true;
-    while(ok && (got = fread(web_io, 1, WEB_IO_SIZE, f)) > 0) {
-        ok = web_send_all(r->fd, web_io, got);
+    while(ok) {
+        u64 start = speedlog_ticks();
+        size_t got = fread(web_io, 1, WEB_IO_SIZE, f);
+        speedlog_disk(log, got, speedlog_ticks() - start);
+        if(got == 0) {
+            break;
+        }
+
+        ok = web_send_logged(r->fd, web_io, got, log);
     }
 
     fclose(f);
+    speedlog_end(log, ok);
 }
 
 static void web_api_put_file(web_request* r) {
@@ -504,16 +523,30 @@ static void web_api_put_file(web_request* r) {
         early = (u32) left;
     }
 
+    speedlog* log = speedlog_begin("web-up", vpath, r->contentLength);
     bool ok = early == 0 || fwrite(r->head + r->headLen, 1, early, f) == early;
     left -= early;
     while(ok && left > 0) {
-        if(!web_wait_fd(r->fd, POLLIN, WEB_IDLE_MS)) {
+        u64 start = speedlog_ticks();
+        bool ready = web_wait_fd(r->fd, POLLIN, WEB_IDLE_MS);
+        speedlog_wait(log, speedlog_ticks() - start);
+        if(!ready) {
             ok = false;
             break;
         }
 
+        start = speedlog_ticks();
         ssize_t n = net_recv(r->fd, web_io, left > WEB_IO_SIZE ? WEB_IO_SIZE : (size_t) left, WEB_IDLE_MS);
-        if(n <= 0 || fwrite(web_io, 1, (size_t) n, f) != (size_t) n) {
+        speedlog_net(log, n > 0 ? (u64) n : 0, speedlog_ticks() - start);
+        if(n <= 0) {
+            ok = false;
+            break;
+        }
+
+        start = speedlog_ticks();
+        bool written = fwrite(web_io, 1, (size_t) n, f) == (size_t) n;
+        speedlog_disk(log, (u64) n, speedlog_ticks() - start);
+        if(!written) {
             ok = false;
             break;
         }
@@ -521,9 +554,13 @@ static void web_api_put_file(web_request* r) {
         left -= (u64) n;
     }
 
+    u64 closing = speedlog_ticks();
     if(fclose(f) != 0) {
         ok = false;
     }
+
+    speedlog_disk(log, 0, speedlog_ticks() - closing);
+    speedlog_end(log, ok);
 
     if(ok) {
         remove(rpath);

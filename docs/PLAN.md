@@ -475,6 +475,81 @@ The runner also checks every CIA (TMD hashes and each content's SHA-256) and mak
 connections to the receiver's port 5002 itself. Not covered: the local wireless (the FTP server
 is off there) and installing.
 
+## Speed tests (`tools/speed_tests.py`, `source/core/speedlog.c`)
+
+After reports of slow transfers (issue: a QR install at ~1 MB/s with small files; FTP starting at 800+ KB/s and falling to
+~500 on a 256 MB file; the web page at 300-550 KB/s; slower than ftpd), every transfer can leave a trace of each second in
+`sdmc:/nsa/speed-log.txt`: DEBUG builds always, release builds while `sdmc:/nsa/speed.flag` exists (a user can be asked to
+create it, transfer, and send the file). Traces are kept in memory and written when the transfer ends. Each `s,` line: KB/s,
+time waiting for the network (`wait`: nothing to read, no room to send), inside the socket calls (`net`), inside the card or
+the install (`disk`, and the slowest single call), bytes per socket call, UI frames drawn, a gauge (a download's segments
+ahead), music on/off and, after `SITE CPU`, each core's load. An `e,` line sums the transfer (first and last 10 s, slowest
+second). Traced: FTP RETR/STOR, the web page's file up/download, downloads by URL (one connection and segments; `net` there
+is only bytes, `disk` is the install's time, `wait` the time with no segment ready).
+
+    tools/speed_tests.py --host IP [--sizes 1,16,64,256] [--only ...] [--cpu] [--label 2ds-music-on]
+    tools/speed_tests.py --host IP --server ftpd --ftp-port 5000          the same FTP tests against ftpd
+
+Tests: `ftp-up`/`ftp-down` (checked byte for byte), `ftp-null`/`ftp-zero` (NSA's `STOR /dev/null` and `RETR /dev/zero/<MB>`:
+the network alone), `ftp-small` (many small files: the cost per file), `sd` (`SITE SDBENCH <MB> [buffer KB] [PRE]`: the card
+alone, with the 256 KB stdio buffer, with the size set first, unbuffered), `web-up`/`web-down`, `url` (the PC serves a file,
+the page's install-url asks for it, the script presses X = Save; `--cia` installs instead). Results in
+`test-results/speed-<time>-<server>-<label>/`: `summary.md`, `report.html` (a chart per test: KB/s of the PC and the console,
+and each second's share of card / waiting / socket calls), CSVs of both sides and the fetched log.
+
+First run (2026-11-02, the release build on 192.168.1.141, no traces): FTP up 363-405, down 224-336 KB/s; 20 files of 128 KB
+took ~626 ms each up and ~494 ms down, so most of a small file's time is fixed cost per file.
+
+Full battery, 2026-11-02 evening, both consoles on the LAN Wi-Fi, this branch's DEBUG build (`test-results/speed-20261102-*`),
+KB/s from the PC:
+
+| | 2DS | New 3DS XL |
+|---|---|---|
+| FTP up / down, 256 MB | 395 / 343 | 661 / 652 (16-64 MB: 624-649 / 715-728) |
+| FTP network only (`/dev/null` / `/dev/zero`), 64 MB | 389 / 374 | 851 / 875 |
+| Web page up / down, 256 MB | 360 / 323 | 731 / 766 |
+| URL download, 64 MB, 8 connections | 559 | 1223 |
+| 100 files of 256 KB, up / down (per file) | 1750 / 957 ms | 480 / 466 ms |
+| Card alone (SDBENCH 256 MB, 256 KB buffer): write / read; size set first; unbuffered | 3926 / 7693; 5502; 2058 | 4105 / 9547; 5190; 2570 |
+| Slowest card write (growing / size set first) | 1444 / 789 ms | 143 / 128 ms |
+
+What the traces say:
+- **No CPU limit**: the counting threads saw the cores ~3% busy on the New 3DS, ~15% (core 0) on the 2DS. The FTP and web
+  threads wait for the network 62-85% of each second (uploads: nothing to read; downloads on the 2DS: ~65% inside `send()`).
+  Each `recv()` brings ~2.9 KB on the New 3DS, ~6 KB on the 2DS: the data trickles in; the console drains it as it comes.
+- **Not the card** for big files: the network alone is as fast (2DS) or only a little faster (New 3DS: 850-900 against
+  620-730 with the card). One TCP connection is the limit: the URL download with 8 connections doubled it (1223 KB/s on the
+  New 3DS, which is the "~1 MB/s" of the report and normal there).
+- **The fall from 800+ to ~500 KB/s on a 256 MB file** shows in the network-only test too (`/dev/null`, 256 MB on the New 3DS:
+  30 s averages 826 -> 396-640 -> 950, with 42 seconds under 200 KB/s in which the thread waited ~1000 ms with nothing coming
+  and the card idle): the Wi-Fi delivered less, not NSA.
+- **Small files on the 2DS**: the first ~40 uploads spent ~65 ms each in the card; from the 45th on, ~1.47 s each (writing
+  and closing 256 KB), steadily; music off, CPU idle. On the New 3DS 480 ms a file. To compare with ftpd on the same console.
+- Candidate fixes, to measure afterwards with the same battery: set the file's size first on uploads (FTP `ALLO`, the web
+  page's length: +40% card speed, slowest write halved on the 2DS); and, under the owner's rule of **one transfer at a time**
+  (control stays free; the web page browses and shows the transfer, its live screens pause), a short blocking `poll()` for
+  the transfer that holds the turn instead of the naps. Next: the same FTP tests against ftpd-EX on both consoles.
+
+2026-11-03, New 3DS XL (192.168.1.132), ftpd-EX 1.3.2 at 08:35 then NSA at 09:43, same morning's Wi-Fi, KB/s from the PC:
+
+| | NSA | ftpd-EX |
+|---|---|---|
+| FTP up 16 / 64 / 256 MB | 530 / 525 / 509 | 527 / 531 / 490 |
+| FTP down 16 / 64 / 256 MB | 566 / 652 / 625 | 573 / 795 / 635 |
+| Network only up (NSA `/dev/null`, ftpd `/devZero`) 16 / 64 / 256 MB | 666 / 535 / 583 | 637 / 605 / 619 |
+| Network only down 16 / 64 / 256 MB | 671 / 652 / 782 | 879 / 740 / 809 |
+| 100 files of 256 KB up / down, per file | 506 / 500 ms | 475 / 457 ms |
+
+Uploads level; ftpd 5-20% ahead on downloads and ~8% on small files, where NSA waits 75-86% of the time for room to send
+and naps between asks while ftpd sleeps in `poll()`: what the one-transfer turn with a short blocking `poll()` would change.
+Both show the same dips mid-transfer in the network-only tests: the Wi-Fi.
+
+2000 MB on the same console (NSA, 10:45-13:15, `speed-20261103-104517-nsa-new3ds-2000`; traces whole, 3126 and 2817 lines):
+FTP up 647 KB/s in 53 min (10-minute averages 670, 621, 599, 689, 657, 671; card 14-16% of the time, slowest write 206 ms),
+down 720 KB/s in 47 min (714-737 throughout), byte for byte, 8 seconds under 200 KB/s in each. Card alone: 4261 KB/s write
+(slowest 145 ms), 5363 with the size set first (94 ms), 2369 unbuffered (2186 in the first 10 s, 2348 in the last), read
+9642. A long file neither slows the card nor makes the transfer sink on this console.
+
 ## What the owner asked for (the direction)
 
 The look is right, but navigation still feels like FBI: lists, Select for options,

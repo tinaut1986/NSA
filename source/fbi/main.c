@@ -11,6 +11,7 @@
 #include "../core/screen.h"
 #include "../core/sound.h"
 #include "../core/bgmusic.h"
+#include "../core/speedlog.h"
 #include "launch3dsx.h"
 #include "thumbs.h"
 #include "../core/task/task.h"
@@ -134,6 +135,17 @@ Result init_services() {
 
 static u32 old_time_limit = UINT32_MAX;
 
+// The end of each line of a speed trace: whether the music plays, and how busy the cores are while
+// SITE CPU's counting threads run.
+static void main_speedlog_context(char* out, size_t size) {
+    bgmusic_status music;
+    bgmusic_get_status(&music);
+
+    char cpu[48];
+    selftest_cpu_sample(cpu, sizeof(cpu));
+    snprintf(out, size, "music %d%s%s", music.playing || music.generating ? 1 : 0, cpu[0] != '\0' ? " " : "", cpu);
+}
+
 void init() {
     gfxInitDefault();
 
@@ -171,6 +183,8 @@ void init() {
     ui_init();
     selftest_init();
     http_set_log(udslink_log);
+    speedlog_init();
+    speedlog_set_context(main_speedlog_context);
     task_init();
 }
 

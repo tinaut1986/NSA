@@ -10,6 +10,7 @@
 #include "../error.h"
 #include "../screen.h"
 #include "../sound.h"
+#include "../speedlog.h"
 #include "../bgmusic.h"
 #include "../appinfo.h"
 #include "../i18n.h"
@@ -374,6 +375,7 @@ bool ui_update() {
     ui = ui_top();
     if(ui != NULL) {
         if(ui_should_draw(ui)) {
+            speedlog_frame();
             screen_begin_frame();
             ui_draw_top(ui);
             ui_draw_bottom(ui);

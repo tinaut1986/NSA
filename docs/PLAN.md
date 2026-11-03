@@ -125,6 +125,10 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Red confirmations and going up a folder** (2026-11-03; built, not run)
+- [ ] Every delete / erase confirmation (Files: delete, delete contents, folder, CIAs, tickets; Titles: delete, with ticket, erase save, secure value; Tickets; Ext save data; Pending titles) shows the red prompt with the warning icon.
+- [ ] Files: B in a folder selects that folder in the parent at once, also in a big folder full of CIAs; a D-Pad or A pressed meanwhile does nothing until it is selected.
+
 **System's details** (issue #23; `source/fbi/systeminfo.c`; only the layout was checked, in Azahar, whose data is fake)
 - [ ] Main menu -> System opens a list (Console, Network, Storage, Battery); each row shows its page on the top screen; B goes back.
 - [ ] Console: serial number (read from `SecureInfo_A` on the CTR NAND) matches the sticker; device ID, country, system and kernel versions, MCU firmware (shown as major - 0x10 . minor: check it is plausible), Luma3DS version and commit, "Running as" CIA / 3DSX.
@@ -154,6 +158,16 @@ What `release` holds, in the order it was built:
 - [ ] Cancel *Back up now* with B: no new backup in the list; send an old backup to the other console and import it there.
 - [ ] Titles sheet -> Save data / Extra data / SpotPass data (`feat/save-manager`): the list shows the backups (readable in night mode), *Back up now* adds one at the top, restoring asks in red, deleting asks and removes it (a folder holding save and extra data keeps the other); the same from the page.
 - [ ] The redesigned page (`feat/web-ux`): Settings from the page change the console at once (theme, accent, night, language, sounds, music and volumes) and stay after a restart; dragging rows onto folders and breadcrumbs moves them; dropping a folder from the PC uploads the tree; *Install a CIA from this PC*; how the titles list feels with many titles on a real console.
+
+**Original path** (`feat/keep-original-path`, issue #24; `tools/console_tests.py --only origin` (8 tests: new, overwrite, skip, cancel, cut and resumed, a single file, unsafe paths not offered) pass on the New 3DS XL <-> 2DS over the Wi-Fi; the owner has not tried it by hand)
+- [ ] Files -> a folder's ⋯ -> *Send to another 3DS*; on the receiver *Original path*: with nothing there the folder appears at the same path; with files there it asks "N of M files already exist" and Overwrite / Skip existing / Cancel do what they say; try it with PKSM's folder.
+- [ ] The same with a single file, and a CIA or a save package (they must not offer *Original path*).
+
+**Sending folders** (`feat/send-folders`; code in `transferfolder.c` and `foldermanifest.c`; `tests/foldermanifest_test.c` on the host and `tools/console_tests.py --only send_folder` (10 tests: clean, name taken, cuts on both sides, write and read failures, 250 small files, no files, unsafe paths, another destination) pass on the New 3DS XL <-> 2DS over the Wi-Fi; the owner has not tried it by hand)
+- [ ] Files -> a folder's ⋯ (or the open folder's sheet) -> *Send to another 3DS*: a small folder (a few files, subfolders, an empty file, an empty subfolder) arrives in `sdmc:/nsa/received/<name>/` with the same tree; the receiver is asked *Save* / *Reject* and picks the destination folder.
+- [ ] A folder with several CIAs (hundreds of MB): speed like a single file, nothing duplicated on the sender's card; cancel with B on each side; a name that already exists arrives as `<name> (2)`.
+- [ ] A cut transfer of a folder goes on from where it stopped (the `<name>.part` folder and `.part.pos` stay on the receiver); an empty folder and one with only empty subfolders are refused by the sender ("no files"); a folder with thousands of small files.
+- [ ] Wi-Fi and the local wireless (no router); an older NSA (protocol 5) on the other console must refuse cleanly.
 
 **Saves, extra data and SpotPass data** (item 3b; code in `source/fbi/action/savetransfer.c`; none of it tried on a console)
 - [ ] Export a save (Titles sheet) to `sdmc:/nsa/saves/<TITLEID>/<date>/save/` with `manifest.txt` (`source=NSA`): with subfolders, an empty save, a big one; cancel with B midway.
@@ -357,12 +371,35 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
 - Discovery: on the Wi-Fi, UDP broadcast on 5001 (the receiver answers `NSA!` and its
   name; `/nsa/peers.txt` lists addresses to ask directly, one per line). Nearby: UDS
   beacons (below).
-- Control connection (TCP 5002, or the UDS stream): the sender sends a 316 byte hello
-  (protocol 5: magic, version, sender name, file name, size, `check` = CRC-32 of the first
-  4 KB of the file or of a package's header, `kind` 0 file / 1 title package, `head` = the
-  package header's size). The receiver asks its user (Allow, then Install now / Save /
+- Control connection (TCP 5002, or the UDS stream): the sender sends a 828 byte hello
+  (protocol 7: magic, version, sender name, file name, size, `check` = CRC-32 of the first
+  4 KB of the file or of a package's header, `kind` 0 file / 1 title package / 2 folder, `head` = the
+  package header's or folder manifest's size, `origin` = where the file or folder is on the sender's
+  SD card, "" when it is not there). For a folder the manifest (`head` bytes) follows the hello at
+  once, before any answer. The receiver reads it, drops the transfer without asking when the
+  manifest is damaged or unsafe, and asks its user (Allow, then Install now / Save /
   Reject; Install only for a CIA; Save opens a folder picker starting in `sdmc:/nsa/received/`)
   and answers 13 bytes: status, the byte to go on from, a transfer number.
+- A **folder** (kind 2) is one payload: the manifest (`foldermanifest.h`: every path relative to the folder,
+  type and size) and then each file's bytes in that order, one segment per file, so the chunks, the
+  resume (`prefix`) and the connections are the same as for a file. The sender reads files as chunks ask;
+  the receiver keeps the manifest chunks, parses and checks them (`folder_path_ok`: no `..`, no leading
+  slash, no `:`), makes the folders and writes each chunk into `nsa/tmp/<name>.part/<path>` (a file's bytes
+  wait, up to 60 s, for the manifest; `nsa/tmp/` is only NSA's, so clearing an old `.part` there never
+  touches the user's folders), makes the empty files at the end and moves the folder to the chosen one
+  (`<name>`, or `<name> (2)`... when it exists). Files and title packages do the same
+  (`feat/tmp-for-files`): their `<name>.part` and `<name>.part.pos` are in `nsa/tmp/` too, and the file is
+  moved to the chosen folder when whole. A `.part` that an older build left in another folder is not
+  resumed (it is only a leftover to delete). This is why
+  **no copy of the folder is made on the sender's card**.
+- **Original path** (issue #24; `feat/keep-original-path`): for a file or a folder (not CIAs, titles or
+  save packages) whose `origin` is safe (starts with `/`, no `..`, `:` or `\`, not in `/nsa/tmp`), the
+  Incoming file question adds *Original path*. Nothing is written there until the transfer is whole in
+  `nsa/tmp/`. If some of the files already exist at that path, a second question says how many and asks
+  *Overwrite* / *Skip existing* (a single file: *Overwrite* / *Cancel*) / *Cancel*. Then each file is moved
+  into place (a file where a folder is needed, or the reverse, is an error, never deleted); files that
+  are only on the receiver stay. The files already moved stay if the move fails midway. A retry of
+  the same transfer keeps the choices. Only Files on the SD card sends an origin.
 - Data: the payload is cut in chunks of 256 KB. Over the Wi-Fi four TCP connections (the
   control one and three more that quote the transfer number) carry chunks, each taken by
   whichever is free; a record is offset (8), length (4), bytes; a connection ends with a
@@ -429,6 +466,9 @@ What DEBUG builds have for it (FTP, port 5021; release builds answer 502 or igno
 - `SITE TEST UI`: the top view as JSON: depth (1 = main menu), untranslated name (`ui_view.id`),
   kind (prompt, info, list), a prompt's untranslated text, options and their buttons, an info's
   line and bar, a list's count and selection. The tests answer dialogs by name, not by position.
+- `SITE TEST BUILD`: the protocol and build time of the NSA on the console; the runner refuses to run
+  when the two consoles differ (a console that kept an old build made every transfer fail once).
+- `SITE TEST SENDDIR <folder>`: sends a folder (and its path as the origin).
 - `SITE TEST EXPORT|SENDTITLE <title ID> [nand]`, `SEND <path>`, `RECEIVE`, `TITLES` (SD titles,
   smallest first, in `/nsa/tests/titles.txt`): open the same screens as the menus.
 - `SITE FAULT <point> [skip] [count]` (`CLEAR`, `LIST`): the next hits of `point` after `skip`

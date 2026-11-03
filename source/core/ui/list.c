@@ -63,6 +63,7 @@ typedef struct {
     bool revealPending;   // Scroll the selection into view on the next update.   // Selected before the touch, back when it turns into a drag.
     bool barTouching;
     bool scrollbarTouching;   // A finger holds the scrollbar.
+    bool held;                // list_hold: items take no presses.
     int barTarget;
     void (*longPress)(ui_view* view, void* data, linked_list* items, list_item* item);
 
@@ -393,7 +394,8 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
     bool selectedTouched = false;
     u32 last = listData->selectedIndex;
-    u32 count = listData->visibleCount;
+    // Held, nothing can be moved to or opened: as if the list were empty.
+    u32 count = listData->held ? 0 : listData->visibleCount;
 
     if(count > 0) {
         u32 cols = l.columns;
@@ -757,6 +759,10 @@ void list_select(ui_view* view, list_item* item) {
     list_data* listData = (list_data*) view->data;
     listData->selectedItem = item;
     listData->revealPending = true;
+}
+
+void list_hold(ui_view* view, bool held) {
+    ((list_data*) view->data)->held = held;
 }
 
 void list_show_title_bar(ui_view* view) {

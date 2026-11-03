@@ -54,6 +54,9 @@ void list_set_search(ui_view* view, const char* text);
 const char* list_get_search(ui_view* view);
 // Selects an item and scrolls it into view.
 void list_select(ui_view* view, list_item* item);
+// While held, D-Pad, A and taps on items do nothing (the screen's update still runs):
+// for a selection still to come, so a press does not land on the wrong item.
+void list_hold(ui_view* view, bool held);
 // While items load, the title bar shows "done/total" instead of the count.
 void list_set_progress(ui_view* view, u32 done, u32 total);
 // Items shown after the search filter.

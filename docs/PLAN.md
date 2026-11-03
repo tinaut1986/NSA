@@ -211,9 +211,18 @@ Dropbox, catbox and the LAN, byte for byte, and an install by URL of an 8 MB CIA
 - [ ] A QR install from a Dropbox link (a game not installed yet): it says "one connection" after the first segments and
       installs at ~1 MB/s.
 - [ ] The whole Dragon Quest VIII with Save (3.4 GB): ends, and the file is the right size.
-- [ ] The 2DS: Save and install from Dropbox and catbox (how many connections it opens there).
+- [x] The 2DS: Save from Dropbox. In long pieces it went at 180-255 KB/s: each 256 KB write far into the 3.4 GB file took
+      3.2-3.9 s (the trace's disk time), with a handle for each connection too; in order, into the same file set to its
+      size, 444-457 KB/s (3dsDL from Dropbox ends on one connection, so it writes in order too). So an Old 3DS saves in
+      order (segments, or one connection after a one-time link) and a New 3DS in long pieces (1227-1304 KB/s there).
 - [ ] Whether NSA stops answering again right after "the rest over one connection" (it did once): if it does, a photo of
       the screen and `transfer-log.txt` at once.
+- [ ] Remote Install's choices (#29): a list (Install, Save and install, Save install and delete, Save; X saves at once)
+      with each one explained on the top screen. Save and install and Save install and delete tried on the New 3DS XL
+      with NSA's own CIA: downloaded, saved, the install from the SD card started (and was refused, "Already exists", as
+      the running NSA of the same version is); the file stays when the install fails. To try with a game not installed.
+- [ ] `SITE SCREENSHOT` (DEBUG) is not taken in time (15 s) on 0.6.4 and the console stops answering its buttons until a
+      B arrives; on 2026-11-02 it worked (console_tests' screenshots).
 
 **Console to console: how many connections** (`SITE CONNS 1-4`, DEBUG, on the sender; 2026-11-03, New 3DS XL -> 2DS over
 the Wi-Fi, 64 MB, two rounds, every copy identical; the 2DS's receive time, and its web page's slowest answer meanwhile):

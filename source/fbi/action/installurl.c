@@ -41,7 +41,11 @@ typedef struct {
     void (*finishedAll)(void* data);
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index);
 
-    bool saveOnly;   // "Save" was chosen: keep the files instead of installing them.
+    bool saveOnly;   // A "Save" choice: the files go to INSTALL_URL_SAVE_DIR (and may be installed from there).
+    u32 mode;        // INSTALL_URL_CHOICE_*.
+    bool currIsCia;  // The file being saved is a CIA.
+    char* toInstall; // The CIAs saved, one a line, to install once the downloads end ("Save and install").
+    char confirm[256];
     content_type contentType;
     u64 currTitleId;
     volatile bool n3dsContinue;
@@ -51,48 +55,49 @@ typedef struct {
     data_op_data installInfo;
 } install_url_data;
 
+// The confirmation's choices. Install: downloads and installs at once. The others save the file to
+// INSTALL_URL_SAVE_DIR first (long pieces over the connections that pay off, http_download_file), and
+// install it from there once the downloads end, deleting it after the third.
+#define INSTALL_URL_CHOICE_INSTALL 0
+#define INSTALL_URL_CHOICE_SAVE_INSTALL 1
+#define INSTALL_URL_CHOICE_SAVE_INSTALL_DELETE 2
+#define INSTALL_URL_CHOICE_SAVE 3
+#define INSTALL_URL_CHOICES 4
+#define INSTALL_URL_CHOICE_CANCEL 4
+
+static const char* action_install_url_choice_names[INSTALL_URL_CHOICES] = {"Install", "Save and install", "Save, install and delete", "Save"};
+static const char* action_install_url_choice_infos[INSTALL_URL_CHOICES] = {
+        "Downloads and installs at the same time, with no extra space on the SD card. With links good for one request (Dropbox) it comes over one connection. If it fails, it starts again from the beginning.",
+        "Downloads the file to /nsa/received/ first (it needs room on the SD card for all of it), over the connections that make it faster; then installs it and keeps the file.",
+        "Downloads the file to /nsa/received/ first (it needs room on the SD card for all of it), over the connections that make it faster; then installs it and deletes the file.",
+        "Only downloads the file to /nsa/received/ (it needs room on the SD card for all of it), over the connections that make it faster, to install it later from Files."
+};
+
 static void action_install_url_free_data(install_url_data* data) {
     if(data->finishedAll != NULL) {
         data->finishedAll(data->userData);
     }
 
+    free(data->toInstall);
     free(data);
+}
+
+static void action_install_url_queue_install(install_url_data* data, const char* path) {
+    size_t have = data->toInstall != NULL ? strlen(data->toInstall) : 0;
+    size_t len = strlen(path);
+    char* grown = (char*) realloc(data->toInstall, have + len + 2);
+    if(grown != NULL) {
+        memcpy(grown + have, path, len);
+        grown[have + len] = '\n';
+        grown[have + len + 1] = '\0';
+        data->toInstall = grown;
+    }
 }
 
 static void action_install_url_install_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2);
 
 static void action_install_url_n3ds_onresponse(ui_view* view, void* data, u32 response) {
     ((install_url_data*) data)->n3dsContinue = response == PROMPT_YES;
-}
-
-static void action_install_url_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
-    install_url_data* installData = (install_url_data*) data;
-
-    if(installData->drawTop != NULL) {
-        installData->drawTop(view, installData->userData, x1, y1, x2, y2, installData->installInfo.processed);
-    } else if(installData->installInfo.processed == installData->installInfo.total) {
-        float urlY = y1 + 5;
-        u32 index = 0;
-        while(urlY < y2 && index < installData->installInfo.total) {
-            float urlWidth = 0;
-            float urlHeight = 0;
-            screen_get_string_size_wrap(&urlWidth, &urlHeight, installData->urls[index], 0.5f, 0.5f, x2 - x1 - 10);
-
-            float urlX = x1 + (x2 - x1 - urlWidth) / 2;
-            screen_draw_string_wrap(installData->urls[index], urlX, urlY, 0.5f, 0.5f, COLOR_TEXT, true, urlX + urlWidth + 1);
-
-            urlY += urlHeight;
-            index++;
-        }
-    } else {
-        float urlWidth = 0;
-        float urlHeight = 0;
-        screen_get_string_size_wrap(&urlWidth, &urlHeight, installData->urls[installData->installInfo.processed], 0.5f, 0.5f, x2 - x1 - 10);
-
-        float urlX = x1 + (x2 - x1 - urlWidth) / 2;
-        float urlY = y1 + (y2 - y1 - urlHeight) / 2;
-        screen_draw_string_wrap(installData->urls[installData->installInfo.processed], urlX, urlY, 0.5f, 0.5f, COLOR_TEXT, true, urlX + urlWidth + 1);
-    }
 }
 
 static Result action_install_url_get_src_url(void* data, u32 index, char* url, size_t maxSize) {
@@ -159,6 +164,7 @@ static bool action_install_url_exists(FS_Archive archive, const char* path) {
 // "Save": opens INSTALL_URL_SAVE_DIR's file for the download; a name in use gets " (2)", " (3)"...
 static Result action_install_url_open_save(install_url_data* installData, u32 index, void* initialReadBlock, u64 size, u32* handle) {
     installData->contentType = CONTENT_SAVED;
+    installData->currIsCia = initialReadBlock != NULL && *(u16*) initialReadBlock == 0x2020;
 
     char name[FILE_NAME_MAX];
     action_install_url_save_name(installData->urls[index], initialReadBlock, name, sizeof(name));
@@ -346,6 +352,11 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
 
     if(succeeded && R_SUCCEEDED(res)) {
         installData->states[index] = installData->contentType == CONTENT_SAVED ? URL_SAVED : URL_INSTALLED;
+
+        // "Save and install": installed from the SD card once the downloads end (what is not a CIA stays saved).
+        if(installData->contentType == CONTENT_SAVED && installData->currIsCia && installData->mode != INSTALL_URL_CHOICE_SAVE) {
+            action_install_url_queue_install(installData, installData->currPath);
+        }
     }
 
     if(R_SUCCEEDED(res) && installData->finishedURL != NULL) {
@@ -438,9 +449,12 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
         u32 saved = action_install_url_count(installData, URL_SAVED);
         u32 failed = action_install_url_count(installData, URL_FAILED);
         u32 skipped = action_install_url_count(installData, URL_SKIPPED);
+        bool installAfter = installData->toInstall != NULL && installData->installInfo.result != R_APP_CANCELLED;
         if(installData->installInfo.result != R_APP_CANCELLED) {
             if(failed == 0 && skipped == 0) {
-                if(saved > 0) {
+                if(saved > 0 && installAfter) {
+                    // The install says when it is done.
+                } else if(saved > 0) {
                     char text[FILE_PATH_MAX + 64];
                     if(saved == 1) {
                         snprintf(text, sizeof(text), _("Saved in %s"), installData->currPath);
@@ -463,7 +477,19 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
             }
         }
 
+        char* paths = installAfter ? installData->toInstall : NULL;
+        bool delete = installData->mode == INSTALL_URL_CHOICE_SAVE_INSTALL_DELETE;
+        if(paths != NULL) {
+            installData->toInstall = NULL;
+        }
+
         action_install_url_free_data(installData);
+
+        if(paths != NULL) {
+            action_install_cia_paths_now(paths, delete);
+            free(paths);
+        }
+
         return;
     }
 
@@ -604,10 +630,6 @@ static void action_install_url_install_show(install_url_data* data) {
     ui_push(view);
 }
 
-// The confirmation's choices: install, only save the files, or nothing.
-#define INSTALL_URL_CHOICE_INSTALL 0
-#define INSTALL_URL_CHOICE_SAVE 1
-
 static bool action_install_url_in_order = false;
 
 void action_install_url_save_in_order(bool inOrder) {
@@ -617,10 +639,15 @@ void action_install_url_save_in_order(bool inOrder) {
 static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32 response) {
     install_url_data* installData = (install_url_data*) data;
 
-    installData->saveOnly = response == INSTALL_URL_CHOICE_SAVE;
-    // A file being saved takes its pieces in any order: long pieces over several connections.
-    installData->installInfo.dstAnyOrder = installData->saveOnly && !action_install_url_in_order;
-    if(response == INSTALL_URL_CHOICE_INSTALL || response == INSTALL_URL_CHOICE_SAVE) {
+    installData->mode = response;
+    installData->saveOnly = response != INSTALL_URL_CHOICE_INSTALL;
+    // A file being saved takes its pieces in any order: long pieces over several connections. Not on an Old 3DS: a
+    // write far into a big file takes seconds there (256 KB in 3.2 s at 1-3 GB into Dragon Quest VIII on the 2DS, with a
+    // handle for each connection too), while in order it saves at its network's ~450 KB/s, as fast as it gets there.
+    bool n3ds = false;
+    APT_CheckNew3DS(&n3ds);
+    installData->installInfo.dstAnyOrder = installData->saveOnly && n3ds && !action_install_url_in_order;
+    if(response < INSTALL_URL_CHOICES) {
         Result res = task_data_op(&installData->installInfo);
         if(R_SUCCEEDED(res)) {
             action_install_url_install_show(installData);
@@ -632,6 +659,101 @@ static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32
     } else {
         action_install_url_free_data(installData);
     }
+}
+
+static void action_install_url_choose_clear(linked_list* items) {
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        free(linked_list_iter_next(&iter));
+        linked_list_iter_remove(&iter);
+    }
+}
+
+static void action_install_url_choose_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
+    install_url_data* installData = (install_url_data*) data;
+
+    if(linked_list_size(items) == 0) {
+        for(u32 i = 0; i < INSTALL_URL_CHOICES; i++) {
+            list_item* item = (list_item*) calloc(1, sizeof(list_item));
+            if(item != NULL) {
+                string_copy(item->name, _(action_install_url_choice_names[i]), sizeof(item->name));
+                item->color = COLOR_TEXT;
+                item->data = (void*) (uintptr_t) i;
+                linked_list_add(items, item);
+            }
+        }
+
+        return;
+    }
+
+    // X saves at once, as the confirmation did (and the tests press).
+    u32 choice = UINT32_MAX;
+    u32 down = hidKeysDown();
+    if(down & KEY_B) {
+        choice = INSTALL_URL_CHOICE_CANCEL;
+    } else if(down & KEY_X) {
+        choice = INSTALL_URL_CHOICE_SAVE;
+    } else if(selected != NULL && (selectedTouched || (down & KEY_A))) {
+        choice = (u32) (uintptr_t) selected->data;
+    }
+
+    if(choice == UINT32_MAX) {
+        return;
+    }
+
+    ui_pop();
+    action_install_url_choose_clear(items);
+    list_destroy(view);
+    action_install_url_confirm_onresponse(NULL, installData, choice);
+}
+
+static void action_install_url_choose_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
+    install_url_data* installData = (install_url_data*) data;
+    const theme_current* t = theme();
+
+    // The question and what comes.
+    float x = x1 + 12;
+    float width = x2 - x1 - 24;
+    float y = y1 + 10;
+    float w = 0;
+    float h = 0;
+    screen_get_string_size_wrap(&w, &h, installData->confirm, 0.5f, 0.5f, width);
+    screen_draw_string_wrap(installData->confirm, x, y, 0.5f, 0.5f, COLOR_TEXT, false, x + width);
+    y += h + 6;
+
+    u32 shown = installData->installInfo.total < 3 ? installData->installInfo.total : 3;
+    for(u32 i = 0; i < shown; i++) {
+        char name[FILE_NAME_MAX];
+        action_install_url_file_name(installData->urls[i], name, sizeof(name));
+        screen_draw_icon(ICON_PACKAGE, x, y + 1, 14, t->accent);
+        widget_text_fit(name, x + 20, y, 0.5f, t->palette->text, width - 20);
+        y += widget_text_height(0.5f) + 3;
+    }
+
+    if(installData->installInfo.total > shown) {
+        char more[64];
+        snprintf(more, sizeof(more), _("and %lu more"), installData->installInfo.total - shown);
+        widget_text_fit(more, x + 20, y, 0.5f, t->palette->textMuted, width - 20);
+        y += widget_text_height(0.5f) + 3;
+    }
+
+    // What the chosen way does.
+    if(selected == NULL) {
+        return;
+    }
+
+    u32 choice = (u32) (uintptr_t) selected->data;
+    if(choice >= INSTALL_URL_CHOICES) {
+        return;
+    }
+
+    float cardY = y + 6;
+    float cardH = y2 - 8 - cardY;
+    widget_card(x1 + 8, cardY, x2 - x1 - 16, cardH);
+    widget_text_fit(_(action_install_url_choice_names[choice]), x + 4, cardY + 8, WIDGET_TITLE_SCALE, t->accent, width - 8);
+    screen_draw_string_wrap(_(action_install_url_choice_infos[choice]), x + 4, cardY + 10 + widget_text_height(WIDGET_TITLE_SCALE) + 4, 0.5f, 0.5f,
+                            COLOR_TEXT, false, x + width - 4);
 }
 
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
@@ -738,10 +860,14 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
         return;
     }
 
-    // Install, or only download the files to install them later (asked on r/3dshomebrew, issue #22).
-    static const char* options[3] = {"Install", "Save", "Cancel"};
-    static u32 buttons[3] = {KEY_A, KEY_X, KEY_B};
-    char text[512];
-    snprintf(text, sizeof(text), "%s\n%s", i18n_translate_text(confirmMessage), _("Save keeps the files in /nsa/received/ to install later."));
-    prompt_display_multi_choice("Confirmation", text, COLOR_TEXT, options, buttons, 3, data, action_install_url_draw_top, action_install_url_confirm_onresponse);
+    // Install, save, or both (issues #22 and #29): what each one does on the top screen.
+    string_copy(data->confirm, i18n_translate_text(confirmMessage), sizeof(data->confirm));
+    ui_view* view = list_display(_("Install from URL"), _(" choose    save    cancel"), data, action_install_url_choose_update,
+                                 action_install_url_choose_draw_top);
+    if(view == NULL) {
+        action_install_url_free_data(data);
+        return;
+    }
+
+    view->id = "Confirmation";
 }

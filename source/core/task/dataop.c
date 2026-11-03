@@ -6,6 +6,7 @@
 
 #include "dataop.h"
 #include "../core.h"
+#include "../xferturn.h"
 
 static Result task_data_op_check_running(data_op_data* data) {
     Result res = 0;
@@ -149,6 +150,8 @@ typedef struct {
     u32 bytesSinceUpdate;
 
     u64 writeOffset;
+
+    u32 turn;   // The transfer turn (xferturn.h) the download holds.
 } data_op_download_data;
 
 static Result task_data_op_download_callback(void* userData, void* buffer, size_t size) {
@@ -187,6 +190,7 @@ static Result task_data_op_download_progress(void* userData, u64 total, u64 curr
 
     data->currTotal = total;
     data->currProcessed = curr;
+    xferturn_progress(downloadData->turn, curr);
 
     u64 time = osGetTime();
     u64 elapsed = time - downloadData->lastBytesPerSecondUpdate;
@@ -226,7 +230,13 @@ static Result task_data_op_download(data_op_data* data, u32 index) {
     char url[DOWNLOAD_URL_MAX];
     if(R_SUCCEEDED(res = data->getSrcUrl(data->data, index, url, DOWNLOAD_URL_MAX))) {
         data_op_download_data downloadData = {data, index, 0, true, 0, osGetTime(), 0, 0};
+        // One transfer at a time: an FTP, web page or console to console transfer under way is let finish.
+        if((downloadData.turn = xferturn_take(XFER_DOWNLOAD, url, 0)) == 0) {
+            return R_APP_BUSY;
+        }
+
         res = http_download_callback(url, data->bufferSize, &downloadData, task_data_op_download_callback, task_data_op_download_check_running, task_data_op_download_progress);
+        xferturn_release(downloadData.turn);
 
         if(downloadData.dstHandle != 0) {
             Result closeDstRes = data->closeDst(data->data, index, res == 0, downloadData.dstHandle);

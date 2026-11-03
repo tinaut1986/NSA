@@ -52,6 +52,7 @@ ap.add_argument('--small-kb', type=int, default=256)
 ap.add_argument('--url-mb', type=int, default=64)
 ap.add_argument('--sd-modes', default='buffer,pre,unbuffered', help='sd test: which of buffer, pre (size set first), unbuffered')
 ap.add_argument('--cia', help='url test: serve this CIA and install it (A) instead of saving a file')
+ap.add_argument('--wait-mode', choices=('poll', 'nap', 'hybrid'), help='NSA DEBUG: how the transfer with the turn waits (SITE POLL)')
 ap.add_argument('--cpu', action='store_true', help='SITE CPU while testing: each core\'s load in the traces (DEBUG)')
 ap.add_argument('--label', default='', help='a word for the folder name (console, settings...)')
 ap.add_argument('--out', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'test-results'))
@@ -691,6 +692,8 @@ def main():
         f.quit()
         if a.cpu:
             say('cpu: ' + site('CPU 500'))
+        if a.wait_mode:
+            say('wait: ' + site('POLL ' + a.wait_mode.upper()))
     try:
         if 'ftp-up' in ONLY or 'ftp-down' in ONLY:
             test_ftp_up_down()

@@ -12,6 +12,7 @@
 #include "../core/sound.h"
 #include "../core/bgmusic.h"
 #include "../core/speedlog.h"
+#include "../core/xferturn.h"
 #include "launch3dsx.h"
 #include "thumbs.h"
 #include "../core/task/task.h"
@@ -184,6 +185,7 @@ void init() {
     selftest_init();
     http_set_log(udslink_log);
     speedlog_init();
+    xferturn_init();
     speedlog_set_context(main_speedlog_context);
     task_init();
 }

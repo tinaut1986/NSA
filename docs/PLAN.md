@@ -194,6 +194,15 @@ dates). The owner will go through them one by one; tick each only when they say 
       Receive screens); `ui_wake()` exists but nobody calls it yet.
 - [ ] `SITE CPU` (DEBUG) answers per core without disturbing the FTP server.
 
+**One transfer at a time** (`feat/one-transfer`; on the New 3DS XL `tools/turn_tests.py` passes and the speed is above)
+- [ ] Console to console with the turn (New 3DS XL <-> 2DS, `tools/console_tests.py`): sending and receiving still work; a send
+      while the receiver downloads something is refused with "Another transfer is in progress"; the retry question frees it.
+- [ ] Settings -> FTP server (and Web server) off and on again with a transfer under way: nothing freezes, the turn is free.
+- [ ] The page: the top bar shows a transfer (name, %, KB/s) of FTP or a download; an upload while one runs says so and sends
+      nothing; the live screens say they are paused; browsing Titles and Files keeps working.
+- [ ] A QR / URL install while an FTP upload runs: the console says another transfer is in progress; after it ends it works.
+- [ ] The 2DS: the same speed tests (`speed_tests.py --wait-mode poll|nap`) to see whether the short poll helps there too.
+
 **Download and FTP speed** (`fix/download-speed`, `fix/ftp-pasv-buffers`, issue #21). Measured on the New 3DS XL over
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
@@ -550,6 +559,22 @@ down 720 KB/s in 47 min (714-737 throughout), byte for byte, 8 seconds under 200
 (slowest 145 ms), 5363 with the size set first (94 ms), 2369 unbuffered (2186 in the first 10 s, 2348 in the last), read
 9642. A long file neither slows the card nor makes the transfer sink on this console.
 
+**One transfer at a time** (`feat/one-transfer`, cut from `feat/speed-tests`): the turn and the short `poll()` (Decisions,
+"One transfer at a time"). Same console, 2026-11-03 afternoon, the three ways of waiting one after another three times
+(`SITE POLL`, `speed_tests.py --wait-mode`), 64 MB and 50 files of 256 KB, KB/s or ms a file, average of the three:
+
+| | short `poll()` (kept) | naps (before) | 1 ms naps then `poll()` |
+|---|---|---|---|
+| FTP up 64 MB | 634 (677, 687, 537) | 596 | 599 |
+| FTP down 64 MB | 747 (706, 779, 756) | 649 | 724 |
+| 50 files up, a file | 458 ms | 544 ms | 559 ms |
+| 50 files down, a file | 479 ms | 477 ms | 496 ms |
+
+The short `poll()` is ahead everywhere but small downloads (level): +6% up, +15% down, 16% less a small file up. The full
+battery with it (`speed-20261103-134452-nsa-new3ds-turn`): FTP 693-757 up, 727-762 down (16-256 MB), waiting for the network
+49-60% of the time going up (66-74% before). An earlier run that looked worse for small files was the Wi-Fi of the moment.
+`tools/turn_tests.py` (busy replies, clients that vanish) passes on the New 3DS XL.
+
 ## What the owner asked for (the direction)
 
 The look is right, but navigation still feels like FBI: lists, Select for options,
@@ -829,6 +854,22 @@ current, this list is the summary. What only the owner can test (local wireless)
   The New 3DS did the catbox CIA at 762 KB/s (3dsDL: 515-560).
   The install screen says how many connections ("From host, N connections"). The log says "segments ahead" every 10 s
   and how many segments were asked for twice.
+- **One transfer at a time** (`source/core/xferturn.c`, the owner's rule, 2026-11-03): a download (URL, QR, updater, Save),
+  an FTP RETR (1 MB and up, and `/dev/zero`) or STOR, a file up or down through the web page (down: 1 MB and up) and a console
+  to console send (from connecting to the end; not while asking whether to retry) or receive (from accepting) take the turn.
+  Whatever asks meanwhile is answered at once and never waits: FTP `450 Busy: <kind>, <name> (n%)`, the web page 503 with
+  `busy` (its uploads, live screens, install from URL), a download or a send fails with "Another transfer is in progress".
+  Free during a transfer: FTP control and LIST, small files, `speed-log.txt`, the page's browsing, settings and buttons.
+  `/api/info` has `transfer` (kind, name, done, total, KB/s); the page shows it in the top bar, asks every 3 s meanwhile,
+  checks before an upload and pauses the live screens. A turn not touched for 60 s is free again (a forgotten release never
+  locks the rest out). The transfer with the turn waits in a real `poll()` of at most 20 ms (`net_poll_owner`, calling
+  `__real_poll` past the wrap) instead of napping, as ftpd does: nothing else moves data, so a control request waits at most
+  that. `SITE POLL POLL|NAP|HYBRID` (DEBUG) switches it to compare.
+- **The 3DS does not always see a client's reset** (`tools/turn_tests.py`): a transfer whose client vanished waited its 30 s,
+  the FTP session's give-way waited 30 s more, and the web page (one request at a time) sat behind it, then behind its answer
+  to the dead client. Now a data wait stalled 10 s gives up when another client is waiting (`FTP_STALL_MS`, `WEB_STALL_MS`),
+  an FTP session whose transfer broke lets a new connection in at once, `recv()` after a ready `poll()` waits 1 s, and a web
+  upload whose client went away is not answered: the page answers again within ~13 s (10 s stall, 1 s, 2 s closing).
 - **The servers' sockets never block** (`net_set_nonblocking`, `net_recv`, `net_close_gently` in `netpoll.c`): a blocking
   send to a client that had gone waited inside the SOC session until TCP gave up, holding every socket call of NSA, the
   shutdown() meant to wake it too; the 2DS stopped answering FTP and web during a download test and froze when the FTP

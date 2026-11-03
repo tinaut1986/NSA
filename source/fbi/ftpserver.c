@@ -20,6 +20,7 @@
 #include "selftest.h"
 #include "../core/core.h"
 #include "../core/speedlog.h"
+#include "../core/xferturn.h"
 
 #define FTP_PATH_MAX 512
 #define FTP_LINE_MAX 600
@@ -28,6 +29,9 @@
 #define FTP_NAP_MS 10
 #define FTP_SEND_CHUNK (64 * 1024)
 #define FTP_GIVE_WAY_MS 30000
+// A transfer stalled this long gives up when another client is waiting to connect: the 3DS does not
+// always see a client's reset, and the server serves one session at a time.
+#define FTP_STALL_MS 10000
 #define FTP_DATA_ACCEPT_MS 15000
 #define FTP_IDLE_MS (10 * 60 * 1000)
 #define FTP_PASV_FIRST (FTP_SERVER_PORT + 1)
@@ -65,6 +69,8 @@ static char ftp_phase_file[64];
 static volatile u64 ftp_allo = 0;
 static volatile u64 ftp_done = 0;
 static volatile u64 ftp_total = 0;
+// The transfer turn (xferturn.h) held by the RETR or STOR under way, 0 when none.
+static u32 ftp_turn = 0;
 
 // A screenshot asked for by SITE SCREENSHOT, taken by the main thread.
 static volatile bool shot_requested = false;
@@ -85,6 +91,7 @@ typedef struct {
     char rnfr[FTP_PATH_MAX];
     char in[FTP_LINE_MAX * 2];
     unsigned inUsed;
+    bool broken;   // The last transfer failed: the client may have gone, so a new connection is let in at once.
 } ftp_session;
 
 // ---- sockets ----
@@ -102,11 +109,19 @@ static void ftp_close_socket(int* fd) {
 // a blocking poll() would hold up the downloads' and Remote Install's network
 // calls for its whole timeout: ask without waiting and nap between asks
 // (net_nap_ms: short while data flows, longer once idle).
+//
+// The data connection of a transfer that holds the turn waits inside poll() instead, a few ms at a
+// time (net_poll_owner), so it wakes as soon as the data or the room is there: nothing else moves
+// data meanwhile. The sockets still never block, so a client that went away costs those ms, not
+// minutes (see netpoll.h).
 static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
+    bool owner = ftp_turn != 0 && fd == ftp_data;
     int waited = 0;
     while(ftp_run) {
         struct pollfd p = {.fd = fd, .events = events, .revents = 0};
-        int r = poll(&p, 1, 0);
+        bool polls = owner && net_owner_polls((u32) waited);
+        u64 start = polls ? osGetTime() : 0;
+        int r = polls ? net_poll_owner(&p, 1, NET_OWNER_POLL_MS) : poll(&p, 1, 0);
         if(r > 0) {
             return (p.revents & (events | POLLHUP | POLLERR)) != 0;
         }
@@ -115,10 +130,33 @@ static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
             return false;
         }
 
-        u32 nap = net_nap_ms((u32) waited);
-        svcSleepThread((s64) nap * 1000000);
-        waited += nap;
+        if(polls) {
+            u64 took = osGetTime() - start;
+            waited += took > 0 ? (int) took : 1;
+        } else {
+            u32 nap = net_nap_ms((u32) waited);
+            svcSleepThread((s64) nap * 1000000);
+            waited += nap;
+        }
+
         if(timeoutMs > 0 && waited >= timeoutMs) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+// A data connection's wait, up to `timeoutMs`; after FTP_STALL_MS with nothing, it gives up if another
+// client is waiting to connect (see FTP_STALL_MS).
+static bool ftp_wait_data(int fd, short events, int timeoutMs) {
+    for(int waited = 0; waited < timeoutMs; waited += FTP_STALL_MS) {
+        if(ftp_wait_fd(fd, events, FTP_STALL_MS)) {
+            return true;
+        }
+
+        struct pollfd p = {.fd = ftp_listen, .events = POLLIN, .revents = 0};
+        if(!ftp_run || (poll(&p, 1, 0) > 0 && (p.revents & POLLIN) != 0)) {
             return false;
         }
     }
@@ -130,7 +168,7 @@ static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
 static bool ftp_send_logged(int fd, const char* data, size_t n, speedlog* log) {
     while(n > 0) {
         u64 start = speedlog_ticks();
-        bool ready = ftp_wait_fd(fd, POLLOUT, 30000);
+        bool ready = ftp_wait_data(fd, POLLOUT, 30000);
         speedlog_wait(log, speedlog_ticks() - start);
         if(!ready) {
             return false;
@@ -192,7 +230,7 @@ static bool ftp_wait_command(ftp_session* s) {
             return r >= 0;
         }
 
-        if((p[1].revents & POLLIN) != 0 && waited >= FTP_GIVE_WAY_MS) {
+        if((p[1].revents & POLLIN) != 0 && (s->broken || waited >= FTP_GIVE_WAY_MS)) {
             return false;
         }
 
@@ -549,6 +587,32 @@ static void ftp_cmd_list(ftp_session* s, const char* arg, list_kind kind) {
     ftp_reply(s, ok ? "226 Done." : "426 Transfer aborted.");
 }
 
+// RETR and STOR take the transfer turn; a small download (NSA's own logs, a PIN, a screenshot) does
+// not, so that those stay readable while something else transfers.
+#define FTP_TURN_MIN_RETR (1024 * 1024)
+
+// Takes the turn for `vpath`, or says who has it (450) and gives the PASV socket up.
+static bool ftp_take_turn(ftp_session* s, const char* vpath, u64 total) {
+    ftp_turn = xferturn_take(XFER_FTP, vpath, total);
+    if(ftp_turn != 0) {
+        return true;
+    }
+
+    char busy[128];
+    if(!xferturn_describe(busy, sizeof(busy))) {
+        string_copy(busy, "Busy", sizeof(busy));
+    }
+
+    ftp_close_pasv(s);
+    ftp_reply(s, "450 %s. One transfer at a time: try again when it ends.", busy);
+    return false;
+}
+
+static void ftp_release_turn() {
+    xferturn_release(ftp_turn);
+    ftp_turn = 0;
+}
+
 // Test files for tools/speed_tests.py, to tell the network from the card: RETR /dev/zero/<MB> sends
 // that many MB from memory, STOR /dev/null (or anything under it) throws what comes away.
 #define FTP_DEV_ZERO "/dev/zero/"
@@ -579,6 +643,16 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
         return;
     }
 
+    // NSA's own speed traces are read while something transfers (tools/speed_tests.py): never the turn for them.
+    bool traces = strcmp(vpath, APP_DATA_DIR "speed-log.txt") == 0;
+    if(!traces && (zero || size >= FTP_TURN_MIN_RETR) && !ftp_take_turn(s, vpath, size)) {
+        if(f != NULL) {
+            fclose(f);
+        }
+
+        return;
+    }
+
     ftp_reply(s, "150 Sending.");
     int data = ftp_accept_data(s);
     if(data < 0) {
@@ -586,18 +660,20 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
             fclose(f);
         }
 
+        ftp_release_turn();
         ftp_reply(s, "425 No data connection.");
         return;
     }
 
     // Not the trace of fetching the traces (tools/speed_tests.py reads them while a download runs).
-    speedlog* log = strcmp(vpath, APP_DATA_DIR "speed-log.txt") == 0 ? NULL : speedlog_begin(zero ? "ftp-zero" : "ftp-down", vpath, size);
+    speedlog* log = traces ? NULL : speedlog_begin(zero ? "ftp-zero" : "ftp-down", vpath, size);
     if(zero) {
         memset(ftp_io, 0, FTP_IO_SIZE);
     }
 
     bool ok = true;
     u64 left = size;
+    u64 sent = 0;
     while(ok) {
         size_t n;
         if(zero) {
@@ -614,6 +690,8 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
         }
 
         ok = ftp_send_logged(data, ftp_io, n, log);
+        sent += n;
+        xferturn_progress(ftp_turn, sent);
     }
 
     if(f != NULL) {
@@ -621,7 +699,9 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
     }
 
     ftp_close_data(&data);
+    ftp_release_turn();
     speedlog_end(log, ok);
+    s->broken = !ok;
     ftp_reply(s, ok ? "226 Done." : "426 Transfer aborted.");
 }
 
@@ -632,8 +712,16 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
     ftp_real_path(vpath, rpath, sizeof(rpath));
 
     bool null = strncmp(vpath, FTP_DEV_NULL, strlen(FTP_DEV_NULL)) == 0 && (vpath[strlen(FTP_DEV_NULL)] == '\0' || vpath[strlen(FTP_DEV_NULL)] == '/');
+
+    // Before opening: "wb" would empty a file that is not going to be written.
+    if(!ftp_take_turn(s, vpath, ftp_allo)) {
+        ftp_allo = 0;
+        return;
+    }
+
     FILE* f = null ? NULL : fopen(rpath, append ? "ab" : "wb");
     if(!null && f == NULL) {
+        ftp_release_turn();
         ftp_close_pasv(s);
         ftp_reply(s, "553 Cannot create the file.");
         return;
@@ -667,15 +755,17 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
             ftp_set_phase(PHASE_NONE, NULL);
         }
 
+        ftp_release_turn();
         ftp_reply(s, "425 No data connection.");
         return;
     }
 
     speedlog* log = speedlog_begin(null ? "ftp-null" : "ftp-up", vpath, allo);
+    u64 received = 0;
     bool ok = true;
     for(;;) {
         u64 start = speedlog_ticks();
-        bool ready = ftp_wait_fd(data, POLLIN, 30000);
+        bool ready = ftp_wait_data(data, POLLIN, 30000);
         speedlog_wait(log, speedlog_ticks() - start);
         if(!ready) {
             ok = false;
@@ -683,7 +773,8 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
         }
 
         start = speedlog_ticks();
-        ssize_t r = net_recv(data, ftp_io, FTP_IO_SIZE, 30000);
+        // The socket said it is readable: nothing within a second means a client that reset (see the web server's).
+        ssize_t r = net_recv(data, ftp_io, FTP_IO_SIZE, 1000);
         speedlog_net(log, r > 0 ? (u64) r : 0, speedlog_ticks() - start);
         if(r == 0) {
             break;
@@ -705,6 +796,8 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
         }
 
         ftp_done += (u64) r;
+        received += (u64) r;
+        xferturn_progress(ftp_turn, received);
     }
 
     u64 start = speedlog_ticks();
@@ -714,11 +807,13 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
 
     speedlog_disk(log, 0, speedlog_ticks() - start);
     ftp_close_data(&data);
+    ftp_release_turn();
     speedlog_end(log, ok);
     if(cia) {
         ftp_set_phase(PHASE_NONE, NULL);
     }
 
+    s->broken = !ok;
     ftp_reply(s, ok ? "226 Done." : "451 Transfer failed.");
 }
 
@@ -920,6 +1015,18 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         } else {
             ftp_reply(s, "550 Could not read %s.", vpath);
         }
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "POLL") == 0) {
+        static const char* names[] = {"POLL", "NAP", "HYBRID"};
+        for(u32 i = 0; path != NULL && i < sizeof(names) / sizeof(*names); i++) {
+            if(strcasecmp(path, names[i]) == 0) {
+                net_set_wait_mode((net_wait_mode) i);
+            }
+        }
+
+        ftp_reply(s, "200 The transfer with the turn waits by %s (SITE POLL POLL|NAP|HYBRID).", names[net_get_wait_mode()]);
         return;
     }
 

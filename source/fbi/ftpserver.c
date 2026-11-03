@@ -119,8 +119,9 @@ static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
     int waited = 0;
     while(ftp_run) {
         struct pollfd p = {.fd = fd, .events = events, .revents = 0};
-        u64 start = owner ? osGetTime() : 0;
-        int r = owner ? net_poll_owner(&p, 1, NET_OWNER_POLL_MS) : poll(&p, 1, 0);
+        bool polls = owner && net_owner_polls((u32) waited);
+        u64 start = polls ? osGetTime() : 0;
+        int r = polls ? net_poll_owner(&p, 1, NET_OWNER_POLL_MS) : poll(&p, 1, 0);
         if(r > 0) {
             return (p.revents & (events | POLLHUP | POLLERR)) != 0;
         }
@@ -129,7 +130,7 @@ static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
             return false;
         }
 
-        if(owner) {
+        if(polls) {
             u64 took = osGetTime() - start;
             waited += took > 0 ? (int) took : 1;
         } else {
@@ -1014,6 +1015,18 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         } else {
             ftp_reply(s, "550 Could not read %s.", vpath);
         }
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "POLL") == 0) {
+        static const char* names[] = {"POLL", "NAP", "HYBRID"};
+        for(u32 i = 0; path != NULL && i < sizeof(names) / sizeof(*names); i++) {
+            if(strcasecmp(path, names[i]) == 0) {
+                net_set_wait_mode((net_wait_mode) i);
+            }
+        }
+
+        ftp_reply(s, "200 The transfer with the turn waits by %s (SITE POLL POLL|NAP|HYBRID).", names[net_get_wait_mode()]);
         return;
     }
 

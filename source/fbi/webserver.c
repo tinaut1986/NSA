@@ -95,8 +95,9 @@ static bool web_wait_fd(int fd, short events, int timeoutMs) {
     int waited = 0;
     while(web_run) {
         struct pollfd p = {.fd = fd, .events = events, .revents = 0};
-        u64 start = owner ? osGetTime() : 0;
-        int r = owner ? net_poll_owner(&p, 1, NET_OWNER_POLL_MS) : poll(&p, 1, 0);
+        bool polls = owner && net_owner_polls((u32) waited);
+        u64 start = polls ? osGetTime() : 0;
+        int r = polls ? net_poll_owner(&p, 1, NET_OWNER_POLL_MS) : poll(&p, 1, 0);
         if(r > 0) {
             return (p.revents & (events | POLLHUP | POLLERR)) != 0;
         }
@@ -106,7 +107,7 @@ static bool web_wait_fd(int fd, short events, int timeoutMs) {
         }
 
         // Short naps while data flows, longer once idle (see ftp_wait_fd).
-        if(owner) {
+        if(polls) {
             u64 took = osGetTime() - start;
             waited += took > 0 ? (int) took : 1;
         } else {

@@ -41,7 +41,7 @@
 // The receiver writes that place down after this many more bytes.
 #define TRANSFER_POSITION_EVERY (4 * 1024 * 1024)
 #define TRANSFER_CHECK_BYTES 4096
-#define TRANSFER_PROTOCOL 7
+#define TRANSFER_PROTOCOL 8
 
 // What the bytes after the hello are.
 #define TRANSFER_KIND_FILE 0

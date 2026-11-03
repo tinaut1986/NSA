@@ -220,7 +220,10 @@ the Wi-Fi, 64 MB, two rounds, every copy identical; the 2DS's receive time, and 
 1 connection 223-288 s (228-294 KB/s, 0.35-1.43 s); 2: 145-160 s (408-453, 0.63-1.69 s); 3: 136-155 s (424-482,
 0.67-1.22 s); 4: 114-152 s (430-575, 2.0-4.1 s), and once all four failed together twice in 80 s (`io: poll failed,
 errno 115` on the 2DS; Retry went on from where it was). So one connection is too few, and 2 to 4 are within the Wi-Fi's
-noise: no ramp as for downloads. Kept at 4.
+noise. Then the ramp (`ramp.c`, the owner's idea: add while one pays off, drop the one that does not, try again two
+minutes later, to the end; protocol 8): New 3DS XL -> 2DS 131 and 164 s, 2DS -> New 3DS XL 157 s, on 2 or 3 connections
+(the third tried and dropped when it brought +0 to +14%, kept at +28%; a fourth -7%). Two New 3DS are not measured yet:
+the log says what it chose ("sender: N KB/s over M connections...").
 - [ ] Why all four connections fail at the same moment on the 2DS (errno 115 in poll): seen once in four sends.
 
 **Download and FTP speed** (`fix/download-speed`, `fix/ftp-pasv-buffers`, issue #21). Measured on the New 3DS XL over
@@ -401,7 +404,7 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
   name; `/nsa/peers.txt` lists addresses to ask directly, one per line). Nearby: UDS
   beacons (below).
 - Control connection (TCP 5002, or the UDS stream): the sender sends a 828 byte hello
-  (protocol 7: magic, version, sender name, file name, size, `check` = CRC-32 of the first
+  (protocol 8: magic, version, sender name, file name, size, `check` = CRC-32 of the first
   4 KB of the file or of a package's header, `kind` 0 file / 1 title package / 2 folder, `head` = the
   package header's or folder manifest's size, `origin` = where the file or folder is on the sender's
   SD card, "" when it is not there). For a folder the manifest (`head` bytes) follows the hello at
@@ -431,7 +434,9 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
   the same transfer keeps the choices. Only Files on the SD card sends an origin.
 - Data: the payload is cut in chunks of 256 KB. Over the Wi-Fi four TCP connections (the
   control one and three more that quote the transfer number) carry chunks, each taken by
-  whichever is free; a record is offset (8), length (4), bytes; a connection ends with a
+  whichever is free (two send from the start and `ramp.c` finds how many of the four pay off as it goes: one that
+  does not is kept aside, saying it is still there with a wait record every 5 s, and tried again two minutes later;
+  protocol 8); a record is offset (8), length (4), bytes; a connection ends with a
   terminator record and an **extra connection is closed only after the receiver acknowledges
   it** (closing a socket on the 3DS throws away what it has not sent and resets the
   connection: that cost the last bytes of a chunk before). 48 KiB socket buffers are set
@@ -893,11 +898,14 @@ current, this list is the summary. What only the owner can test (local wireless)
     FAT32 can not hold, or no room, fails at once and leaves nothing), split among the connections, each fetches its
     piece in one request and writes it where it goes; one that is done takes half of the biggest piece left. Refused
     where the redirects ended: the link given (free); refused there: no more connections than are open. Each request
-    closes its connection (`FORBID_REUSE`: kept ones caused the curl 7). It **starts with 2 and opens another while the
-    last one made it 15% faster** (5 s measures, 1.5 s after it opened). Measured: Dropbox 3 connections, 918 KB/s from
-    the start (8 connections: 789 KB/s in minutes 1-3, and the console's ping at 150-200 ms with FTP data connections
-    reset; with 2-3, ping ~50 ms, FTP 1-3 s, web 0.3 s); catbox.moe 4 connections, 603 KB/s (34 MB, the same bytes);
-    LAN 256 MB 4 connections, 1311 KB/s; a cancelled save leaves nothing in `/nsa/received/`.
+    closes its connection (`FORBID_REUSE`: kept ones caused the curl 7). It **starts with 2 and finds how many pay
+    off** (`ramp.c`, shared with console to console: one more while it makes it 10% faster, 5 s measures from 1.5 s
+    after it opened; one that does not stops its piece where it is, which another takes, and one more is tried again
+    two minutes later, to the end). Measured: Dropbox 2 connections, 1312 KB/s over 3 minutes (8 connections: 789 KB/s
+    in minutes 1-3, and the console's ping at 150-200 ms with FTP data connections reset; with 2-3, ping ~50 ms, FTP
+    1-3 s, web 0.3 s); catbox.moe 5 connections, 554 KB/s (34 MB, the same bytes); LAN 256 MB 2 connections, 1534 KB/s
+    (with 4 fixed: 1311), the same bytes after two pieces stopped halfway; a cancelled save leaves nothing in
+    `/nsa/received/`.
   - **Install** keeps the segments in order (the installer needs them so). When the address the redirects ended at
     refuses one (403/410), the rest comes over one connection from the link given, from where it was
     (`HTTP_RES_ONE_LINK`), as 3dsDL installs: Dropbox **1087 KB/s** (segments through the redirects: ~470). Tried with

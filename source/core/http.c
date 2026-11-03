@@ -12,6 +12,7 @@
 #include "error.h"
 #include "http.h"
 #include "netpoll.h"
+#include "ramp.h"
 #include "speedlog.h"
 #include "stringutil.h"
 
@@ -1189,18 +1190,15 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
 // server refused makes the download keep the connections still open as its
 // most (some servers turn extra ones away), as 3dsDL does.
 //
-// It starts with two connections and opens another while the last one made it
-// HTTP_SCATTER_RAMP_GAIN faster (measured over HTTP_SCATTER_RAMP_MS, from
-// HTTP_SCATTER_RAMP_SETTLE_MS after it opened: its handshake and redirects
-// would count against it); the first that does not is the last. A fast server
-// (Dropbox: ~1000 KB/s on two) keeps two and leaves the console's Wi-Fi room
-// for the FTP and the web page, which eight saturated for less (790 KB/s); a
-// slow one per connection (catbox.moe) gets more (five).
+// It starts with two connections and finds how many pay off as it goes (ramp.h:
+// one more while it makes it 10% faster; one that does not is closed, and it is
+// tried again two minutes later). A fast server (Dropbox: ~1000 KB/s on two)
+// keeps two and leaves the console's Wi-Fi room for the FTP and the web page,
+// which eight saturated for less (790 KB/s); a slow one per connection
+// (catbox.moe) gets more (four or five). A connection past the number stops its
+// piece where it is: what came is written, the rest is taken by another.
 
 #define HTTP_SCATTER_START 2
-#define HTTP_SCATTER_RAMP_MS 5000
-#define HTTP_SCATTER_RAMP_SETTLE_MS 1500
-#define HTTP_SCATTER_RAMP_GAIN 115              // Percent of the speed before.
 #define HTTP_SCATTER_PIECES 64
 #define HTTP_SCATTER_MIN_PIECE (1024 * 1024)   // Pieces are split only if both halves are at least this.
 #define HTTP_SCATTER_ALIGN (64 * 1024)         // Where they are split: the card's writes stay aligned.
@@ -1237,7 +1235,7 @@ struct http_scatter_s {
     http_piece pieces[HTTP_SCATTER_PIECES];
     u32 pieceCount;
     u32 maxConnections;      // The most the server takes.
-    volatile u32 level;      // The connections opened so far (HTTP_SCATTER_RAMP_MS).
+    ramp ramp;               // How many of them work (ramp.h).
     u32 active;              // Connections in a request.
     u32 reconnectsLeft;
     LightLock lock;          // Around the pieces and the counts above.
@@ -1379,6 +1377,12 @@ static size_t http_scatter_write(char* ptr, size_t size, size_t nmemb, void* use
 
 static int http_scatter_info(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
     http_scatter_worker* w = (http_scatter_worker*) clientp;
+    // Past the number that pays off: its piece stops here (the rest goes to another).
+    if(w->index >= w->s->ramp.level) {
+        w->cut = true;
+        return 1;
+    }
+
     return w->s->abort || http_quit ? 1 : 0;
 }
 
@@ -1389,7 +1393,7 @@ static void http_scatter_thread(void* arg) {
     while(!s->abort && !http_quit) {
         LightLock_Lock(&s->lock);
         bool done = http_scatter_done(s);
-        bool allowed = w->index < s->maxConnections && w->index < s->level;
+        bool allowed = w->index < s->maxConnections && w->index < s->ramp.level;
         s32 piece = !done && allowed ? http_scatter_take(s) : -1;
         u64 from = 0;
         u64 to = 0;
@@ -1544,7 +1548,7 @@ static Result http_scatter_download(const char* url, const char* direct, u64 sta
     s->pieceCount = count;
     s->workerCount = count;
     s->maxConnections = count;
-    s->level = count < HTTP_SCATTER_START ? count : HTTP_SCATTER_START;
+    ramp_init(&s->ramp, HTTP_SCATTER_START, count);
 
     bool isNew = false;
     APT_CheckNew3DS(&isNew);
@@ -1590,35 +1594,21 @@ static Result http_scatter_download(const char* url, const char* direct, u64 sta
     u64 lastLog = started;
     u64 lastWritten = 0;
     u64 traced = 0;
-    u64 rampAt = 0;         // When the next measure begins (0: at the first data).
-    u64 rampStart = 0;      // When this one began (0: not yet).
-    u64 rampWritten = 0;
-    u32 rampRate = 0;
-    bool ramping = true;
+    u32 peak = s->ramp.level;
     while(R_SUCCEEDED(res) && s->running > 0) {
         u64 written = http_scatter_written(s);
 
-        // Another connection while the last one paid off.
-        u64 now = osGetTime();
-        if(ramping && written > 0 && rampStart == 0 && now >= rampAt) {
-            rampStart = now;
-            rampWritten = written;
-        } else if(ramping && rampStart != 0 && now - rampStart >= HTTP_SCATTER_RAMP_MS) {
-            u32 rate = (u32) ((written - rampWritten) * 1000 / (now - rampStart) / 1024);
-            u32 level = s->level;
-            u32 before = rampRate;
-            ramping = (before == 0 || rate * 100 >= before * HTTP_SCATTER_RAMP_GAIN) && level < s->workerCount && level < s->maxConnections;
-            if(ramping) {
-                s->level = level + 1;
-                rampRate = rate;
-            }
+        // As many connections as pay off.
+        if(s->maxConnections < s->ramp.max) {
+            ramp_cap(&s->ramp, s->maxConnections);
+        }
 
+        char note[160];
+        if(ramp_update(&s->ramp, written, note, sizeof(note))) {
+            peak = s->ramp.level > peak ? s->ramp.level : peak;
             if(http_log != NULL) {
-                http_log("http: %lu KB/s over %lu connections (%lu KB/s with one less): %s\n", rate, level, before, ramping ? "one more" : "keeping them");
+                http_log("http: %s\n", note);
             }
-
-            rampAt = now + HTTP_SCATTER_RAMP_SETTLE_MS;
-            rampStart = 0;
         }
 
         if(written > traced) {
@@ -1672,8 +1662,8 @@ static Result http_scatter_download(const char* url, const char* direct, u64 sta
     if(http_log != NULL) {
         double secs = (osGetTime() - started) / 1000.0;
         u64 written = http_scatter_written(s);
-        http_log("http: %lu connections (%lu opened, %lu taken) %s: %llu of %llu bytes in %.1f s (%.0f KB/s), %lu pieces, result %08lX\n",
-                 s->workerCount, s->level, s->maxConnections, url, start + written, size, secs, secs > 0 ? written / 1024 / secs : 0, s->pieceCount, res);
+        http_log("http: %lu connections (%lu at the end, %lu at most) %s: %llu of %llu bytes in %.1f s (%.0f KB/s), %lu pieces, result %08lX\n",
+                 s->workerCount, s->ramp.level, peak, url, start + written, size, secs, secs > 0 ? written / 1024 / secs : 0, s->pieceCount, res);
     }
 
     free(s);

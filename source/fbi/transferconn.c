@@ -14,6 +14,7 @@
 #include "transferconn.h"
 #include "udslink.h"
 #include "../core/core.h"
+#include "../core/ramp.h"
 
 #define CONN_MAGIC "NSAD"
 #define CONN_THREAD_STACK 0x8000
@@ -21,6 +22,11 @@
 // however busy the connections are.
 #define CONN_THREAD_PRIORITY 0x38
 #define CONN_END_OFFSET 0xFFFFFFFFFFFFFFFFULL
+// A connection the sender keeps aside (ramp.h: one more did not pay off) says it is still there, before the
+// receiver's TRANSFER_IO_TIMEOUT, until it is used again or the chunks are all taken (protocol 8).
+#define CONN_WAIT_OFFSET 0xFFFFFFFFFFFFFFFEULL
+#define CONN_WAIT_EVERY 5000
+#define CONN_START 2   // Connections that work from the start; ramp.h finds how many more pay off.
 #define CONN_HELLO_TIMEOUT 5000
 #define TRANSFER_PENDING_MAX 8
 // A chunk's bytes go in slices of this, each counted as it moves: counted whole
@@ -235,6 +241,7 @@ struct transfer_sender {
     volatile bool stop;
     Result result;
     u32 running;
+    ramp ramp;   // Under the lock: how many connections send.
 
     Thread threads[TRANSFER_CONNECTIONS];
     struct {
@@ -289,10 +296,32 @@ static void sender_worker(void* arg) {
         }
     }
 
+    u64 waitSaid = 0;
     while(R_SUCCEEDED(res)) {
+        char note[160] = "";
         LightLock_Lock(&s->lock);
-        u32 chunkIndex = s->stop ? s->count : s->next++;
+        bool changed = ramp_update(&s->ramp, s->sent, note, sizeof(note));
+        bool aside = index >= s->ramp.level && !s->stop && s->next < s->count;
+        u32 chunkIndex = s->stop ? s->count : aside ? 0 : s->next++;
         LightLock_Unlock(&s->lock);
+
+        if(changed) {
+            udslink_log("sender: %s\n", note);
+        }
+
+        // Kept aside for now: still there for the receiver, used again when another pays off.
+        if(aside) {
+            if(osGetTime() - waitSaid >= CONN_WAIT_EVERY) {
+                u8 record[12];
+                conn_put64(record, CONN_WAIT_OFFSET);
+                conn_put32(record + 8, 0);
+                res = transfer_link_io(&link, true, record, sizeof(record), 0, &s->stop);
+                waitSaid = osGetTime();
+            }
+
+            svcSleepThread(50000000);
+            continue;
+        }
 
         if(chunkIndex >= s->count) {
             break;
@@ -380,6 +409,7 @@ Result transfer_sender_start(transfer_sender** out, transfer_link* control, stru
     // The local wireless has one connection: it is the radio that is the limit.
     u32 workers = control->uds != NULL ? 1 : (count < transfer_conn_limit ? count : transfer_conn_limit);
     s->running = workers;
+    ramp_init(&s->ramp, CONN_START, workers);
 
     u32 started = 0;
     for(u32 i = 0; i < workers; i++) {
@@ -517,6 +547,11 @@ static void receiver_worker(void* arg) {
         if(offset == CONN_END_OFFSET) {
             endSeen = true;
             break;
+        }
+
+        // The sender keeps this one aside for now.
+        if(offset == CONN_WAIT_OFFSET && len == 0) {
+            continue;
         }
 
         if(len == 0 || len > TRANSFER_CHUNK || offset > r->end || len > r->end - offset || (offset < r->start && offset + len > r->head)) {

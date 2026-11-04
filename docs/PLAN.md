@@ -303,7 +303,8 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
       the content when it has none; a name in use gets " (2)"), with the same progress, connections and errors (issue #22).
       Azahar: two saves of a 100 MB CIA byte for byte, Install unchanged. 2DS (2026-11-02): a 100 MB save from the web
       page at 557 KB/s, byte for byte. Left: a QR and a typed URL on a console.
-- [ ] Settings -> "Pause music for FTP" (`ftp_pauses_music`, on by default on an Old 3DS): the music fades out once an FTP
+- [ ] Settings -> "Pause music for FTP" (`ftp_pauses_music`, off by default since the 5% system core during transfers;
+      it was on on an Old 3DS): the music fades out once an FTP
       transfer has lasted a second and comes back 3 s after the last one (from the SD cache, no new song is made). On the
       2DS an upload with music went at ~375 KB/s with it (254-316 before). The top bar's server icon blinks while the FTP
       server moves data, and a computer icon shows while the web server runs.

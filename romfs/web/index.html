@@ -91,8 +91,8 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .row .pic{width:40px;height:40px;flex:none;border-radius:calc(var(--rs) - 2px);display:grid;place-items:center;background:var(--bg);color:var(--accent);overflow:hidden;position:relative}
 .row .pic img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s}
 .row .pic img.in{opacity:1}
-.sheet .head{position:relative}
-.sheet .head .back{position:absolute;left:22px;top:20px;z-index:2;width:30px;height:30px;min-width:0;padding:0;border-radius:50%;background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.35),0 0 0 1px var(--line);display:grid;place-items:center}
+.sheet .head.hasback{flex-wrap:wrap;row-gap:6px;padding-top:10px}
+.sheet .head .backrow{flex:0 0 100%;margin-left:-6px}
 .chain{display:flex;flex-direction:column;gap:10px}
 .tcard{display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);text-align:left;width:100%;cursor:pointer;transition:background-color var(--fast),transform var(--fast) var(--ease)}
 .tcard:hover{background:var(--soft)}.tcard:active{transform:scale(.985)}
@@ -549,7 +549,7 @@ function sheet({head, body, foot, wide, onclose}){
   pane.addEventListener('touchend', e => { if(y0==null) return; const dy = e.changedTouches[0].clientY-y0; y0 = null; pane.style.transition=''; pane.style.transform=''; if(dy>90) close(); });
   return {close, el:d, pane};
 }
-function sheetHead(pic, title, sub, back){ return h('div', {class:'head'}, back ? h('button', {class:'tool back', title:T.back, 'aria-label':T.back, onclick:back}, ic('arrow-left')) : null, h('div', {class:'big'}, pic), h('div', {style:'min-width:0'}, h('h3', {text:title}), sub ? h('div', {class:'sub', text:sub}) : null)); }
+function sheetHead(pic, title, sub, back){ return h('div', {class:'head'+(back ? ' hasback' : '')}, back ? h('div', {class:'backrow'}, h('button', {class:'tool back', title:T.back, 'aria-label':T.back, onclick:back}, ic('arrow-left'))) : null, h('div', {class:'big'}, pic), h('div', {style:'min-width:0'}, h('h3', {text:title}), sub ? h('div', {class:'sub', text:sub}) : null)); }
 const cells = list => h('div', {class:'cells'}, list.filter(c => c && c[1]!=null && c[1]!=='').map(([b,s]) => h('div', {class:'cell'}, h('b', {text:b}), h('span', {text:s, title:s}))));
 // Actions: [icon, label, fn, {danger, note}] or a string (a group label). Choosing one closes the sheet first.
 function actions(list, closeFn){

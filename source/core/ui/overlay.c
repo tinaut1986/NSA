@@ -732,7 +732,7 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
             u32 edge = focused ? fill : a->danger ? t->palette->danger : t->palette->border;
             screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
             screen_draw_icon(a->icon, x + 9, y + (h - 16) / 2, 16, ink);
-            if(a->detail != NULL && a->detail[0] != ' ') {
+            if(a->detail != NULL && a->detail[0] != '\0') {
                 float labelH = widget_text_height(WIDGET_TEXT_SCALE);
                 float detailH = widget_text_height(WIDGET_SMALL_SCALE);
                 float ty = y + (h - labelH - 1 - detailH) / 2;

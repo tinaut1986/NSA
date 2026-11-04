@@ -268,8 +268,11 @@ PC's O: drive) to /cias **641 KB/s** (ftpd ~850).
       Files -> Install) took 42.7-43.4 s -> 49.7-50.8 s. So a held transfer turn lowers it to 5% and the release puts 30%
       back (Old 3DS only, `xferturn_cpu_limits`). Then on the 2DS: FTP up 837, down 649-651, URL 802 KB/s.
 - [ ] The New 3DS XL is unchanged (no limit changes there): check that its FTP, URL and console to console speeds stay.
+- [x] Music during FTP on the 2DS with the limit at 5% (`ftp_pauses_music` off, 32 MB, two rounds): playing up 741 / 821,
+      down 647 / 653 KB/s; paused 745 / 782, 667 / 670. A download right after NSA starts, while the music is made on
+      core 1: 637 KB/s (675 after), and the music took 16.7 s to make, as usual.
 - [ ] Old 3DS, with the turn lowering the limit: console to console (both ways), the web page's upload and download, and
-      the menus and music during a transfer (the app's core-1 threads get 5% then).
+      the menus during a transfer (the app's core-1 threads get 5% then); whether the music sounds clean meanwhile.
 - [ ] Whether NSA stops answering again right after "the rest over one connection" (it did once): if it does, a photo of
       the screen and `transfer-log.txt` at once.
 - [ ] Remote Install's choices (#29): a list (Install, Save and install, Save install and delete, Save; X saves at once)

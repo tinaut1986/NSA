@@ -26,6 +26,8 @@
 //   GET    /icons.png, /icons.js           (public) the console's icon atlas (32 px cells) and the names in its order
 //   GET    /api/titles                     [{id, media, kind, version, size}]: SD and NAND, no DSiWare
 //   GET    /api/title?id=&media=           {name, publisher, code, save, ext, boss}
+//                                          (data=0 leaves out save, ext, boss)
+//   GET    /api/title/data?id=&media=      {save, ext, boss}: which kinds of data it has (slow: opens each archive)
 //   GET    /api/tickets                    [{id, media: sd|nand|"" (where installed), kind}]
 //   GET    /api/extdata                    [{id, media}]: extra data archives, SD and NAND
 //   GET    /api/extdata/info?id=&media=    {name, publisher};  /api/extdata/icon?id=&media=  its icon as a BMP

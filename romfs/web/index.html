@@ -758,7 +758,7 @@ async function titleIcon(t){
 async function loadTitle(t, r){
   r._queued = false;
   let d = tcGet(t);
-  if(!d){ d = await api('GET', 'title', {id:t.id, media:t.media}); tcSet(t, d); }
+  if(!d){ d = await api('GET', 'title', {id:t.id, media:t.media, data:0}); tcSet(t, d); }
   r._d = d;
   r.querySelector('.nm').textContent = d.name || t.id;
   r.querySelector('.sub').textContent = [d.publisher, 'v'+fmtVer(t.version), fmtSize(t.size)].filter(Boolean).join(' · ');
@@ -788,8 +788,13 @@ function applyTitles(animate){
   $('tcount').textContent = loaded<rows.length ? tr('loaded', {a:loaded, b:rows.length}) : String(shown);
   const c = $('cnt_titles'); if(c) c.textContent = rows.length;
 }
-function titleSheet(t, r){
-  const d = r._d || {}, name = d.name || t.id;
+// The kinds of data (save, extra, boss) are asked for when the sheet opens, once per session: opening the archives is slow.
+async function titleSheet(t, r){
+  if(!r._data) await run(async () => { const j = await api('GET', 'title/data', {id:t.id, media:t.media}); r._data = {save:j.save, ext:j.ext, boss:j.boss}; });
+  titleSheetShow(t, r);
+}
+function titleSheetShow(t, r){
+  const d = Object.assign({}, r._d, r._data), name = d.name || t.id;
   const big = r._pic.querySelector('img') ? h('img', {src:r._pic.querySelector('img').src, class:'px'}) : ic('apps', 48);
   const kindName = {game:T.k_game, demo:'Demo', update:T.k_update, dlc:T.k_dlc, system:T.k_system, dsiware:'DSiWare'}[t.kind] || t.kind;
   const data = [['save','m_save','device-floppy'],['ext','m_ext','database'],['boss','m_boss','world-download']].filter(([k]) => d[k]);

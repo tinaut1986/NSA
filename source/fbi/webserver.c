@@ -1051,7 +1051,27 @@ static SMDH* web_read_smdh(title_info* title) {
     return smdh;
 }
 
-// One title's details: name, publisher, product code and which kinds of data it has.
+// Which kinds of data a title has (opening each archive is the slow part, so the page asks for it apart).
+static void web_title_data_flags(title_info* title, bool* save, bool* ext, bool* boss) {
+    bool game = title_kind_of(title->titleId) == TITLE_KIND_GAME || title_kind_of(title->titleId) == TITLE_KIND_DEMO;
+    u32 extId = 0;
+    *save = game && action_save_data_exists(title, SAVE_KIND_SAVE, &extId);
+    *ext = game && action_save_data_exists(title, SAVE_KIND_EXT, &extId);
+    *boss = game && action_save_data_exists(title, SAVE_KIND_BOSS, &extId);
+}
+
+static void web_api_title_data(web_request* r) {
+    title_info title;
+    if(!web_parse_title(r, &title)) {
+        return;
+    }
+
+    bool save, ext, boss;
+    web_title_data_flags(&title, &save, &ext, &boss);
+    web_send_json(r, 200, json_pack("{s:b,s:b,s:b,s:b}", "ok", 1, "save", save, "ext", ext, "boss", boss));
+}
+
+// One title's details: name, publisher, product code and, unless data=0, which kinds of data it has.
 static void web_api_title(web_request* r) {
     title_info title;
     if(!web_parse_title(r, &title)) {
@@ -1071,12 +1091,14 @@ static void web_api_title(web_request* r) {
     char code[0x10] = "";
     AM_GetTitleProductCode(title.mediaType, title.titleId, code);
 
-    bool game = title_kind_of(title.titleId) == TITLE_KIND_GAME || title_kind_of(title.titleId) == TITLE_KIND_DEMO;
-    u32 extId = 0;
-    bool save = game && action_save_data_exists(&title, SAVE_KIND_SAVE, &extId);
-    bool ext = game && action_save_data_exists(&title, SAVE_KIND_EXT, &extId);
-    bool boss = game && action_save_data_exists(&title, SAVE_KIND_BOSS, &extId);
+    char skip[4] = "";
+    if(web_query_get(r->query, "data", skip, sizeof(skip)) && strcmp(skip, "0") == 0) {
+        web_send_json(r, 200, json_pack("{s:b,s:s,s:s,s:s}", "ok", 1, "name", name, "publisher", publisher, "code", code));
+        return;
+    }
 
+    bool save, ext, boss;
+    web_title_data_flags(&title, &save, &ext, &boss);
     web_send_json(r, 200, json_pack("{s:b,s:s,s:s,s:s,s:b,s:b,s:b}", "ok", 1, "name", name, "publisher", publisher, "code", code, "save", save, "ext", ext, "boss", boss));
 }
 
@@ -2008,6 +2030,8 @@ static void web_handle(web_request* r) {
         web_api_titles(r);
     } else if(get && strcmp(api, "title") == 0) {
         web_api_title(r);
+    } else if(get && strcmp(api, "title/data") == 0) {
+        web_api_title_data(r);
     } else if(get && strcmp(api, "tickets") == 0) {
         web_api_tickets(r);
     } else if(get && strcmp(api, "extdata") == 0) {

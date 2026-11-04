@@ -756,7 +756,7 @@ static void action_install_url_choose_draw_top(ui_view* view, void* data, float 
         y += widget_text_height(0.5f) + 3;
     } else if(installData->installInfo.total == 1) {
         char address[DOWNLOAD_URL_MAX];
-        string_url_decode(installData->urls[0], address, sizeof(address));
+        string_url_decode(address, installData->urls[0], sizeof(address));
         float addressW = 0;
         float addressH = 0;
         screen_get_string_size_wrap(&addressW, &addressH, address, 0.4f, 0.4f, width);

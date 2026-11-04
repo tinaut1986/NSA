@@ -18,6 +18,7 @@ typedef struct {
     linked_list contents;
 
     bool delete;
+    char* queue;   // CIAs to install after this one (action_install_cia_paths_now), one path a line.
 
     volatile bool n3dsContinue;
 
@@ -194,6 +195,7 @@ static void action_install_cias_free_data(install_cias_data* data) {
         data->target = NULL;
     }
 
+    free(data->queue);
     free(data);
 }
 
@@ -208,12 +210,22 @@ static void action_install_cias_update(ui_view* view, void* data, float* progres
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(installData->installInfo.result)) {
+        // The next of a queue, unless this one was cancelled: "Install finished." once, after the last.
+        char* queue = installData->queue;
+        installData->queue = NULL;
+        bool next = queue != NULL && queue[0] != '\0' && installData->installInfo.result != R_APP_CANCELLED;
+        if(R_SUCCEEDED(installData->installInfo.result) && !next) {
             prompt_display_notify("Success", "Install finished.", COLOR_TEXT, NULL, NULL, NULL);
         }
 
+        bool delete = installData->delete;
         action_install_cias_free_data(installData);
 
+        if(next) {
+            action_install_cia_paths_now(queue, delete);
+        }
+
+        free(queue);
         return;
     }
 
@@ -296,13 +308,17 @@ static void action_install_cias_loading_update(ui_view* view, void* data, float*
     snprintf(text, PROGRESS_TEXT_MAX, _("Fetching CIA list..."));
 }
 
-static void action_install_cias_internal(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData, const char* message, bool delete) {
+// `queue` (taken: freed here) is what action_install_cia_paths_now installs after this one.
+static void action_install_cias_internal(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData, const char* message, bool delete, char* queue) {
     install_cias_data* data = (install_cias_data*) calloc(1, sizeof(install_cias_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate install CIAs data.");
 
+        free(queue);
         return;
     }
+
+    data->queue = queue;
 
     data->items = items;
 
@@ -385,22 +401,64 @@ static void action_install_cias_internal(linked_list* items, list_item* selected
 }
 
 void action_install_cia(linked_list* items, list_item* selected) {
-    action_install_cias_internal(items, selected, NULL, NULL, "Install the selected CIA?", false);
+    action_install_cias_internal(items, selected, NULL, NULL, "Install the selected CIA?", false, NULL);
 }
 
 // Installs and deletes with no question: the caller has asked already.
 void action_install_cia_delete_now(linked_list* items, list_item* selected) {
-    action_install_cias_internal(items, selected, NULL, NULL, NULL, true);
+    action_install_cias_internal(items, selected, NULL, NULL, NULL, true, NULL);
 }
 
 void action_install_cia_delete(linked_list* items, list_item* selected) {
-    action_install_cias_internal(items, selected, NULL, NULL, "Install and delete the selected CIA?", true);
+    action_install_cias_internal(items, selected, NULL, NULL, "Install and delete the selected CIA?", true, NULL);
 }
 
 void action_install_cias(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData) {
-    action_install_cias_internal(items, selected, filter, filterData, "Install all CIAs in the current directory?", false);
+    action_install_cias_internal(items, selected, filter, filterData, "Install all CIAs in the current directory?", false, NULL);
 }
 
 void action_install_cias_delete(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData) {
-    action_install_cias_internal(items, selected, filter, filterData, "Install and delete all CIAs in the current directory?", true);
+    action_install_cias_internal(items, selected, filter, filterData, "Install and delete all CIAs in the current directory?", true, NULL);
+}
+
+// The SD card, open for as long as the app runs: the install reads its CIAs from it after the caller is gone.
+static FS_Archive action_install_cias_sd_archive() {
+    static FS_Archive archive = 0;
+    if(archive == 0) {
+        FSUSER_OpenArchive(&archive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""));
+    }
+
+    return archive;
+}
+
+void action_install_cia_paths_now(const char* paths, bool delete) {
+    static linked_list noItems;
+    static bool noItemsReady = false;
+    if(!noItemsReady) {
+        linked_list_init(&noItems);
+        noItemsReady = true;
+    }
+
+    // The first path now; the others once it is done.
+    const char* end = strchr(paths, '\n');
+    size_t len = end != NULL ? (size_t) (end - paths) : strlen(paths);
+    if(len == 0 || len >= FILE_PATH_MAX) {
+        return;
+    }
+
+    char* queue = end != NULL && end[1] != '\0' ? strdup(end + 1) : NULL;
+
+    file_info info;
+    memset(&info, 0, sizeof(info));
+    info.archive = action_install_cias_sd_archive();
+    memcpy(info.path, paths, len);
+    info.path[len] = '\0';
+    string_get_path_file(info.name, info.path, sizeof(info.name));
+
+    list_item item;
+    memset(&item, 0, sizeof(item));
+    string_copy(item.name, info.name, sizeof(item.name));
+    item.data = &info;
+
+    action_install_cias_internal(&noItems, &item, NULL, NULL, NULL, delete, queue);
 }

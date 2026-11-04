@@ -504,6 +504,10 @@ static const char* description_to_string(Result res) {
                     return "Bad data";
                 case R_APP_HTTP_TOO_MANY_REDIRECTS:
                     return "Too many redirects";
+                case R_APP_BUSY:
+                    return "Another transfer is in progress (one at a time)";
+                case R_APP_HTTP_WEB_PAGE:
+                    return "The link leads to a web page, not to the file";
                 default:
                     if(res >= R_APP_HTTP_ERROR_BASE && res < R_APP_HTTP_ERROR_END) {
                         switch(res - R_APP_HTTP_ERROR_BASE) {

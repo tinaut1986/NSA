@@ -162,6 +162,42 @@ static void startup_check_updates() {
     }
 }
 
+static void startup_music_onresponse(ui_view* view, void* data, u32 response) {
+    if(response == PROMPT_YES) {
+        settings_get()->ftpPausesMusic = false;
+    }
+
+    settings_save();
+    startup_check_updates();
+}
+
+// An Old 3DS that kept "Pause music for FTP" on, its old default, is asked once whether to let the music play: with only
+// 5% of the system core during transfers (xferturn.h) the music costs its FTP 2-3% instead of 10-25%. Then the updates.
+static void startup_next() {
+    settings_data* settings = settings_get();
+    bool new3ds = false;
+    APT_CheckNew3DS(&new3ds);
+
+    if(!settings->ftpMusicAsked) {
+        settings->ftpMusicAsked = true;
+        if(!new3ds && settings->ftpPausesMusic) {
+            prompt_display_yes_no(_("Music and FTP"),
+                                  _("The music no longer slows down FTP\n"
+                                    "transfers on this console (2-3%,\n"
+                                    "it used to be 10-25%).\n\n"
+                                    "Let it play during FTP transfers?\n\n"
+                                    "Settings -> Pause music for FTP\n"
+                                    "changes it later."),
+                                  COLOR_TEXT, NULL, NULL, startup_music_onresponse);
+            return;
+        }
+
+        settings_save();
+    }
+
+    startup_check_updates();
+}
+
 static void startup_import_update(ui_view* view, void* data, float* progress, char* text) {
     import_data* importData = (import_data*) data;
 
@@ -176,7 +212,7 @@ static void startup_import_update(ui_view* view, void* data, float* progress, ch
         }
 
         free(importData);
-        startup_check_updates();
+        startup_next();
         return;
     }
 
@@ -190,14 +226,14 @@ static void startup_import_onresponse(ui_view* view, void* data, u32 response) {
     if(response != PROMPT_YES) {
         // Not asked again: the question only comes up while /nsa/ is missing.
         mkdir(DATA_ROOT, 0777);
-        startup_check_updates();
+        startup_next();
         return;
     }
 
     import_data* importData = (import_data*) calloc(1, sizeof(import_data));
     if(importData == NULL) {
         error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("Failed to import the FBI folder."));
-        startup_check_updates();
+        startup_next();
         return;
     }
 
@@ -207,7 +243,7 @@ static void startup_import_onresponse(ui_view* view, void* data, u32 response) {
     if(thread == NULL) {
         error_display_res(NULL, NULL, R_APP_THREAD_CREATE_FAILED, _("Failed to import the FBI folder."));
         free(importData);
-        startup_check_updates();
+        startup_next();
         return;
     }
 
@@ -234,5 +270,5 @@ void startup_run() {
         return;
     }
 
-    startup_check_updates();
+    startup_next();
 }

@@ -31,7 +31,6 @@ static settings_data settings = {
 };
 
 static const char* night_ids[] = {"off", "on", "auto"};
-static const char* language_ids[] = {"system", "en", "es"};
 
 static u32 settings_find(const char** ids, u32 count, const char* id) {
     for(u32 i = 0; i < count; i++) {
@@ -59,9 +58,8 @@ static u32 settings_get_uint(json_t* object, const char* key, u32 fallback, u32 
 }
 
 void settings_load() {
-    bool isNew = false;
-    APT_CheckNew3DS(&isNew);
-    settings.ftpPausesMusic = !isNew;
+    // Off everywhere: with 5% of the system core during transfers (xferturn.h) the music costs an Old 3DS's FTP only 2-3%.
+    settings.ftpPausesMusic = false;
 
     json_error_t err;
     json_t* json = json_load_file(SETTINGS_PATH, 0, &err);
@@ -95,6 +93,8 @@ void settings_load() {
         settings.ftpPausesMusic = json_is_true(ftpPausesMusic);
     }
 
+    settings.ftpMusicAsked = json_is_true(json_object_get(json, "ftp_music_asked"));
+
     json_t* theme = json_object_get(json, "theme");
     if(json_is_string(theme)) {
         settings.theme = theme_find(json_string_value(theme));
@@ -117,7 +117,7 @@ void settings_load() {
 
     json_t* language = json_object_get(json, "language");
     if(json_is_string(language)) {
-        settings.language = (language_id) settings_find(language_ids, LANGUAGE_COUNT, json_string_value(language));
+        settings.language = i18n_language_from_code(json_string_value(language));
     }
 
     json_t* titles = json_object_get(json, "titles");
@@ -187,16 +187,17 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
                              "web_server", settings.webServer,
                              "ftp_pauses_music", settings.ftpPausesMusic,
+                             "ftp_music_asked", settings.ftpMusicAsked,
                              "theme", theme_get(settings.theme)->id,
                              "accent", theme_accent_get(settings.accent)->id,
                              "night_mode", night_ids[settings.night < 3 ? settings.night : 0],
-                             "language", language_ids[settings.language < LANGUAGE_COUNT ? settings.language : 0],
+                             "language", i18n_language_code(settings.language),
                              "sounds", (int) settings.sounds,
                              "sound_volume", (int) settings.soundVolume,
                              "music", (int) settings.music,

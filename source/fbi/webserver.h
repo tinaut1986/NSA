@@ -25,7 +25,9 @@
 //   GET    /font.ttf                       (public) the Pixel theme's font
 //   GET    /icons.png, /icons.js           (public) the console's icon atlas (32 px cells) and the names in its order
 //   GET    /api/titles                     [{id, media, kind, version, size}]: SD and NAND, no DSiWare
-//   GET    /api/title?id=&media=           {name, publisher, code, save, ext, boss}
+//   GET    /api/title?id=&media=           {name, publisher, description, code, save, ext, boss}
+//                                          (data=0 leaves out save, ext, boss)
+//   GET    /api/title/data?id=&media=      {save, ext, boss}: which kinds of data it has (slow: opens each archive)
 //   GET    /api/tickets                    [{id, media: sd|nand|"" (where installed), kind}]
 //   GET    /api/extdata                    [{id, media}]: extra data archives, SD and NAND
 //   GET    /api/extdata/info?id=&media=    {name, publisher};  /api/extdata/icon?id=&media=  its icon as a BMP
@@ -44,8 +46,9 @@
 //   POST   /api/input/press?keys=A+R&frames=4   hold buttons (A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT)
 //   POST   /api/input/tap?x=&y=&frames=    touch the bottom screen
 //   POST   /api/input/drag?x=&y1=&y2=&frames=   slide a finger up or down
+//   GET    /api/system                     {console{model,user,region,language,country,serial,deviceId,screens,system,kernel,mcu,luma,cia}, uptime, network{...}, storage{..., media[{id,free,total}]}, battery{percent,charging,samples[]...}}: what the console's System screens show
 //   GET    /api/settings                   {theme, themes[{id,name}], accent, accents[{id,name,day,night}], night, language, sounds, soundVolume, music, musicVolume}
-//   POST   /api/settings?theme=&accent=&night=off|on|auto&language=system|en|es&sounds=0-2&soundVolume=25-100&music=0-3&musicVolume=25-100
+//   POST   /api/settings?theme=&accent=&night=off|on|auto&language=system|en|es|ca|fr|de|it|pt|ru|ja|zh|tw&sounds=0-2&soundVolume=0-100&music=0-3&musicVolume=0-100
 //                                           only the named ones change; applied and saved by the main thread, as the Settings screen does
 // What opens a question on the console runs on the main thread, one request at a time (409 while the last one is open).
 //

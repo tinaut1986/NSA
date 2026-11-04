@@ -31,5 +31,5 @@ static void action_delete_secure_value_onresponse(ui_view* view, void* data, u32
 }
 
 void action_delete_secure_value(linked_list* items, list_item* selected) {
-    prompt_display_yes_no("Confirmation", "Delete the secure value of the selected title?", COLOR_TEXT, selected->data, task_draw_title_info, action_delete_secure_value_onresponse);
+    prompt_display_warning("Confirmation", "Delete the secure value of the selected title?", COLOR_TEXT, selected->data, task_draw_title_info, action_delete_secure_value_onresponse);
 }

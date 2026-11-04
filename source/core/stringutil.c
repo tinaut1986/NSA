@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include <3ds.h>
@@ -38,6 +39,25 @@ void string_get_file_name(char* out, const char* file, u32 size) {
     u32 terminatorPos = end - file < size - 1 ? end - file : size - 1;
     strncpy(out, file, terminatorPos);
     out[terminatorPos] = '\0';
+}
+
+void string_url_decode(char* out, const char* in, size_t size) {
+    if(size == 0) {
+        return;
+    }
+
+    size_t used = 0;
+    for(const char* c = in; *c != '\0' && used < size - 1; c++) {
+        unsigned hex = 0;
+        if(c[0] == '%' && c[1] != '\0' && c[2] != '\0' && sscanf(c + 1, "%2x", &hex) == 1 && hex >= 0x20) {
+            out[used++] = (char) hex;
+            c += 2;
+        } else {
+            out[used++] = *c;
+        }
+    }
+
+    out[used] = '\0';
 }
 
 void string_escape_file_name(char* out, const char* file, size_t size) {

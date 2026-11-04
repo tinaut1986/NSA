@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include <3ds.h>
+#include <jansson.h>
 
 #include "ftpserver.h"
 #include "section.h"
@@ -881,4 +882,88 @@ void systeminfo_draw_battery(float x1, float y1, float x2, float y2) {
 
     float graphY = y + 2 * (CELL_HEIGHT + CELL_GAP);
     systeminfo_battery_graph(x, graphY, w, y2 - 8 - graphY, watched);
+}
+
+
+// ---- for the web page ----
+
+static json_t* systeminfo_media_json(const char* id, FS_SystemMediaType media) {
+    FS_ArchiveResource resource = {0};
+    if(R_FAILED(FSUSER_GetArchiveResource(&resource, media)) || resource.totalClusters == 0) {
+        return NULL;
+    }
+
+    return json_pack("{s:s,s:I,s:I}", "id", id, "free", (json_int_t) ((u64) resource.freeClusters * resource.clusterSize),
+                     "total", (json_int_t) ((u64) resource.totalClusters * resource.clusterSize));
+}
+
+// Everything the System screens show, as raw values where it is easy (the page words them in its own language). The battery's
+// history only grows while someone asks, from the console's System screen or from here every few seconds.
+json_t* systeminfo_json() {
+    if(!info_static.loaded) {
+        systeminfo_load_static();
+    }
+
+    if(!info_console.loaded) {
+        systeminfo_load_console();
+    }
+
+    if(!info_storage.loaded) {
+        systeminfo_load_storage();
+    }
+
+    systeminfo_load_network();
+    systeminfo_load_battery();
+
+    json_t* root = json_object();
+    json_object_set_new(root, "console", json_pack("{s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:b}", "model", info_static.model, "user", info_static.user,
+                                                    "region", info_static.region, "language", info_static.language, "country", info_console.country,
+                                                    "serial", info_console.serial, "deviceId", info_console.deviceId, "screens", info_console.screens,
+                                                    "system", info_console.system, "kernel", info_console.kernel, "mcu", info_console.mcu,
+                                                    "luma", info_console.luma, "cia", !envIsHomebrew()));
+    json_object_set_new(root, "uptime", json_integer((json_int_t) (svcGetSystemTick() / SYSCLOCK_ARM11)));
+
+    json_object_set_new(root, "network", json_pack("{s:b,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:i,s:i}", "connected", info_network.connected, "ssid", info_network.ssid,
+                                                    "signal", info_network.signal, "mac", info_network.mac, "ip", info_network.ip,
+                                                    "netmask", info_network.netmask, "gateway", info_network.gateway, "dns", info_network.dns,
+                                                    "lease", info_network.lease, "ftp", ftpserver_running() ? FTP_SERVER_PORT : 0,
+                                                    "web", webserver_running() ? WEB_SERVER_PORT : 0));
+
+    json_t* media = json_array();
+    const struct {
+        const char* id;
+        FS_SystemMediaType media;
+    } kinds[] = {{"sd", SYSTEM_MEDIATYPE_SD}, {"ctr", SYSTEM_MEDIATYPE_CTR_NAND}, {"twl", SYSTEM_MEDIATYPE_TWL_NAND}, {"photo", SYSTEM_MEDIATYPE_TWL_PHOTO}};
+    for(u32 i = 0; i < sizeof(kinds) / sizeof(*kinds); i++) {
+        json_t* one = systeminfo_media_json(kinds[i].id, kinds[i].media);
+        if(one != NULL) {
+            json_array_append_new(media, one);
+        }
+    }
+
+    json_object_set_new(root, "storage", json_pack("{s:s,s:s,s:s,s:s,s:s,s:s,s:o}", "maker", info_storage.maker, "product", info_storage.product,
+                                                    "made", info_storage.made, "speed", info_storage.speed, "writable", info_storage.writable,
+                                                    "cluster", info_storage.cluster, "media", media));
+
+    u32 last = info_battery.count > 0 ? info_battery.count - 1 : 0;
+    u64 span = info_battery.count > 1 ? info_battery.sampleTimes[last] - info_battery.sampleTimes[0] : 0;
+    json_t* samples = json_array();
+    for(u32 i = 0; i < info_battery.count; i++) {
+        json_array_append_new(samples, json_real(info_battery.samples[i]));
+    }
+
+    json_t* battery = json_pack("{s:b,s:f,s:i,s:b,s:b,s:I,s:o,s:i}", "fine", info_battery.fine, "percent", (double) info_battery.percent, "level", (int) info_battery.level,
+                                "charging", info_battery.charging, "adapter", info_battery.adapter, "watched", (json_int_t) span, "samples", samples,
+                                "every", BATTERY_EVERY);
+    if(info_battery.fine) {
+        json_object_set_new(battery, "voltage", json_real(info_battery.voltage));
+        json_object_set_new(battery, "temperature", json_integer(info_battery.temperature));
+    }
+
+    if(span >= BATTERY_RATE_AFTER && info_battery.fine) {
+        json_object_set_new(battery, "perHour", json_real((info_battery.samples[last] - info_battery.samples[0]) * 3600.0f / span));
+    }
+
+    json_object_set_new(root, "battery", battery);
+    return root;
 }

@@ -97,7 +97,7 @@ bool udslink_auto() {
 // Every send and receive leaves lines in sdmc:/nsa/transfer-log.txt, to read after
 // an error. It starts over when it passes 96 KB.
 void udslink_log(const char* format, ...) {
-    char text[240];
+    char text[640];   // A download's line holds its URL, which can be long (Google Drive's with their tokens).
     va_list args;
     va_start(args, format);
     vsnprintf(text, sizeof(text), format, args);
@@ -105,7 +105,7 @@ void udslink_log(const char* format, ...) {
 
     time_t now = time(NULL);
     struct tm* t = gmtime(&now);
-    char line[300];
+    char line[700];
     snprintf(line, sizeof(line), "%04d-%02d-%02d %02d:%02d:%02d %s", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec, text);
 
     Handle file = 0;

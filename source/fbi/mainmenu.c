@@ -474,6 +474,17 @@ static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, flo
     widget_text_centered(about, x1, x2, y2 - 22, WIDGET_SMALL_SCALE, t->palette->textMuted);
 }
 
+// A label centred in a tile; one that does not fit and has no space to split at (Japanese) is made smaller.
+static void mainmenu_tile_text(const char* text, float x1, float x2, float y, float scale, u32 color) {
+    float room = x2 - x1 - 8;
+    float width = widget_text_width(text, scale);
+    if(width > room && width > 0) {
+        scale *= room / width;
+    }
+
+    widget_text_centered(text, x1, x2, y, scale, color);
+}
+
 // A big tile: the icon over the label, which takes two lines when it must.
 static void mainmenu_draw_tile(float x, float y, float w, float h, u32 icon, const char* label, bool selected) {
     const theme_current* t = theme();
@@ -508,9 +519,9 @@ static void mainmenu_draw_tile(float x, float y, float w, float h, u32 icon, con
     float iconSize = 26;
     float top = y + (h - iconSize - 6 - lines * textH) / 2;
     screen_draw_icon(icon, x + (w - iconSize) / 2, top, iconSize, selected ? t->onAccent : t->accent);
-    widget_text_centered(line1, x, x + w, top + iconSize + 6, WIDGET_TEXT_SCALE, ink);
+    mainmenu_tile_text(line1, x, x + w, top + iconSize + 6, WIDGET_TEXT_SCALE, ink);
     if(lines == 2) {
-        widget_text_centered(line2, x, x + w, top + iconSize + 6 + textH, WIDGET_TEXT_SCALE, ink);
+        mainmenu_tile_text(line2, x, x + w, top + iconSize + 6 + textH, WIDGET_TEXT_SCALE, ink);
     }
 }
 
@@ -551,9 +562,9 @@ static void mainmenu_draw_home_tile(const mainmenu_entry* entry, float x, float 
 
     u32 textColor = danger ? t->palette->danger : t->palette->text;
     float lineH = widget_text_height(WIDGET_SMALL_SCALE);
-    widget_text_centered(line1, x - 2, x + w + 2, y + HOME_TILE + 4, WIDGET_SMALL_SCALE, textColor);
+    mainmenu_tile_text(line1, x - 2, x + w + 2, y + HOME_TILE + 4, WIDGET_SMALL_SCALE, textColor);
     if(line2[0] != '\0') {
-        widget_text_centered(line2, x - 2, x + w + 2, y + HOME_TILE + 4 + lineH, WIDGET_SMALL_SCALE, textColor);
+        mainmenu_tile_text(line2, x - 2, x + w + 2, y + HOME_TILE + 4 + lineH, WIDGET_SMALL_SCALE, textColor);
     }
 }
 

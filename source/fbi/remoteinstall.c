@@ -701,6 +701,7 @@ static void remoteinstall_history_draw_row(void* data, list_item* item, float x,
     const char* slash = strrchr(shown[0], '/');
     string_copy(name, slash != NULL && slash[1] != '\0' ? slash + 1 : shown[0], sizeof(name));
     name[strcspn(name, "?#")] = '\0';
+    string_url_decode(name, name, sizeof(name));
 
     char date[32];
     history_date(&history[index], date, sizeof(date));
@@ -752,17 +753,37 @@ static void remoteinstall_history_draw_top(ui_view* view, void* data, float x1, 
         y += widget_text_height(WIDGET_SMALL_SCALE) + 6;
     }
 
+    // Each link whole, over as many lines as it needs, while the card has room.
     float lineH = widget_text_height(WIDGET_SMALL_SCALE) + 3;
-    for(u32 i = 0; i < count && i < 8 && y + lineH <= cardY + cardH - 10; i++) {
-        bool more = i == 7 || y + 2 * lineH > cardY + cardH - 10;
-        if(more && count > i + 1) {
-            snprintf(line, sizeof(line), _("and %lu more"), count - i);
-            screen_draw_text(line, textX, y, WIDGET_SMALL_SCALE, t->palette->textMuted);
+    float bottom = cardY + cardH - 10;
+    for(u32 i = 0; i < count && i < 8; i++) {
+        char decoded[DOWNLOAD_URL_MAX];
+        string_url_decode(decoded, shown[i], sizeof(decoded));
+
+        float textW = 0;
+        float textH = 0;
+        screen_get_string_size_wrap(&textW, &textH, decoded, WIDGET_SMALL_SCALE, WIDGET_SMALL_SCALE, right - textX);
+
+        // Room for this one and for the "and N more" line after it, unless it is the last.
+        bool last = i + 1 == count;
+        if(y + textH + (last ? 0 : lineH) > bottom) {
+            if(i == 0) {
+                // Not even one fits whole: as much of it as there is.
+                widget_text_fit(decoded, textX, y, WIDGET_SMALL_SCALE, t->palette->text, right - textX);
+                y += lineH;
+                i++;
+            }
+
+            if(i < count) {
+                snprintf(line, sizeof(line), _("and %lu more"), count - i);
+                screen_draw_text(line, textX, y, WIDGET_SMALL_SCALE, t->palette->textMuted);
+            }
+
             break;
         }
 
-        widget_text_fit(shown[i], textX, y, WIDGET_SMALL_SCALE, t->palette->text, right - textX);
-        y += lineH;
+        screen_draw_text_wrap(decoded, textX, y, WIDGET_SMALL_SCALE, t->palette->text, right);
+        y += textH + 3;
     }
 }
 
@@ -1086,12 +1107,15 @@ static void remoteinstall_draw_card(remoteinstall_data* menu, u32 index, float x
         snprintf(line, sizeof(line), history_count == 1 ? _("%lu request") : _("%lu requests"), history_count);
         widget_text_fit(line, textX, textY, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap - textX);
         textY += widget_text_height(WIDGET_TEXT_SCALE) + 4;
-        for(u32 i = 0; i < history_count && i < 3; i++) {
+        // Only the lines that fit inside the card.
+        for(u32 i = 0; i < history_count && i < 3 && textY + widget_text_height(WIDGET_SMALL_SCALE) <= cardY + cardH - 8; i++) {
             char host[64];
             char shown[1][DOWNLOAD_URL_MAX];
             history_describe(&history[i], host, sizeof(host), shown, 1);
             const char* slash = strrchr(shown[0], '/');
-            widget_text_fit(slash != NULL && slash[1] != '\0' ? slash + 1 : shown[0], textX, textY, WIDGET_SMALL_SCALE, t->palette->text, wrap - textX);
+            char recent[FILE_NAME_MAX];
+            string_url_decode(recent, slash != NULL && slash[1] != '\0' ? slash + 1 : shown[0], sizeof(recent));
+            widget_text_fit(recent, textX, textY, WIDGET_SMALL_SCALE, t->palette->text, wrap - textX);
             textY += widget_text_height(WIDGET_SMALL_SCALE) + 2;
         }
     }
@@ -1217,6 +1241,7 @@ void remoteinstall_open() {
     ui_view* view = ui_create();
     view->name = _("Remote install");
     view->id = "Remote install";
+    view->backArrow = true;
     view->info = _("\uE000 open   \uE001 back");
     view->data = data;
     view->update = remoteinstall_update;

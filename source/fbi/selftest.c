@@ -202,6 +202,40 @@ void selftest_cpu_stop() {
     }
 }
 
+void selftest_cpu_sample(char* out, size_t size) {
+    static u64 lastLoops[CPU_CORES_MAX];
+    static u64 lastTick = 0;
+
+    out[0] = '\0';
+    if(!selftest_cpu_run || selftest_cpu[0].idleRate == 0) {
+        lastTick = 0;
+        return;
+    }
+
+    u64 now = svcGetSystemTick();
+    double secs = lastTick != 0 ? (double) (now - lastTick) / SYSCLOCK_ARM11 : 0;
+    size_t len = 0;
+    for(u32 i = 0; i < selftest_cpu_count && len < size; i++) {
+        u64 loops = selftest_cpu[i].loops;
+        if(secs > 0) {
+            double free = (loops - lastLoops[i]) / secs / (double) selftest_cpu[i].idleRate;
+            if(i == 1) {
+                u32 limit = 0;
+                if(R_SUCCEEDED(APT_GetAppCpuTimeLimit(&limit)) && limit > 0) {
+                    free = free * 100 / limit;
+                }
+            }
+
+            int busy = (int) ((1.0 - (free > 1 ? 1 : free)) * 100 + 0.5);
+            len += snprintf(out + len, size - len, "%sc%lu %d", i > 0 ? " " : "", i, busy);
+        }
+
+        lastLoops[i] = loops;
+    }
+
+    lastTick = now;
+}
+
 // "core0 37% core1 12% core2 80%" busy over the next `ms` (FTP thread).
 void selftest_cpu_measure(u32 ms, char* out, size_t size) {
     selftest_cpu_start();
@@ -510,8 +544,25 @@ static void selftest_send_file(const char* path, char* reply, size_t size) {
     }
 
     const char* name = strrchr(path, '/');
-    transfer_send_file(selftest_sd, path, name != NULL ? name + 1 : path, fileSize);
+    transfer_send_file(selftest_sd, path, name != NULL ? name + 1 : path, fileSize, path);
     snprintf(reply, size, "200 Sending %s (%llu bytes).", path, fileSize);
+}
+
+static void selftest_send_dir(const char* path, char* reply, size_t size) {
+    if(selftest_sd == 0 && R_FAILED(FSUSER_OpenArchive(&selftest_sd, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
+        selftest_sd = 0;
+        snprintf(reply, size, "451 Could not open the SD card.");
+        return;
+    }
+
+    if(!fs_is_dir(selftest_sd, path)) {
+        snprintf(reply, size, "451 %s is not a folder.", path);
+        return;
+    }
+
+    const char* name = strrchr(path, '/');
+    transfer_send_folder(selftest_sd, path, name != NULL ? name + 1 : path, path);
+    snprintf(reply, size, "200 Sending the folder %s.", path);
 }
 
 #endif
@@ -557,11 +608,21 @@ void selftest_run(const char* command, char* reply, size_t size) {
         }
 
         selftest_send_file(args, reply, size);
+    } else if(strcmp(verb, "BUILD") == 0) {
+        // Which build this is, so that a test never pairs consoles that speak different protocols.
+        snprintf(reply, size, "200 protocol %lu built %s %s", (unsigned long) transfer_protocol(), __DATE__, __TIME__);
+    } else if(strcmp(verb, "SENDDIR") == 0) {
+        if(*args == '\0') {
+            snprintf(reply, size, "501 SITE TEST SENDDIR <folder on the SD card>");
+            return;
+        }
+
+        selftest_send_dir(args, reply, size);
     } else if(strcmp(verb, "RECEIVE") == 0) {
         transfer_receive_open();
         snprintf(reply, size, "200 Receiving.");
     } else {
-        snprintf(reply, size, "504 SITE TEST UI|TITLES|EXPORT|SENDTITLE|SEND|RECEIVE");
+        snprintf(reply, size, "504 SITE TEST UI|TITLES|EXPORT|SENDTITLE|SEND|SENDDIR|BUILD|RECEIVE");
     }
 #else
     (void) command;

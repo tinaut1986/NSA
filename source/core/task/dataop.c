@@ -6,6 +6,7 @@
 
 #include "dataop.h"
 #include "../core.h"
+#include "../xferturn.h"
 
 static Result task_data_op_check_running(data_op_data* data) {
     Result res = 0;
@@ -149,6 +150,8 @@ typedef struct {
     u32 bytesSinceUpdate;
 
     u64 writeOffset;
+
+    u32 turn;   // The transfer turn (xferturn.h) the download holds.
 } data_op_download_data;
 
 static Result task_data_op_download_callback(void* userData, void* buffer, size_t size) {
@@ -171,6 +174,24 @@ static Result task_data_op_download_callback(void* userData, void* buffer, size_
     return res;
 }
 
+static Result task_data_op_download_open(void* userData, void* first, size_t size, u64 total) {
+    data_op_download_data* downloadData = (data_op_download_data*) userData;
+    data_op_data* data = downloadData->data;
+
+    downloadData->firstRun = false;
+    data->currTotal = total;
+    return data->openDst(data->data, downloadData->index, first, total, &downloadData->dstHandle);
+}
+
+static Result task_data_op_download_write_at(void* userData, u64 offset, void* buffer, size_t size) {
+    data_op_download_data* downloadData = (data_op_download_data*) userData;
+    data_op_data* data = downloadData->data;
+
+    u32 bytesWritten = 0;
+    Result res = data->writeDst(data->data, downloadData->dstHandle, &bytesWritten, buffer, offset, size);
+    return R_SUCCEEDED(res) && bytesWritten != size ? R_APP_IO_ERROR : res;
+}
+
 static Result task_data_op_download_check_running(void* userData) {
     data_op_download_data* downloadData = (data_op_download_data*) userData;
 
@@ -187,6 +208,8 @@ static Result task_data_op_download_progress(void* userData, u64 total, u64 curr
 
     data->currTotal = total;
     data->currProcessed = curr;
+    xferturn_total(downloadData->turn, total);
+    xferturn_progress(downloadData->turn, curr);
 
     u64 time = osGetTime();
     u64 elapsed = time - downloadData->lastBytesPerSecondUpdate;
@@ -226,7 +249,18 @@ static Result task_data_op_download(data_op_data* data, u32 index) {
     char url[DOWNLOAD_URL_MAX];
     if(R_SUCCEEDED(res = data->getSrcUrl(data->data, index, url, DOWNLOAD_URL_MAX))) {
         data_op_download_data downloadData = {data, index, 0, true, 0, osGetTime(), 0, 0};
-        res = http_download_callback(url, data->bufferSize, &downloadData, task_data_op_download_callback, task_data_op_download_check_running, task_data_op_download_progress);
+        // One transfer at a time: an FTP, web page or console to console transfer under way is let finish.
+        if((downloadData.turn = xferturn_take(XFER_DOWNLOAD, url, 0)) == 0) {
+            return R_APP_BUSY;
+        }
+
+        if(data->dstAnyOrder) {
+            res = http_download_file(url, data->bufferSize, &downloadData, task_data_op_download_open, task_data_op_download_write_at,
+                                     task_data_op_download_check_running, task_data_op_download_progress);
+        } else {
+            res = http_download_callback(url, data->bufferSize, &downloadData, task_data_op_download_callback, task_data_op_download_check_running, task_data_op_download_progress);
+        }
+        xferturn_release(downloadData.turn);
 
         if(downloadData.dstHandle != 0) {
             Result closeDstRes = data->closeDst(data->data, index, res == 0, downloadData.dstHandle);

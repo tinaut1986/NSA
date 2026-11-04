@@ -12,13 +12,94 @@
 #include "error.h"
 #include "http.h"
 #include "netpoll.h"
+#include "ramp.h"
+#include "speedlog.h"
 #include "stringutil.h"
 
-#define MAKE_HTTP_USER_AGENT_(major, minor, micro) ("Mozilla/5.0 (Nintendo 3DS; Mobile; rv:10.0) Gecko/20100101 " APP_NAME "/" #major "." #minor "." #micro)
+// NSA's own, not FBI's browser-like "Mozilla/5.0 (Nintendo 3DS; Mobile; rv:10.0) Gecko/20100101 ...": Google Drive
+// answered that with 500 (its downloads) and 403 (its share links), and a plain name with the file (2026-11-04).
+#define MAKE_HTTP_USER_AGENT_(major, minor, micro) (APP_NAME "/" #major "." #minor "." #micro " (Nintendo 3DS)")
 #define MAKE_HTTP_USER_AGENT(major, minor, micro) MAKE_HTTP_USER_AGENT_(major, minor, micro)
 #define HTTP_USER_AGENT MAKE_HTTP_USER_AGENT(VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO)
 
 static void (*http_log)(const char* format, ...) = NULL;
+
+// The file's name as the server gave it (Content-Disposition) for the download under way: one at a time (xferturn.h).
+static char http_disposition[256];
+
+// strcasestr, which newlib does not declare here.
+static char* http_find_nocase(char* text, const char* word) {
+    size_t len = strlen(word);
+    for(; *text != '\0'; text++) {
+        if(strncasecmp(text, word, len) == 0) {
+            return text;
+        }
+    }
+
+    return NULL;
+}
+
+// "attachment; filename*=UTF-8''EUR%20-%20Paper%20Mario.cia" or filename="..." (the first wins over the second).
+static void http_note_disposition(const char* header, size_t len) {
+    if(len < 20 || strncasecmp(header, "content-disposition:", 20) != 0) {
+        return;
+    }
+
+    char line[512];
+    size_t n = len < sizeof(line) - 1 ? len : sizeof(line) - 1;
+    memcpy(line, header, n);
+    line[n] = '\0';
+
+    const char* value = NULL;
+    bool encoded = false;
+    char* star = http_find_nocase(line, "filename*=");
+    if(star != NULL) {
+        value = strstr(star, "''");
+        value = value != NULL ? value + 2 : star + 10;
+        encoded = true;
+    } else {
+        char* plain = http_find_nocase(line, "filename=");
+        if(plain == NULL) {
+            return;
+        }
+
+        value = plain + 9;
+    }
+
+    char name[sizeof(http_disposition)];
+    size_t used = 0;
+    bool quoted = *value == '"';
+    for(const char* c = quoted ? value + 1 : value; *c != '\0' && used < sizeof(name) - 1; c++) {
+        if((quoted && *c == '"') || (!quoted && (*c == ';' || *c == '\r' || *c == '\n'))) {
+            break;
+        }
+
+        unsigned hex = 0;
+        if(encoded && c[0] == '%' && c[1] != '\0' && c[2] != '\0' && sscanf(c + 1, "%2x", &hex) == 1 && hex >= 0x20) {
+            name[used++] = (char) hex;
+            c += 2;
+        } else {
+            name[used++] = *c;
+        }
+    }
+
+    name[used] = '\0';
+    // A path in it is not ours to follow.
+    const char* base = strrchr(name, '/');
+    base = base != NULL ? base + 1 : name;
+    if(base[0] != '\0') {
+        string_copy(http_disposition, base, sizeof(http_disposition));
+    }
+}
+
+bool http_file_name(char* out, size_t size) {
+    if(http_disposition[0] == '\0') {
+        return false;
+    }
+
+    string_copy(out, http_disposition, size);
+    return true;
+}
 
 void http_set_log(void (*log)(const char* format, ...)) {
     http_log = log;
@@ -328,6 +409,7 @@ typedef struct {
     u64 waited;              // Milliseconds the network thread waited for a free buffer (the SD card behind).
     volatile bool abort;   // The caller stopped (cancel, a failed write).
     volatile bool done;
+    bool webPage;          // The server sent a web page (text/html beginning with '<') instead of the file.
     CURLcode ret;
 } http_fetch;
 
@@ -346,10 +428,31 @@ static void http_fetch_hand_over(http_fetch* f) {
     f->waited += osGetTime() - start;
 }
 
+static size_t http_fetch_header(char* buffer, size_t size, size_t nitems, void* userdata) {
+    http_note_disposition(buffer, size * nitems);
+    return size * nitems;
+}
+
 static size_t http_fetch_write(char* ptr, size_t size, size_t nmemb, void* userdata) {
     http_fetch* f = (http_fetch*) userdata;
 
     size_t available = size * nmemb;
+
+    // A share page or a "download anyway?" warning instead of the file: said so, not saved or installed as one.
+    if(f->received == 0 && available > 0) {
+        char* type = NULL;
+        size_t at = 0;
+        while(at < available && (ptr[at] == ' ' || ptr[at] == '\t' || ptr[at] == '\r' || ptr[at] == '\n')) {
+            at++;
+        }
+
+        if(at < available && ptr[at] == '<' && curl_easy_getinfo(f->curl, CURLINFO_CONTENT_TYPE, &type) == CURLE_OK && type != NULL
+           && strncasecmp(type, "text/html", 9) == 0) {
+            f->webPage = true;
+            return 0;
+        }
+    }
+
     f->received += available;
     size_t pos = 0;
     while(available > 0 && !f->abort) {
@@ -450,7 +553,8 @@ static Thread http_fetch_start(http_fetch* f) {
 
 // `connected` says whether the server answered at all (else the system's
 // service may still get through).
-static Result http_curl_download(const char* url, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
+// From byte `from` on (a download that began over several connections), the caller's progress counting from 0.
+static Result http_curl_download(const char* url, u64 from, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
                                  Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections), bool* connected,
                                  http_shared* shared) {
     *connected = false;
@@ -474,6 +578,10 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 
     if(R_SUCCEEDED(res)) {
         curl_easy_setopt(f->curl, CURLOPT_URL, url);
+        if(from > 0) {
+            curl_easy_setopt(f->curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t) from);
+        }
+
         curl_easy_setopt(f->curl, CURLOPT_BUFFERSIZE, (long) HTTP_CHUNK_MAX);
         curl_easy_setopt(f->curl, CURLOPT_ACCEPT_ENCODING, "");
         curl_easy_setopt(f->curl, CURLOPT_USERAGENT, HTTP_USER_AGENT);
@@ -490,6 +598,7 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
         if(shared->share != NULL) {
             curl_easy_setopt(f->curl, CURLOPT_SHARE, shared->share);
         }
+        curl_easy_setopt(f->curl, CURLOPT_HEADERFUNCTION, http_fetch_header);
         curl_easy_setopt(f->curl, CURLOPT_WRITEFUNCTION, http_fetch_write);
         curl_easy_setopt(f->curl, CURLOPT_WRITEDATA, (void*) f);
         curl_easy_setopt(f->curl, CURLOPT_NOPROGRESS, 0L);
@@ -504,7 +613,16 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
             u64 delivered = 0;
             u64 lastLog = started;
             u64 lastReceived = 0;
+            // The trace: what the network brought, the card's (the install's) time, the time with nothing to hand over.
+            speedlog* trace = speedlog_begin("url", url, 0);
+            u64 traced = 0;
             while(true) {
+                u64 got = f->received;
+                if(got > traced) {
+                    speedlog_net(trace, got - traced, 0);
+                    traced = got;
+                }
+
                 // Every 10 s while it lasts, how fast it goes.
                 if(http_log != NULL && osGetTime() - lastLog >= 10000) {
                     u64 received = f->received;
@@ -520,7 +638,11 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 
                 if(f->taken != f->filled) {
                     u32 index = f->taken % HTTP_RING;
-                    if(R_FAILED(res = callback(userData, f->bufs[index], f->sizes[index]))) {
+                    speedlog_gauge(trace, f->filled - f->taken);
+                    u64 start = speedlog_ticks();
+                    res = callback(userData, f->bufs[index], f->sizes[index]);
+                    speedlog_disk(trace, f->sizes[index], speedlog_ticks() - start);
+                    if(R_FAILED(res)) {
                         break;
                     }
 
@@ -537,11 +659,15 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 
                 if(progress != NULL) {
                     u64 received = f->received;
-                    progress(userData, f->total > received ? f->total : received, received, 1);
+                    progress(userData, from + (f->total > received ? f->total : received), from + received, 1);
                 }
 
+                u64 start = speedlog_ticks();
                 svcSleepThread(2000000);
+                speedlog_wait(trace, speedlog_ticks() - start);
             }
+
+            speedlog_end(trace, R_SUCCEEDED(res) && f->ret == CURLE_OK);
 
             f->abort = R_FAILED(res);
             threadJoin(thread, U64_MAX);
@@ -551,7 +677,9 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
             curl_easy_getinfo(f->curl, CURLINFO_RESPONSE_CODE, &responseCode);
             *connected = responseCode != 0 || delivered > 0;
 
-            if(R_SUCCEEDED(res) && f->ret != CURLE_OK) {
+            if(R_SUCCEEDED(res) && f->webPage) {
+                res = R_APP_HTTP_WEB_PAGE;
+            } else if(R_SUCCEEDED(res) && f->ret != CURLE_OK) {
                 res = f->ret == CURLE_HTTP_RETURNED_ERROR ? R_APP_HTTP_ERROR_BASE + responseCode : R_APP_CURL_ERROR_BASE + f->ret;
             }
 
@@ -597,10 +725,20 @@ static Result http_curl_download(const char* url, u32 bufferSize, void* userData
 // them wasted half the bandwidth. Each connection fetches into a buffer of its
 // own and copies a finished segment into the window, so the two never write
 // the same memory.
+//
+// The connections ask for the file where the redirects ended (no redirects
+// for each segment), unless that address refuses a second request: Dropbox's
+// `dl.dropboxusercontent.com/cd/0/get/...` serves one and answers 403 to the
+// rest. Then the rest of the file comes over one connection from the address
+// given (HTTP_RES_ONE_LINK), as 3dsDL installs: going through the redirects
+// for every segment (a new host and TLS handshake each) went at half the
+// speed (~470 KB/s from Dropbox).
+
+// http_parallel_download's own: the rest goes over one connection (never returned to the caller).
+#define HTTP_RES_ONE_LINK MAKERESULT(RL_TEMPORARY, RS_NOTSUPPORTED, RM_APPLICATION, 801)
 
 #define HTTP_PARALLEL 8
-#define HTTP_PARALLEL_OLD 8
-#define HTTP_SEGMENT (512 * 1024)
+#define HTTP_SEGMENT (1024 * 1024)   // 512 KB made a request (and its round trip) too often: Google Drive started at ~500 KB/s.
 #define HTTP_WINDOW_PER_CONNECTION 2
 #define HTTP_WINDOW_MIN 6
 #define HTTP_WINDOW_MAX (HTTP_PARALLEL * HTTP_WINDOW_PER_CONNECTION)
@@ -622,7 +760,8 @@ typedef struct {
 } http_worker;
 
 struct http_parallel_s {
-    char url[1024];
+    char url[1024];                        // Where the redirects ended.
+    char original[1024];                   // The address given, when the redirects went elsewhere.
     u64 size;
     u32 segments;
     u32 workerCount;
@@ -643,6 +782,8 @@ struct http_parallel_s {
 
     volatile bool abort;
     volatile Result failure;
+
+    ramp ramp;   // How many of the connections fetch (ramp.h); the others wait.
 };
 
 static u64 http_parallel_received(http_parallel* p) {
@@ -673,10 +814,13 @@ static void http_curl_common(CURL* curl, const char* url, http_shared* shared) {
 typedef struct {
     u64 total;    // From Content-Range: bytes 0-0/<total>.
     u32 body;
+    u8* buf;      // The first bytes, when asked for (NULL: one byte, not kept).
+    u32 bufSize;
 } http_probe_state;
 
 static size_t http_probe_header(char* buffer, size_t size, size_t nitems, void* userdata) {
     size_t len = size * nitems;
+    http_note_disposition(buffer, len);
     if(len > 14 && strncasecmp(buffer, "content-range:", 14) == 0) {
         char line[128];
         size_t n = len < sizeof(line) - 1 ? len : sizeof(line) - 1;
@@ -692,11 +836,21 @@ static size_t http_probe_header(char* buffer, size_t size, size_t nitems, void* 
     return len;
 }
 
-// The one byte asked for; a server that ignores the range sends the whole file: stop it.
+// The bytes asked for; a server that ignores the range sends the whole file: stop it.
 static size_t http_probe_write(char* ptr, size_t size, size_t nmemb, void* userdata) {
     http_probe_state* state = (http_probe_state*) userdata;
-    state->body += size * nmemb;
-    return state->body > 1 ? 0 : size * nmemb;
+    size_t len = size * nmemb;
+    u32 limit = state->buf != NULL ? state->bufSize : 1;
+    if(state->body + len > limit) {
+        return 0;
+    }
+
+    if(state->buf != NULL) {
+        memcpy(state->buf + state->body, ptr, len);
+    }
+
+    state->body += len;
+    return len;
 }
 
 // Asks for the first byte only: where the file is after redirects, how big,
@@ -704,15 +858,23 @@ static size_t http_probe_write(char* ptr, size_t size, size_t nmemb, void* userd
 // Accept-Ranges, as before: some servers (catbox.moe) answer HEAD with no size
 // and no Accept-Ranges yet serve ranges, and the download then got one
 // connection. As 3dsDL asks. False when it can not tell.
-static bool http_probe(const char* url, char* effective, size_t effectiveSize, u64* size, http_shared* shared) {
+//
+// With `first`, it asks for the first `*firstSize` bytes instead and keeps them
+// (`*firstSize` becomes what came: less for a smaller file).
+static bool http_probe(const char* url, char* effective, size_t effectiveSize, u64* size, u8* first, u32* firstSize, http_shared* shared) {
     CURL* curl = curl_easy_init();
     if(curl == NULL) {
         return false;
     }
 
-    http_probe_state state = {0, 0};
+    http_probe_state state = {0, 0, first, first != NULL ? *firstSize : 0};
+    char range[32] = "0-0";
+    if(first != NULL) {
+        snprintf(range, sizeof(range), "0-%lu", *firstSize - 1);
+    }
+
     http_curl_common(curl, url, shared);
-    curl_easy_setopt(curl, CURLOPT_RANGE, "0-0");
+    curl_easy_setopt(curl, CURLOPT_RANGE, range);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, http_probe_header);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void*) &state);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, http_probe_write);
@@ -728,6 +890,10 @@ static bool http_probe(const char* url, char* effective, size_t effectiveSize, u
         string_copy(effective, where, effectiveSize);
         *size = state.total;
         ok = true;
+        if(first != NULL) {
+            ok = state.body == (state.total < *firstSize ? state.total : *firstSize);
+            *firstSize = state.body;
+        }
     }
 
     curl_easy_cleanup(curl);
@@ -795,8 +961,16 @@ static void http_worker_thread(void* arg) {
     http_worker* w = (http_worker*) arg;
     http_parallel* p = w->p;
 
+    u32 index = (u32) (w - p->workers);
     bool done = false;
     while(!p->abort && !done) {
+        // Past the number that pays off: waits (what it had, it finished).
+        if(index >= p->ramp.level) {
+            done = p->nextDeliver >= p->segments;
+            svcSleepThread(50000000);
+            continue;
+        }
+
         s32 segment = http_worker_take(p, &done);
         if(segment < 0) {
             if(!done) {
@@ -829,7 +1003,26 @@ static void http_worker_thread(void* arg) {
                 break;
             }
 
+            // The address the redirects ended at served once and refuses the rest, or the server takes fewer requests
+            // ("Too Many Requests"): one connection from the one given.
+            if(ret == CURLE_HTTP_RETURNED_ERROR && (((code == 403 || code == 410) && p->original[0] != '\0') || code == 429)) {
+                if(!p->abort) {
+                    p->failure = HTTP_RES_ONE_LINK;
+                    if(http_log != NULL) {
+                        http_log("http: segment %ld: http %ld where the redirects ended, the rest over one connection\n", segment, code);
+                    }
+                }
+
+                p->abort = true;
+                break;
+            }
+
             ret = ret == CURLE_OK ? CURLE_PARTIAL_FILE : ret;
+
+            // A connection that could not get through tries again in a moment, not at once.
+            if(ret == CURLE_COULDNT_CONNECT || ret == CURLE_COULDNT_RESOLVE_HOST) {
+                svcSleepThread(500000000LL * (attempt + 1));
+            }
         }
 
         bool whole = ret == CURLE_OK && code == 206 && w->len == w->want;
@@ -875,24 +1068,29 @@ static void http_worker_thread(void* arg) {
     }
 }
 
-static Result http_parallel_download(const char* url, u64 size, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
+// `*handed` is what the caller got, in order.
+static Result http_parallel_download(const char* url, const char* original, u64 size, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
                                      Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections),
-                                     http_shared* shared) {
+                                     http_shared* shared, u64* handed) {
     http_parallel* p = (http_parallel*) calloc(1, sizeof(http_parallel));
     if(p == NULL) {
         return R_APP_OUT_OF_MEMORY;
     }
 
     string_copy(p->url, url, sizeof(p->url));
+    if(original != NULL && strcmp(original, url) != 0) {
+        string_copy(p->original, original, sizeof(p->original));
+    }
+
     p->size = size;
     p->segments = (u32) ((size + HTTP_SEGMENT - 1) / HTTP_SEGMENT);
-    // Two was the most an Old 3DS took before the waits stopped holding the SOC session and TLS
-    // sessions were shared. Now the 2DS holds eight with its CPU at 20% (though its network tops out
-    // around 500 KB/s with any number of them).
+    // As many as pay off, from two, at most four (ramp.h): eight fixed saturated the console's network for
+    // no more speed (Dropbox), and the 2DS's network tops out around 500 KB/s with any number of them.
     bool isNew = false;
     APT_CheckNew3DS(&isNew);
-    u32 connections = isNew ? HTTP_PARALLEL : HTTP_PARALLEL_OLD;
+    u32 connections = RAMP_MAX;
     p->workerCount = p->segments < connections ? p->segments : connections;
+    ramp_init(&p->ramp, 2, p->workerCount);
     p->window = p->workerCount * HTTP_WINDOW_PER_CONNECTION;
     p->window = p->window < HTTP_WINDOW_MIN ? HTTP_WINDOW_MIN : p->window;
     p->window = p->window > p->segments ? p->segments : p->window;
@@ -925,6 +1123,10 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
         } else {
             http_curl_common(w->curl, p->url, shared);
             curl_easy_setopt(w->curl, CURLOPT_BUFFERSIZE, (long) HTTP_CHUNK_MAX);
+            // Each connection keeps two open (the server it redirects from and the one it ends at), not curl's five:
+            // at the address given, every segment ends at a new Dropbox host, and eight connections' worth of the
+            // old ones left the console without sockets (curl 7).
+            curl_easy_setopt(w->curl, CURLOPT_MAXCONNECTS, 2L);
             curl_easy_setopt(w->curl, CURLOPT_WRITEFUNCTION, http_worker_write);
             curl_easy_setopt(w->curl, CURLOPT_WRITEDATA, (void*) w);
             curl_easy_setopt(w->curl, CURLOPT_NOPROGRESS, 0L);
@@ -950,7 +1152,24 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
     u64 lastReceived = 0;
     u64 shown = 0;
     u64 delivered = 0;
+    // The trace: what the network brought, the card's (the install's) time, the time waiting for the next segment,
+    // and the segments ahead as the gauge.
+    speedlog* trace = speedlog_begin("url", url, p->size);
+    u64 traced = 0;
     for(u32 segment = 0; segment < p->segments && R_SUCCEEDED(res);) {
+        u64 got = http_parallel_received(p);
+        if(got > traced) {
+            speedlog_net(trace, got - traced, 0);
+            traced = got;
+        }
+
+        speedlog_gauge(trace, p->nextAssign - p->nextDeliver);
+
+        char note[160];
+        if(ramp_update(&p->ramp, got, note, sizeof(note)) && http_log != NULL) {
+            http_log("http: %s\n", note);
+        }
+
         if(checkRunning != NULL && R_FAILED(res = checkRunning(userData))) {
             break;
         }
@@ -959,7 +1178,7 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
             u64 received = http_parallel_received(p);
             http_log("http: %llu KB so far (%llu KB written), %llu KB/s over %lu connections, %lu segments ahead\n", received / 1024,
                      delivered / 1024, received > lastReceived ? (received - lastReceived) / 1024 * 1000 / (osGetTime() - lastLog) : 0,
-                     p->workerCount, p->nextAssign - p->nextDeliver);
+                     p->ramp.level, p->nextAssign - p->nextDeliver);
             lastReceived = received;
             lastLog = osGetTime();
         }
@@ -967,7 +1186,10 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
         u32 slot = segment % p->window;
         if(p->ready[slot] == (s32) segment) {
             __sync_synchronize();   // The slot's data and length, written before `ready`.
-            if(R_FAILED(res = callback(userData, p->slots[slot], p->lengths[slot]))) {
+            u64 start = speedlog_ticks();
+            res = callback(userData, p->slots[slot], p->lengths[slot]);
+            speedlog_disk(trace, p->lengths[slot], speedlog_ticks() - start);
+            if(R_FAILED(res)) {
                 break;
             }
 
@@ -981,17 +1203,20 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
             res = p->failure != 0 ? p->failure : R_APP_CANCELLED;
             break;
         } else {
+            u64 start = speedlog_ticks();
             svcSleepThread(2000000);
+            speedlog_wait(trace, speedlog_ticks() - start);
         }
 
         // A segment tried again goes back: the bar does not.
         if(progress != NULL) {
             u64 received = http_parallel_received(p);
             shown = received > shown ? received : shown;
-            progress(userData, p->size, shown, p->workerCount);
+            progress(userData, p->size, shown, p->ramp.level);
         }
     }
 
+    speedlog_end(trace, R_SUCCEEDED(res));
     p->abort = true;
     for(u32 i = 0; i < p->workerCount; i++) {
         http_worker* w = &p->workers[i];
@@ -1017,13 +1242,64 @@ static Result http_parallel_download(const char* url, u64 size, void* userData, 
                  p->workerCount, url, delivered, p->size, secs, secs > 0 ? delivered / 1024 / secs : 0, p->hedges, res);
     }
 
+    *handed = delivered;
     free(p);
     return res;
 }
 
-Result http_download_callback(const char* url, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
+// Google Drive's links give a page, not the file: the share link (drive.google.com/file/d/ID/view), open?id=ID and
+// uc?id=ID (a "can't scan for viruses" warning for big files) become the download a browser gets past the warning
+// (drive.usercontent.google.com/download?id=ID&export=download&confirm=t), which serves ranges to several
+// connections. False for any other URL (drive.usercontent.google.com's own links are fetched as they are).
+static bool http_rewrite_google_drive(const char* url, char* out, size_t size) {
+    const char* host = strstr(url, "://");
+    host = host != NULL ? host + 3 : url;
+    if(strncmp(host, "drive.google.com/", 17) != 0 && strncmp(host, "docs.google.com/", 16) != 0) {
+        return false;
+    }
+
+    const char* id = strstr(host, "/file/d/");
+    if(id != NULL) {
+        id += 8;
+    } else if((id = strstr(host, "id=")) != NULL && (id[-1] == '?' || id[-1] == '&')) {
+        id += 3;
+    } else {
+        return false;
+    }
+
+    size_t len = 0;
+    while((id[len] >= 'A' && id[len] <= 'Z') || (id[len] >= 'a' && id[len] <= 'z') || (id[len] >= '0' && id[len] <= '9') || id[len] == '-' || id[len] == '_') {
+        len++;
+    }
+
+    if(len < 10 || len > 100) {
+        return false;
+    }
+
+    snprintf(out, size, "https://drive.usercontent.google.com/download?id=%.*s&export=download&confirm=t", (int) len, id);
+    return true;
+}
+
+// The URL to fetch for `url` (http_rewrite_google_drive), in `buffer`, or `url` itself.
+static const char* http_direct_url(const char* url, char* buffer, size_t size) {
+    if(!http_rewrite_google_drive(url, buffer, size)) {
+        return url;
+    }
+
+    if(http_log != NULL) {
+        http_log("http: Google Drive link, fetching %s\n", buffer);
+    }
+
+    return buffer;
+}
+
+Result http_download_callback(const char* givenUrl, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
                                                                                Result (*checkRunning)(void* userData),
                                                                                Result (*progress)(void* userData, u64 total, u64 curr, u32 connections)) {
+    char direct[256];
+    const char* url = http_direct_url(givenUrl, direct, sizeof(direct));
+    http_disposition[0] = '\0';
+
     http_shared* shared = (http_shared*) calloc(1, sizeof(http_shared));
     if(shared == NULL) {
         return R_APP_OUT_OF_MEMORY;
@@ -1034,8 +1310,16 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
     // A big file from a server that serves ranges: several connections.
     char* effective = (char*) malloc(1024);
     u64 size = 0;
-    if(effective != NULL && http_probe(url, effective, 1024, &size, shared) && size >= HTTP_PARALLEL_MIN) {
-        Result res = http_parallel_download(effective, size, userData, callback, checkRunning, progress, shared);
+    if(effective != NULL && http_probe(url, effective, 1024, &size, NULL, NULL, shared) && size >= HTTP_PARALLEL_MIN) {
+        u64 handed = 0;
+        Result res = http_parallel_download(effective, url, size, userData, callback, checkRunning, progress, shared, &handed);
+        if(res == HTTP_RES_ONE_LINK) {
+            // A server that said "Too Many Requests" gets a moment first.
+            svcSleepThread(2000000000LL);
+            bool connected = false;
+            res = http_curl_download(url, handed, bufferSize, userData, callback, checkRunning, progress, &connected, shared);
+        }
+
         free(effective);
         http_shared_close(shared);
         free(shared);
@@ -1045,7 +1329,7 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
     free(effective);
 
     bool connected = false;
-    Result res = http_curl_download(url, bufferSize, userData, callback, checkRunning, progress, &connected, shared);
+    Result res = http_curl_download(url, 0, bufferSize, userData, callback, checkRunning, progress, &connected, shared);
     http_shared_close(shared);
     free(shared);
 
@@ -1056,6 +1340,584 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
         if(http_log != NULL) {
             http_log("http: system service %s: %.1f s, result %08lX\n", url, (osGetTime() - started) / 1000.0, res);
         }
+    }
+
+    return res;
+}
+
+// ---- Saving to a file: each piece written where it goes ----
+//
+// When the caller can write anywhere in its file (saving, not installing), a
+// big file comes as 3dsDL fetches it: the file is split among the
+// connections, each fetches its piece in one request and writes it where it
+// goes, and a connection that is done takes half of what is left of the
+// biggest piece. One request a piece, not one a 512 KB segment: links that
+// redirect to an address good for one request (Dropbox) cost a redirect a
+// piece. With segments every one went through the redirects to a new host,
+// and the console ran out of connections (curl 7).
+//
+// The connections ask where the redirects ended until it refuses them (an
+// HTTP error), then at the address given. A connection that fails there is
+// opened again a moment later (HTTP_SCATTER_RECONNECTS in all); one the
+// server refused makes the download keep the connections still open as its
+// most (some servers turn extra ones away), as 3dsDL does.
+//
+// It starts with two connections and finds how many pay off as it goes (ramp.h:
+// one more while it makes it 20% faster, at most four; one that does not is closed,
+// and it is tried again two minutes later). A fast server (Dropbox: ~1000 KB/s on two)
+// keeps two and leaves the console's Wi-Fi room for the FTP and the web page,
+// which eight saturated for less (790 KB/s); a slow one per connection
+// (catbox.moe) gets more (four). A connection past the number stops its
+// piece where it is: what came is written, the rest is taken by another.
+
+#define HTTP_SCATTER_START 2
+#define HTTP_SCATTER_PIECES 64
+#define HTTP_SCATTER_MIN_PIECE (1024 * 1024)   // Pieces are split only if both halves are at least this.
+#define HTTP_SCATTER_ALIGN (64 * 1024)         // Where they are split: the card's writes stay aligned.
+#define HTTP_SCATTER_BUFFER (256 * 1024)       // Each connection writes this much at a time.
+#define HTTP_SCATTER_RECONNECTS 16
+
+typedef struct {
+    u64 next;      // [next, end) is left; what is before next has come.
+    u64 end;
+    bool taken;    // A connection is on it.
+} http_piece;
+
+typedef struct http_scatter_s http_scatter;
+
+typedef struct {
+    http_scatter* s;
+    u32 index;
+    CURL* curl;
+    u8* buf;
+    u32 len;
+    u64 bufStart;            // Where buf[0] goes in the file.
+    s32 piece;
+    bool cut;                // Stopped at its piece's end on purpose (the piece was split).
+    bool badRange;           // The server answered with something else than the range.
+    char error[CURL_ERROR_SIZE];   // curl's own words for the last failure.
+    volatile u64 written;    // Only this worker writes it; the caller adds them up.
+    Thread thread;
+} http_scatter_worker;
+
+struct http_scatter_s {
+    char url[1024];          // The address given.
+    char direct[1024];       // Where the redirects ended; empty once it refused a request.
+    u64 size;
+    http_piece pieces[HTTP_SCATTER_PIECES];
+    u32 pieceCount;
+    u32 maxConnections;      // The most the server takes.
+    ramp ramp;               // How many of them work (ramp.h).
+    u32 active;              // Connections in a request.
+    u32 reconnectsLeft;
+    LightLock lock;          // Around the pieces and the counts above.
+    LightLock diskLock;      // One write to the file at a time.
+
+    void* userData;
+    Result (*writeAt)(void* userData, u64 offset, void* buffer, size_t size);
+    speedlog* trace;
+
+    u32 workerCount;
+    http_scatter_worker workers[HTTP_PARALLEL];
+    volatile u32 running;    // Workers not yet finished.
+
+    volatile bool abort;
+    volatile Result failure;
+};
+
+static bool http_scatter_done(http_scatter* s) {
+    for(u32 i = 0; i < s->pieceCount; i++) {
+        if(s->pieces[i].next < s->pieces[i].end) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Under the lock: a piece nobody is on with something left; else half of the biggest one in flight; else -1.
+static s32 http_scatter_take(http_scatter* s) {
+    for(u32 i = 0; i < s->pieceCount; i++) {
+        if(!s->pieces[i].taken && s->pieces[i].next < s->pieces[i].end) {
+            s->pieces[i].taken = true;
+            return (s32) i;
+        }
+    }
+
+    if(s->pieceCount >= HTTP_SCATTER_PIECES) {
+        return -1;
+    }
+
+    s32 biggest = -1;
+    u64 left = 0;
+    for(u32 i = 0; i < s->pieceCount; i++) {
+        http_piece* piece = &s->pieces[i];
+        if(piece->taken && piece->end - piece->next > left) {
+            biggest = (s32) i;
+            left = piece->end - piece->next;
+        }
+    }
+
+    if(biggest < 0 || left < 2 * HTTP_SCATTER_MIN_PIECE) {
+        return -1;
+    }
+
+    http_piece* piece = &s->pieces[biggest];
+    u64 middle = piece->next + left / 2;
+    middle -= middle % HTTP_SCATTER_ALIGN;
+    if(middle <= piece->next) {
+        return -1;
+    }
+
+    http_piece* half = &s->pieces[s->pieceCount];
+    half->next = middle;
+    half->end = piece->end;
+    half->taken = true;
+    piece->end = middle;
+    return (s32) s->pieceCount++;
+}
+
+// What the worker holds goes to the file. False when the file refused it.
+static bool http_scatter_flush(http_scatter_worker* w) {
+    http_scatter* s = w->s;
+    if(w->len == 0) {
+        return true;
+    }
+
+    u64 start = speedlog_ticks();
+    LightLock_Lock(&s->diskLock);
+    Result res = s->writeAt(s->userData, w->bufStart, w->buf, w->len);
+    LightLock_Unlock(&s->diskLock);
+    speedlog_disk(s->trace, w->len, speedlog_ticks() - start);
+
+    if(R_FAILED(res)) {
+        if(!s->abort) {
+            s->failure = res;
+        }
+
+        s->abort = true;
+        return false;
+    }
+
+    w->written += w->len;
+    w->bufStart += w->len;
+    w->len = 0;
+    return true;
+}
+
+static size_t http_scatter_write(char* ptr, size_t size, size_t nmemb, void* userdata) {
+    http_scatter_worker* w = (http_scatter_worker*) userdata;
+    http_scatter* s = w->s;
+    size_t len = size * nmemb;
+    if(s->abort) {
+        return 0;
+    }
+
+    // A server that ignores the range would put the file's start here.
+    long code = 0;
+    if(curl_easy_getinfo(w->curl, CURLINFO_RESPONSE_CODE, &code) != CURLE_OK || code != 206) {
+        w->badRange = true;
+        return 0;
+    }
+
+    // What fits in the piece, which a connection that took half of it may have shortened.
+    LightLock_Lock(&s->lock);
+    http_piece* piece = &s->pieces[w->piece];
+    u64 room = piece->end > piece->next ? piece->end - piece->next : 0;
+    size_t take = len < room ? len : (size_t) room;
+    piece->next += take;
+    LightLock_Unlock(&s->lock);
+
+    for(size_t done = 0; done < take;) {
+        if(w->len == HTTP_SCATTER_BUFFER && !http_scatter_flush(w)) {
+            return 0;
+        }
+
+        size_t n = take - done < HTTP_SCATTER_BUFFER - w->len ? take - done : HTTP_SCATTER_BUFFER - w->len;
+        memcpy(w->buf + w->len, ptr + done, n);
+        w->len += n;
+        done += n;
+    }
+
+    if(take < len) {
+        w->cut = true;
+        return 0;
+    }
+
+    return len;
+}
+
+static int http_scatter_info(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
+    http_scatter_worker* w = (http_scatter_worker*) clientp;
+    // Past the number that pays off: its piece stops here (the rest goes to another).
+    if(w->index >= w->s->ramp.level) {
+        w->cut = true;
+        return 1;
+    }
+
+    return w->s->abort || http_quit ? 1 : 0;
+}
+
+static void http_scatter_thread(void* arg) {
+    http_scatter_worker* w = (http_scatter_worker*) arg;
+    http_scatter* s = w->s;
+
+    while(!s->abort && !http_quit) {
+        LightLock_Lock(&s->lock);
+        bool done = http_scatter_done(s);
+        bool allowed = w->index < s->maxConnections && w->index < s->ramp.level;
+        s32 piece = !done && allowed ? http_scatter_take(s) : -1;
+        u64 from = 0;
+        u64 to = 0;
+        bool direct = s->direct[0] != '\0';
+        if(piece >= 0) {
+            s->active++;
+            from = s->pieces[piece].next;
+            to = s->pieces[piece].end;
+        }
+
+        LightLock_Unlock(&s->lock);
+
+        if(done) {
+            break;
+        }
+
+        // Not opened (yet), or nothing to take: the others are on the last pieces, and one that fails frees its own.
+        if(piece < 0) {
+            svcSleepThread(allowed ? 20000000 : 100000000);
+            continue;
+        }
+
+        char range[64];
+        snprintf(range, sizeof(range), "%llu-%llu", from, to - 1);
+        w->piece = piece;
+        w->len = 0;
+        w->bufStart = from;
+        w->cut = false;
+        w->badRange = false;
+        w->error[0] = '\0';
+        curl_easy_setopt(w->curl, CURLOPT_URL, direct ? s->direct : s->url);
+        curl_easy_setopt(w->curl, CURLOPT_RANGE, range);
+        CURLcode ret = http_perform(w->curl);
+        long code = 0;
+        curl_easy_getinfo(w->curl, CURLINFO_RESPONSE_CODE, &code);
+
+        // What came is good, even from a request that failed afterwards.
+        bool flushed = http_scatter_flush(w);
+
+        LightLock_Lock(&s->lock);
+        s->active--;
+        s->pieces[piece].taken = false;
+        bool complete = s->pieces[piece].next >= s->pieces[piece].end;
+        LightLock_Unlock(&s->lock);
+
+        if(!flushed || s->abort || http_quit) {
+            break;
+        }
+
+        if(w->cut || complete) {
+            continue;
+        }
+
+        if(w->badRange) {
+            s->failure = code >= 200 && code < 300 ? R_APP_HTTP_ERROR_BASE + 416 : R_APP_HTTP_ERROR_BASE + code;
+            s->abort = true;
+            if(http_log != NULL) {
+                http_log("http: piece at %llu: http %ld instead of the range\n", from, code);
+            }
+
+            break;
+        }
+
+        ret = ret == CURLE_OK ? CURLE_PARTIAL_FILE : ret;
+        bool refused = ret == CURLE_HTTP_RETURNED_ERROR;
+
+        // Where the redirects ended served once (Dropbox) or expired: the address given, at no cost.
+        if(refused && direct) {
+            LightLock_Lock(&s->lock);
+            bool first = s->direct[0] != '\0';
+            s->direct[0] = '\0';
+            LightLock_Unlock(&s->lock);
+            if(first && http_log != NULL) {
+                http_log("http: http %ld where the redirects ended, asking at the address given\n", code);
+            }
+
+            continue;
+        }
+
+        LightLock_Lock(&s->lock);
+        bool again = s->reconnectsLeft > 0;
+        if(again) {
+            s->reconnectsLeft--;
+            // A server that turns this one away: as many as are still open, at most.
+            if(refused && s->active > 0 && s->active < s->maxConnections) {
+                s->maxConnections = s->active;
+            }
+        }
+
+        LightLock_Unlock(&s->lock);
+
+        if(http_log != NULL) {
+            http_log("http: piece at %llu failed: curl %d, http %ld (%s)%s\n", from, (int) ret, code, w->error, again ? ", trying again" : "");
+        }
+
+        if(!again) {
+            s->failure = refused ? R_APP_HTTP_ERROR_BASE + code : R_APP_CURL_ERROR_BASE + ret;
+            s->abort = true;
+            break;
+        }
+
+        svcSleepThread(500000000);
+    }
+
+    __sync_fetch_and_sub(&s->running, 1);
+}
+
+static u64 http_scatter_written(http_scatter* s) {
+    u64 total = 0;
+    for(u32 i = 0; i < s->workerCount; i++) {
+        total += s->workers[i].written;
+    }
+
+    return total;
+}
+
+// [start, size) of the file at `url` (`direct` where its redirects end), each piece written where it goes.
+static Result http_scatter_download(const char* url, const char* direct, u64 start, u64 size, void* userData,
+                                    Result (*writeAt)(void* userData, u64 offset, void* buffer, size_t size),
+                                    Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections),
+                                    http_shared* shared) {
+    http_scatter* s = (http_scatter*) calloc(1, sizeof(http_scatter));
+    if(s == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    string_copy(s->url, url, sizeof(s->url));
+    string_copy(s->direct, direct, sizeof(s->direct));
+    s->size = size;
+    s->userData = userData;
+    s->writeAt = writeAt;
+    s->reconnectsLeft = HTTP_SCATTER_RECONNECTS;
+    LightLock_Init(&s->lock);
+    LightLock_Init(&s->diskLock);
+
+    // The file split among the connections, on the alignment.
+    u64 left = size - start;
+    u32 count = RAMP_MAX;
+    while(count > 1 && left / count < HTTP_SCATTER_MIN_PIECE) {
+        count--;
+    }
+
+    u64 at = start;
+    for(u32 i = 0; i < count; i++) {
+        u64 end = i + 1 == count ? size : start + left / count * (i + 1);
+        end -= i + 1 == count ? 0 : end % HTTP_SCATTER_ALIGN;
+        s->pieces[i].next = at;
+        s->pieces[i].end = end > at ? end : at;
+        at = s->pieces[i].end;
+    }
+
+    s->pieceCount = count;
+    s->workerCount = count;
+    s->maxConnections = count;
+    ramp_init(&s->ramp, HTTP_SCATTER_START, count);
+
+    bool isNew = false;
+    APT_CheckNew3DS(&isNew);
+
+    Result res = 0;
+    for(u32 i = 0; i < s->workerCount && R_SUCCEEDED(res); i++) {
+        http_scatter_worker* w = &s->workers[i];
+        w->s = s;
+        w->index = i;
+        if((w->buf = (u8*) malloc(HTTP_SCATTER_BUFFER)) == NULL) {
+            res = R_APP_OUT_OF_MEMORY;
+        } else if((w->curl = curl_easy_init()) == NULL) {
+            res = R_APP_CURL_INIT_FAILED;
+        } else {
+            http_curl_common(w->curl, s->url, shared);
+            curl_easy_setopt(w->curl, CURLOPT_BUFFERSIZE, (long) HTTP_CHUNK_MAX);
+            curl_easy_setopt(w->curl, CURLOPT_FORBID_REUSE, 1L);
+            curl_easy_setopt(w->curl, CURLOPT_ERRORBUFFER, w->error);
+            curl_easy_setopt(w->curl, CURLOPT_WRITEFUNCTION, http_scatter_write);
+            curl_easy_setopt(w->curl, CURLOPT_WRITEDATA, (void*) w);
+            curl_easy_setopt(w->curl, CURLOPT_NOPROGRESS, 0L);
+            curl_easy_setopt(w->curl, CURLOPT_XFERINFOFUNCTION, http_scatter_info);
+            curl_easy_setopt(w->curl, CURLOPT_XFERINFODATA, (void*) w);
+        }
+    }
+
+    s->trace = speedlog_begin("url", url, size);
+    for(u32 i = 0; i < s->workerCount && R_SUCCEEDED(res); i++) {
+        http_scatter_worker* w = &s->workers[i];
+        __sync_fetch_and_add(&s->running, 1);
+        w->thread = isNew ? threadCreate(http_scatter_thread, w, HTTP_FETCH_STACK, HTTP_FETCH_PRIORITY, 2, false) : NULL;
+        if(w->thread == NULL) {
+            w->thread = threadCreate(http_scatter_thread, w, HTTP_FETCH_STACK, HTTP_FETCH_PRIORITY, -2, false);
+        }
+
+        if(w->thread == NULL) {
+            __sync_fetch_and_sub(&s->running, 1);
+            res = R_APP_THREAD_CREATE_FAILED;
+        }
+    }
+
+    u64 started = osGetTime();
+    u64 lastLog = started;
+    u64 lastWritten = 0;
+    u64 traced = 0;
+    u32 peak = s->ramp.level;
+    while(R_SUCCEEDED(res) && s->running > 0) {
+        u64 written = http_scatter_written(s);
+
+        // As many connections as pay off.
+        if(s->maxConnections < s->ramp.max) {
+            ramp_cap(&s->ramp, s->maxConnections);
+        }
+
+        char note[160];
+        if(ramp_update(&s->ramp, written, note, sizeof(note))) {
+            peak = s->ramp.level > peak ? s->ramp.level : peak;
+            if(http_log != NULL) {
+                http_log("http: %s\n", note);
+            }
+        }
+
+        if(written > traced) {
+            speedlog_net(s->trace, written - traced, 0);
+            traced = written;
+        }
+
+        speedlog_gauge(s->trace, s->active);
+
+        if(checkRunning != NULL && R_FAILED(res = checkRunning(userData))) {
+            break;
+        }
+
+        if(progress != NULL) {
+            progress(userData, size, start + written, s->active);
+        }
+
+        if(http_log != NULL && osGetTime() - lastLog >= 10000) {
+            http_log("http: %llu KB written, %llu KB/s over %lu connections, %lu pieces\n", (start + written) / 1024,
+                     written > lastWritten ? (written - lastWritten) / 1024 * 1000 / (osGetTime() - lastLog) : 0, s->active, s->pieceCount);
+            lastWritten = written;
+            lastLog = osGetTime();
+        }
+
+        u64 waitStart = speedlog_ticks();
+        svcSleepThread(100000000);
+        speedlog_wait(s->trace, speedlog_ticks() - waitStart);
+    }
+
+    s->abort = true;
+    for(u32 i = 0; i < s->workerCount; i++) {
+        http_scatter_worker* w = &s->workers[i];
+        if(w->thread != NULL) {
+            threadJoin(w->thread, U64_MAX);
+            threadFree(w->thread);
+        }
+
+        if(w->curl != NULL) {
+            curl_easy_cleanup(w->curl);
+        }
+
+        free(w->buf);
+    }
+
+    if(R_SUCCEEDED(res) && !http_scatter_done(s)) {
+        res = s->failure != 0 ? s->failure : R_APP_CANCELLED;
+    }
+
+    speedlog_end(s->trace, R_SUCCEEDED(res));
+
+    if(http_log != NULL) {
+        double secs = (osGetTime() - started) / 1000.0;
+        u64 written = http_scatter_written(s);
+        http_log("http: %lu connections (%lu at the end, %lu at most) %s: %llu of %llu bytes in %.1f s (%.0f KB/s), %lu pieces, result %08lX\n",
+                 s->workerCount, s->ramp.level, peak, url, start + written, size, secs, secs > 0 ? written / 1024 / secs : 0, s->pieceCount, res);
+    }
+
+    free(s);
+    return res;
+}
+
+typedef struct {
+    void* userData;
+    Result (*open)(void* userData, void* first, size_t size, u64 total);
+    Result (*writeAt)(void* userData, u64 offset, void* buffer, size_t size);
+    Result (*checkRunning)(void* userData);
+    Result (*progress)(void* userData, u64 total, u64 curr, u32 connections);
+    bool opened;
+    u64 offset;
+} http_file_order;
+
+// One connection after all: the file in order, opened at its first bytes.
+static Result http_file_in_order(void* userData, void* buffer, size_t size) {
+    http_file_order* order = (http_file_order*) userData;
+    Result res = 0;
+    if(!order->opened) {
+        order->opened = true;
+        if(R_FAILED(res = order->open(order->userData, buffer, size, 0))) {
+            return res;
+        }
+    }
+
+    if(R_SUCCEEDED(res = order->writeAt(order->userData, order->offset, buffer, size))) {
+        order->offset += size;
+    }
+
+    return res;
+}
+
+static Result http_file_in_order_running(void* userData) {
+    http_file_order* order = (http_file_order*) userData;
+    return order->checkRunning != NULL ? order->checkRunning(order->userData) : 0;
+}
+
+static Result http_file_in_order_progress(void* userData, u64 total, u64 curr, u32 connections) {
+    http_file_order* order = (http_file_order*) userData;
+    return order->progress != NULL ? order->progress(order->userData, total, curr, connections) : 0;
+}
+
+Result http_download_file(const char* givenUrl, u32 firstSize, void* userData, Result (*open)(void* userData, void* first, size_t size, u64 total),
+                          Result (*writeAt)(void* userData, u64 offset, void* buffer, size_t size),
+                          Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections)) {
+    char direct[256];
+    const char* url = http_direct_url(givenUrl, direct, sizeof(direct));
+    http_disposition[0] = '\0';
+
+    http_shared* shared = (http_shared*) calloc(1, sizeof(http_shared));
+    char* effective = (char*) malloc(1024);
+    u8* first = (u8*) malloc(firstSize);
+    if(shared == NULL || effective == NULL || first == NULL) {
+        free(shared);
+        free(effective);
+        free(first);
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    http_shared_open(shared);
+
+    // The first bytes name the file (a CIA's title) before it is opened.
+    u64 size = 0;
+    u32 got = firstSize;
+    Result res = 0;
+    bool scatter = http_probe(url, effective, 1024, &size, first, &got, shared) && size >= HTTP_PARALLEL_MIN;
+    if(scatter) {
+        if(R_SUCCEEDED(res = open(userData, first, got, size)) && R_SUCCEEDED(res = writeAt(userData, 0, first, got))) {
+            res = http_scatter_download(url, effective, got, size, userData, writeAt, checkRunning, progress, shared);
+        }
+    }
+
+    free(first);
+    free(effective);
+    http_shared_close(shared);
+    free(shared);
+
+    if(!scatter) {
+        http_file_order order = {userData, open, writeAt, checkRunning, progress, false, 0};
+        res = http_download_callback(url, firstSize, &order, http_file_in_order, http_file_in_order_running, http_file_in_order_progress);
     }
 
     return res;

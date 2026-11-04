@@ -161,6 +161,7 @@ void changelog_display(const char* name, changelog_text* text) {
 
     ui_view* view = ui_create();
     view->name = name;
+    view->backArrow = true;
     view->info = _("\uE001 back");
     view->data = text;
     view->update = changelog_view_update;

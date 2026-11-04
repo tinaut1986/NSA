@@ -10,6 +10,7 @@
 #include "../error.h"
 #include "../screen.h"
 #include "../sound.h"
+#include "../speedlog.h"
 #include "../bgmusic.h"
 #include "../appinfo.h"
 #include "../i18n.h"
@@ -255,6 +256,38 @@ void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* 
     ui_status_activity = activity;
 }
 
+// The back arrow of a view that asks for one: pressed while a finger holds it, B when the finger lifts on it.
+#define UI_BACK_ARROW_WIDTH 28
+#define UI_BACK_ARROW_SIZE 22
+static bool ui_back_touching = false;
+
+static bool ui_back_arrow_at(const touchPosition* pos) {
+    return pos->py < WIDGET_TITLE_BAR_HEIGHT && pos->px < UI_BACK_ARROW_WIDTH;
+}
+
+static void ui_update_back_arrow(ui_view* ui) {
+    if(ui == NULL || !ui->backArrow) {
+        ui_back_touching = false;
+        return;
+    }
+
+    touchPosition pos;
+    hidTouchRead(&pos);
+    if(hidKeysDown() & KEY_TOUCH) {
+        ui_back_touching = ui_back_arrow_at(&pos);
+    } else if(hidKeysHeld() & KEY_TOUCH) {
+        if(ui_back_touching && !ui_back_arrow_at(&pos)) {
+            ui_back_touching = false;
+        }
+    } else if(hidKeysUp() & KEY_TOUCH) {
+        if(ui_back_touching) {
+            input_inject_keys(KEY_B, 1);
+        }
+
+        ui_back_touching = false;
+    }
+}
+
 static void ui_draw_bottom(ui_view* ui) {
     const theme_current* t = theme();
 
@@ -275,6 +308,14 @@ static void ui_draw_bottom(ui_view* ui) {
     screen_fill_rect(0, contentTop - 1, BOTTOM_SCREEN_WIDTH, 1, t->palette->border);
     if(ui->drawTitleBar != NULL) {
         ui->drawTitleBar(ui, ui->data, 0, 0, BOTTOM_SCREEN_WIDTH, contentTop);
+    } else if(ui->name != NULL && ui->backArrow) {
+        float cy = (contentTop - UI_BACK_ARROW_SIZE) / 2;
+        if(ui_back_touching) {
+            screen_fill_round_rect(3, cy, UI_BACK_ARROW_SIZE, UI_BACK_ARROW_SIZE, 6, THEME_ALPHA(t->palette->text, 0x22));
+        }
+
+        screen_draw_icon(ICON_ARROW_LEFT, 6, cy + 3, 16, t->palette->text);
+        widget_text_fit(ui->name, UI_BACK_ARROW_WIDTH, (contentTop - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, t->palette->text, BOTTOM_SCREEN_WIDTH - UI_BACK_ARROW_WIDTH - 6);
     } else if(ui->name != NULL) {
         widget_text_centered(ui->name, 0, BOTTOM_SCREEN_WIDTH, (contentTop - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, t->palette->text);
     }
@@ -358,6 +399,7 @@ bool ui_update() {
     bgmusic_update();
 
     ui = ui_top();
+    ui_update_back_arrow(ui);
     if(ui != NULL && ui->update != NULL) {
         ui->update(ui, ui->data, 0, WIDGET_TITLE_BAR_HEIGHT, BOTTOM_SCREEN_WIDTH, BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT);
     }
@@ -374,6 +416,7 @@ bool ui_update() {
     ui = ui_top();
     if(ui != NULL) {
         if(ui_should_draw(ui)) {
+            speedlog_frame();
             screen_begin_frame();
             ui_draw_top(ui);
             ui_draw_bottom(ui);

@@ -19,6 +19,9 @@ void action_delete_system_save_data(linked_list* items, list_item* selected);
 void action_install_cia(linked_list* items, list_item* selected);
 void action_install_cia_delete(linked_list* items, list_item* selected);
 void action_install_cia_delete_now(linked_list* items, list_item* selected);
+// Installs CIAs on the SD card one after another with no question (Remote Install's "Save and install"):
+// `paths` one a line; `delete` deletes each once it is installed.
+void action_install_cia_paths_now(const char* paths, bool delete);
 void action_install_cias(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_cias_delete(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_ticket(linked_list* items, list_item* selected);
@@ -81,6 +84,7 @@ typedef struct {
     char path[512];      // The backup's folder, with the trailing slash.
     char label[96];      // "[NSA] 2026-10-31 14:25:30", "[Checkpoint] name".
     bool checkpoint;     // Checkpoint's layout: the tree right in the folder, no manifest.
+    u8 nameAt;           // Where the name starts in label: after "[NSA] " or "[Checkpoint] " (lists show a badge instead).
 } save_backup;
 // The backups of a title's data, NSA's then Checkpoint's (free the array); the count is the return value.
 u32 action_save_backups(title_info* title, save_kind kind, save_backup** out);
@@ -118,6 +122,9 @@ void action_import_secure_value(linked_list* items, list_item* selected);
 void action_export_secure_value(linked_list* items, list_item* selected);
 void action_delete_secure_value(linked_list* items, list_item* selected);
 
+// Tests (SITE SAVEORDER, DEBUG): false makes "Save" take the file in long pieces written where they go (http_download_file)
+// instead of in order, as an install does (the default).
+void action_install_url_save_in_order(bool inOrder);
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                         void (*finishedURL)(void* data, u32 index),
                         void (*finishedAll)(void* data),

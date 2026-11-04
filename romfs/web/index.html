@@ -91,6 +91,37 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .row .pic{width:40px;height:40px;flex:none;border-radius:calc(var(--rs) - 2px);display:grid;place-items:center;background:var(--bg);color:var(--accent);overflow:hidden;position:relative}
 .row .pic img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s}
 .row .pic img.in{opacity:1}
+.sheet .head.hasback{flex-wrap:wrap;row-gap:6px;padding-top:10px}
+.sheet .head .backrow{flex:0 0 100%;margin-left:-6px}
+.set.sysgrid{max-width:none;display:grid;gap:14px;grid-auto-rows:1fr;grid-template-columns:repeat(auto-fit,minmax(min(100%,max(340px,calc((100% - 14px)/2))),1fr))}
+.sysgrid .cells{grid-template-columns:repeat(auto-fill,minmax(min(100%,max(104px,calc((100% - 18px)/4))),1fr))}
+.sysgrid .card.dragging{opacity:.45;outline:2px dashed var(--accent);outline-offset:-2px}
+.sysgrid .syshd{cursor:grab}
+.syshd{display:flex;gap:12px;align-items:center;padding:12px 0 8px}
+.syshd .stile{width:44px;height:44px;flex:none;border-radius:var(--rs);background:var(--soft);color:var(--accent);display:grid;place-items:center}
+.syshd b{display:block;font-size:17px}.syshd .sub{font-size:12.5px;color:var(--muted)}
+.mrow{display:grid;grid-template-columns:96px 1fr auto;gap:10px;align-items:center;font-size:13px;padding:4px 0}
+.mrow .sbar{height:8px;border-radius:4px;background:var(--bg);overflow:hidden}.mrow .sbar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.mrow small{color:var(--muted);white-space:nowrap}
+.bgraph{margin:0 0 12px;background:var(--bg);border-radius:var(--rs);padding:8px 10px}.bgraph small{display:flex;justify-content:space-between;color:var(--muted);font-size:11.5px}
+.bgraph svg{display:block;width:100%;height:70px;margin-top:4px}
+.chain{display:flex;flex-direction:column;gap:10px}
+.tcard{display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);text-align:left;width:100%;cursor:pointer;transition:background-color var(--fast),transform var(--fast) var(--ease)}
+.tcard:hover{background:var(--soft)}.tcard:active{transform:scale(.985)}
+.tcard .pic{width:56px;height:56px;flex:none;border-radius:calc(var(--rs) - 2px);display:grid;place-items:center;background:var(--bg);color:var(--accent);overflow:hidden}
+.tcard .pic img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s}.tcard .pic img.in{opacity:1}
+.tcard .bd{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:space-between;min-height:56px;gap:2px}
+.tcard .top{display:flex;gap:8px;align-items:center}
+.tcard .nm{font-weight:600;min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tcard .ver{font-size:11.5px;color:var(--muted);white-space:nowrap;flex:none}
+.tcard .sp{flex:1}
+.tcard .sz{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.tcard .low{display:flex;gap:10px;align-items:baseline}
+.tcard .desc{font-size:12.5px;line-height:1.4;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tcard .meta2{font-size:11.5px;color:var(--muted);text-align:right;white-space:nowrap;flex:none;max-width:40%;overflow:hidden;text-overflow:ellipsis}
+.row.has-cnt{position:relative}
+.row .cnt{position:absolute;left:41px;top:5px;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:var(--accent);color:var(--onaccent);font-size:11px;font-weight:600;line-height:18px;text-align:center;box-shadow:0 0 0 2px var(--card);pointer-events:none}
+.list.grid .row .cnt{left:calc(50% + 14px);top:6px}
 .row .chk{position:absolute;inset:0;display:grid;place-items:center;background:var(--accent);color:var(--onaccent);opacity:0;transform:scale(.6);transition:opacity var(--fast),transform var(--fast) var(--spring)}
 .row.sel .chk{opacity:1;transform:none}
 .row .pic:hover .chk{opacity:.55;transform:none}
@@ -101,6 +132,8 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .row .chev{color:var(--muted);opacity:0;transform:translateX(-4px);transition:opacity var(--fast),transform var(--fast)}
 .row:hover .chev{opacity:1;transform:none}
 .badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:1px 7px;border-radius:20px;background:var(--soft);color:var(--accent);letter-spacing:.03em}
+.cpb{display:inline-flex;flex:none;width:22px;height:22px;padding:2px;box-sizing:border-box;border-radius:5px;background:#0E1936}.cpb svg{width:100%;height:100%}
+.nsab{display:inline-flex;flex:none;width:22px;height:22px}.nsab svg{width:100%;height:100%}
 .badge.n{background:var(--bg);color:var(--muted)}
 .list.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
 .list.grid .row{flex-direction:column;justify-content:flex-start;padding:12px 8px 10px;gap:8px;min-height:0;text-align:center}
@@ -162,6 +195,11 @@ dialog.open::backdrop{background:rgba(0,0,0,.45)}
 .toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:flex;flex-direction:column-reverse;gap:8px;align-items:center;z-index:60;pointer-events:none;max-width:92vw}
 .toast{display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:var(--r);box-shadow:var(--shadow);animation:toastIn .32s var(--spring);font-size:14px}
 .toast.out{animation:toastOut .25s var(--ease) forwards}
+.toast.xfer{position:relative;overflow:hidden;padding-bottom:14px}
+.toast .xbar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(127,127,127,.35)}
+.toast .xbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .6s linear}
+.toast.indef .xbar i{width:30%!important;animation:xind 1.2s linear infinite}
+@keyframes xind{from{margin-left:-30%}to{margin-left:100%}}
 .toast.ok .ic{color:var(--success)}.toast.err .ic{color:var(--danger)}
 @keyframes toastIn{from{opacity:0;transform:translateY(16px) scale(.95)}to{opacity:1;transform:none}}
 @keyframes toastOut{to{opacity:0;transform:translateY(10px) scale(.96)}}
@@ -355,9 +393,9 @@ textarea.code{width:100%;height:56vh;font:13px/1.45 ui-monospace,Consolas,monosp
 // ---- words: the console's language when it is English or Spanish, else the browser's ----
 const WORDS = {
 en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',lost:'Cannot reach the console.',failed:'Failed: ',done:'Done.',
-  g_manage:'Manage',g_tools:'Tools',titles:'Titles',files:'Files',tickets:'Tickets',extdata:'Extra data',install:'Install',screen:'Screen',settings:'Settings',
+  g_manage:'Manage',g_tools:'Tools',system:'System',sy_console:'Console',sy_network:'Network',sy_storage:'Storage',sy_battery:'Battery',sy_region:'Region',sy_country:'Country',sy_lang:'Language',sy_serial:'Serial number',sy_devid:'Device ID',sy_screens:'Screens',sy_sysver:'System version',sy_kernel:'Kernel',sy_mcu:'MCU firmware',sy_runas:'Running as',sy_uptime:'Up for',sy_netmask:'Netmask',sy_gateway:'Gateway',sy_signal:'Signal',sy_mac:'MAC address',sy_lease:'DHCP lease',sy_ftp:'FTP server',sy_web:'Web server',sy_conn:'Connected',sy_notconn:'Not connected',sy_port:'Port %n',sy_made:'Made',sy_speed:'Speed',sy_writable:'Writable',sy_cluster:'Cluster size',sy_freeof:'%a free of %b',sy_sd:'SD card',sy_voltage:'Voltage',sy_temp:'Temperature',sy_charger:'Charger',sy_plugged:'Plugged in',sy_unplugged:'Unplugged',sy_charging:'Charging',sy_onadapter:'On the charger, not charging',sy_onbat:'On battery',sy_chrate:'Charging rate',sy_drrate:'Draining rate',sy_fullin:'Full in',sy_emptyin:'Empty in',sy_level:'Level (0-5)',sy_measuring:'Measuring…',sy_watched:'Watched for',titles:'Titles',files:'Files',tickets:'Tickets',extdata:'Extra data',install:'Install',screen:'Screen',settings:'Settings',
   search:'Search',filter:'Filter',sort:'Sort',view:'View',list:'List',grid:'Grid',more:'More',reload:'Reload',close:'Close',cancel:'Cancel',ok:'OK',save:'Save',
-  k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
+  k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',group:'Group updates and DLC',yes:'Yes',no:'No',chain:'Updates and DLC',kg1:'Game',back:'Back',ku1:'Update',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
   loaded:'%a of %b',notitles:'Nothing matches.',loading:'Loading…',version:'Version',size:'Size',code:'Product code',publisher:'Publisher',id:'Title ID',type:'Type',path:'Path',modified:'Modified',
   launch:'Launch',deleteTitle:'Delete',delticket:'Delete with ticket',data:'Data',dsave:'Download save',dext:'Download extra data',dboss:'Download SpotPass data',m_save:'Save data',m_ext:'Extra data',m_boss:'SpotPass data',dpack:'Download (a .nsasave package)',backups:'Backups on the SD card',restore:'Restore (the console asks first)',confirmdelbackup:'Delete the backup "%s"? This cannot be undone.',cpnote:'It is Checkpoint\'s: Checkpoint will not see it any more.',
   sendpkg:'Send a save package',sendpkgsub:'A .nsasave package made by NSA: the console unpacks it and asks there.',packing:'Packing',packstart:'The console is packing it (B there cancels)…',counting:'Counting files…',downloading:'Downloading',cancelled:'Cancelled.',packbusy:'The console is still packing the last one.',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and kept on the console (this title or its data is not there).',
@@ -372,14 +410,14 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
   t_type:{text:'Text',code:'Code',data:'Data',image:'Picture',audio:'Sound',video:'Video',archive:'Compressed',program:'Program',rom:'Game ROM',save:'Save file',binary:'Binary',pdf:'PDF',cia:'CIA',ticket:'Ticket',file:'File'},
   i_urls:'Install from URLs',i_urlssub:'Paste links to CIAs: the console asks there, downloads and installs.',i_cia:'Install a CIA from this PC',i_ciasub:'Upload it and install it; the copy on the SD card is deleted after.',
   i_hist:'History',i_histsub:'What was sent to Remote Install before.',i_log:'Transfer log',i_logsub:'The end of transfer-log.txt.',urls:'One URL per line',send:'Send to the console',again:'Install again',nohist:'Nothing yet.',nolog:'(no log)',
-  live:'Live',nolive:'The console does not answer.',padnote:'Click the bottom screen to touch it, drag up or down to scroll. Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',
+  live:'Live',nolive:'The console does not answer.',busy:'The console is busy with %k: %n%p. One transfer at a time: try again when it ends.',busylive:'Paused while the console transfers (%k: %n%p).',k_ftp:'FTP',k_web:'this page',k_download:'a download',k_console:'another 3DS',padnote:'Click the bottom screen to touch it, drag up or down to scroll. Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',
   ap:'Appearance',theme:'Theme',themesub:'How every screen looks, here and on the console.',accent:'Accent colour',night:'Night mode',nightsub:'Auto: from 20:00 to 8:00 by the console\'s clock.',off:'Off',on:'On',auto:'Auto',language:'Language',lsystem:'Console\'s',
   snd:'Sound',sounds:'Interface sounds',soundssub:'Ticks and clicks; Alerts plays only success and error.',alerts:'Alerts',all:'All',music:'Background music',musicsub:'Made on the console as it plays.',m_lift:'Lift',m_calm:'Calm',m_shop:'Shop',
-  page:'This page',psound:'Sounds in this page',psoundsub:'The console\'s tones, played by the browser (as set above).',pmotion:'Animations',pmotionsub:'Movement in lists, sheets and screens.',signout:'Sign out',signoutsub:'Forget the PIN in this browser.',about:'Console',address:'Address'},
+  page:'This page',pmusic:'Console music here',pmusicsub:'Plays the song the console is playing, in its style and volume. Needs the console to have made it once.',psound:'Sounds in this page',psoundsub:'The console\'s tones, played by the browser (as set above).',pmotion:'Animations',pmotionsub:'Movement in lists, sheets and screens.',signout:'Sign out',signoutsub:'Forget the PIN in this browser.',about:'Console',address:'Address'},
 es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',lost:'No se puede contactar con la consola.',failed:'Error: ',done:'Hecho.',
-  g_manage:'Gestionar',g_tools:'Herramientas',titles:'Títulos',files:'Archivos',tickets:'Tickets',extdata:'Datos extra',install:'Instalar',screen:'Pantalla',settings:'Ajustes',
+  g_manage:'Gestionar',g_tools:'Herramientas',system:'Sistema',sy_console:'Consola',sy_network:'Red',sy_storage:'Almacenamiento',sy_battery:'Batería',sy_region:'Región',sy_country:'País',sy_lang:'Idioma',sy_serial:'Número de serie',sy_devid:'ID de dispositivo',sy_screens:'Pantallas',sy_sysver:'Versión del sistema',sy_kernel:'Kernel',sy_mcu:'Firmware MCU',sy_runas:'Se ejecuta como',sy_uptime:'Encendida desde hace',sy_netmask:'Máscara',sy_gateway:'Puerta de enlace',sy_signal:'Señal',sy_mac:'Dirección MAC',sy_lease:'Concesión DHCP',sy_ftp:'Servidor FTP',sy_web:'Servidor web',sy_conn:'Conectada',sy_notconn:'Sin conexión',sy_port:'Puerto %n',sy_made:'Fabricada',sy_speed:'Velocidad',sy_writable:'Escritura',sy_cluster:'Tamaño de clúster',sy_freeof:'%a libres de %b',sy_sd:'Tarjeta SD',sy_voltage:'Voltaje',sy_temp:'Temperatura',sy_charger:'Cargador',sy_plugged:'Conectado',sy_unplugged:'Desconectado',sy_charging:'Cargando',sy_onadapter:'En el cargador, sin cargar',sy_onbat:'Con batería',sy_chrate:'Ritmo de carga',sy_drrate:'Ritmo de descarga',sy_fullin:'Llena en',sy_emptyin:'Vacía en',sy_level:'Nivel (0-5)',sy_measuring:'Midiendo…',sy_watched:'Observada durante',titles:'Títulos',files:'Archivos',tickets:'Tickets',extdata:'Datos extra',install:'Instalar',screen:'Pantalla',settings:'Ajustes',
   search:'Buscar',filter:'Filtrar',sort:'Ordenar',view:'Vista',list:'Lista',grid:'Cuadrícula',more:'Más',reload:'Recargar',close:'Cerrar',cancel:'Cancelar',ok:'Aceptar',save:'Guardar',
-  k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
+  k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',group:'Agrupar actualizaciones y DLC',yes:'Sí',no:'No',chain:'Actualizaciones y DLC',kg1:'Juego',back:'Volver',ku1:'Actualización',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
   loaded:'%a de %b',notitles:'No hay nada que coincida.',loading:'Cargando…',version:'Versión',size:'Tamaño',code:'Código de producto',publisher:'Editor',id:'ID de título',type:'Tipo',path:'Ruta',modified:'Modificado',
   launch:'Lanzar',deleteTitle:'Borrar',delticket:'Borrar con ticket',data:'Datos',dsave:'Descargar partida',dext:'Descargar datos extra',dboss:'Descargar datos SpotPass',m_save:'Partidas',m_ext:'Datos extra',m_boss:'Datos SpotPass',dpack:'Descargar (un paquete .nsasave)',backups:'Copias en la SD',restore:'Restaurar (la consola pregunta antes)',confirmdelbackup:'¿Borrar la copia "%s"? No se puede deshacer.',cpnote:'Es de Checkpoint: Checkpoint dejará de verla.',
   sendpkg:'Enviar un paquete de partida',sendpkgsub:'Un paquete .nsasave hecho por NSA: la consola lo desempaqueta y pregunta allí.',packing:'Empaquetando',packstart:'La consola lo está empaquetando (B allí lo cancela)…',counting:'Contando archivos…',downloading:'Descargando',cancelled:'Cancelado.',packbusy:'La consola aún está empaquetando el anterior.',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están).',
@@ -394,10 +432,10 @@ es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wron
   t_type:{text:'Texto',code:'Código',data:'Datos',image:'Imagen',audio:'Sonido',video:'Vídeo',archive:'Comprimido',program:'Programa',rom:'ROM de juego',save:'Partida',binary:'Binario',pdf:'PDF',cia:'CIA',ticket:'Ticket',file:'Archivo'},
   i_urls:'Instalar desde URLs',i_urlssub:'Pega enlaces a CIAs: la consola pregunta allí, descarga e instala.',i_cia:'Instalar un CIA desde este PC',i_ciasub:'Se sube y se instala; la copia en la SD se borra después.',
   i_hist:'Historial',i_histsub:'Lo que se envió antes a Remote Install.',i_log:'Registro de transferencias',i_logsub:'El final de transfer-log.txt.',urls:'Una URL por línea',send:'Enviar a la consola',again:'Instalar otra vez',nohist:'Nada todavía.',nolog:'(sin registro)',
-  live:'En vivo',nolive:'La consola no responde.',padnote:'Pulsa la pantalla de abajo para tocarla, arrastra arriba o abajo para desplazar. Teclas: flechas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Intro = Start, Retroceso = Select.',
+  live:'En vivo',nolive:'La consola no responde.',busy:'La consola está ocupada con %k: %n%p. Una transferencia a la vez: vuelve a probar cuando acabe.',busylive:'En pausa mientras la consola transfiere (%k: %n%p).',k_ftp:'FTP',k_web:'esta página',k_download:'una descarga',k_console:'otra 3DS',padnote:'Pulsa la pantalla de abajo para tocarla, arrastra arriba o abajo para desplazar. Teclas: flechas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Intro = Start, Retroceso = Select.',
   ap:'Apariencia',theme:'Tema',themesub:'Cómo se ven todas las pantallas, aquí y en la consola.',accent:'Color de acento',night:'Modo noche',nightsub:'Auto: de 20:00 a 8:00 según el reloj de la consola.',off:'No',on:'Sí',auto:'Auto',language:'Idioma',lsystem:'El de la consola',
   snd:'Sonido',sounds:'Sonidos de la interfaz',soundssub:'Ticks y clics; Avisos solo suena al acabar bien o mal.',alerts:'Avisos',all:'Todos',music:'Música de fondo',musicsub:'La consola la compone mientras suena.',m_lift:'Lift',m_calm:'Calma',m_shop:'Tienda',
-  page:'Esta página',psound:'Sonidos en esta página',psoundsub:'Los tonos de la consola, sonando en el navegador (como arriba).',pmotion:'Animaciones',pmotionsub:'Movimiento en listas, hojas y pantallas.',signout:'Cerrar sesión',signoutsub:'Olvidar el PIN en este navegador.',about:'Consola',address:'Dirección'}
+  page:'Esta página',pmusic:'Música de la consola aquí',pmusicsub:'Suena la canción que reproduce la consola, con su estilo y volumen. La consola tiene que haberla creado alguna vez.',psound:'Sonidos en esta página',psoundsub:'Los tonos de la consola, sonando en el navegador (como arriba).',pmotion:'Animaciones',pmotionsub:'Movimiento en listas, hojas y pantallas.',signout:'Cerrar sesión',signoutsub:'Olvidar el PIN en este navegador.',about:'Consola',address:'Dirección'}
 };
 const store = { get(k,d){ try { const v = localStorage.getItem('nsa.'+k); return v===null ? d : JSON.parse(v); } catch(e){ return d; } },
                 set(k,v){ try { localStorage.setItem('nsa.'+k, JSON.stringify(v)); } catch(e){} } };
@@ -417,6 +455,10 @@ function h(tag, props, ...kids){
 const NAMES = typeof ICON_NAMES!=='undefined' ? ICON_NAMES : [], COLS = typeof ICON_COLUMNS!=='undefined' ? ICON_COLUMNS : 16;
 function setIcon(e, name){ const i = NAMES.indexOf(name); e.style.visibility = i<0 ? 'hidden' : ''; e.style.setProperty('--c', i%COLS); e.style.setProperty('--r', Math.floor(i/COLS)); return e; }
 const ic = (name, size) => setIcon(h('span', {class:'ic'+(size?' s'+size:'')}), name);
+// Checkpoint's logo in its own colours (a pale flag on navy): the badge of its backups.
+const cpBadge = () => { const e = h('span', {class:'cpb', title:'Checkpoint'}); e.innerHTML = '<svg viewBox="0 0 24 24" fill="#A8E2F0"><path d="M3 4h10.5l1.5 7.5h-10.5z"/><path d="M15.2 7h4.8l1.5 8h-10.5l-0.45-2.5h5.3z"/><path d="M4.4 12.5h2l1.6 7.5h-2z"/></svg>'; return e; };
+// NSA's icon made small, as on the console: the blue window with its title bar and the N of its "NSA".
+const nsaBadge = () => { const e = h('span', {class:'nsab', title:'NSA'}); e.innerHTML = '<svg viewBox="0 0 20 20" shape-rendering="crispEdges"><rect width="20" height="20" rx="4" fill="#185FA5"/><rect x="2" y="2" width="16" height="4" fill="#378ADD"/><rect x="2" y="6" width="16" height="12" fill="#fff"/><path fill="#fff" d="M4 3h1v2h-1zM7 3h1v2h-1zM10 3h1v2h-1z"/><path fill="#185FA5" d="M6 7h2v7h-2zM12 7h2v7h-2zM8 8h1v2h-1zM9 9h1v2h-1zM10 10h1v2h-1zM11 11h1v2h-1z"/><rect x="4" y="15" width="12" height="1" fill="#378ADD"/></svg>'; return e; };
 document.querySelectorAll('[data-ic]').forEach(e => setIcon(e, e.dataset.ic));
 function fmtSize(n){ if(n<1024) return n+' B'; const u=['KB','MB','GB','TB']; let i=-1; do { n/=1024; i++; } while(n>=1024 && i<3); return n.toFixed(n<10?2:n<100?1:0)+' '+u[i]; }
 function fmtDate(s){ if(!s) return ''; const d = new Date(s*1000); return d.toLocaleDateString(L,{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString(L,{hour:'2-digit',minute:'2-digit'}); }
@@ -448,15 +490,93 @@ function sfx(name){
   } catch(e){}
 }
 
+// ---- the console's music, here ----
+// The console keeps the last song of each style on the SD card (/nsa/music-cache-N.pcm: a 20-byte header, then mono 16-bit at
+// 22050 Hz, a loop without a seam). The page plays that very file, in the console's style and volume, and fetches it again
+// (crossfading) when the console makes a new one. A copy is kept in this browser per song.
+const MUSIC_GAIN = .8;
+let mus = {style:0, mtime:0, src:null, gain:null, busy:false, timer:0};
+function musicCtx(){ audio = audio || new (window.AudioContext||window.webkitAudioContext)(); return audio; }
+function musicGainNow(){ return settings ? settings.musicVolume/100*MUSIC_GAIN : 0; }
+function stopMusic(){
+  if(!mus.src) return;
+  const {src, gain} = mus; mus.src = null; mus.gain = null; mus.style = 0; mus.mtime = 0;
+  try { const t = audio.currentTime; gain.gain.cancelScheduledValues(t); gain.gain.setValueAtTime(gain.gain.value, t); gain.gain.linearRampToValueAtTime(0, t+1); src.stop(t+1.05); } catch(e){}
+}
+async function musicBuffer(style, mtime){
+  const key = 'music/'+style+'/'+mtime;
+  let raw = await idbDo('readonly', st => st.get(key));
+  if(!raw){
+    const r = await fetch(fileUrl('/nsa/music-cache-'+style+'.pcm'), {headers:{'X-Pin':pin}});
+    if(r.status===401){ const e = new ApiError(T.wrong); e.auth = true; throw e; }
+    if(!r.ok) throw new ApiError(r.statusText);
+    raw = await r.arrayBuffer();
+    idbDo('readwrite', st => st.put(raw, key));
+  }
+  const v = new DataView(raw);
+  if(raw.byteLength < 20 || v.getUint32(0, true) !== 0x4D41534E) throw new ApiError('music');
+  const frames = v.getUint32(12, true), rate = v.getUint32(16, true);
+  if(20+frames*2 > raw.byteLength) throw new ApiError('music');
+  const ctx = musicCtx(), b = ctx.createBuffer(1, frames, rate), out = b.getChannelData(0);
+  for(let i=0;i<frames;i++) out[i] = v.getInt16(20+i*2, true)/32768;
+  return b;
+}
+async function syncMusic(){
+  if(mus.busy || !settings) return; mus.busy = true;
+  try {
+    const want = store.get('pageMusic', true) && settings.music>0 ? settings.music : 0;
+    if(!want){ stopMusic(); return; }
+    if(mus.src && mus.style===want){ mus.gain.gain.setTargetAtTime(musicGainNow(), audio.currentTime, .2); }
+    const j = await api('GET', 'list', {path:'/nsa'});
+    const f = (j.files||[]).find(f => f.name==='music-cache-'+want+'.pcm');
+    if(!f){ if(mus.style && mus.style!==want) stopMusic(); return; }
+    if(mus.src && mus.style===want && mus.mtime===f.mtime) return;
+    const buf = await musicBuffer(want, f.mtime);
+    if(!store.get('pageMusic', true) || !settings.music) return;
+    const ctx = musicCtx(), src = ctx.createBufferSource(), g = ctx.createGain(), t = ctx.currentTime;
+    src.buffer = buf; src.loop = true; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(musicGainNow(), t+3.5);
+    src.connect(g).connect(ctx.destination); src.start();
+    const old = mus.src, oldGain = mus.gain;
+    if(old){ oldGain.gain.cancelScheduledValues(t); oldGain.gain.setValueAtTime(oldGain.gain.value, t); oldGain.gain.linearRampToValueAtTime(0, t+3.5); old.stop(t+3.6); }
+    mus.src = src; mus.gain = g; mus.style = want; mus.mtime = f.mtime;
+    if(ctx.state==='suspended') ctx.resume().catch(() => {});
+  } catch(e){ if(e.auth) showLogin(e.message); }
+  finally { mus.busy = false; }
+}
+// A browser starts sound only after a click or key: the first one wakes it.
+for(const ev of ['pointerdown','keydown']) addEventListener(ev, () => { if(audio && audio.state==='suspended') audio.resume().catch(() => {}); }, {capture:true});
+// What the console plays (and any other setting) can change from its own screen: ask every few seconds, and redraw only when
+// something changed (not while a finger or the mouse is down, so a slider being dragged is not pulled away).
+let pointerDown = false;
+for(const ev of ['pointerdown','pointerup','pointercancel']) addEventListener(ev, e => { pointerDown = e.type==='pointerdown'; }, {capture:true});
+setInterval(async () => {
+  if(document.hidden || $('app').hidden || pointerDown || setBusy) return;
+  try {
+    const s = await api('GET', 'settings');
+    if(JSON.stringify(s) === JSON.stringify(settings)) return;
+    settings = s; applyConsoleSettings(); themeKey = ''; loadTheme();
+    if(current==='settings') renderSettings();
+  } catch(e){}
+}, 5000);
+// A new song made by the console appears in /nsa: look for it now and then.
+setInterval(() => { if(!document.hidden && !$('app').hidden) syncMusic(); }, 30000);
+
 // ---- talking to the console ----
 let pin = '';
 class ApiError extends Error {}
+// What the console is transferring (info.transfer, or a 503's "busy"), in words: one transfer at a time.
+const XFER_KINDS = {'FTP':'k_ftp', 'web page':'k_web', 'download':'k_download', 'another 3DS':'k_console'};
+function busyText(b, key){
+  const name = (b.name||'').replace(/\/+$/, '').split('/').pop() || b.name || '';
+  return tr(key, {k:T[XFER_KINDS[b.kind]] || b.kind, n:name, p:b.total ? ' ('+Math.floor(100*b.done/b.total)+' %)' : ''});
+}
 async function api(method, path, params, body){
   let r;
   try { r = await fetch('/api/'+path+(params ? '?'+(typeof params==='string' ? params : q(params)) : ''), {method, headers:{'X-Pin':pin}, body}); }
   catch(e){ throw new ApiError(T.lost); }
   let j = null; try { j = await r.json(); } catch(e){}
   if(r.status===401 || r.status===429){ const e = new ApiError(r.status===401 ? T.wrong : T.locked); e.auth = true; throw e; }
+  if(r.status===503 && j && j.busy){ const e = new ApiError(busyText(j.busy, 'busy')); e.status = 503; e.busy = j.busy; throw e; }
   if(!r.ok || (j && j.ok===false)){ const e = new ApiError((j && j.error) || r.statusText); e.status = r.status; throw e; }
   return j;
 }
@@ -466,16 +586,16 @@ const fileUrl = path => '/api/file?'+q({path});
 // Background loads (names, icons) one at a time, what is on screen first: the console serves one request at a time.
 const bgq = []; let bgBusy = false;
 const seen = new IntersectionObserver(es => { for(const e of es) e.target._vis = e.isIntersecting; pumpBg(); }, {rootMargin:'200px'});
-function later(el, fn){ bgq.push({el, fn}); seen.observe(el); pumpBg(); }
+function later(el, fn, first){ bgq[first ? 'unshift' : 'push']({el, fn}); seen.observe(el); pumpBg(); }
 async function pumpBg(){
   if(bgBusy) return; bgBusy = true;
   while(bgq.length){
     let i = bgq.findIndex(j => j.el._vis && j.el.isConnected);
     if(i<0) i = bgq.findIndex(j => j.el.isConnected && j.el.offsetParent);
     if(i<0) i = bgq.findIndex(j => j.el.isConnected);
-    if(i<0){ bgq.length = 0; break; }
+    if(i<0){ for(const j of bgq) j.el._queued = false; bgq.length = 0; break; }
     const [job] = bgq.splice(i, 1); seen.unobserve(job.el);
-    try { await job.fn(); } catch(e){ if(e.auth){ bgq.length = 0; showLogin(e.message); break; } }
+    try { await job.fn(); } catch(e){ if(e.auth){ for(const j of bgq) j.el._queued = false; bgq.length = 0; showLogin(e.message); break; } }
   }
   bgBusy = false;
 }
@@ -493,7 +613,7 @@ function putIcon(pic, u){ if(!u) return; const img = h('img', {alt:'', class:'px
 function toast(text, kind){
   const t = h('div', {class:'toast '+(kind||'')}, ic(kind==='err' ? 'alert-triangle' : kind==='ok' ? 'check' : 'info-circle', 16), h('span', {text}));
   $('toasts').append(t);
-  while($('toasts').children.length > 4) $('toasts').firstChild.remove();
+  while($('toasts').children.length > 4) $('toasts').firstElementChild.remove();
   setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 260); }, kind==='err' ? 6000 : 3800);
 }
 const openSheets = new Set();
@@ -512,7 +632,7 @@ function sheet({head, body, foot, wide, onclose}){
   pane.addEventListener('touchend', e => { if(y0==null) return; const dy = e.changedTouches[0].clientY-y0; y0 = null; pane.style.transition=''; pane.style.transform=''; if(dy>90) close(); });
   return {close, el:d, pane};
 }
-function sheetHead(pic, title, sub){ return h('div', {class:'head'}, h('div', {class:'big'}, pic), h('div', {style:'min-width:0'}, h('h3', {text:title}), sub ? h('div', {class:'sub', text:sub}) : null)); }
+function sheetHead(pic, title, sub, back){ return h('div', {class:'head'+(back ? ' hasback' : '')}, back ? h('div', {class:'backrow'}, h('button', {class:'tool back', title:T.back, 'aria-label':T.back, onclick:back}, ic('arrow-left'))) : null, h('div', {class:'big'}, pic), h('div', {style:'min-width:0'}, h('h3', {text:title}), sub ? h('div', {class:'sub', text:sub}) : null)); }
 const cells = list => h('div', {class:'cells'}, list.filter(c => c && c[1]!=null && c[1]!=='').map(([b,s]) => h('div', {class:'cell'}, h('b', {text:b}), h('span', {text:s, title:s}))));
 // Actions: [icon, label, fn, {danger, note}] or a string (a group label). Choosing one closes the sheet first.
 function actions(list, closeFn){
@@ -548,6 +668,13 @@ addEventListener('mousedown', e => { if(openMenu && !openMenu.contains(e.target)
 addEventListener('keydown', e => { if(e.key==='Escape') closeMenu(); });
 addEventListener('blur', closeMenu);
 const menuAt = (btn, items) => { const r = btn.getBoundingClientRect(); menu(r.left, r.bottom+6, items); };
+// The console's languages, each in its own name. The page itself has English and Spanish words; the others show English.
+function langSelect(value){
+  const names = [['system',T.lsystem],['en','English'],['es','Español'],['ca','Català'],['fr','Français'],['de','Deutsch'],['it','Italiano'],['pt','Português'],['ru','Русский'],['ja','日本語'],['zh','简体中文'],['tw','繁體中文']];
+  const sel = h('select', {'aria-label':T.language}, names.map(([v, n]) => h('option', {value:v, text:n, selected:v===value})));
+  sel.onchange = () => { sfx('tick'); changeSetting({language:sel.value}); };
+  return sel;
+}
 function seg(options, value, onpick){
   const s = h('div', {class:'seg'});
   options.forEach(([v, label, icon]) => s.append(h('button', {class:v===value?'on':'', onclick:() => { [...s.children].forEach(b => b.classList.remove('on')); s.children[options.findIndex(o => o[0]===v)].classList.add('on'); sfx('tick'); onpick(v); }}, icon ? ic(icon,16) : null, label)));
@@ -582,13 +709,16 @@ pf.oninput = () => { pf.value = pf.value.replace(/\D/g,'').slice(0,6); drawPins(
   if(k==='⌫') pf.value = pf.value.slice(0,-1); else if(k==='↵'){ if(pf.value) login(pf.value); return; } else pf.value += k;
   pf.oninput(); pf.focus(); }})));
 $('login').onclick = () => pf.focus();
-function showLogin(msg){
+function showLogin(msg, keep){
   $('app').hidden = true; $('login').hidden = false; $('t_pin').textContent = T.pin; $('loginmsg').textContent = msg||'';
   if(msg){ $('pins').classList.remove('shake'); void $('pins').offsetWidth; $('pins').classList.add('shake'); sfx('error'); }
-  pf.value = ''; drawPins(); pf.focus();
+  if(!keep) pf.value = '';
+  drawPins(); pf.focus();
 }
 let info = {}, settings = null;
-async function login(p){
+// auto: the PIN kept from this tab's last visit. If it no longer fits (the console changed it), the PIN screen simply stays: no error
+// and no sound, and what the user has already typed is kept.
+async function login(p, auto){
   pin = p; document.cookie = 'pin='+encodeURIComponent(pin)+'; path=/; SameSite=Strict';
   try {
     info = await api('GET', 'info');
@@ -596,10 +726,11 @@ async function login(p){
     sessionStorage.setItem('pin', pin);
     $('login').hidden = true; $('app').hidden = false; sfx('success');
     buildRail(); drawStatus(); route();
-  } catch(e){ showLogin(e.message); }
+  } catch(e){ if(auto && e.auth){ sessionStorage.removeItem('pin'); showLogin('', true); } else showLogin(e.message); }
 }
 function applyConsoleSettings(){
   soundMode = settings.sounds; soundVolume = settings.soundVolume;
+  syncMusic();
   const want = settings.language==='es' ? 'es' : settings.language==='en' ? 'en' : (navigator.language||'en').startsWith('es') ? 'es' : 'en';
   if(want!==L){ L = want; T = WORDS[L]; document.documentElement.lang = L; store.set('lang', L); if(!$('app').hidden){ buildRail(); route(true); } }
 }
@@ -611,12 +742,33 @@ function drawStatus(){
   if(info.total){ $('sdtext').textContent = fmtSize(info.free)+' / '+fmtSize(info.total); $('sdfill').style.width = (100*(1-info.free/info.total)).toFixed(1)+'%'; }
   const b = $('battery'); b.textContent = '';
   if(info.battery!=null) b.append(ic(info.charging ? 'battery-charging' : ['battery','battery-1','battery-1','battery-2','battery-3','battery-4'][Math.min(5, info.battery)], 16));
+  drawTransfer(info.transfer);
+}
+// What the console transfers now, as a toast at the bottom that follows its progress (the status poll runs every 3 s meanwhile).
+let xferToast = null;
+function drawTransfer(x){
+  if(!x){ if(xferToast){ const t = xferToast; xferToast = null; t.classList.add('out'); setTimeout(() => t.remove(), 260); } return; }
+  const name = (x.name||'').split('/').pop() || x.name || '';
+  const pct = x.total ? Math.floor(100*x.done/x.total) : -1;
+  if(!xferToast){
+    xferToast = h('div', {class:'toast xfer'}, ic('download', 16), h('span', {class:'xt'}), h('span', {class:'xbar'}, h('i')));
+    $('toasts').prepend(xferToast);
+  }
+  xferToast.querySelector('.xt').textContent = (T[XFER_KINDS[x.kind]] || x.kind)+': '+name+(pct>=0 ? ' · '+pct+' %' : '')+(x.kbs ? ' · '+x.kbs+' KB/s' : '');
+  xferToast.querySelector('.xbar i').style.width = Math.max(0, pct)+'%';
+  xferToast.classList.toggle('indef', pct<0);
 }
 setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString(L, {hour:'2-digit', minute:'2-digit'}); }, 1000);
-setInterval(async () => { if($('app').hidden || document.hidden) return; try { info = await api('GET','info'); drawStatus(); $('wifi').style.opacity = 1; } catch(e){ $('wifi').style.opacity = .3; } }, 30000);
+// The status every 30 s; every 3 s while the console transfers, to show how far it is.
+(function poll(){
+  setTimeout(async () => {
+    if(!$('app').hidden && !document.hidden){ try { info = await api('GET','info'); drawStatus(); $('wifi').style.opacity = 1; } catch(e){ $('wifi').style.opacity = .3; } }
+    poll();
+  }, info && info.transfer ? 3000 : 30000);
+})();
 
 // ---- the menu and the screens (#titles, #files/sd/path...) ----
-const SCREENS = [['g_manage'], ['titles','apps'], ['files','folder'], ['tickets','ticket'], ['extdata','database'], ['g_tools'], ['install','world-download'], ['screen','device-desktop'], ['settings','settings']];
+const SCREENS = [['g_manage'], ['titles','apps'], ['files','folder'], ['tickets','ticket'], ['extdata','database'], ['g_tools'], ['install','world-download'], ['screen','device-desktop'], ['system','3ds'], ['settings','settings']];
 let current = '';
 function buildRail(){
   const r = $('rail'); r.textContent = '';
@@ -643,8 +795,17 @@ function emptyEl(icon, text, sub){ return h('div', {class:'empty'}, ic(icon), h(
 function skeletonRows(n){ return Array.from({length:n}, (_, i) => h('div', {class:'row', vars:{i}}, h('div', {class:'pic'}), h('div', {class:'txt'}, h('div', {class:'nm'}, h('span', {class:'sk', style:'width:'+(40+((i*37)%45))+'%'})), h('div', {class:'sub'}, h('span', {class:'sk', style:'width:30%'}))))); }
 
 // ---- titles ----
-const TV = {kind:store.get('t.kind','game'), media:store.get('t.media','all'), sort:store.get('t.sort','name'), view:store.get('t.view','list'), text:''};
+const TV = {kind:store.get('t.kind','game'), media:store.get('t.media','all'), sort:store.get('t.sort','name'), view:store.get('t.view','list'), group:store.get('t.group', true), text:''};
 let titles = null, titleRows = new Map(), titlesLoading = false;
+// Grouping, as on the console: an update or DLC whose game is in the list (same low 32 bits of the ID) hides behind it,
+// and the game shows how many hang from it. Only while games are shown (Games or All).
+let extrasOf = new Map();
+const lowId = t => t.id.slice(8);
+function linkTitles(){
+  extrasOf = new Map(); for(const t of titles){ t._linked = false; }
+  const games = new Map(); for(const t of titles) if(t.kind==='game') games.set(lowId(t), t);
+  for(const t of titles) if(t.kind==='update' || t.kind==='dlc'){ const g = games.get(lowId(t)); if(g){ t._linked = true; if(!extrasOf.has(tkey(g))) extrasOf.set(tkey(g), []); extrasOf.get(tkey(g)).push(t); } }
+}
 const KINDS = () => [['game',T.k_game],['update',T.k_update],['dlc',T.k_dlc],['system',T.k_system],['all',T.k_all]];
 const tkey = t => t.id+t.media;
 function kindOk(t){ const k = TV.kind; return k==='all' || (k==='game' ? t.kind==='game'||t.kind==='demo' : k==='system' ? t.kind==='system'||t.kind==='dsiware' : t.kind===k); }
@@ -653,13 +814,14 @@ screens.titles = {
     const list = h('div', {class:'list anim'+(TV.view==='grid'?' grid':''), id:'tlist'});
     const count = h('small', {id:'tcount'});
     const filterBtn = tool('filter', T.filter, e => menuAt(e.currentTarget, [T.kind, seg(KINDS(), TV.kind, v => { TV.kind = v; store.set('t.kind', v); applyTitles(true); }), T.media,
-      seg([['all',T.k_all],['sd','SD'],['nand','NAND']], TV.media, v => { TV.media = v; store.set('t.media', v); applyTitles(true); })]), TV.kind!=='game'||TV.media!=='all' ? 'on' : '');
+      seg([['all',T.k_all],['sd','SD'],['nand','NAND']], TV.media, v => { TV.media = v; store.set('t.media', v); applyTitles(true); }),
+      T.group, seg([['y',T.yes],['n',T.no]], TV.group ? 'y' : 'n', v => { TV.group = v==='y'; store.set('t.group', TV.group); applyTitles(true); })]), TV.kind!=='game'||TV.media!=='all' ? 'on' : '');
     const sortBtn = tool('arrows-sort', T.sort, e => menuAt(e.currentTarget, [['name',T.s_name,'list'],['size',T.s_size,'database'],['id',T.s_id,'key']].map(([v,l,i]) =>
       [TV.sort===v ? 'check' : i, l, () => { TV.sort = v; store.set('t.sort', v); applyTitles(); }])));
     const viewBtn = tool(TV.view==='grid' ? 'list' : 'layout-grid', T.view, e => { TV.view = TV.view==='grid' ? 'list' : 'grid'; store.set('t.view', TV.view); list.classList.toggle('grid', TV.view==='grid'); setIcon(e.currentTarget.firstChild, TV.view==='grid' ? 'list' : 'layout-grid'); sfx('tick'); });
-    const moreBtn = tool('dots', T.more, e => menuAt(e.currentTarget, [['upload', T.sendpkg, sendPackage], ['refresh', T.reload, () => { titles = null; titleRows.clear(); route(true); }]]));
+    const moreBtn = tool('dots', T.more, e => menuAt(e.currentTarget, [['upload', T.sendpkg, sendPackage], ['refresh', T.reload, () => { titles = null; titleRows.clear(); tcache = {}; store.set(tcName(), {}); icons.clear(); idbDo('readwrite', s => s.clear()); route(true); }]]));
     const el = screenEl(h('h2', {}, T.titles, count), [searchBox(TV.text, v => { TV.text = v; applyTitles(); }), filterBtn, sortBtn, viewBtn, moreBtn], h('div', {class:'scroll'}, list));
-    if(titles){ for(const t of titles) list.append(titleRows.get(tkey(t))); setTimeout(applyTitles); }
+    if(titles){ for(const t of titles) list.append(titleRows.get(tkey(t))); setTimeout(() => { applyTitles(); requeueTitles(); }); }
     else { list.append(...skeletonRows(10)); loadTitles(); }
     return el;
   }
@@ -668,13 +830,16 @@ async function loadTitles(){
   if(titlesLoading) return; titlesLoading = true;
   try {
     const j = await api('GET', 'titles'); titles = j.titles;
+    linkTitles();
     for(const t of titles) titleRows.set(tkey(t), titleRow(t));
     const list = $('tlist');
     if(list){ list.textContent = ''; titles.forEach((t,i) => { const r = titleRows.get(tkey(t)); r.style.setProperty('--i', i); list.append(r); }); applyTitles(); }
-    for(const t of titles){ const r = titleRows.get(tkey(t)); later(r, () => loadTitle(t, r)); }
+    requeueTitles();
   } catch(e){ if(e.auth) showLogin(e.message); else { const l = $('tlist'); if(l){ l.textContent=''; l.append(emptyEl('alert-triangle', e.message)); } } }
   titlesLoading = false;
 }
+// Queues the rows whose name is still missing. Leaving the screen drops the queue (pumpBg), so coming back asks again.
+function requeueTitles(){ for(const t of titles){ const r = titleRows.get(tkey(t)); if(!r._d && !r._queued){ r._queued = true; later(r, () => loadTitle(t, r)); } } }
 function titleRow(t){
   const pic = h('div', {class:'pic'}, ic('apps', 24));
   const r = h('div', {class:'row', tabindex:0, role:'button'}, pic,
@@ -682,18 +847,42 @@ function titleRow(t){
     h('div', {class:'meta'}, h('span', {class:'badge'+(t.media==='nand'?' n':''), text:t.media.toUpperCase()})), ic('chevron-right', 16));
   r.lastChild.classList.add('chev');
   r._t = t; r._pic = pic;
-  r.onclick = () => titleSheet(t, r);
+  r.onclick = () => TV.group && extrasOf.has(tkey(t)) ? chainSheet(t, r) : titleSheet(t, r);
   r.onkeydown = e => { if(e.key==='Enter') r.onclick(); };
+  r._count = h('span', {class:'cnt', hidden:true}); r.append(r._count);
   r.title = t.id;
   return r;
 }
+// Names and icons are kept in this browser per console (and title version), so the list fills at once the next time.
+// Reload in the menu forgets them.
+const tcName = () => 'tc2.'+(info.console||'');
+let tcache = null;
+const tcKey = t => t.id+t.media+t.version;
+function tcGet(t){ if(!tcache) tcache = store.get(tcName(), {}); return tcache[tcKey(t)]; }
+function tcSet(t, d){ if(!tcache) tcache = store.get(tcName(), {}); tcache[tcKey(t)] = d; clearTimeout(tcSet.t); tcSet.t = setTimeout(() => store.set(tcName(), tcache), 1500); }
+function idb(){ return idb.p || (idb.p = new Promise(ok => { try { const q = indexedDB.open('nsa-icons', 1); q.onupgradeneeded = () => q.result.createObjectStore('i'); q.onsuccess = () => ok(q.result); q.onerror = () => ok(null); } catch(e){ ok(null); } })); }
+async function idbDo(mode, fn){ const db = await idb(); if(!db) return null; return new Promise(ok => { try { const tx = db.transaction('i', mode), rq = fn(tx.objectStore('i')); tx.oncomplete = () => ok(rq ? rq.result : null); tx.onerror = tx.onabort = () => ok(null); } catch(e){ ok(null); } }); }
+async function titleIcon(t){
+  const url = '/api/icon?'+q({id:t.id, media:t.media}), key = tcName()+'/'+tcKey(t);
+  if(icons.has(url)) return icons.get(url);
+  const blob = await idbDo('readonly', s => s.get(key));
+  if(blob){ const u = URL.createObjectURL(blob); icons.set(url, u); return u; }
+  const r = await fetch(url, {headers:{'X-Pin':pin}});
+  if(r.status===401){ const e = new ApiError(T.wrong); e.auth = true; throw e; }
+  if(!r.ok){ icons.set(url, ''); return ''; }
+  const b = await r.blob(); idbDo('readwrite', s => s.put(b, key));
+  const u = URL.createObjectURL(b); icons.set(url, u); return u;
+}
 async function loadTitle(t, r){
-  const d = await api('GET', 'title', {id:t.id, media:t.media}); r._d = d;
+  r._queued = false;
+  let d = tcGet(t);
+  if(!d){ d = await api('GET', 'title', {id:t.id, media:t.media, data:0}); tcSet(t, d); }
+  r._d = d;
   r.querySelector('.nm').textContent = d.name || t.id;
   r.querySelector('.sub').textContent = [d.publisher, 'v'+fmtVer(t.version), fmtSize(t.size)].filter(Boolean).join(' · ');
   r.title = (d.name||'')+'\n'+t.id;
-  putIcon(r._pic, await iconUrl('/api/icon?'+q({id:t.id, media:t.media})));
   sortSoon();
+  putIcon(r._pic, await titleIcon(t));
 }
 let sortTimer = 0;
 function sortSoon(){ if(TV.sort==='name' && !sortTimer) sortTimer = setTimeout(() => { sortTimer = 0; applyTitles(); }, 700); }
@@ -706,7 +895,10 @@ function applyTitles(animate){
   for(const r of rows){
     const t = r._t, nm = ((r._d && r._d.name)||'')+' '+((r._d && r._d.publisher)||'')+' '+t.id;
     const ok = kindOk(t) && (TV.media==='all' || t.media===TV.media) && (!TV.text || nm.toLowerCase().includes(TV.text));
-    r.hidden = !ok; if(ok) shown++;
+    const hide = TV.group && t._linked && (TV.kind==='game' || TV.kind==='all');
+    r.hidden = !ok || hide; if(!r.hidden) shown++;
+    const n = TV.group && extrasOf.has(tkey(t)) ? extrasOf.get(tkey(t)).length : 0;
+    r._count.hidden = !n; r.classList.toggle('has-cnt', n>0); if(n) r._count.textContent = n;
   }
   // Only moves the rows that are out of place, so the list does not flash.
   rows.forEach((r, i) => { if(list.children[i]!==r) list.insertBefore(r, list.children[i]||null); });
@@ -717,13 +909,36 @@ function applyTitles(animate){
   $('tcount').textContent = loaded<rows.length ? tr('loaded', {a:loaded, b:rows.length}) : String(shown);
   const c = $('cnt_titles'); if(c) c.textContent = rows.length;
 }
-function titleSheet(t, r){
-  const d = r._d || {}, name = d.name || t.id;
+// A game with updates or DLC (grouped) opens its chain, as cards: the game itself and each one hanging from it, with its
+// icon, name, publisher, description and a medal for what it is (names that are still missing are asked for here).
+function chainSheet(t, r){
+  const items = [t, ...extrasOf.get(tkey(t))];
+  const kindName = x => ({game:T.kg1, update:T.ku1, dlc:'DLC'}[x.kind] || x.kind);
+  const cards = items.map(x => {
+    const row = titleRows.get(tkey(x));
+    const pic = h('div', {class:'pic'}, ic('apps', 24)), nm = h('div', {class:'nm', text:x.id}), pub = h('div', {class:'meta2'}), desc = h('div', {class:'desc'});
+    const card = h('button', {class:'tcard'}, pic, h('div', {class:'bd'}, h('div', {class:'top'}, nm, h('span', {class:'ver', text:'v'+fmtVer(x.version)}), h('span', {class:'sp'}), h('span', {class:'sz', text:x.media.toUpperCase()+' · '+fmtSize(x.size)}), h('span', {class:'badge', text:kindName(x)})), h('div', {class:'low'}, desc, pub)));
+    const fill = () => { const d = row._d; if(!d) return; nm.textContent = d.name || x.id; pub.textContent = d.publisher || ''; desc.textContent = d.description || ''; const im = row._pic.querySelector('img'); if(im) putIcon(pic, im.src); };
+    if(row._d) fill(); else later(card, async () => { await loadTitle(x, row); fill(); }, true);
+    card.onclick = () => { s.close(true); titleSheet(x, row, () => chainSheet(t, r)); };
+    return card;
+  });
+  let s;
+  s = sheet({wide:true, head:sheetHead(r._pic.querySelector('img') ? h('img', {src:r._pic.querySelector('img').src, class:'px'}) : ic('apps', 48), (r._d && r._d.name) || t.id, T.chain), body:[h('div', {class:'chain'}, cards)]});
+}
+// The kinds of data (save, extra, boss) are asked for when the sheet opens, once per session: opening the archives is slow.
+// back: when it was reached from a chain, a button in its header goes back to that chain.
+async function titleSheet(t, r, back){
+  if(!r._data) await run(async () => { const j = await api('GET', 'title/data', {id:t.id, media:t.media}); r._data = {save:j.save, ext:j.ext, boss:j.boss}; });
+  titleSheetShow(t, r, back);
+}
+function titleSheetShow(t, r, back){
+  const d = Object.assign({}, r._d, r._data), name = d.name || t.id;
   const big = r._pic.querySelector('img') ? h('img', {src:r._pic.querySelector('img').src, class:'px'}) : ic('apps', 48);
   const kindName = {game:T.k_game, demo:'Demo', update:T.k_update, dlc:T.k_dlc, system:T.k_system, dsiware:'DSiWare'}[t.kind] || t.kind;
   const data = [['save','m_save','device-floppy'],['ext','m_ext','database'],['boss','m_boss','world-download']].filter(([k]) => d[k]);
   let s;
-  s = sheet({head:sheetHead(big, name, d.publisher), body:[
+  s = sheet({head:sheetHead(big, name, d.publisher, back && (() => { s.close(true); back(); })), body:[
     cells([[T.id, t.id], [T.code, d.code], [T.version, fmtVer(t.version)+' ('+t.version+')'], [T.size, fmtSize(t.size)], [T.media, t.media.toUpperCase()], [T.kind, kindName]]),
     actions([
       (t.kind==='game'||t.kind==='demo') && ['player-play', T.launch, () => launchTitle(t, name)],
@@ -765,7 +980,10 @@ function downloadSave(t, name, kind){
 function getWithProgress(url, size, onprogress){
   return new Promise((resolve, reject) => { const x = new XMLHttpRequest(), t0 = performance.now(); x.open('GET', url); x.setRequestHeader('X-Pin', pin); x.responseType = 'blob';
     x.onprogress = e => onprogress(e.loaded, e.lengthComputable ? e.total : size, e.loaded/Math.max(.001,(performance.now()-t0)/1000));
-    x.onload = () => x.status===200 ? resolve(x.response) : reject(new ApiError(x.statusText||String(x.status))); x.onerror = () => reject(new ApiError(T.lost)); x.send(); });
+    x.onload = async () => { if(x.status===200){ resolve(x.response); return; }
+      if(x.status===503){ try { const j = JSON.parse(await x.response.text()); if(j.busy){ reject(new ApiError(busyText(j.busy, 'busy'))); return; } } catch(e){} }
+      reject(new ApiError(x.statusText||String(x.status))); };
+    x.onerror = () => reject(new ApiError(T.lost)); x.send(); });
 }
 // A card in the corner for something that takes a while: a bar (null: still waiting), a line of text, and a way to stop it.
 function taskCard(icon, title, cancel){
@@ -796,7 +1014,7 @@ function dataSheet(t, name, kind, label){
       const restore = () => { s.close(true); run(async () => { await api('POST', 'save/import', {id:t.id, media:t.media, kind, path:b.path, name}); toast(T.asked); }); };
       const del = async () => { if(!await confirmAsk(tr('confirmdelbackup', {s:b.label})+(b.checkpoint ? ' '+T.cpnote : ''), true, T.del)) return;
         run(async () => { await api('POST', 'save/backup/delete', {id:t.id, media:t.media, kind, path:b.path}); sfx('success'); toast(T.done, 'ok'); load(); }); };
-      list.append(h('div', {class:'act', vars:{i}, style:'cursor:default'}, ic(b.checkpoint ? 'box' : 'history'), h('span', {text:b.label, style:'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'}),
+      list.append(h('div', {class:'act', vars:{i}, style:'cursor:default'}, b.checkpoint ? cpBadge() : nsaBadge(), h('span', {text:b.label.replace(/^\[(NSA|Checkpoint)\] /, ''), style:'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'}),
         tool('upload', T.restore, restore), tool('trash', T.del, del)));
     });
   };
@@ -1098,10 +1316,14 @@ function upItem(name, size){
 }
 function put(path, file, onprogress){
   return new Promise(resolve => { const x = new XMLHttpRequest(); x.open('PUT', fileUrl(path)); x.setRequestHeader('X-Pin', pin);
-    x.upload.onprogress = e => { if(e.lengthComputable) onprogress(e.loaded/e.total, e.loaded); }; x.onloadend = () => resolve(x.status===200); x.send(file); });
+    x.upload.onprogress = e => { if(e.lengthComputable) onprogress(e.loaded/e.total, e.loaded); };
+    x.onloadend = () => { if(x.status===503){ try { const j = JSON.parse(x.responseText); if(j.busy) toast(busyText(j.busy, 'busy'), 'err'); } catch(e){} } resolve(x.status===200); };
+    x.send(file); });
 }
 async function uploadOne(file, path, el){
   el = el || upItem(file.name, fmtSize(file.size)); const t0 = performance.now();
+  try { info = await api('GET', 'info'); drawStatus(); } catch(e){}
+  if(info.transfer){ toast(busyText(info.transfer, 'busy'), 'err'); el._st.textContent = '✕'; el._fill.style.width = '100%'; el._fill.style.background = 'var(--danger)'; return false; }
   const ok = await put(path, file, (f, n) => { el._fill.style.width = (100*f)+'%'; const s = n/Math.max(.001,(performance.now()-t0)/1000); el._st.textContent = Math.round(100*f)+'% · '+fmtSize(s)+'/s'; });
   el._st.textContent = ok ? el._size : '✕'; el._fill.style.width = '100%'; if(!ok) el._fill.style.background = 'var(--danger)';
   setTimeout(() => { el.style.transition = 'opacity .4s'; el.style.opacity = 0; setTimeout(() => { el.remove(); if(upPanel && !upPanel.lastChild.children.length){ upPanel.remove(); upPanel = null; } }, 400); }, ok ? 2500 : 8000);
@@ -1250,6 +1472,7 @@ function paint(img, ctx, u16, offset, count){
 async function frame(){
   const r = await fetch('/api/screens', {headers:{'X-Pin':pin}});
   if(r.status===401){ const e = new ApiError(T.wrong); e.auth = true; throw e; }
+  if(r.status===503){ let j = null; try { j = await r.json(); } catch(e){} if(j && j.busy) throw new ApiError(busyText(j.busy, 'busylive')); }
   if(!r.ok) throw new ApiError(T.nolive);
   const u16 = new Uint16Array(await r.arrayBuffer()); if(!$('cv_top')) return;
   paint(imgTop, ctxTop, u16, 0, 400*240); paint(imgBottom, ctxBottom, u16, 400*240, 320*240);
@@ -1287,8 +1510,8 @@ async function changeSetting(params){
 }
 function opt(icon, label, sub, ctl){ return h('div', {class:'opt'}, ic(icon), h('div', {class:'l'}, h('b', {text:label}), sub ? h('span', {text:sub}) : null), h('div', {class:'ctl'}, ctl)); }
 function volume(value, key){
-  const out = h('span', {text:value+'%'}), r = h('input', {type:'range', min:25, max:100, step:5, value});
-  const paintV = () => { r.style.setProperty('--v', ((r.value-25)/75*100)+'%'); out.textContent = r.value+'%'; };
+  const out = h('span', {text:value+'%'}), r = h('input', {type:'range', min:0, max:100, step:5, value});
+  const paintV = () => { r.style.setProperty('--v', r.value+'%'); out.textContent = r.value+'%'; };
   r.oninput = paintV; r.onchange = () => changeSetting({[key]:r.value}); paintV();
   return h('div', {class:'vol'}, ic('volume', 16), r, out);
 }
@@ -1306,11 +1529,12 @@ function renderSettings(){
       h('div', {class:'opt', style:'display:block'}, h('div', {class:'l', style:'margin-bottom:10px'}, h('b', {text:T.accent})),
         h('div', {class:'swatches'}, s.accents.map(a => h('button', {class:'sw'+(a.id===s.accent?' on':''), title:a.name, vars:{c:night ? a.night : a.day}, onclick:() => { sfx('click'); changeSetting({accent:a.id}); }}, ic('check', 16))))),
       opt('moon', T.night, T.nightsub, seg([['off',T.off,'sun'],['on',T.on,'moon'],['auto',T.auto,'sun-moon']], s.night, v => changeSetting({night:v}))),
-      opt('language', T.language, null, seg([['system',T.lsystem],['en','English'],['es','Español']], s.language, v => changeSetting({language:v})))),
+      opt('language', T.language, null, langSelect(s.language))),
     h('div', {class:'card'}, h('h3', {}, ic('volume', 16), T.snd),
       opt('volume', T.sounds, T.soundssub, seg([[0,T.off],[1,T.alerts],[2,T.all]], s.sounds, v => changeSetting({sounds:v}))), volume(s.soundVolume, 'soundVolume'),
       opt('music', T.music, T.musicsub, seg([[0,T.off],[1,T.m_lift],[2,T.m_calm],[3,T.m_shop]], s.music, v => changeSetting({music:v}))), volume(s.musicVolume, 'musicVolume')),
     h('div', {class:'card'}, h('h3', {}, ic('device-desktop', 16), T.page),
+      opt('music', T.pmusic, T.pmusicsub, sw(store.get('pageMusic', true), v => { store.set('pageMusic', v); syncMusic(); })),
       opt('volume', T.psound, T.psoundsub, sw(store.get('pageSound', true), v => { store.set('pageSound', v); if(v) sfx('click'); })),
       opt('player-play', T.pmotion, T.pmotionsub, sw(store.get('motion', true), v => { store.set('motion', v); document.body.classList.toggle('nomotion', !v); })),
       opt('key', T.signout, T.signoutsub, h('button', {class:'btn danger', onclick:() => { sessionStorage.removeItem('pin'); document.cookie = 'pin=; path=/; max-age=0'; pin = ''; showLogin(); }}, ic('power', 16), T.signout))),
@@ -1320,9 +1544,83 @@ function renderSettings(){
   box.append(h('div', {class:'set'}, cards)); box.scrollTop = keepScroll;
 }
 
+
+// ---- system: what the console's System screens show (console, network, storage, battery) ----
+let sysTimer = 0;
+screens.system = {
+  render(){
+    const box = h('div', {class:'scroll', id:'sysscroll'}, emptyEl('apps', T.loading));
+    const el = screenEl(h('h2', {}, T.system), null, box);
+    clearInterval(sysTimer); sysTimer = setInterval(loadSystem, 10000); setTimeout(loadSystem);
+    return el;
+  },
+  leave(){ clearInterval(sysTimer); sysTimer = 0; }
+};
+async function loadSystem(){
+  if(current!=='system' || sysDragging) return;
+  try { drawSystem(await api('GET', 'system')); }
+  catch(e){ if(e.auth) showLogin(e.message); else { const b = $('sysscroll'); if(b && !b.querySelector('.set')) b.replaceChildren(emptyEl('alert-triangle', e.message)); } }
+}
+const fmtDur = s => s>=3600 ? Math.floor(s/3600)+' h '+Math.floor(s/60%60)+' min' : Math.floor(s/60)+' min';
+function sysCard(key, icon, title, sub, kids){
+  return h('div', {class:'card', 'data-k':key}, h('div', {class:'syshd'}, h('div', {class:'stile'}, ic(icon, 24)), h('div', {style:'min-width:0'}, h('b', {text:title}), h('div', {class:'sub', text:sub||''}))), ...kids);
+}
+function drawSystem(d){
+  const box = $('sysscroll'); if(!box || current!=='system') return;
+  const c = d.console, n = d.network, st = d.storage, b = d.battery, keep = box.scrollTop;
+  const dash = v => v==null || v==='' ? '-' : v;
+  const first = !box.querySelector('.set');
+  const consoleCard = sysCard('console', '3ds', c.model+(c.user ? '  ·  '+c.user : ''), c.system ? T.sy_sysver+' '+c.system : '', [cells([
+    [T.sy_region, c.region], [T.sy_country, c.country], [T.sy_lang, c.language], [T.sy_serial, c.serial], [T.sy_devid, c.deviceId], [T.sy_screens, c.screens],
+    [T.sy_sysver, c.system], [T.sy_kernel, c.kernel], [T.sy_mcu, c.mcu], ['Luma3DS', c.luma], [T.sy_runas, c.cia ? 'CIA' : '3DSX'], [T.sy_uptime, fmtDur(d.uptime)]])]);
+  const port = p => p ? tr('sy_port', {n:p}) : T.off;
+  const netCard = sysCard('network', n.connected ? 'wifi' : 'wifi-off', n.ssid, n.connected ? T.sy_conn : T.sy_notconn, [cells([
+    ['IP', n.ip], [T.sy_netmask, n.netmask], [T.sy_gateway, n.gateway], ['DNS', n.dns], [T.sy_signal, n.signal], [T.sy_mac, n.mac], [T.sy_lease, n.lease],
+    [T.sy_ftp, port(n.ftp)], [T.sy_web, port(n.web)]])]);
+  const names = {sd:T.sy_sd, ctr:'CTR NAND', twl:'TWL NAND', photo:'TWL Photo'};
+  const bars = st.media.map(m => h('div', {class:'mrow'}, h('span', {text:names[m.id]||m.id}), h('div', {class:'sbar'}, h('i', {style:'width:'+(100*(1-m.free/m.total)).toFixed(1)+'%'})),
+    h('small', {text:tr('sy_freeof', {a:fmtSize(m.free), b:fmtSize(m.total)})})));
+  const stCard = sysCard('storage', 'device-sd-card', st.maker!=='-' ? st.maker+' '+st.product : T.sy_sd, T.sy_cluster+': '+st.cluster,
+    [cells([[T.sy_made, st.made], [T.sy_speed, st.speed], [T.sy_writable, st.writable]]), h('div', {style:'margin:0 0 12px'}, bars)]);
+  const perHour = b.perHour;
+  const left = b.charging && perHour>0.05 ? (100-b.percent)/perHour*3600 : !b.charging && perHour<-0.05 ? b.percent/-perHour*3600 : null;
+  const icon = b.charging ? 'battery-charging' : b.level>=5 ? 'battery-4' : b.level>=4 ? 'battery-3' : b.level>=2 ? 'battery-2' : 'battery-1';
+  let graph = null;
+  if(b.samples.length > 1){
+    const lo = Math.max(0, Math.min(...b.samples)-1), hi = Math.min(100, Math.max(...b.samples)+1), W = 300, H = 60, k = Math.max(1, b.samples.length-1);
+    const pts = b.samples.map((v, i) => (i*W/k).toFixed(1)+','+(H-(v-lo)/(hi-lo||1)*H).toFixed(1)).join(' ');
+    graph = h('div', {class:'bgraph'}, h('small', {}, h('span', {text:T.sy_watched+': '+fmtDur(b.watched)}), h('span', {text:lo.toFixed(0)+' - '+hi.toFixed(0)+' %'})));
+    graph.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>');
+  } else graph = h('div', {class:'bgraph'}, h('small', {}, h('span', {text:T.sy_measuring})));
+  const batCard = sysCard('battery', icon, b.percent.toFixed(b.fine ? 1 : 0)+' %', b.charging ? T.sy_charging : b.adapter ? T.sy_onadapter : T.sy_onbat, [cells([
+    [T.sy_voltage, b.fine ? b.voltage.toFixed(2)+' V' : '-'], [T.sy_temp, b.fine ? b.temperature+' °C' : '-'], [T.sy_charger, b.adapter ? T.sy_plugged : T.sy_unplugged],
+    [b.charging ? T.sy_chrate : T.sy_drrate, perHour!=null ? (perHour>=0 ? '+' : '')+perHour.toFixed(1)+' %/h' : T.sy_measuring],
+    [b.charging ? T.sy_fullin : T.sy_emptyin, left!=null ? fmtDur(left) : '-'], [T.sy_level, b.level+'/5']]), graph]);
+  const byKey = {console:consoleCard, network:netCard, storage:stCard, battery:batCard};
+  const order = store.get('sysorder', []).filter(k => byKey[k]); for(const k in byKey) if(!order.includes(k)) order.push(k);
+  const cards = order.map(k => byKey[k]);
+  cards.forEach((card, i) => { card.style.setProperty('--i', i); if(!first) card.style.animation = 'none'; sysDrag(card); });
+  box.replaceChildren(h('div', {class:'set sysgrid'}, cards)); box.scrollTop = keep;
+}
+// The cards can be dragged by their header to put them in another order (kept in this browser). The 10 s refresh waits meanwhile.
+let sysDragging = null;
+function sysDrag(card){
+  const hd = card.querySelector('.syshd');
+  hd.onmousedown = () => { card.draggable = true; };
+  hd.onmouseup = () => { card.draggable = false; };
+  card.ondragstart = e => { sysDragging = card; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', card.dataset.k); } catch(x){} };
+  card.ondragend = () => { card.classList.remove('dragging'); card.draggable = false; sysDragging = null; store.set('sysorder', [...card.parentNode.children].map(c => c.dataset.k)); };
+  card.ondragover = e => {
+    if(!sysDragging || sysDragging===card) return; e.preventDefault();
+    // Passing over a card moves the dragged one to that card's place: after it when it came from before, else before it.
+    const after = !!(sysDragging.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING);
+    card.parentNode.insertBefore(sysDragging, after ? card.nextSibling : card);
+  };
+}
+
 // ---- start ----
 const saved = sessionStorage.getItem('pin');
-if(saved) login(saved); else showLogin();
+if(saved) login(saved, true); else showLogin();
 </script>
 </body>
 </html>

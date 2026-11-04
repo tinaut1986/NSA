@@ -80,7 +80,7 @@ What `release` holds, in the order it was built:
     assets) and played on DSP channels 8-11: tick (D-Pad, touch), click (A), back (B) from
     `ui_update`; success tune and error tones from any prompt named "Success" or
     "Failure"/"Error" (`prompt_display_multi_choice`), which covers transfers and installs.
-    Settings: Sounds (Off / Alerts / All, default All) and Sound volume (25-100 %). Requests are
+    Settings: Sounds (Off / Alerts / All, default All) and Sound volume (0-100 %, as on the console). Requests are
     bits set from any thread and played by `sound_update` on the UI loop. The DSP is shared with
     the audio player (`sound_dsp_start`; the player uses channel 0 and its own per-channel
     mix as volume).
@@ -125,6 +125,50 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Transfer cards and readable URLs** (2026-11-04, `feat/transfer-info`; DEBUG on both consoles; seen on a real 40 MB send New 3DS XL -> 2DS, except the first three):
+- [x] Receiving: the top card shows the file, "From <console> (size)" and "Saving in <folder>" (or "Installing it on this console" / "Importing it into the title"); sending shows the file, "To <console>" and the size. Seen on the consoles.
+- [x] The question to a QR / typed / received URL shows the file name whole (over several lines) and, for one link, the whole address, with %XX turned into characters. Seen on the New 3DS XL with a link made of %20.
+- [x] History: names and links on its rows and on the top card are decoded and the top card shows each link whole, over several lines (the stored address keeps its escapes, so "install again" asks for the real one); the summary on Remote install keeps its lines inside the card. Seen on the New 3DS XL; the 2DS still has the build before this.
+- [x] Wrapped text: a word that fills a whole line (an address with no spaces) is cut where the line ends; before it left an empty first line, so a link with no spaces started one line lower than one with spaces (`screen_wrap_string`, used by every wrapped text). Seen on the New 3DS XL in History; other wrapped texts were not compared.
+- [ ] The install progress screen shows the decoded name.
+- [ ] `tools/console_tests.py`: its rules answer "Incoming file" / "Existing files" as prompts; they are list sheets now (named after the screen under them), so the rules need updating before the next run.
+- [ ] Not done: a preview of the icon of an incoming CIA / .3dsx. A CIA keeps its icon at the end and a .3dsx near it, so the sender has to send it: a protocol 9 (hello + icon) that both consoles must run.
+- [ ] A 15 s "io: nothing for 15 s" stall killed one send while two screenshots were fetched over FTP mid-transfer; it did not come back in the reruns. Watch for it.
+
+**Receive menus as lists** (2026-11-04, `feat/receive-list`; DEBUG 0.7.0 installed on the New 3DS XL only, the 2DS was off the network; the screen itself was not seen: `fake_peer.py send` got its connection reset before NSA logged anything):
+- [ ] An incoming file / CIA / folder / save from another console shows a list sheet ("Install now", "Save", "Reject", "Import now", "Save in a folder", "Original path") with a detail line per row, the file name and size as its title, and the transfer card on the top screen; A or a tap chooses.
+- [ ] B or a tap above the list rejects: the sender sees "declined" and NSA goes back to waiting.
+- [ ] "Existing files" (Original path with files already there) is a list too: Overwrite, Skip existing (folders), Cancel (= reject).
+- [ ] Only Spanish has the new strings (the other ten languages show the English ones until translated).
+
+**Web System tab** (2026-11-04, `feat/web-system`; DEBUG build on the New 3DS XL, page opened in the browser: the four cards showed the console's real data):
+- [ ] The page has a **System** tab (Tools): Console (model, user, region, country, language, serial, device ID, screens, system version, kernel, MCU, Luma3DS, CIA/3DSX, uptime), Network (SSID, IP, netmask, gateway, DNS, signal, MAC, DHCP lease, FTP and web ports), Storage (SD card made/speed/writable/cluster and the space of SD, CTR NAND, TWL NAND, TWL Photo) and Battery (percent, voltage, temperature, charger, rate, time left, level, history graph). It refreshes every 10 s and keeps its scroll. The cards are all the same size, in two columns at most (one when the window is too narrow for two), with at most four columns of data inside each and can be dragged by their header to change the order (kept in this browser; the refresh waits while dragging). Same data as the console's System screens: `GET /api/system`, read on the main thread (`systeminfo_json`). The battery rate and graph need a couple of minutes of the page open (the history grows only while someone asks). Texts such as "High speed" come in the console's language.
+
+**Web music** (2026-11-04, `feat/web-music`; decoded and looped against a mock server in the browser with a real `music-cache-3.pcm`):
+- [ ] The page plays the console's background music (the last song of the style set on the console, from `/nsa/music-cache-N.pcm`, 22050 Hz mono) at the console's music volume; Off on the console (or the page switch "Console music here" in Settings -> This page) silences it; changing the style or volume on the console shows up within 30 s; a new song made by the console is fetched and crossfaded in (3.5 s). The song is kept in the browser (IndexedDB) per style and file date. Needs the console to have made that style once (the cache file exists) and a click or key on the page first (browser rule). It is the same audio, not a second synthesis: the page just reads the file.
+
+**Web page** (2026-11-04, `feat/web-toast-cache`; tried against a mock server in the browser, not on a console):
+- [ ] While the console transfers (FTP, a download, another 3DS), the page shows a toast at the bottom with the kind, name, percentage and KB/s and a progress bar, in place of the old text at the top right; it goes away when the transfer ends.
+- [ ] Titles: start loading, switch to another tab and back: the names and icons still missing keep loading (they used to stay frozen).
+- [ ] Titles: the filter menu has "Group updates and DLC" (Yes by default, remembered), as on the console: an update or DLC whose game is listed hides behind it (while Games or All is shown), the game shows a small round badge with how many hang from it, on the icon's corner like the console, and opening it lists the game and its updates and DLC as cards (icon, name, publisher, description, a medal for Game / Update / DLC, version and size), each opening its own sheet. `/api/title` now also returns `description`.
+- [ ] Titles: names, publisher and icons are kept in the browser per console and title version (localStorage + IndexedDB), so the list fills at once on the next visit. Titles screen menu -> Reload forgets them. The title's data kinds (save, extra, boss) are not kept: the sheet asks for them (`/api/title/data`) the first time it opens in a session, and the list only asks `/api/title?data=0`.
+
+**Languages** (2026-11-04, `feat/languages`; DEBUG 0.6.5 build installed on the New 3DS XL and driven over FTP: the list, Japanese, Russian and German looked right in the Cards theme with the console's own font; the console was put back on System afterwards. The rest is for the owner's hands)
+- [ ] Settings -> Language opens a list (System, English, Español, Català, Français, Deutsch, Italiano, Português, Русский, 日本語, 简体中文, 繁體中文); the highlighted one shows its name and a few words in it on the top screen; A or a tap picks it, everything changes at once and it is still set after a restart; B goes back without changing.
+- [ ] The Pixel theme in German (and the other languages with umlauts): at 10 px the pixel font draws the diaeresis faint (seen in Azahar). Russian has no yo: the Russian table writes it as e, because Azahar's font has no glyph for it.
+- [ ] Every screen in each language: texts fit their rows and buttons (German and Russian run longest), no tofu boxes. Cyrillic and kanji come from the console's own font: check Russian and Japanese on both consoles, and on a console set to another region if there is one.
+- [ ] Chinese: **Traditional** (繁體中文) draws completely with the console's font on the New 3DS XL (an EUR console), because its table only uses characters of JIS X 0208 (checked with `shift_jis`; a few Taiwan forms are written as their Japanese variants, 内 録 緑 ...). **Simplified** (简体中文) needs its own font: about a quarter of its characters (设 软 单 远 请 ...) are not in that console's Japanese character set, so while it is the language `screen.c` draws all of its Chinese from `romfs/hanfont.png` (Noto Sans CJK SC, 528 characters at one size, scaled like the system font; seen working on the New 3DS XL, Pixel theme not looked at). In any other language that font only fills in what the console's font lacks (the name 简体中文 in the language list). Check how it reads at the small sizes and in the Pixel theme.
+- [ ] Japanese lines break between characters (dialogs, the top screen's descriptions, the update changelog) and never leave 、 。 」 at the start of a line.
+- [ ] System follows the console's language (Settings of the console in French, German, Italian, Portuguese, Russian or Japanese); a console in Korean or Dutch shows English (Catalan is never picked by System: the 3DS has no Catalan).
+- [ ] The web page's Language drop-down lists all twelve and changes the console; the page itself is still English or Spanish.
+
+**Badges of the backups** (2026-11-03; seen in Azahar and on the web page with fake NSA and Checkpoint backups)
+- [ ] A title's Save data / Extra data list and the import list show NSA's backups with NSA's badge (the blue window with an N) and only the date, and Checkpoint's with its flag badge (pale flag on navy) and only the name, no "[NSA]" / "[Checkpoint]"; readable selected and not, in day and night themes.
+
+**Red confirmations and going up a folder** (2026-11-03; built, not run)
+- [ ] Every delete / erase confirmation (Files: delete, delete contents, folder, CIAs, tickets; Titles: delete, with ticket, erase save, secure value; Tickets; Ext save data; Pending titles) shows the red prompt with the warning icon.
+- [ ] Files: B in a folder selects that folder in the parent at once, also in a big folder full of CIAs; a D-Pad or A pressed meanwhile does nothing until it is selected.
+
 **System's details** (issue #23; `source/fbi/systeminfo.c`; only the layout was checked, in Azahar, whose data is fake)
 - [ ] Main menu -> System opens a list (Console, Network, Storage, Battery); each row shows its page on the top screen; B goes back.
 - [ ] Console: serial number (read from `SecureInfo_A` on the CTR NAND) matches the sticker; device ID, country, system and kernel versions, MCU firmware (shown as major - 0x10 . minor: check it is plausible), Luma3DS version and commit, "Running as" CIA / 3DSX.
@@ -155,6 +199,16 @@ What `release` holds, in the order it was built:
 - [ ] Titles sheet -> Save data / Extra data / SpotPass data (`feat/save-manager`): the list shows the backups (readable in night mode), *Back up now* adds one at the top, restoring asks in red, deleting asks and removes it (a folder holding save and extra data keeps the other); the same from the page.
 - [ ] The redesigned page (`feat/web-ux`): Settings from the page change the console at once (theme, accent, night, language, sounds, music and volumes) and stay after a restart; dragging rows onto folders and breadcrumbs moves them; dropping a folder from the PC uploads the tree; *Install a CIA from this PC*; how the titles list feels with many titles on a real console.
 
+**Original path** (`feat/keep-original-path`, issue #24; `tools/console_tests.py --only origin` (8 tests: new, overwrite, skip, cancel, cut and resumed, a single file, unsafe paths not offered) pass on the New 3DS XL <-> 2DS over the Wi-Fi; the owner has not tried it by hand)
+- [ ] Files -> a folder's ⋯ -> *Send to another 3DS*; on the receiver *Original path*: with nothing there the folder appears at the same path; with files there it asks "N of M files already exist" and Overwrite / Skip existing / Cancel do what they say; try it with PKSM's folder.
+- [ ] The same with a single file, and a CIA or a save package (they must not offer *Original path*).
+
+**Sending folders** (`feat/send-folders`; code in `transferfolder.c` and `foldermanifest.c`; `tests/foldermanifest_test.c` on the host and `tools/console_tests.py --only send_folder` (10 tests: clean, name taken, cuts on both sides, write and read failures, 250 small files, no files, unsafe paths, another destination) pass on the New 3DS XL <-> 2DS over the Wi-Fi; the owner has not tried it by hand)
+- [ ] Files -> a folder's ⋯ (or the open folder's sheet) -> *Send to another 3DS*: a small folder (a few files, subfolders, an empty file, an empty subfolder) arrives in `sdmc:/nsa/received/<name>/` with the same tree; the receiver is asked *Save* / *Reject* and picks the destination folder.
+- [ ] A folder with several CIAs (hundreds of MB): speed like a single file, nothing duplicated on the sender's card; cancel with B on each side; a name that already exists arrives as `<name> (2)`.
+- [ ] A cut transfer of a folder goes on from where it stopped (the `<name>.part` folder and `.part.pos` stay on the receiver); an empty folder and one with only empty subfolders are refused by the sender ("no files"); a folder with thousands of small files.
+- [ ] Wi-Fi and the local wireless (no router); an older NSA (protocol 5) on the other console must refuse cleanly.
+
 **Saves, extra data and SpotPass data** (item 3b; code in `source/fbi/action/savetransfer.c`; none of it tried on a console)
 - [ ] Export a save (Titles sheet) to `sdmc:/nsa/saves/<TITLEID>/<date>/save/` with `manifest.txt` (`source=NSA`): with subfolders, an empty save, a big one; cancel with B midway.
 - [ ] Same for extra data (`ext/`; fixed file layout) and for SpotPass data (`boss/`; the BOSS archive may refuse to create files or be emptied).
@@ -180,6 +234,101 @@ dates). The owner will go through them one by one; tick each only when they say 
       Receive screens); `ui_wake()` exists but nobody calls it yet.
 - [ ] `SITE CPU` (DEBUG) answers per core without disturbing the FTP server.
 
+**One transfer at a time** (`feat/one-transfer`; on the New 3DS XL `tools/turn_tests.py` passes and the speed is above)
+- [ ] Console to console with the turn (New 3DS XL <-> 2DS, `tools/console_tests.py`): sending and receiving still work; a send
+      while the receiver downloads something is refused with "Another transfer is in progress"; the retry question frees it.
+- [ ] Settings -> FTP server (and Web server) off and on again with a transfer under way: nothing freezes, the turn is free.
+- [ ] The page: the top bar shows a transfer (name, %, KB/s) of FTP or a download; an upload while one runs says so and sends
+      nothing; the live screens say they are paused; browsing Titles and Files keeps working.
+- [ ] A QR / URL install while an FTP upload runs: the console says another transfer is in progress; after it ends it works.
+- [ ] The 2DS: the same speed tests (`speed_tests.py --wait-mode poll|nap`) to see whether the short poll helps there too.
+
+**Downloads from Dropbox and in long pieces** (Decisions, "Saving comes in long pieces"; the New 3DS XL passed Save from
+Dropbox, catbox and the LAN, byte for byte, and an install by URL of an 8 MB CIA over 8 connections)
+- [ ] A QR install from a Dropbox link (a game not installed yet): it says "one connection" after the first segments and
+      installs at ~1 MB/s.
+- [ ] The whole Dragon Quest VIII with Save (3.4 GB): ends, and the file is the right size.
+- [x] The 2DS: Save from Dropbox. In long pieces it went at 180-255 KB/s: each 256 KB write far into the 3.4 GB file took
+      3.2-3.9 s (the trace's disk time), with a handle for each connection too; in order, into the same file set to its
+      size, 444-457 KB/s (3dsDL from Dropbox ends on one connection, so it writes in order too).
+- [x] The New 3DS XL too (2026-11-04, Google Drive, 534 MB): in long pieces the writes took 54-113 ms for 6 minutes,
+      then 3.7-4.4 s each (60 KB/s) to the end, the SD card's cache full with several places written at once. So every
+      model saves **in order**, as an install: segments over the connections that pay off, written in order (the same
+      engine; long pieces only with `SITE SAVEORDER ANY`). Segments of 1 MB, not 512 KB: a request (and its round trip)
+      every 512 KB started Google Drive at ~500 KB/s; at 1 MB it went at 963 KB/s from the start (3dsDL: ~1 MB/s). Drive
+      whole on the New 3DS XL: identical bytes (SHA-256), saved as "EUR - Paper Mario.cia" (Content-Disposition), FTP
+      answering throughout. The 2DS: 222-278 KB/s (3dsDL 127 KB/s there).
+- [x] The ramp (ramp.c): at most 4 (eight saturated the New 3DS's network: its FTP could not send 6 bytes), 10 s
+      measures from a sample a second, one more kept when its mean rose by more than twice the measures' error (and 5%),
+      one fewer when the speed falls under half of where it settled. The in-order engine (installs too) uses it, from 2.
+- [x] Links: Google Drive's share, open and uc links become `drive.usercontent.google.com/download?id=ID&export=download
+      &confirm=t` (its page, or a virus scan warning for big files, otherwise); a server that sends a web page instead of
+      the file fails with "The link leads to a web page, not to the file"; 429 hands an install over to one connection.
+      The user agent is `NSA/x.y.z (Nintendo 3DS)`: FBI's "Mozilla/5.0 (Nintendo 3DS; Mobile; rv:10.0) Gecko/20100101"
+      got 500 and 403 from Google Drive.
+- [ ] NSA went back to the HOME Menu by itself once (no Luma dump), right after a SITE SHA256 of the 534 MB file had
+      read it whole: find out what closed it.
+
+**FTP against the original ftpd** (the owner, 2026-11-04, FileZilla on the New 3DS XL: ftpd ~850 KB/s up, ~1200 KB/s
+down; NSA ~750 / ~800). ftpd sets 32 KB SO_RCVBUF/SO_SNDBUF on its passive socket on the 3DS (`ftpSession.cpp`, not on
+the accepted one), which its data connections inherit; NSA left the system's. `SITE PASVBUF <KB>` (DEBUG), 64 MB with
+`speed_tests.py` (byte for byte), New 3DS XL: the system's 802-836 up / 805-815 down KB/s; 16 KB 817 / 986; 24 KB 776 /
+1137; **32 KB 974-1116 / 1148-1208**; 40 KB 953 / 1168. Now 32 KB by default. The owner's own copies with curl, two
+minutes each: Dragon Quest VIII from /cias to the PC **1147 KB/s** (ftpd ~1200); Metal Gear Solid 3D (3.2 GB, from the
+PC's O: drive) to /cias **641 KB/s** (ftpd ~850).
+- [x] Right after that upload was cut, NSA seemed gone (FTP and web refused, pings answered): the New 3DS XL had lost
+      the Wi-Fi and come back as 192.168.1.139, and a phone had .132. NSA was fine.
+- [x] The slow real upload (641 KB/s): not the O: drive (88 MB/s), not the .cia name (curl to .bin and .cia alike,
+      779-841 KB/s), but the Wi-Fi of that moment (it dropped minutes later).
+- [x] Same moment, same console (New 3DS XL, 64 MB, two rounds each, one after the other): ftpd 794-849 up / 1090-1132
+      down; NSA (32 KB) 782-845 / 1166-1205; the owner's fork as it was 681-728 / 749-772, fixed (tinaut1986/ftpd#1)
+      921-977 / 1112-1142.
+- [ ] **The 2DS** (32 MB, one after the other): the fixed fork 733-747 up / 560-597 down, NSA 601-685 / 454-484. Not the
+      wait (`SITE POLL`), the size of each send (`SITE SENDCHUNK`, 16-64 KB), the FTP thread's priority (`SITE FTPPRIO`
+      0x31 or 0x2F), the web server (off) or the CPU (core 0 at 15%). The trace: ~90% of each second inside send(), ~33 ms
+      a call for ~19.5 KB. Sending first and polling only when nothing fits (as ftpd) brought 454-463 -> 478-484 (New 3DS
+      XL unchanged: 808-896 / 1190-1192). The rest (~20%) is still to find.
+- [x] Found (2026-11-04): the share of the system core NSA keeps (`APT_SetAppCpuTimeLimit(30)`, from FBI). On an Old 3DS
+      the network runs on that core. The fork with the same trace: ~23 ms a send() for ~18.5 KB (NSA ~33 ms). 2DS, 30% ->
+      5% (`SITE CPULIMIT`, DEBUG), one right after the other: FTP down 480-488 -> 643-657, up 230 (a noisy round) -> 715;
+      a URL download (Save) 562-680 -> 880-929; a URL install 650-654 -> 758-763. But an install from the SD card (32.5 MB,
+      Files -> Install) took 42.7-43.4 s -> 49.7-50.8 s. So a held transfer turn lowers it to 5% and the release puts 30%
+      back (Old 3DS only, `xferturn_cpu_limits`). Then on the 2DS: FTP up 837, down 649-651, URL 802 KB/s.
+- [ ] The New 3DS XL is unchanged (no limit changes there): check that its FTP, URL and console to console speeds stay.
+- [x] Whether the New 3DS XL would gain from 5% too (2026-11-04, 64 MB, `SITE CPULIMIT`, two rounds each, alternated):
+      30% up 954 / 955, down 1066 / 996, URL 1006 / 1066 KB/s; 5% up 875 / 881, down 1121 / 1149, URL 957 / 965. Down
+      +8%, but up and URL -8%: no gain overall, so the New 3DS keeps 30%.
+- [x] Music during FTP on the 2DS with the limit at 5% (`ftp_pauses_music` off, 32 MB, two rounds): playing up 741 / 821,
+      down 647 / 653 KB/s; paused 745 / 782, 667 / 670. A download right after NSA starts, while the music is made on
+      core 1: 637 KB/s (675 after), and the music took 16.7 s to make, as usual.
+- [x] "Music and FTP", asked once at start on an Old 3DS that still has "Pause music for FTP" on (its old default; the
+      new default is off): Yes turns the pause off, No keeps it; either way `ftp_music_asked` is saved and it is not asked
+      again. A New 3DS, or a console with the pause off, only saves `ftp_music_asked`. On the 2DS (2026-11-04) it showed
+      after installing the build and the owner's Yes saved the pause off.
+- [ ] Its order with the other start-up questions: on a console with FBI's folder and no /nsa/, the import first, then
+      this, then the update check; and a translated language (the text has explicit line breaks: check none overflows).
+- [ ] Old 3DS, with the turn lowering the limit: console to console (both ways), the web page's upload and download, and
+      the menus during a transfer (the app's core-1 threads get 5% then); whether the music sounds clean meanwhile.
+- [ ] Whether NSA stops answering again right after "the rest over one connection" (it did once): if it does, a photo of
+      the screen and `transfer-log.txt` at once.
+- [ ] Remote Install's choices (#29): a list (Install, Save and install, Save install and delete, Save; X saves at once)
+      with each one explained on the top screen. Save and install and Save install and delete tried on the New 3DS XL
+      with NSA's own CIA: downloaded, saved, the install from the SD card started (and was refused, "Already exists", as
+      the running NSA of the same version is); the file stays when the install fails. To try with a game not installed.
+- [ ] `SITE SCREENSHOT` (DEBUG) is not taken in time (15 s) on 0.6.4 and the console stops answering its buttons until a
+      B arrives; on 2026-11-02 it worked (console_tests' screenshots).
+
+**Console to console: how many connections** (`SITE CONNS 1-4`, DEBUG, on the sender; 2026-11-03, New 3DS XL -> 2DS over
+the Wi-Fi, 64 MB, two rounds, every copy identical; the 2DS's receive time, and its web page's slowest answer meanwhile):
+1 connection 223-288 s (228-294 KB/s, 0.35-1.43 s); 2: 145-160 s (408-453, 0.63-1.69 s); 3: 136-155 s (424-482,
+0.67-1.22 s); 4: 114-152 s (430-575, 2.0-4.1 s), and once all four failed together twice in 80 s (`io: poll failed,
+errno 115` on the 2DS; Retry went on from where it was). So one connection is too few, and 2 to 4 are within the Wi-Fi's
+noise. Then the ramp (`ramp.c`, the owner's idea: add while one pays off, drop the one that does not, try again two
+minutes later, to the end; protocol 8): New 3DS XL -> 2DS 131 and 164 s, 2DS -> New 3DS XL 157 s, on 2 or 3 connections
+(the third tried and dropped when it brought +0 to +14%, kept at +28%; a fourth -7%). Two New 3DS are not measured yet:
+the log says what it chose ("sender: N KB/s over M connections...").
+- [ ] Why all four connections fail at the same moment on the 2DS (errno 115 in poll): seen once in four sends.
+
 **Download and FTP speed** (`fix/download-speed`, `fix/ftp-pasv-buffers`, issue #21). Measured on the New 3DS XL over
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
@@ -191,7 +340,8 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
       the content when it has none; a name in use gets " (2)"), with the same progress, connections and errors (issue #22).
       Azahar: two saves of a 100 MB CIA byte for byte, Install unchanged. 2DS (2026-11-02): a 100 MB save from the web
       page at 557 KB/s, byte for byte. Left: a QR and a typed URL on a console.
-- [ ] Settings -> "Pause music for FTP" (`ftp_pauses_music`, on by default on an Old 3DS): the music fades out once an FTP
+- [ ] Settings -> "Pause music for FTP" (`ftp_pauses_music`, off by default since the 5% system core during transfers;
+      it was on on an Old 3DS): the music fades out once an FTP
       transfer has lasted a second and comes back 3 s after the last one (from the SD cache, no new song is made). On the
       2DS an upload with music went at ~375 KB/s with it (254-316 before). The top bar's server icon blinks while the FTP
       server moves data, and a computer icon shows while the web server runs.
@@ -350,15 +500,40 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
 - Discovery: on the Wi-Fi, UDP broadcast on 5001 (the receiver answers `NSA!` and its
   name; `/nsa/peers.txt` lists addresses to ask directly, one per line). Nearby: UDS
   beacons (below).
-- Control connection (TCP 5002, or the UDS stream): the sender sends a 316 byte hello
-  (protocol 5: magic, version, sender name, file name, size, `check` = CRC-32 of the first
-  4 KB of the file or of a package's header, `kind` 0 file / 1 title package, `head` = the
-  package header's size). The receiver asks its user (Allow, then Install now / Save /
+- Control connection (TCP 5002, or the UDS stream): the sender sends a 828 byte hello
+  (protocol 8: magic, version, sender name, file name, size, `check` = CRC-32 of the first
+  4 KB of the file or of a package's header, `kind` 0 file / 1 title package / 2 folder, `head` = the
+  package header's or folder manifest's size, `origin` = where the file or folder is on the sender's
+  SD card, "" when it is not there). For a folder the manifest (`head` bytes) follows the hello at
+  once, before any answer. The receiver reads it, drops the transfer without asking when the
+  manifest is damaged or unsafe, and asks its user (Allow, then Install now / Save /
   Reject; Install only for a CIA; Save opens a folder picker starting in `sdmc:/nsa/received/`)
   and answers 13 bytes: status, the byte to go on from, a transfer number.
+- A **folder** (kind 2) is one payload: the manifest (`foldermanifest.h`: every path relative to the folder,
+  type and size) and then each file's bytes in that order, one segment per file, so the chunks, the
+  resume (`prefix`) and the connections are the same as for a file. The sender reads files as chunks ask;
+  the receiver keeps the manifest chunks, parses and checks them (`folder_path_ok`: no `..`, no leading
+  slash, no `:`), makes the folders and writes each chunk into `nsa/tmp/<name>.part/<path>` (a file's bytes
+  wait, up to 60 s, for the manifest; `nsa/tmp/` is only NSA's, so clearing an old `.part` there never
+  touches the user's folders), makes the empty files at the end and moves the folder to the chosen one
+  (`<name>`, or `<name> (2)`... when it exists). Files and title packages do the same
+  (`feat/tmp-for-files`): their `<name>.part` and `<name>.part.pos` are in `nsa/tmp/` too, and the file is
+  moved to the chosen folder when whole. A `.part` that an older build left in another folder is not
+  resumed (it is only a leftover to delete). This is why
+  **no copy of the folder is made on the sender's card**.
+- **Original path** (issue #24; `feat/keep-original-path`): for a file or a folder (not CIAs, titles or
+  save packages) whose `origin` is safe (starts with `/`, no `..`, `:` or `\`, not in `/nsa/tmp`), the
+  Incoming file question adds *Original path*. Nothing is written there until the transfer is whole in
+  `nsa/tmp/`. If some of the files already exist at that path, a second question says how many and asks
+  *Overwrite* / *Skip existing* (a single file: *Overwrite* / *Cancel*) / *Cancel*. Then each file is moved
+  into place (a file where a folder is needed, or the reverse, is an error, never deleted); files that
+  are only on the receiver stay. The files already moved stay if the move fails midway. A retry of
+  the same transfer keeps the choices. Only Files on the SD card sends an origin.
 - Data: the payload is cut in chunks of 256 KB. Over the Wi-Fi four TCP connections (the
   control one and three more that quote the transfer number) carry chunks, each taken by
-  whichever is free; a record is offset (8), length (4), bytes; a connection ends with a
+  whichever is free (two send from the start and `ramp.c` finds how many of the four pay off as it goes: one that
+  does not is kept aside, saying it is still there with a wait record every 5 s, and tried again two minutes later;
+  protocol 8); a record is offset (8), length (4), bytes; a connection ends with a
   terminator record and an **extra connection is closed only after the receiver acknowledges
   it** (closing a socket on the 3DS throws away what it has not sent and resets the
   connection: that cost the last bytes of a chunk before). 48 KiB socket buffers are set
@@ -422,6 +597,9 @@ What DEBUG builds have for it (FTP, port 5021; release builds answer 502 or igno
 - `SITE TEST UI`: the top view as JSON: depth (1 = main menu), untranslated name (`ui_view.id`),
   kind (prompt, info, list), a prompt's untranslated text, options and their buttons, an info's
   line and bar, a list's count and selection. The tests answer dialogs by name, not by position.
+- `SITE TEST BUILD`: the protocol and build time of the NSA on the console; the runner refuses to run
+  when the two consoles differ (a console that kept an old build made every transfer fail once).
+- `SITE TEST SENDDIR <folder>`: sends a folder (and its path as the origin).
 - `SITE TEST EXPORT|SENDTITLE <title ID> [nand]`, `SEND <path>`, `RECEIVE`, `TITLES` (SD titles,
   smallest first, in `/nsa/tests/titles.txt`): open the same screens as the menus.
 - `SITE FAULT <point> [skip] [count]` (`CLEAR`, `LIST`): the next hits of `point` after `skip`
@@ -434,6 +612,97 @@ What DEBUG builds have for it (FTP, port 5021; release builds answer 502 or igno
 The runner also checks every CIA (TMD hashes and each content's SHA-256) and makes stray
 connections to the receiver's port 5002 itself. Not covered: the local wireless (the FTP server
 is off there) and installing.
+
+## Speed tests (`tools/speed_tests.py`, `source/core/speedlog.c`)
+
+After reports of slow transfers (issue: a QR install at ~1 MB/s with small files; FTP starting at 800+ KB/s and falling to
+~500 on a 256 MB file; the web page at 300-550 KB/s; slower than ftpd), every transfer can leave a trace of each second in
+`sdmc:/nsa/speed-log.txt`: DEBUG builds always, release builds while `sdmc:/nsa/speed.flag` exists (a user can be asked to
+create it, transfer, and send the file). Traces are kept in memory and written when the transfer ends. Each `s,` line: KB/s,
+time waiting for the network (`wait`: nothing to read, no room to send), inside the socket calls (`net`), inside the card or
+the install (`disk`, and the slowest single call), bytes per socket call, UI frames drawn, a gauge (a download's segments
+ahead), music on/off and, after `SITE CPU`, each core's load. An `e,` line sums the transfer (first and last 10 s, slowest
+second). Traced: FTP RETR/STOR, the web page's file up/download, downloads by URL (one connection and segments; `net` there
+is only bytes, `disk` is the install's time, `wait` the time with no segment ready).
+
+    tools/speed_tests.py --host IP [--sizes 1,16,64,256] [--only ...] [--cpu] [--label 2ds-music-on]
+    tools/speed_tests.py --host IP --server ftpd --ftp-port 5000          the same FTP tests against ftpd
+
+Tests: `ftp-up`/`ftp-down` (checked byte for byte), `ftp-null`/`ftp-zero` (NSA's `STOR /dev/null` and `RETR /dev/zero/<MB>`:
+the network alone), `ftp-small` (many small files: the cost per file), `sd` (`SITE SDBENCH <MB> [buffer KB] [PRE]`: the card
+alone, with the 256 KB stdio buffer, with the size set first, unbuffered), `web-up`/`web-down`, `url` (the PC serves a file,
+the page's install-url asks for it, the script presses X = Save; `--cia` installs instead). Results in
+`test-results/speed-<time>-<server>-<label>/`: `summary.md`, `report.html` (a chart per test: KB/s of the PC and the console,
+and each second's share of card / waiting / socket calls), CSVs of both sides and the fetched log.
+
+First run (2026-11-02, the release build on 192.168.1.141, no traces): FTP up 363-405, down 224-336 KB/s; 20 files of 128 KB
+took ~626 ms each up and ~494 ms down, so most of a small file's time is fixed cost per file.
+
+Full battery, 2026-11-02 evening, both consoles on the LAN Wi-Fi, this branch's DEBUG build (`test-results/speed-20261102-*`),
+KB/s from the PC:
+
+| | 2DS | New 3DS XL |
+|---|---|---|
+| FTP up / down, 256 MB | 395 / 343 | 661 / 652 (16-64 MB: 624-649 / 715-728) |
+| FTP network only (`/dev/null` / `/dev/zero`), 64 MB | 389 / 374 | 851 / 875 |
+| Web page up / down, 256 MB | 360 / 323 | 731 / 766 |
+| URL download, 64 MB, 8 connections | 559 | 1223 |
+| 100 files of 256 KB, up / down (per file) | 1750 / 957 ms | 480 / 466 ms |
+| Card alone (SDBENCH 256 MB, 256 KB buffer): write / read; size set first; unbuffered | 3926 / 7693; 5502; 2058 | 4105 / 9547; 5190; 2570 |
+| Slowest card write (growing / size set first) | 1444 / 789 ms | 143 / 128 ms |
+
+What the traces say:
+- **No CPU limit**: the counting threads saw the cores ~3% busy on the New 3DS, ~15% (core 0) on the 2DS. The FTP and web
+  threads wait for the network 62-85% of each second (uploads: nothing to read; downloads on the 2DS: ~65% inside `send()`).
+  Each `recv()` brings ~2.9 KB on the New 3DS, ~6 KB on the 2DS: the data trickles in; the console drains it as it comes.
+- **Not the card** for big files: the network alone is as fast (2DS) or only a little faster (New 3DS: 850-900 against
+  620-730 with the card). One TCP connection is the limit: the URL download with 8 connections doubled it (1223 KB/s on the
+  New 3DS, which is the "~1 MB/s" of the report and normal there).
+- **The fall from 800+ to ~500 KB/s on a 256 MB file** shows in the network-only test too (`/dev/null`, 256 MB on the New 3DS:
+  30 s averages 826 -> 396-640 -> 950, with 42 seconds under 200 KB/s in which the thread waited ~1000 ms with nothing coming
+  and the card idle): the Wi-Fi delivered less, not NSA.
+- **Small files on the 2DS**: the first ~40 uploads spent ~65 ms each in the card; from the 45th on, ~1.47 s each (writing
+  and closing 256 KB), steadily; music off, CPU idle. On the New 3DS 480 ms a file. To compare with ftpd on the same console.
+- Candidate fixes, to measure afterwards with the same battery: set the file's size first on uploads (FTP `ALLO`, the web
+  page's length: +40% card speed, slowest write halved on the 2DS); and, under the owner's rule of **one transfer at a time**
+  (control stays free; the web page browses and shows the transfer, its live screens pause), a short blocking `poll()` for
+  the transfer that holds the turn instead of the naps. Next: the same FTP tests against ftpd-EX on both consoles.
+
+2026-11-03, New 3DS XL (192.168.1.132), ftpd-EX 1.3.2 at 08:35 then NSA at 09:43, same morning's Wi-Fi, KB/s from the PC:
+
+| | NSA | ftpd-EX |
+|---|---|---|
+| FTP up 16 / 64 / 256 MB | 530 / 525 / 509 | 527 / 531 / 490 |
+| FTP down 16 / 64 / 256 MB | 566 / 652 / 625 | 573 / 795 / 635 |
+| Network only up (NSA `/dev/null`, ftpd `/devZero`) 16 / 64 / 256 MB | 666 / 535 / 583 | 637 / 605 / 619 |
+| Network only down 16 / 64 / 256 MB | 671 / 652 / 782 | 879 / 740 / 809 |
+| 100 files of 256 KB up / down, per file | 506 / 500 ms | 475 / 457 ms |
+
+Uploads level; ftpd 5-20% ahead on downloads and ~8% on small files, where NSA waits 75-86% of the time for room to send
+and naps between asks while ftpd sleeps in `poll()`: what the one-transfer turn with a short blocking `poll()` would change.
+Both show the same dips mid-transfer in the network-only tests: the Wi-Fi.
+
+2000 MB on the same console (NSA, 10:45-13:15, `speed-20261103-104517-nsa-new3ds-2000`; traces whole, 3126 and 2817 lines):
+FTP up 647 KB/s in 53 min (10-minute averages 670, 621, 599, 689, 657, 671; card 14-16% of the time, slowest write 206 ms),
+down 720 KB/s in 47 min (714-737 throughout), byte for byte, 8 seconds under 200 KB/s in each. Card alone: 4261 KB/s write
+(slowest 145 ms), 5363 with the size set first (94 ms), 2369 unbuffered (2186 in the first 10 s, 2348 in the last), read
+9642. A long file neither slows the card nor makes the transfer sink on this console.
+
+**One transfer at a time** (`feat/one-transfer`, cut from `feat/speed-tests`): the turn and the short `poll()` (Decisions,
+"One transfer at a time"). Same console, 2026-11-03 afternoon, the three ways of waiting one after another three times
+(`SITE POLL`, `speed_tests.py --wait-mode`), 64 MB and 50 files of 256 KB, KB/s or ms a file, average of the three:
+
+| | short `poll()` (kept) | naps (before) | 1 ms naps then `poll()` |
+|---|---|---|---|
+| FTP up 64 MB | 634 (677, 687, 537) | 596 | 599 |
+| FTP down 64 MB | 747 (706, 779, 756) | 649 | 724 |
+| 50 files up, a file | 458 ms | 544 ms | 559 ms |
+| 50 files down, a file | 479 ms | 477 ms | 496 ms |
+
+The short `poll()` is ahead everywhere but small downloads (level): +6% up, +15% down, 16% less a small file up. The full
+battery with it (`speed-20261103-134452-nsa-new3ds-turn`): FTP 693-757 up, 727-762 down (16-256 MB), waiting for the network
+49-60% of the time going up (66-74% before). An earlier run that looked worse for small files was the Wi-Fi of the moment.
+`tools/turn_tests.py` (busy replies, clients that vanish) passes on the New 3DS XL.
 
 ## What the owner asked for (the direction)
 
@@ -616,6 +885,21 @@ current, this list is the summary. What only the owner can test (local wireless)
   (looked up by content, never cached): `prompt_*`, `info_display`, `error_display*`,
   `kbd_display`, `list_display` and the default list row do it themselves. Format strings
   of progress text are wrapped in `_()` at the call site. Spanish table: `i18n_es.c`.
+- **Languages** (`feat/languages`): one table per language, `source/core/i18n_<code>.c`, registered in `i18n.c`'s
+  `languages[]` (code for settings.json and the web API, its own name, the console's `CFG_LANGUAGE_*` it answers to).
+  Spanish is the reference for which keys exist; `python3 tools/check_i18n.py` checks every table against it (same keys,
+  printf conversions in the same order, button glyphs, line breaks, edge spaces). Adding a language = a new table, one line in
+  `languages[]`, one in `language_id`, one in the web page's `langSelect`. Settings -> Language is a list
+  (`languagemenu.c`), not a button that steps through them. Chosen: Catalan, French, German, Italian, Portuguese (Brazilian), Russian,
+  Japanese and Chinese (simplified `zh`, traditional `tw`). The console draws text with the system's shared font, which
+  on a European, American or Japanese console is the Japanese character set: Latin, Cyrillic and kana are fine, Traditional
+  Chinese works if the table only uses characters of JIS X 0208 (the table is rewritten to do so: variants like 内 録 緑,
+  no 檔 卡 你; test it with `ch.encode('shift_jis')`), but Simplified Chinese is about a quarter boxes there. Not done:
+  Korean (hangul is not in that font either) and Dutch (the 3DS has it; smaller audience). Simplified has a font of our own
+  (`tools/make_hanfont.py` -> `romfs/hanfont.png` 86 KB + `source/core/hanfont.c`, from Noto Sans CJK SC, OFL; the OTF is not in the
+  repository, the script says where to get it). It holds every CJK character that `i18n_zh.c` uses: **run the script again after
+  changing that table**. Japanese is one standard written language (kanji and kana, polite form, common kanji only); `screen.c`
+  breaks lines between its characters, since it has no spaces. The pixel theme falls back to the system font for what it lacks.
 - **Lists load in two passes** (Titles, Tickets, Ext Save Data): the task adds a
   placeholder row for every item (ID only), then fills each one's details in place and
   marks it `ready`; the screen draws grey blocks until then, fades the contents in,
@@ -685,8 +969,9 @@ current, this list is the summary. What only the owner can test (local wireless)
   every other thread's network. The link wraps `poll()` (`-Wl,--wrap=poll`) to ask with no timeout and nap 1, 5, 20, then
   50 ms; the FTP and web servers nap the same way (`net_nap_ms`), so idle they cost little and need not be turned off
   during a download. Download sockets ask for 48 KB buffers (`net_set_buffers`; 3dsDL measured 48 KB fastest and 64 KB
-  or more breaking connections). **Never on the servers' sockets**: on the FTP's passive listening socket the console
-  reset every data connection, and ftpd leaves the 3DS's buffers alone on purpose. A download's connections share DNS
+  or more breaking connections). The FTP's passive socket takes **32 KB** (as the original ftpd: 48 KB there reset
+  every data connection, and the owner's fork, which had dropped them, was the one leaving the system's; 2026-11-04,
+  "FTP against the original ftpd"); the web server's sockets keep the system's. A download's connections share DNS
   answers and TLS sessions (curl share). `sslcInit` is called because devkitPro's mbedTLS takes its randomness from SSLC
   without checking. Learned from 3dsDL (2026-11-01).
 - **FTP and web servers** run as ftpd's thread does (`net_server_thread`): the New 3DS's third core, else the app core
@@ -714,6 +999,49 @@ current, this list is the summary. What only the owner can test (local wireless)
   The New 3DS did the catbox CIA at 762 KB/s (3dsDL: 515-560).
   The install screen says how many connections ("From host, N connections"). The log says "segments ahead" every 10 s
   and how many segments were asked for twice.
+- **Saving comes in long pieces; links good for one request** (2026-11-03, the owner's Dropbox link, Dragon Quest VIII
+  3.4 GB, New 3DS XL). Dropbox redirects three times to `uc….dl.dropboxusercontent.com/cd/0/get/…`, which serves **one**
+  request (even on the same connection) and answers 403 to the rest: the segments over 8 connections got 403 ("Forbidden"
+  in NSA), and going through the redirects for each one (a new host and TLS handshake every 512 KB) ran the console out
+  of sockets (curl 7 "Couldn't connect" ~100 ms after the redirect: each connection kept the old ones open). 3dsDL
+  (`source/net/download_engine.cpp`) fetches long pieces, one request each, and when an extra connection gets an HTTP
+  error it goes back to the link and keeps the connections still open as its most: from Dropbox it ended on **one**
+  (its log's `connections=4` is the most ever open), 758 KB/s over the whole file.
+  - **Save** (`http_download_file`, `data_op_data.dstAnyOrder`): the file is set to its size first (`FSFILE_SetSize`; a file
+    FAT32 can not hold, or no room, fails at once and leaves nothing), split among the connections, each fetches its
+    piece in one request and writes it where it goes; one that is done takes half of the biggest piece left. Refused
+    where the redirects ended: the link given (free); refused there: no more connections than are open. Each request
+    closes its connection (`FORBID_REUSE`: kept ones caused the curl 7). It **starts with 2 and finds how many pay
+    off** (`ramp.c`, shared with console to console: one more while it makes it 10% faster, 5 s measures from 1.5 s
+    after it opened; one that does not stops its piece where it is, which another takes, and one more is tried again
+    two minutes later, to the end). Measured: Dropbox 2 connections, 1312 KB/s over 3 minutes (8 connections: 789 KB/s
+    in minutes 1-3, and the console's ping at 150-200 ms with FTP data connections reset; with 2-3, ping ~50 ms, FTP
+    1-3 s, web 0.3 s); catbox.moe 5 connections, 554 KB/s (34 MB, the same bytes); LAN 256 MB 2 connections, 1534 KB/s
+    (with 4 fixed: 1311), the same bytes after two pieces stopped halfway; a cancelled save leaves nothing in
+    `/nsa/received/`.
+  - **Install** keeps the segments in order (the installer needs them so). When the address the redirects ended at
+    refuses one (403/410), the rest comes over one connection from the link given, from where it was
+    (`HTTP_RES_ONE_LINK`), as 3dsDL installs: Dropbox **1087 KB/s** (segments through the redirects: ~470). Tried with
+    `SITE SAVEORDER INORDER` (DEBUG: Save takes the in-order path) and a local server whose addresses answer once or 30
+    times (`onceserver`-style): the same bytes, 1112-1194 KB/s, also when the switch comes after 12 MB.
+  - Once, on the first try of the switch to one connection, NSA stopped answering (an `abort` or ErrDisp: no Luma dump)
+    and the log, which starts over at 96 KB, had just started over. Four runs after that and the Dropbox one went well.
+- **One transfer at a time** (`source/core/xferturn.c`, the owner's rule, 2026-11-03): a download (URL, QR, updater, Save),
+  an FTP RETR (1 MB and up, and `/dev/zero`) or STOR, a file up or down through the web page (down: 1 MB and up) and a console
+  to console send (from connecting to the end; not while asking whether to retry) or receive (from accepting) take the turn.
+  Whatever asks meanwhile is answered at once and never waits: FTP `450 Busy: <kind>, <name> (n%)`, the web page 503 with
+  `busy` (its uploads, live screens, install from URL), a download or a send fails with "Another transfer is in progress".
+  Free during a transfer: FTP control and LIST, small files, `speed-log.txt`, the page's browsing, settings and buttons.
+  `/api/info` has `transfer` (kind, name, done, total, KB/s); the page shows it in the top bar, asks every 3 s meanwhile,
+  checks before an upload and pauses the live screens. A turn not touched for 60 s is free again (a forgotten release never
+  locks the rest out). The transfer with the turn waits in a real `poll()` of at most 20 ms (`net_poll_owner`, calling
+  `__real_poll` past the wrap) instead of napping, as ftpd does: nothing else moves data, so a control request waits at most
+  that. `SITE POLL POLL|NAP|HYBRID` (DEBUG) switches it to compare.
+- **The 3DS does not always see a client's reset** (`tools/turn_tests.py`): a transfer whose client vanished waited its 30 s,
+  the FTP session's give-way waited 30 s more, and the web page (one request at a time) sat behind it, then behind its answer
+  to the dead client. Now a data wait stalled 10 s gives up when another client is waiting (`FTP_STALL_MS`, `WEB_STALL_MS`),
+  an FTP session whose transfer broke lets a new connection in at once, `recv()` after a ready `poll()` waits 1 s, and a web
+  upload whose client went away is not answered: the page answers again within ~13 s (10 s stall, 1 s, 2 s closing).
 - **The servers' sockets never block** (`net_set_nonblocking`, `net_recv`, `net_close_gently` in `netpoll.c`): a blocking
   send to a client that had gone waited inside the SOC session until TCP gave up, holding every socket call of NSA, the
   shutdown() meant to wake it too; the 2DS stopped answering FTP and web during a download test and froze when the FTP

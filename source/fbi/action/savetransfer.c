@@ -22,6 +22,8 @@
 #define SAVES_DIR APP_DATA_DIR "saves/"
 #define BACKUP_SUFFIX "-before-import"
 #define CHECKPOINT_DIR "/3ds/Checkpoint/"
+#define CHECKPOINT_TAG "[Checkpoint] "
+#define NSA_TAG "[NSA] "
 
 static const char* save_kind_dir(save_kind kind) {
     return kind == SAVE_KIND_EXT ? "ext" : kind == SAVE_KIND_BOSS ? "boss" : "save";
@@ -740,7 +742,8 @@ static void import_list_draw_top(ui_view* view, void* data, float x1, float y1, 
 }
 
 static void import_list_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
-    widget_row(x, y, width, height, ICON_DOWNLOAD, item->name, theme()->palette->text, NULL, selected);
+    save_backup* b = (save_backup*) item->data;
+    widget_row(x, y, width, height, b->checkpoint ? ICON_CHECKPOINT : WIDGET_ICON_NSA, item->name, theme()->palette->text, NULL, selected);
 }
 
 static void import_list_clear(linked_list* items) {
@@ -760,7 +763,7 @@ static void import_list_update(ui_view* view, void* data, linked_list* items, li
         for(u32 i = 0; i < list->count; i++) {
             list_item* item = (list_item*) calloc(1, sizeof(list_item));
             if(item != NULL) {
-                string_copy(item->name, list->choices[i].label, sizeof(item->name));
+                string_copy(item->name, list->choices[i].label + list->choices[i].nameAt, sizeof(item->name));
                 item->color = COLOR_TEXT;
                 item->data = &list->choices[i];
                 linked_list_add(items, item);
@@ -821,6 +824,7 @@ static bool import_list_add(import_list* list, const char* path, bool checkpoint
     string_copy(choice->path, path, sizeof(choice->path));
     string_copy(choice->label, label, sizeof(choice->label));
     choice->checkpoint = checkpoint;
+    choice->nameAt = (u8) strlen(checkpoint ? CHECKPOINT_TAG : NSA_TAG);
     return true;
 }
 
@@ -885,9 +889,9 @@ static void import_collect(import_list* list, FS_Archive sd, title_info* title, 
         bool backup = strstr(n, BACKUP_SUFFIX) != NULL;
         char label[96];
         if(strlen(n) >= 15 && n[8] == '-') {
-            snprintf(label, sizeof(label), "[NSA] %.4s-%.2s-%.2s %.2s:%.2s:%.2s%s", n, n + 4, n + 6, n + 9, n + 11, n + 13, backup ? _("  (before an import)") : "");
+            snprintf(label, sizeof(label), NSA_TAG "%.4s-%.2s-%.2s %.2s:%.2s:%.2s%s", n, n + 4, n + 6, n + 9, n + 11, n + 13, backup ? _("  (before an import)") : "");
         } else {
-            snprintf(label, sizeof(label), "[NSA] %s", n);
+            snprintf(label, sizeof(label), NSA_TAG "%s", n);
         }
 
         char path[FILE_PATH_MAX];
@@ -914,7 +918,7 @@ static void import_collect(import_list* list, FS_Archive sd, title_info* title, 
         for(u32 i = 0; i < n; i++) {
             char label[96];
             char path[FILE_PATH_MAX];
-            snprintf(label, sizeof(label), "[Checkpoint] %s", backups[i]);
+            snprintf(label, sizeof(label), CHECKPOINT_TAG "%s", backups[i]);
             snprintf(path, sizeof(path), "%s%s/", gameDir, backups[i]);
             import_list_add(list, path, true, label);
         }
@@ -1352,7 +1356,7 @@ static void pack_finished(worker* w, Result res) {
 
         if(size > 0 && pack_sd_kept != 0) {
             // The Send screen keeps the archive open: it stays open for good (one handle).
-            transfer_send_file(pack_sd_kept, job->sdPath, job->fileName, size);
+            transfer_send_file(pack_sd_kept, job->sdPath, job->fileName, size, NULL);
         } else {
             error_display(NULL, NULL, "Failed to read the package.");
         }

@@ -96,7 +96,7 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
 - **Three themes**: *Cards*, *Pixel* (a pixel font, square corners and bars in blocks) and *HOME*
   (big icon tiles and dialogs as a sheet from the bottom), in day and night colours with eight
   accent colours and a yellow one. Settings → Theme.
-- English and Spanish, stereoscopic 3D on the top screen, touch and button controls everywhere
+- English, Spanish, Catalan, French, German, Italian, Portuguese, Russian, Japanese and Chinese, simplified and traditional (a list in Settings), stereoscopic 3D on the top screen, touch and button controls everywhere
   (pressed look, long press for an item's actions, flick scrolling, draggable scrollbars), and optional
   interface sounds, each with its own volume slider (sounds and music).
 - Optional **background music** made by the console itself, with no files: soft lift music, a calm
@@ -150,6 +150,7 @@ version comes from the git tags (`tools/version.sh`).
 - SPI protocol information: [TuxSH](https://github.com/TuxSH/)
   ([TWLSaveTool](https://github.com/TuxSH/TWLSaveTool)).
 - Icons: [Tabler Icons](https://tabler.io/icons) (MIT) and a few of NSA's own.
+- Simplified Chinese font: [Noto Sans CJK SC](https://github.com/notofonts/noto-cjk) (SIL Open Font License 1.1), baked by `tools/make_hanfont.py`
 - Pixel theme font: [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans) (SIL Open Font
   License 1.1, `tools/fonts/`).
 - Audio decoding: [dr_libs](https://github.com/mackron/dr_libs) (public domain / MIT-0) and

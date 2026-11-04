@@ -808,6 +808,29 @@ const i18n_entry i18n_zh[] = {
         {"Failed to commit the changes.", "无法提交更改。"},
         {"Failed to list the files.", "无法列出文件。"},
         {"Failed to start the copy.", "无法开始复制。"},
+
+        // Dump NAND (Advanced)
+        {"NAND size", "NAND 大小"},
+        {"Free (SD)", "可用 (SD)"},
+        {"Time left", "剩余时间"},
+        {"Took", "用时"},
+        {"Space", "空间"},
+        {"Needed", "需要"},
+        {"Free on the SD card", "SD卡可用空间"},
+        {"%s missing: free some space first", "还差 %s：请先释放空间"},
+        {"Fits, with %s left over", "容量足够，剩余 %s"},
+        {"It will be saved in", "将保存到"},
+        {"Keep the console awake and the SD card in.", "请保持主机开机，并插好SD卡。"},
+        {"NAND dumped", "NAND 已导出"},
+        {"%s in %s", "%s，用时 %s"},
+        {"Saved as", "保存为"},
+        {"Back", "返回"},
+        {"%lu min %lu s", "%lu 分 %lu 秒"},
+        {"%lu s", "%lu 秒"},
+        {"\uE000 start   \uE001 cancel", "\uE000 开始   \uE001 取消"},
+        {"\uE000 OK", "\uE000 确定"},
+        {"Start dump", "开始导出"},
+        {"Also saved as a .sha256 file next to it.", "同时在旁边保存了 .sha256 文件。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

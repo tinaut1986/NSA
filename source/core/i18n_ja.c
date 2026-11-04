@@ -821,6 +821,29 @@ const i18n_entry i18n_ja[] = {
         {"Failed to commit the changes.", "変更を確定できませんでした。"},
         {"Failed to list the files.", "ファイルを一覧化できませんでした。"},
         {"Failed to start the copy.", "コピーを開始できませんでした。"},
+
+        // Dump NAND (Advanced)
+        {"NAND size", "NANDのサイズ"},
+        {"Free (SD)", "空き (SD)"},
+        {"Time left", "残り時間"},
+        {"Took", "所要時間"},
+        {"Space", "容量"},
+        {"Needed", "必要な容量"},
+        {"Free on the SD card", "SDカードの空き容量"},
+        {"%s missing: free some space first", "%sが足りません。先に空き容量を増やしてください"},
+        {"Fits, with %s left over", "収まります（%sの余裕あり）"},
+        {"It will be saved in", "保存先"},
+        {"Keep the console awake and the SD card in.", "本体の電源を入れたまま、SDカードを挿しておいてください。"},
+        {"NAND dumped", "NANDをダンプしました"},
+        {"%s in %s", "%s（所要時間 %s）"},
+        {"Saved as", "保存名"},
+        {"Back", "戻る"},
+        {"%lu min %lu s", "%lu分%lu秒"},
+        {"%lu s", "%lu秒"},
+        {"\uE000 start   \uE001 cancel", "\uE000 開始   \uE001 キャンセル"},
+        {"\uE000 OK", "\uE000 OK"},
+        {"Start dump", "ダンプ開始"},
+        {"Also saved as a .sha256 file next to it.", "同じ場所に.sha256ファイルも保存します。"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

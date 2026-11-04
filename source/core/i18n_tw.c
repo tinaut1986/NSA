@@ -809,6 +809,29 @@ const i18n_entry i18n_tw[] = {
         {"Failed to commit the changes.", "無法確認變更。"},
         {"Failed to list the files.", "無法列出文件。"},
         {"Failed to start the copy.", "無法開始複製。"},
+
+        // Dump NAND (Advanced)
+        {"NAND size", "NAND 大小"},
+        {"Free (SD)", "可用 (SD)"},
+        {"Time left", "剩餘時間"},
+        {"Took", "耗時"},
+        {"Space", "空間"},
+        {"Needed", "需要"},
+        {"Free on the SD card", "SD可用空間"},
+        {"%s missing: free some space first", "還差 %s：請先釋出空間"},
+        {"Fits, with %s left over", "空間充足，剩餘 %s"},
+        {"It will be saved in", "將儲存至"},
+        {"Keep the console awake and the SD card in.", "請保持主機開機，並插著SD。"},
+        {"NAND dumped", "NAND 已建立副本"},
+        {"%s in %s", "%s，耗時 %s"},
+        {"Saved as", "儲存為"},
+        {"Back", "返回"},
+        {"%lu min %lu s", "%lu 分 %lu 秒"},
+        {"%lu s", "%lu 秒"},
+        {"\uE000 start   \uE001 cancel", "\uE000 開始   \uE001 取消"},
+        {"\uE000 OK", "\uE000 確定"},
+        {"Start dump", "建立副本"},
+        {"Also saved as a .sha256 file next to it.", "同時在旁邊儲存了 .sha256 文件。"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

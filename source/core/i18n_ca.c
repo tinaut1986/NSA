@@ -816,6 +816,29 @@ const i18n_entry i18n_ca[] = {
         {"Failed to commit the changes.", "No s'han pogut confirmar els canvis."},
         {"Failed to list the files.", "No s'han pogut llistar els fitxers."},
         {"Failed to start the copy.", "No s'ha pogut iniciar la còpia."},
+
+        // Dump NAND (Advanced)
+        {"NAND size", "Mida de la NAND"},
+        {"Free (SD)", "Lliure (SD)"},
+        {"Time left", "Temps restant"},
+        {"Took", "Ha trigat"},
+        {"Space", "Espai"},
+        {"Needed", "Necessari"},
+        {"Free on the SD card", "Lliure a la targeta SD"},
+        {"%s missing: free some space first", "Falten %s: allibera espai primer"},
+        {"Fits, with %s left over", "Hi cap, i sobren %s"},
+        {"It will be saved in", "Es desarà a"},
+        {"Keep the console awake and the SD card in.", "Mantén la consola encesa i la targeta SD posada."},
+        {"NAND dumped", "NAND copiada"},
+        {"%s in %s", "%s en %s"},
+        {"Saved as", "Desada com a"},
+        {"Back", "Tornar"},
+        {"%lu min %lu s", "%lu min %lu s"},
+        {"%lu s", "%lu s"},
+        {"\uE000 start   \uE001 cancel", "\uE000 començar   \uE001 cancel·lar"},
+        {"\uE000 OK", "\uE000 D'acord"},
+        {"Start dump", "Copiar"},
+        {"Also saved as a .sha256 file next to it.", "També desat en un fitxer .sha256 al costat."},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

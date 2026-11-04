@@ -125,6 +125,9 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Web music** (2026-11-04, `feat/web-music`; decoded and looped against a mock server in the browser with a real `music-cache-3.pcm`):
+- [ ] The page plays the console's background music (the last song of the style set on the console, from `/nsa/music-cache-N.pcm`, 22050 Hz mono) at the console's music volume; Off on the console (or the page switch "Console music here" in Settings -> This page) silences it; changing the style or volume on the console shows up within 30 s; a new song made by the console is fetched and crossfaded in (3.5 s). The song is kept in the browser (IndexedDB) per style and file date. Needs the console to have made that style once (the cache file exists) and a click or key on the page first (browser rule). It is the same audio, not a second synthesis: the page just reads the file.
+
 **Web page** (2026-11-04, `feat/web-toast-cache`; tried against a mock server in the browser, not on a console):
 - [ ] While the console transfers (FTP, a download, another 3DS), the page shows a toast at the bottom with the kind, name, percentage and KB/s and a progress bar, in place of the old text at the top right; it goes away when the transfer ends.
 - [ ] Titles: start loading, switch to another tab and back: the names and icons still missing keep loading (they used to stay frozen).

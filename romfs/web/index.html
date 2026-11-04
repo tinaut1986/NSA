@@ -91,6 +91,9 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .row .pic{width:40px;height:40px;flex:none;border-radius:calc(var(--rs) - 2px);display:grid;place-items:center;background:var(--bg);color:var(--accent);overflow:hidden;position:relative}
 .row .pic img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s}
 .row .pic img.in{opacity:1}
+.row.has-cnt{position:relative}
+.row .cnt{position:absolute;left:41px;top:5px;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:var(--accent);color:var(--onaccent);font-size:11px;font-weight:600;line-height:18px;text-align:center;box-shadow:0 0 0 2px var(--card);pointer-events:none}
+.list.grid .row .cnt{left:calc(50% + 14px);top:6px}
 .row .chk{position:absolute;inset:0;display:grid;place-items:center;background:var(--accent);color:var(--onaccent);opacity:0;transform:scale(.6);transition:opacity var(--fast),transform var(--fast) var(--spring)}
 .row.sel .chk{opacity:1;transform:none}
 .row .pic:hover .chk{opacity:.55;transform:none}
@@ -743,7 +746,7 @@ function titleRow(t){
   r._t = t; r._pic = pic;
   r.onclick = () => TV.group && extrasOf.has(tkey(t)) ? chainSheet(t, r) : titleSheet(t, r);
   r.onkeydown = e => { if(e.key==='Enter') r.onclick(); };
-  r._count = h('span', {class:'badge', hidden:true}); r.querySelector('.meta').prepend(r._count);
+  r._count = h('span', {class:'cnt', hidden:true}); r.append(r._count);
   r.title = t.id;
   return r;
 }
@@ -792,7 +795,7 @@ function applyTitles(animate){
     const hide = TV.group && t._linked && (TV.kind==='game' || TV.kind==='all');
     r.hidden = !ok || hide; if(!r.hidden) shown++;
     const n = TV.group && extrasOf.has(tkey(t)) ? extrasOf.get(tkey(t)).length : 0;
-    r._count.hidden = !n; if(n) r._count.textContent = '+'+n;
+    r._count.hidden = !n; r.classList.toggle('has-cnt', n>0); if(n) r._count.textContent = n;
   }
   // Only moves the rows that are out of place, so the list does not flash.
   rows.forEach((r, i) => { if(list.children[i]!==r) list.insertBefore(r, list.children[i]||null); });

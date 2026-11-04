@@ -75,6 +75,8 @@ const i18n_entry i18n_tw[] = {
         {"Now: playing", "目前：播放中"},
         {"On: the music stops while a file goes through the FTP server and comes back after. Transfers go a little faster: 2-3% on an Old 3DS, 3-6% on a New 3DS.", "開：文件經由FTP伺服器傳輸時音樂會停止，結束後再恢復。傳輸會稍快一些：Old 3DS 快 2-3%，New 3DS 快 3-6%。"},
         {"Off: the music goes on during FTP transfers, which go a little slower (2-3% on an Old 3DS, 3-6% on a New 3DS). Off by default.", "關：FTP傳輸時音樂持續播放，傳輸會稍慢一些（Old 3DS 慢 2-3%，New 3DS 慢 3-6%）。預設為關。"},
+        {"Music and FTP", "音樂與FTP"},
+        {"The music no longer slows down FTP\ntransfers on this console (2-3%,\nit used to be 10-25%).\n\nLet it play during FTP transfers?\n\nSettings -> Pause music for FTP\nchanges it later.", "在這台主機上，音樂已不再明顯\n拖慢FTP傳輸（2-3%，以前是10-25%）。\n\nFTP傳輸時要繼續播放音樂嗎？\n\n之後可在 設定 -> FTP時暫停音樂\n中更改。"},
         {"Check for updates", "檢査更新"},
         {"Changelog", "更新内容"},
         {"How the menus look.", "選單的外觀。"},

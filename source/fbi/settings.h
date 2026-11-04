@@ -56,9 +56,11 @@ typedef struct {
     bool autoUpdate;
     bool ftpServer;
     bool webServer;   // The web page for a computer's browser: off until the owner turns it on.
-    // The background music stops while a file goes through the FTP server: on an Old 3DS that
-    // made the transfers 10-25% faster (on by default there; off on a New 3DS, which has the CPU).
+    // The background music stops while a file goes through the FTP server: 2-3% faster on an Old
+    // 3DS since transfers keep only 5% of the system core (10-25% before), 3-6% on a New 3DS. Off by default.
     bool ftpPausesMusic;
+    // An Old 3DS that had ftpPausesMusic on (its old default) was asked once whether to let the music play.
+    bool ftpMusicAsked;
 
     // Appearance: indices into theme.h's tables and i18n.h's languages.
     u32 theme;

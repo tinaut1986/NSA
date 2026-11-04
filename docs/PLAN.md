@@ -895,8 +895,9 @@ current, this list is the summary. What only the owner can test (local wireless)
   every other thread's network. The link wraps `poll()` (`-Wl,--wrap=poll`) to ask with no timeout and nap 1, 5, 20, then
   50 ms; the FTP and web servers nap the same way (`net_nap_ms`), so idle they cost little and need not be turned off
   during a download. Download sockets ask for 48 KB buffers (`net_set_buffers`; 3dsDL measured 48 KB fastest and 64 KB
-  or more breaking connections). **Never on the servers' sockets**: on the FTP's passive listening socket the console
-  reset every data connection, and ftpd leaves the 3DS's buffers alone on purpose. A download's connections share DNS
+  or more breaking connections). The FTP's passive socket takes **32 KB** (as the original ftpd: 48 KB there reset
+  every data connection, and the owner's fork, which had dropped them, was the one leaving the system's; 2026-11-04,
+  "FTP against the original ftpd"); the web server's sockets keep the system's. A download's connections share DNS
   answers and TLS sessions (curl share). `sslcInit` is called because devkitPro's mbedTLS takes its randomness from SSLC
   without checking. Learned from 3dsDL (2026-11-01).
 - **FTP and web servers** run as ftpd's thread does (`net_server_thread`): the New 3DS's third core, else the app core

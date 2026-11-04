@@ -32,6 +32,9 @@
 #define KPROCESS_PID_OFFSET_OLD (0xB4)
 #define KPROCESS_PID_OFFSET_NEW (0xBC)
 
+// The share of the system core (core 1) the app keeps for its threads there; see XFERTURN_CPU_LIMIT for transfers.
+#define MAIN_CPU_LIMIT 30
+
 static bool backdoor_ran = false;
 static bool n3ds = false;
 static u32 old_pid = 0;
@@ -172,7 +175,7 @@ void init() {
     osSetSpeedupEnable(true);
 
     APT_GetAppCpuTimeLimit(&old_time_limit);
-    Result cpuRes = APT_SetAppCpuTimeLimit(30);
+    Result cpuRes = APT_SetAppCpuTimeLimit(MAIN_CPU_LIMIT);
     if(R_FAILED(cpuRes)) {
         error_panic("Failed to set syscore CPU time limit: %08lX", cpuRes);
         return;
@@ -186,6 +189,11 @@ void init() {
     http_set_log(udslink_log);
     speedlog_init();
     xferturn_init();
+    bool new3ds = false;
+    APT_CheckNew3DS(&new3ds);
+    if(!new3ds) {
+        xferturn_cpu_limits(MAIN_CPU_LIMIT);
+    }
     speedlog_set_context(main_speedlog_context);
     task_init();
 }

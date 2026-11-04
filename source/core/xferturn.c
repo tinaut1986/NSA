@@ -22,8 +22,22 @@ static struct {
     u32 kbs;
 } xferturn;
 
+// The share of the system core the app keeps (APT_SetAppCpuTimeLimit) while it holds no turn; 0 leaves it alone.
+static u32 xferturn_cpu_normal = 0;
+
 void xferturn_init() {
     LightLock_Init(&xferturn_lock);
+}
+
+void xferturn_cpu_limits(u32 normal) {
+    xferturn_cpu_normal = normal;
+}
+
+// Under the lock, so a release and the next take cannot set the limits out of order.
+static void xferturn_cpu(bool transfer) {
+    if(xferturn_cpu_normal != 0) {
+        APT_SetAppCpuTimeLimit(transfer ? XFERTURN_CPU_LIMIT : xferturn_cpu_normal);
+    }
 }
 
 // Under the lock: a turn left untouched for too long is free again.
@@ -50,6 +64,7 @@ u32 xferturn_take(xfer_kind kind, const char* name, u64 total) {
         xferturn.started = xferturn.touched = xferturn.rateTime = now;
         xferturn.rateDone = 0;
         xferturn.kbs = 0;
+        xferturn_cpu(true);
     }
     LightLock_Unlock(&xferturn_lock);
 
@@ -95,6 +110,7 @@ void xferturn_release(u32 ticket) {
     LightLock_Lock(&xferturn_lock);
     if(xferturn.ticket == ticket) {
         xferturn.ticket = 0;
+        xferturn_cpu(false);
     }
     LightLock_Unlock(&xferturn_lock);
 }

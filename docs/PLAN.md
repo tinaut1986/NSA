@@ -260,6 +260,15 @@ PC's O: drive) to /cias **641 KB/s** (ftpd ~850).
       0x31 or 0x2F), the web server (off) or the CPU (core 0 at 15%). The trace: ~90% of each second inside send(), ~33 ms
       a call for ~19.5 KB. Sending first and polling only when nothing fits (as ftpd) brought 454-463 -> 478-484 (New 3DS
       XL unchanged: 808-896 / 1190-1192). The rest (~20%) is still to find.
+- [x] Found (2026-11-04): the share of the system core NSA keeps (`APT_SetAppCpuTimeLimit(30)`, from FBI). On an Old 3DS
+      the network runs on that core. The fork with the same trace: ~23 ms a send() for ~18.5 KB (NSA ~33 ms). 2DS, 30% ->
+      5% (`SITE CPULIMIT`, DEBUG), one right after the other: FTP down 480-488 -> 643-657, up 230 (a noisy round) -> 715;
+      a URL download (Save) 562-680 -> 880-929; a URL install 650-654 -> 758-763. But an install from the SD card (32.5 MB,
+      Files -> Install) took 42.7-43.4 s -> 49.7-50.8 s. So a held transfer turn lowers it to 5% and the release puts 30%
+      back (Old 3DS only, `xferturn_cpu_limits`). Then on the 2DS: FTP up 837, down 649-651, URL 802 KB/s.
+- [ ] The New 3DS XL is unchanged (no limit changes there): check that its FTP, URL and console to console speeds stay.
+- [ ] Old 3DS, with the turn lowering the limit: console to console (both ways), the web page's upload and download, and
+      the menus and music during a transfer (the app's core-1 threads get 5% then).
 - [ ] Whether NSA stops answering again right after "the rest over one connection" (it did once): if it does, a photo of
       the screen and `transfer-log.txt` at once.
 - [ ] Remote Install's choices (#29): a list (Install, Save and install, Save install and delete, Save; X saves at once)

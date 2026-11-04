@@ -10,6 +10,9 @@ typedef struct ui_view_s {
     void (*drawBottom)(struct ui_view_s* view, void* data, float x1, float y1, float x2, float y2);
     // Optional: draws the title bar's contents itself (title, tool icons).
     void (*drawTitleBar)(struct ui_view_s* view, void* data, float x1, float y1, float x2, float y2);
+    // A screen that is not a list but opens from another: the default title bar gets the back arrow of the
+    // lists' (left of the title), and a tap on it is a press of B.
+    bool backArrow;
 
     Handle active;
 } ui_view;

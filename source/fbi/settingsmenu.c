@@ -261,6 +261,7 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
     float viewHeight = by2 - by1 - 2 * PAD;
 
     view->name = _("Settings");
+    view->backArrow = true;
     if(settings_get()->music != BGMUSIC_OFF) {
         bgmusic_status music;
         bgmusic_get_status(&music);

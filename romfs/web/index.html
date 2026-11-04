@@ -364,7 +364,7 @@ const WORDS = {
 en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',lost:'Cannot reach the console.',failed:'Failed: ',done:'Done.',
   g_manage:'Manage',g_tools:'Tools',titles:'Titles',files:'Files',tickets:'Tickets',extdata:'Extra data',install:'Install',screen:'Screen',settings:'Settings',
   search:'Search',filter:'Filter',sort:'Sort',view:'View',list:'List',grid:'Grid',more:'More',reload:'Reload',close:'Close',cancel:'Cancel',ok:'OK',save:'Save',
-  k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
+  k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',group:'Group updates and DLC',yes:'Yes',no:'No',chain:'Updates and DLC',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
   loaded:'%a of %b',notitles:'Nothing matches.',loading:'Loading…',version:'Version',size:'Size',code:'Product code',publisher:'Publisher',id:'Title ID',type:'Type',path:'Path',modified:'Modified',
   launch:'Launch',deleteTitle:'Delete',delticket:'Delete with ticket',data:'Data',dsave:'Download save',dext:'Download extra data',dboss:'Download SpotPass data',m_save:'Save data',m_ext:'Extra data',m_boss:'SpotPass data',dpack:'Download (a .nsasave package)',backups:'Backups on the SD card',restore:'Restore (the console asks first)',confirmdelbackup:'Delete the backup "%s"? This cannot be undone.',cpnote:'It is Checkpoint\'s: Checkpoint will not see it any more.',
   sendpkg:'Send a save package',sendpkgsub:'A .nsasave package made by NSA: the console unpacks it and asks there.',packing:'Packing',packstart:'The console is packing it (B there cancels)…',counting:'Counting files…',downloading:'Downloading',cancelled:'Cancelled.',packbusy:'The console is still packing the last one.',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and kept on the console (this title or its data is not there).',
@@ -386,7 +386,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
 es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',lost:'No se puede contactar con la consola.',failed:'Error: ',done:'Hecho.',
   g_manage:'Gestionar',g_tools:'Herramientas',titles:'Títulos',files:'Archivos',tickets:'Tickets',extdata:'Datos extra',install:'Instalar',screen:'Pantalla',settings:'Ajustes',
   search:'Buscar',filter:'Filtrar',sort:'Ordenar',view:'Vista',list:'Lista',grid:'Cuadrícula',more:'Más',reload:'Recargar',close:'Cerrar',cancel:'Cancelar',ok:'Aceptar',save:'Guardar',
-  k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
+  k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',group:'Agrupar actualizaciones y DLC',yes:'Sí',no:'No',chain:'Actualizaciones y DLC',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
   loaded:'%a de %b',notitles:'No hay nada que coincida.',loading:'Cargando…',version:'Versión',size:'Tamaño',code:'Código de producto',publisher:'Editor',id:'ID de título',type:'Tipo',path:'Ruta',modified:'Modificado',
   launch:'Lanzar',deleteTitle:'Borrar',delticket:'Borrar con ticket',data:'Datos',dsave:'Descargar partida',dext:'Descargar datos extra',dboss:'Descargar datos SpotPass',m_save:'Partidas',m_ext:'Datos extra',m_boss:'Datos SpotPass',dpack:'Descargar (un paquete .nsasave)',backups:'Copias en la SD',restore:'Restaurar (la consola pregunta antes)',confirmdelbackup:'¿Borrar la copia "%s"? No se puede deshacer.',cpnote:'Es de Checkpoint: Checkpoint dejará de verla.',
   sendpkg:'Enviar un paquete de partida',sendpkgsub:'Un paquete .nsasave hecho por NSA: la consola lo desempaqueta y pregunta allí.',packing:'Empaquetando',packstart:'La consola lo está empaquetando (B allí lo cancela)…',counting:'Contando archivos…',downloading:'Descargando',cancelled:'Cancelado.',packbusy:'La consola aún está empaquetando el anterior.',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están).',
@@ -689,8 +689,17 @@ function emptyEl(icon, text, sub){ return h('div', {class:'empty'}, ic(icon), h(
 function skeletonRows(n){ return Array.from({length:n}, (_, i) => h('div', {class:'row', vars:{i}}, h('div', {class:'pic'}), h('div', {class:'txt'}, h('div', {class:'nm'}, h('span', {class:'sk', style:'width:'+(40+((i*37)%45))+'%'})), h('div', {class:'sub'}, h('span', {class:'sk', style:'width:30%'}))))); }
 
 // ---- titles ----
-const TV = {kind:store.get('t.kind','game'), media:store.get('t.media','all'), sort:store.get('t.sort','name'), view:store.get('t.view','list'), text:''};
+const TV = {kind:store.get('t.kind','game'), media:store.get('t.media','all'), sort:store.get('t.sort','name'), view:store.get('t.view','list'), group:store.get('t.group', true), text:''};
 let titles = null, titleRows = new Map(), titlesLoading = false;
+// Grouping, as on the console: an update or DLC whose game is in the list (same low 32 bits of the ID) hides behind it,
+// and the game shows how many hang from it. Only while games are shown (Games or All).
+let extrasOf = new Map();
+const lowId = t => t.id.slice(8);
+function linkTitles(){
+  extrasOf = new Map(); for(const t of titles){ t._linked = false; }
+  const games = new Map(); for(const t of titles) if(t.kind==='game') games.set(lowId(t), t);
+  for(const t of titles) if(t.kind==='update' || t.kind==='dlc'){ const g = games.get(lowId(t)); if(g){ t._linked = true; if(!extrasOf.has(tkey(g))) extrasOf.set(tkey(g), []); extrasOf.get(tkey(g)).push(t); } }
+}
 const KINDS = () => [['game',T.k_game],['update',T.k_update],['dlc',T.k_dlc],['system',T.k_system],['all',T.k_all]];
 const tkey = t => t.id+t.media;
 function kindOk(t){ const k = TV.kind; return k==='all' || (k==='game' ? t.kind==='game'||t.kind==='demo' : k==='system' ? t.kind==='system'||t.kind==='dsiware' : t.kind===k); }
@@ -699,7 +708,8 @@ screens.titles = {
     const list = h('div', {class:'list anim'+(TV.view==='grid'?' grid':''), id:'tlist'});
     const count = h('small', {id:'tcount'});
     const filterBtn = tool('filter', T.filter, e => menuAt(e.currentTarget, [T.kind, seg(KINDS(), TV.kind, v => { TV.kind = v; store.set('t.kind', v); applyTitles(true); }), T.media,
-      seg([['all',T.k_all],['sd','SD'],['nand','NAND']], TV.media, v => { TV.media = v; store.set('t.media', v); applyTitles(true); })]), TV.kind!=='game'||TV.media!=='all' ? 'on' : '');
+      seg([['all',T.k_all],['sd','SD'],['nand','NAND']], TV.media, v => { TV.media = v; store.set('t.media', v); applyTitles(true); }),
+      T.group, seg([['y',T.yes],['n',T.no]], TV.group ? 'y' : 'n', v => { TV.group = v==='y'; store.set('t.group', TV.group); applyTitles(true); })]), TV.kind!=='game'||TV.media!=='all' ? 'on' : '');
     const sortBtn = tool('arrows-sort', T.sort, e => menuAt(e.currentTarget, [['name',T.s_name,'list'],['size',T.s_size,'database'],['id',T.s_id,'key']].map(([v,l,i]) =>
       [TV.sort===v ? 'check' : i, l, () => { TV.sort = v; store.set('t.sort', v); applyTitles(); }])));
     const viewBtn = tool(TV.view==='grid' ? 'list' : 'layout-grid', T.view, e => { TV.view = TV.view==='grid' ? 'list' : 'grid'; store.set('t.view', TV.view); list.classList.toggle('grid', TV.view==='grid'); setIcon(e.currentTarget.firstChild, TV.view==='grid' ? 'list' : 'layout-grid'); sfx('tick'); });
@@ -714,6 +724,7 @@ async function loadTitles(){
   if(titlesLoading) return; titlesLoading = true;
   try {
     const j = await api('GET', 'titles'); titles = j.titles;
+    linkTitles();
     for(const t of titles) titleRows.set(tkey(t), titleRow(t));
     const list = $('tlist');
     if(list){ list.textContent = ''; titles.forEach((t,i) => { const r = titleRows.get(tkey(t)); r.style.setProperty('--i', i); list.append(r); }); applyTitles(); }
@@ -730,8 +741,9 @@ function titleRow(t){
     h('div', {class:'meta'}, h('span', {class:'badge'+(t.media==='nand'?' n':''), text:t.media.toUpperCase()})), ic('chevron-right', 16));
   r.lastChild.classList.add('chev');
   r._t = t; r._pic = pic;
-  r.onclick = () => titleSheet(t, r);
+  r.onclick = () => TV.group && extrasOf.has(tkey(t)) ? chainSheet(t, r) : titleSheet(t, r);
   r.onkeydown = e => { if(e.key==='Enter') r.onclick(); };
+  r._count = h('span', {class:'badge', hidden:true}); r.querySelector('.meta').prepend(r._count);
   r.title = t.id;
   return r;
 }
@@ -777,7 +789,10 @@ function applyTitles(animate){
   for(const r of rows){
     const t = r._t, nm = ((r._d && r._d.name)||'')+' '+((r._d && r._d.publisher)||'')+' '+t.id;
     const ok = kindOk(t) && (TV.media==='all' || t.media===TV.media) && (!TV.text || nm.toLowerCase().includes(TV.text));
-    r.hidden = !ok; if(ok) shown++;
+    const hide = TV.group && t._linked && (TV.kind==='game' || TV.kind==='all');
+    r.hidden = !ok || hide; if(!r.hidden) shown++;
+    const n = TV.group && extrasOf.has(tkey(t)) ? extrasOf.get(tkey(t)).length : 0;
+    r._count.hidden = !n; if(n) r._count.textContent = '+'+n;
   }
   // Only moves the rows that are out of place, so the list does not flash.
   rows.forEach((r, i) => { if(list.children[i]!==r) list.insertBefore(r, list.children[i]||null); });
@@ -787,6 +802,15 @@ function applyTitles(animate){
   const loaded = rows.filter(r => r._d).length;
   $('tcount').textContent = loaded<rows.length ? tr('loaded', {a:loaded, b:rows.length}) : String(shown);
   const c = $('cnt_titles'); if(c) c.textContent = rows.length;
+}
+// A game with updates or DLC (grouped) opens its chain: the game itself and each one hanging from it.
+function chainSheet(t, r){
+  const items = [t, ...extrasOf.get(tkey(t))];
+  const label = x => { const row = titleRows.get(tkey(x)); return (row && row._d && row._d.name) || x.id; };
+  const kindName = x => ({game:T.k_game, update:T.k_update, dlc:T.k_dlc}[x.kind] || x.kind);
+  let s;
+  s = sheet({head:sheetHead(r._pic.querySelector('img') ? h('img', {src:r._pic.querySelector('img').src, class:'px'}) : ic('apps', 48), (r._d && r._d.name) || t.id, T.chain),
+    body:[actions(items.map(x => [x===t ? 'apps' : x.kind==='dlc' ? 'package' : 'refresh', label(x), () => titleSheet(x, titleRows.get(tkey(x))), {note:kindName(x)+' · v'+fmtVer(x.version)+' · '+fmtSize(x.size)}]), c => s.close(c))]});
 }
 // The kinds of data (save, extra, boss) are asked for when the sheet opens, once per session: opening the archives is slow.
 async function titleSheet(t, r){

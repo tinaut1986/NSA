@@ -231,6 +231,19 @@ Dropbox, catbox and the LAN, byte for byte, and an install by URL of an 8 MB CIA
       got 500 and 403 from Google Drive.
 - [ ] NSA went back to the HOME Menu by itself once (no Luma dump), right after a SITE SHA256 of the 534 MB file had
       read it whole: find out what closed it.
+
+**FTP against the original ftpd** (the owner, 2026-11-04, FileZilla on the New 3DS XL: ftpd ~850 KB/s up, ~1200 KB/s
+down; NSA ~750 / ~800). ftpd sets 32 KB SO_RCVBUF/SO_SNDBUF on its passive socket on the 3DS (`ftpSession.cpp`, not on
+the accepted one), which its data connections inherit; NSA left the system's. `SITE PASVBUF <KB>` (DEBUG), 64 MB with
+`speed_tests.py` (byte for byte), New 3DS XL: the system's 802-836 up / 805-815 down KB/s; 16 KB 817 / 986; 24 KB 776 /
+1137; **32 KB 974-1116 / 1148-1208**; 40 KB 953 / 1168. Now 32 KB by default. The owner's own copies with curl, two
+minutes each: Dragon Quest VIII from /cias to the PC **1147 KB/s** (ftpd ~1200); Metal Gear Solid 3D (3.2 GB, from the
+PC's O: drive) to /cias **641 KB/s** (ftpd ~850).
+- [ ] Right after that upload was cut by curl's two-minute limit, NSA was gone (FTP and web refused, the console still
+      answering pings): find out why (a Luma dump? `transfer-log.txt`), and whether it happens with the system's
+      buffers too (`SITE PASVBUF 0`, `turn_tests.py` vanish-up).
+- [ ] Why a real upload (641 KB/s, curl from O:) is slower than speed_tests' (1058-1116): the client, the drive it reads
+      from, or NSA (the 3.2 GB file grows as it comes: no ALLO from curl or FileZilla; issue #26).
 - [ ] Whether NSA stops answering again right after "the rest over one connection" (it did once): if it does, a photo of
       the screen and `transfer-log.txt` at once.
 - [ ] Remote Install's choices (#29): a list (Install, Save and install, Save install and delete, Save; X saves at once)

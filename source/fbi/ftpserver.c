@@ -341,6 +341,12 @@ static void ftp_close_pasv(ftp_session* s) {
     ftp_close_socket(&s->pasv);
 }
 
+// The passive socket's buffers in KB, which its data connection inherits, as ftpd sets them on the 3DS; 0 leaves the
+// system's (SITE PASVBUF, DEBUG). New 3DS XL, 64 MB (2026-11-04): the system's 802-836 up / 805-815 down KB/s, 16 KB
+// 817 / 986, 24 KB 776 / 1137, 32 KB 974-1116 / 1148-1208, 40 KB 953 / 1168 (48 KB reset every data connection,
+// 2026-11-01).
+static u32 ftp_pasv_buffer_kb = 32;
+
 static int ftp_open_pasv(ftp_session* s) {
     ftp_close_pasv(s);
 
@@ -354,6 +360,12 @@ static int ftp_open_pasv(ftp_session* s) {
 
         int yes = 1;
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        if(ftp_pasv_buffer_kb > 0) {
+            int size = (int) (ftp_pasv_buffer_kb * 1024);
+            setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+            setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
+        }
+
         net_set_nonblocking(fd);
 
         struct sockaddr_in addr = {0};
@@ -1042,6 +1054,15 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
 
         action_install_url_save_in_order(inOrder);
         ftp_reply(s, "200 Save from a URL takes the file %s (SITE SAVEORDER ANY|INORDER).", inOrder ? "in order, as an install" : "in any order");
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "PASVBUF") == 0) {
+        if(path != NULL && path[0] >= '0' && path[0] <= '9') {
+            ftp_pasv_buffer_kb = (u32) strtoul(path, NULL, 10);
+        }
+
+        ftp_reply(s, "200 The passive socket's buffers: %lu KB (0: the system's) (SITE PASVBUF <KB>).", ftp_pasv_buffer_kb);
         return;
     }
 

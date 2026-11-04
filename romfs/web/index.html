@@ -164,6 +164,11 @@ dialog.open::backdrop{background:rgba(0,0,0,.45)}
 .toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:flex;flex-direction:column-reverse;gap:8px;align-items:center;z-index:60;pointer-events:none;max-width:92vw}
 .toast{display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:var(--r);box-shadow:var(--shadow);animation:toastIn .32s var(--spring);font-size:14px}
 .toast.out{animation:toastOut .25s var(--ease) forwards}
+.toast.xfer{position:relative;overflow:hidden;padding-bottom:14px}
+.toast .xbar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(127,127,127,.35)}
+.toast .xbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .6s linear}
+.toast.indef .xbar i{width:30%!important;animation:xind 1.2s linear infinite}
+@keyframes xind{from{margin-left:-30%}to{margin-left:100%}}
 .toast.ok .ic{color:var(--success)}.toast.err .ic{color:var(--danger)}
 @keyframes toastIn{from{opacity:0;transform:translateY(16px) scale(.95)}to{opacity:1;transform:none}}
 @keyframes toastOut{to{opacity:0;transform:translateY(10px) scale(.96)}}
@@ -339,7 +344,6 @@ textarea.code{width:100%;height:56vh;font:13px/1.45 ui-monospace,Consolas,monosp
     <span class="sp"></span>
     <div class="status">
       <span class="opt-wide" id="sd"><span class="ic s16" data-ic="device-sd-card"></span><span id="sdtext"></span><span class="sdbar"><i id="sdfill"></i></span></span>
-      <span class="opt-wide" id="xfer" hidden><span class="ic s16" data-ic="download"></span><span id="xfertext"></span></span>
       <span id="wifi"><span class="ic s16" data-ic="wifi"></span></span>
       <span id="battery"></span>
       <span id="clock"></span>
@@ -487,9 +491,9 @@ async function pumpBg(){
     let i = bgq.findIndex(j => j.el._vis && j.el.isConnected);
     if(i<0) i = bgq.findIndex(j => j.el.isConnected && j.el.offsetParent);
     if(i<0) i = bgq.findIndex(j => j.el.isConnected);
-    if(i<0){ bgq.length = 0; break; }
+    if(i<0){ for(const j of bgq) j.el._queued = false; bgq.length = 0; break; }
     const [job] = bgq.splice(i, 1); seen.unobserve(job.el);
-    try { await job.fn(); } catch(e){ if(e.auth){ bgq.length = 0; showLogin(e.message); break; } }
+    try { await job.fn(); } catch(e){ if(e.auth){ for(const j of bgq) j.el._queued = false; bgq.length = 0; showLogin(e.message); break; } }
   }
   bgBusy = false;
 }
@@ -507,7 +511,7 @@ function putIcon(pic, u){ if(!u) return; const img = h('img', {alt:'', class:'px
 function toast(text, kind){
   const t = h('div', {class:'toast '+(kind||'')}, ic(kind==='err' ? 'alert-triangle' : kind==='ok' ? 'check' : 'info-circle', 16), h('span', {text}));
   $('toasts').append(t);
-  while($('toasts').children.length > 4) $('toasts').firstChild.remove();
+  while($('toasts').children.length > 4) $('toasts').firstElementChild.remove();
   setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 260); }, kind==='err' ? 6000 : 3800);
 }
 const openSheets = new Set();
@@ -632,10 +636,21 @@ function drawStatus(){
   if(info.total){ $('sdtext').textContent = fmtSize(info.free)+' / '+fmtSize(info.total); $('sdfill').style.width = (100*(1-info.free/info.total)).toFixed(1)+'%'; }
   const b = $('battery'); b.textContent = '';
   if(info.battery!=null) b.append(ic(info.charging ? 'battery-charging' : ['battery','battery-1','battery-1','battery-2','battery-3','battery-4'][Math.min(5, info.battery)], 16));
-  const x = info.transfer;
-  $('xfer').hidden = !x;
-  if(x){ const name = (x.name||'').split('/').pop() || x.name; $('xfertext').textContent = name+(x.total ? ' '+Math.floor(100*x.done/x.total)+' %' : '')+(x.kbs ? ' · '+x.kbs+' KB/s' : '');
-    $('xfer').title = busyText(x, 'busy'); }
+  drawTransfer(info.transfer);
+}
+// What the console transfers now, as a toast at the bottom that follows its progress (the status poll runs every 3 s meanwhile).
+let xferToast = null;
+function drawTransfer(x){
+  if(!x){ if(xferToast){ const t = xferToast; xferToast = null; t.classList.add('out'); setTimeout(() => t.remove(), 260); } return; }
+  const name = (x.name||'').split('/').pop() || x.name || '';
+  const pct = x.total ? Math.floor(100*x.done/x.total) : -1;
+  if(!xferToast){
+    xferToast = h('div', {class:'toast xfer'}, ic('download', 16), h('span', {class:'xt'}), h('span', {class:'xbar'}, h('i')));
+    $('toasts').prepend(xferToast);
+  }
+  xferToast.querySelector('.xt').textContent = (T[XFER_KINDS[x.kind]] || x.kind)+': '+name+(pct>=0 ? ' · '+pct+' %' : '')+(x.kbs ? ' · '+x.kbs+' KB/s' : '');
+  xferToast.querySelector('.xbar i').style.width = Math.max(0, pct)+'%';
+  xferToast.classList.toggle('indef', pct<0);
 }
 setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString(L, {hour:'2-digit', minute:'2-digit'}); }, 1000);
 // The status every 30 s; every 3 s while the console transfers, to show how far it is.
@@ -688,9 +703,9 @@ screens.titles = {
     const sortBtn = tool('arrows-sort', T.sort, e => menuAt(e.currentTarget, [['name',T.s_name,'list'],['size',T.s_size,'database'],['id',T.s_id,'key']].map(([v,l,i]) =>
       [TV.sort===v ? 'check' : i, l, () => { TV.sort = v; store.set('t.sort', v); applyTitles(); }])));
     const viewBtn = tool(TV.view==='grid' ? 'list' : 'layout-grid', T.view, e => { TV.view = TV.view==='grid' ? 'list' : 'grid'; store.set('t.view', TV.view); list.classList.toggle('grid', TV.view==='grid'); setIcon(e.currentTarget.firstChild, TV.view==='grid' ? 'list' : 'layout-grid'); sfx('tick'); });
-    const moreBtn = tool('dots', T.more, e => menuAt(e.currentTarget, [['upload', T.sendpkg, sendPackage], ['refresh', T.reload, () => { titles = null; titleRows.clear(); route(true); }]]));
+    const moreBtn = tool('dots', T.more, e => menuAt(e.currentTarget, [['upload', T.sendpkg, sendPackage], ['refresh', T.reload, () => { titles = null; titleRows.clear(); tcache = {}; store.set(tcName(), {}); icons.clear(); idbDo('readwrite', s => s.clear()); route(true); }]]));
     const el = screenEl(h('h2', {}, T.titles, count), [searchBox(TV.text, v => { TV.text = v; applyTitles(); }), filterBtn, sortBtn, viewBtn, moreBtn], h('div', {class:'scroll'}, list));
-    if(titles){ for(const t of titles) list.append(titleRows.get(tkey(t))); setTimeout(applyTitles); }
+    if(titles){ for(const t of titles) list.append(titleRows.get(tkey(t))); setTimeout(() => { applyTitles(); requeueTitles(); }); }
     else { list.append(...skeletonRows(10)); loadTitles(); }
     return el;
   }
@@ -702,10 +717,12 @@ async function loadTitles(){
     for(const t of titles) titleRows.set(tkey(t), titleRow(t));
     const list = $('tlist');
     if(list){ list.textContent = ''; titles.forEach((t,i) => { const r = titleRows.get(tkey(t)); r.style.setProperty('--i', i); list.append(r); }); applyTitles(); }
-    for(const t of titles){ const r = titleRows.get(tkey(t)); later(r, () => loadTitle(t, r)); }
+    requeueTitles();
   } catch(e){ if(e.auth) showLogin(e.message); else { const l = $('tlist'); if(l){ l.textContent=''; l.append(emptyEl('alert-triangle', e.message)); } } }
   titlesLoading = false;
 }
+// Queues the rows whose name is still missing. Leaving the screen drops the queue (pumpBg), so coming back asks again.
+function requeueTitles(){ for(const t of titles){ const r = titleRows.get(tkey(t)); if(!r._d && !r._queued){ r._queued = true; later(r, () => loadTitle(t, r)); } } }
 function titleRow(t){
   const pic = h('div', {class:'pic'}, ic('apps', 24));
   const r = h('div', {class:'row', tabindex:0, role:'button'}, pic,
@@ -718,13 +735,36 @@ function titleRow(t){
   r.title = t.id;
   return r;
 }
+// Names and icons are kept in this browser per console (and title version), so the list fills at once the next time.
+// Reload in the menu forgets them.
+const tcName = () => 'tc.'+(info.console||'');
+let tcache = null;
+const tcKey = t => t.id+t.media+t.version;
+function tcGet(t){ if(!tcache) tcache = store.get(tcName(), {}); return tcache[tcKey(t)]; }
+function tcSet(t, d){ if(!tcache) tcache = store.get(tcName(), {}); tcache[tcKey(t)] = d; clearTimeout(tcSet.t); tcSet.t = setTimeout(() => store.set(tcName(), tcache), 1500); }
+function idb(){ return idb.p || (idb.p = new Promise(ok => { try { const q = indexedDB.open('nsa-icons', 1); q.onupgradeneeded = () => q.result.createObjectStore('i'); q.onsuccess = () => ok(q.result); q.onerror = () => ok(null); } catch(e){ ok(null); } })); }
+async function idbDo(mode, fn){ const db = await idb(); if(!db) return null; return new Promise(ok => { try { const tx = db.transaction('i', mode), rq = fn(tx.objectStore('i')); tx.oncomplete = () => ok(rq ? rq.result : null); tx.onerror = tx.onabort = () => ok(null); } catch(e){ ok(null); } }); }
+async function titleIcon(t){
+  const url = '/api/icon?'+q({id:t.id, media:t.media}), key = tcName()+'/'+tcKey(t);
+  if(icons.has(url)) return icons.get(url);
+  const blob = await idbDo('readonly', s => s.get(key));
+  if(blob){ const u = URL.createObjectURL(blob); icons.set(url, u); return u; }
+  const r = await fetch(url, {headers:{'X-Pin':pin}});
+  if(r.status===401){ const e = new ApiError(T.wrong); e.auth = true; throw e; }
+  if(!r.ok){ icons.set(url, ''); return ''; }
+  const b = await r.blob(); idbDo('readwrite', s => s.put(b, key));
+  const u = URL.createObjectURL(b); icons.set(url, u); return u;
+}
 async function loadTitle(t, r){
-  const d = await api('GET', 'title', {id:t.id, media:t.media}); r._d = d;
+  r._queued = false;
+  let d = tcGet(t);
+  if(!d){ d = await api('GET', 'title', {id:t.id, media:t.media}); tcSet(t, d); }
+  r._d = d;
   r.querySelector('.nm').textContent = d.name || t.id;
   r.querySelector('.sub').textContent = [d.publisher, 'v'+fmtVer(t.version), fmtSize(t.size)].filter(Boolean).join(' · ');
   r.title = (d.name||'')+'\n'+t.id;
-  putIcon(r._pic, await iconUrl('/api/icon?'+q({id:t.id, media:t.media})));
   sortSoon();
+  putIcon(r._pic, await titleIcon(t));
 }
 let sortTimer = 0;
 function sortSoon(){ if(TV.sort==='name' && !sortTimer) sortTimer = setTimeout(() => { sortTimer = 0; applyTitles(); }, 700); }

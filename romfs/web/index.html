@@ -91,6 +91,17 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .row .pic{width:40px;height:40px;flex:none;border-radius:calc(var(--rs) - 2px);display:grid;place-items:center;background:var(--bg);color:var(--accent);overflow:hidden;position:relative}
 .row .pic img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s}
 .row .pic img.in{opacity:1}
+.chain{display:flex;flex-direction:column;gap:10px}
+.tcard{display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);text-align:left;width:100%;cursor:pointer;transition:background-color var(--fast),transform var(--fast) var(--ease)}
+.tcard:hover{background:var(--soft)}.tcard:active{transform:scale(.985)}
+.tcard .pic{width:56px;height:56px;flex:none;border-radius:calc(var(--rs) - 2px);display:grid;place-items:center;background:var(--bg);color:var(--accent);overflow:hidden}
+.tcard .pic img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s}.tcard .pic img.in{opacity:1}
+.tcard .bd{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.tcard .top{display:flex;gap:8px;align-items:center}
+.tcard .nm{font-weight:600;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tcard .pub{font-size:12.5px;color:var(--muted)}
+.tcard .desc{font-size:12.5px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+.tcard .meta2{font-size:11.5px;color:var(--muted);margin-top:2px}
 .row.has-cnt{position:relative}
 .row .cnt{position:absolute;left:41px;top:5px;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:var(--accent);color:var(--onaccent);font-size:11px;font-weight:600;line-height:18px;text-align:center;box-shadow:0 0 0 2px var(--card);pointer-events:none}
 .list.grid .row .cnt{left:calc(50% + 14px);top:6px}
@@ -367,7 +378,7 @@ const WORDS = {
 en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',lost:'Cannot reach the console.',failed:'Failed: ',done:'Done.',
   g_manage:'Manage',g_tools:'Tools',titles:'Titles',files:'Files',tickets:'Tickets',extdata:'Extra data',install:'Install',screen:'Screen',settings:'Settings',
   search:'Search',filter:'Filter',sort:'Sort',view:'View',list:'List',grid:'Grid',more:'More',reload:'Reload',close:'Close',cancel:'Cancel',ok:'OK',save:'Save',
-  k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',group:'Group updates and DLC',yes:'Yes',no:'No',chain:'Updates and DLC',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
+  k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',group:'Group updates and DLC',yes:'Yes',no:'No',chain:'Updates and DLC',kg1:'Game',ku1:'Update',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
   loaded:'%a of %b',notitles:'Nothing matches.',loading:'Loading…',version:'Version',size:'Size',code:'Product code',publisher:'Publisher',id:'Title ID',type:'Type',path:'Path',modified:'Modified',
   launch:'Launch',deleteTitle:'Delete',delticket:'Delete with ticket',data:'Data',dsave:'Download save',dext:'Download extra data',dboss:'Download SpotPass data',m_save:'Save data',m_ext:'Extra data',m_boss:'SpotPass data',dpack:'Download (a .nsasave package)',backups:'Backups on the SD card',restore:'Restore (the console asks first)',confirmdelbackup:'Delete the backup "%s"? This cannot be undone.',cpnote:'It is Checkpoint\'s: Checkpoint will not see it any more.',
   sendpkg:'Send a save package',sendpkgsub:'A .nsasave package made by NSA: the console unpacks it and asks there.',packing:'Packing',packstart:'The console is packing it (B there cancels)…',counting:'Counting files…',downloading:'Downloading',cancelled:'Cancelled.',packbusy:'The console is still packing the last one.',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and kept on the console (this title or its data is not there).',
@@ -389,7 +400,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
 es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',lost:'No se puede contactar con la consola.',failed:'Error: ',done:'Hecho.',
   g_manage:'Gestionar',g_tools:'Herramientas',titles:'Títulos',files:'Archivos',tickets:'Tickets',extdata:'Datos extra',install:'Instalar',screen:'Pantalla',settings:'Ajustes',
   search:'Buscar',filter:'Filtrar',sort:'Ordenar',view:'Vista',list:'Lista',grid:'Cuadrícula',more:'Más',reload:'Recargar',close:'Cerrar',cancel:'Cancelar',ok:'Aceptar',save:'Guardar',
-  k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',group:'Agrupar actualizaciones y DLC',yes:'Sí',no:'No',chain:'Actualizaciones y DLC',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
+  k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',group:'Agrupar actualizaciones y DLC',yes:'Sí',no:'No',chain:'Actualizaciones y DLC',kg1:'Juego',ku1:'Actualización',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
   loaded:'%a de %b',notitles:'No hay nada que coincida.',loading:'Cargando…',version:'Versión',size:'Tamaño',code:'Código de producto',publisher:'Editor',id:'ID de título',type:'Tipo',path:'Ruta',modified:'Modificado',
   launch:'Lanzar',deleteTitle:'Borrar',delticket:'Borrar con ticket',data:'Datos',dsave:'Descargar partida',dext:'Descargar datos extra',dboss:'Descargar datos SpotPass',m_save:'Partidas',m_ext:'Datos extra',m_boss:'Datos SpotPass',dpack:'Descargar (un paquete .nsasave)',backups:'Copias en la SD',restore:'Restaurar (la consola pregunta antes)',confirmdelbackup:'¿Borrar la copia "%s"? No se puede deshacer.',cpnote:'Es de Checkpoint: Checkpoint dejará de verla.',
   sendpkg:'Enviar un paquete de partida',sendpkgsub:'Un paquete .nsasave hecho por NSA: la consola lo desempaqueta y pregunta allí.',packing:'Empaquetando',packstart:'La consola lo está empaquetando (B allí lo cancela)…',counting:'Contando archivos…',downloading:'Descargando',cancelled:'Cancelado.',packbusy:'La consola aún está empaquetando el anterior.',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están).',
@@ -487,7 +498,7 @@ const fileUrl = path => '/api/file?'+q({path});
 // Background loads (names, icons) one at a time, what is on screen first: the console serves one request at a time.
 const bgq = []; let bgBusy = false;
 const seen = new IntersectionObserver(es => { for(const e of es) e.target._vis = e.isIntersecting; pumpBg(); }, {rootMargin:'200px'});
-function later(el, fn){ bgq.push({el, fn}); seen.observe(el); pumpBg(); }
+function later(el, fn, first){ bgq[first ? 'unshift' : 'push']({el, fn}); seen.observe(el); pumpBg(); }
 async function pumpBg(){
   if(bgBusy) return; bgBusy = true;
   while(bgq.length){
@@ -752,7 +763,7 @@ function titleRow(t){
 }
 // Names and icons are kept in this browser per console (and title version), so the list fills at once the next time.
 // Reload in the menu forgets them.
-const tcName = () => 'tc.'+(info.console||'');
+const tcName = () => 'tc2.'+(info.console||'');
 let tcache = null;
 const tcKey = t => t.id+t.media+t.version;
 function tcGet(t){ if(!tcache) tcache = store.get(tcName(), {}); return tcache[tcKey(t)]; }
@@ -806,14 +817,23 @@ function applyTitles(animate){
   $('tcount').textContent = loaded<rows.length ? tr('loaded', {a:loaded, b:rows.length}) : String(shown);
   const c = $('cnt_titles'); if(c) c.textContent = rows.length;
 }
-// A game with updates or DLC (grouped) opens its chain: the game itself and each one hanging from it.
+// A game with updates or DLC (grouped) opens its chain, as cards: the game itself and each one hanging from it, with its
+// icon, name, publisher, description and a medal for what it is (names that are still missing are asked for here).
 function chainSheet(t, r){
   const items = [t, ...extrasOf.get(tkey(t))];
-  const label = x => { const row = titleRows.get(tkey(x)); return (row && row._d && row._d.name) || x.id; };
-  const kindName = x => ({game:T.k_game, update:T.k_update, dlc:T.k_dlc}[x.kind] || x.kind);
+  const kindName = x => ({game:T.kg1, update:T.ku1, dlc:'DLC'}[x.kind] || x.kind);
+  const cards = items.map(x => {
+    const row = titleRows.get(tkey(x));
+    const pic = h('div', {class:'pic'}, ic('apps', 24)), nm = h('div', {class:'nm', text:x.id}), pub = h('div', {class:'pub'}), desc = h('div', {class:'desc'});
+    const card = h('button', {class:'tcard'}, pic, h('div', {class:'bd'}, h('div', {class:'top'}, nm, h('span', {class:'badge', text:kindName(x)})), pub, desc,
+      h('div', {class:'meta2', text:'v'+fmtVer(x.version)+' · '+fmtSize(x.size)+' · '+x.media.toUpperCase()})));
+    const fill = () => { const d = row._d; if(!d) return; nm.textContent = d.name || x.id; pub.textContent = d.publisher || ''; desc.textContent = d.description || ''; const im = row._pic.querySelector('img'); if(im) putIcon(pic, im.src); };
+    if(row._d) fill(); else later(card, async () => { await loadTitle(x, row); fill(); }, true);
+    card.onclick = () => { s.close(true); titleSheet(x, row); };
+    return card;
+  });
   let s;
-  s = sheet({head:sheetHead(r._pic.querySelector('img') ? h('img', {src:r._pic.querySelector('img').src, class:'px'}) : ic('apps', 48), (r._d && r._d.name) || t.id, T.chain),
-    body:[actions(items.map(x => [x===t ? 'apps' : x.kind==='dlc' ? 'package' : 'refresh', label(x), () => titleSheet(x, titleRows.get(tkey(x))), {note:kindName(x)+' · v'+fmtVer(x.version)+' · '+fmtSize(x.size)}]), c => s.close(c))]});
+  s = sheet({wide:true, head:sheetHead(r._pic.querySelector('img') ? h('img', {src:r._pic.querySelector('img').src, class:'px'}) : ic('apps', 48), (r._d && r._d.name) || t.id, T.chain), body:[h('div', {class:'chain'}, cards)]});
 }
 // The kinds of data (save, extra, boss) are asked for when the sheet opens, once per session: opening the archives is slow.
 async function titleSheet(t, r){

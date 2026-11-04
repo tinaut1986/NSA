@@ -239,11 +239,18 @@ the accepted one), which its data connections inherit; NSA left the system's. `S
 1137; **32 KB 974-1116 / 1148-1208**; 40 KB 953 / 1168. Now 32 KB by default. The owner's own copies with curl, two
 minutes each: Dragon Quest VIII from /cias to the PC **1147 KB/s** (ftpd ~1200); Metal Gear Solid 3D (3.2 GB, from the
 PC's O: drive) to /cias **641 KB/s** (ftpd ~850).
-- [ ] Right after that upload was cut by curl's two-minute limit, NSA was gone (FTP and web refused, the console still
-      answering pings): find out why (a Luma dump? `transfer-log.txt`), and whether it happens with the system's
-      buffers too (`SITE PASVBUF 0`, `turn_tests.py` vanish-up).
-- [ ] Why a real upload (641 KB/s, curl from O:) is slower than speed_tests' (1058-1116): the client, the drive it reads
-      from, or NSA (the 3.2 GB file grows as it comes: no ALLO from curl or FileZilla; issue #26).
+- [x] Right after that upload was cut, NSA seemed gone (FTP and web refused, pings answered): the New 3DS XL had lost
+      the Wi-Fi and come back as 192.168.1.139, and a phone had .132. NSA was fine.
+- [x] The slow real upload (641 KB/s): not the O: drive (88 MB/s), not the .cia name (curl to .bin and .cia alike,
+      779-841 KB/s), but the Wi-Fi of that moment (it dropped minutes later).
+- [x] Same moment, same console (New 3DS XL, 64 MB, two rounds each, one after the other): ftpd 794-849 up / 1090-1132
+      down; NSA (32 KB) 782-845 / 1166-1205; the owner's fork as it was 681-728 / 749-772, fixed (tinaut1986/ftpd#1)
+      921-977 / 1112-1142.
+- [ ] **The 2DS** (32 MB, one after the other): the fixed fork 733-747 up / 560-597 down, NSA 601-685 / 454-484. Not the
+      wait (`SITE POLL`), the size of each send (`SITE SENDCHUNK`, 16-64 KB), the FTP thread's priority (`SITE FTPPRIO`
+      0x31 or 0x2F), the web server (off) or the CPU (core 0 at 15%). The trace: ~90% of each second inside send(), ~33 ms
+      a call for ~19.5 KB. Sending first and polling only when nothing fits (as ftpd) brought 454-463 -> 478-484 (New 3DS
+      XL unchanged: 808-896 / 1190-1192). The rest (~20%) is still to find.
 - [ ] Whether NSA stops answering again right after "the rest over one connection" (it did once): if it does, a photo of
       the screen and `transfer-log.txt` at once.
 - [ ] Remote Install's choices (#29): a list (Install, Save and install, Save install and delete, Save; X saves at once)

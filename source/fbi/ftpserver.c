@@ -30,6 +30,8 @@
 #define FTP_FILE_BUFFER (256 * 1024)
 #define FTP_NAP_MS 10
 #define FTP_SEND_CHUNK (64 * 1024)
+// The most one send() offers, in bytes (SITE SENDCHUNK <KB>, DEBUG, to compare).
+static u32 ftp_send_chunk = FTP_SEND_CHUNK;
 #define FTP_GIVE_WAY_MS 30000
 // A transfer stalled this long gives up when another client is waiting to connect: the 3DS does not
 // always see a client's reset, and the server serves one session at a time.
@@ -167,20 +169,23 @@ static bool ftp_wait_data(int fd, short events, int timeoutMs) {
 }
 
 // `log` (may be NULL) gets the time spent waiting for room and inside send().
+//
+// It sends first and waits only when nothing fits (as ftpd does: writes until EWOULDBLOCK, then polls), not a poll
+// before every send: each is a request to the SOC service, which on an Old 3DS takes milliseconds.
 static bool ftp_send_logged(int fd, const char* data, size_t n, speedlog* log) {
     while(n > 0) {
-        u64 start = speedlog_ticks();
-        bool ready = ftp_wait_data(fd, POLLOUT, 30000);
-        speedlog_wait(log, speedlog_ticks() - start);
-        if(!ready) {
-            return false;
-        }
-
         // The sockets do not block (net_set_nonblocking): what does not fit now waits for room.
-        start = speedlog_ticks();
-        ssize_t w = send(fd, data, n > FTP_SEND_CHUNK ? FTP_SEND_CHUNK : n, 0);
+        u64 start = speedlog_ticks();
+        ssize_t w = send(fd, data, n > ftp_send_chunk ? ftp_send_chunk : n, 0);
         speedlog_net(log, w > 0 ? (u64) w : 0, speedlog_ticks() - start);
         if(w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            start = speedlog_ticks();
+            bool ready = ftp_wait_data(fd, POLLOUT, 30000);
+            speedlog_wait(log, speedlog_ticks() - start);
+            if(!ready) {
+                return false;
+            }
+
             continue;
         }
 
@@ -1054,6 +1059,34 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
 
         action_install_url_save_in_order(inOrder);
         ftp_reply(s, "200 Save from a URL takes the file %s (SITE SAVEORDER ANY|INORDER).", inOrder ? "in order, as an install" : "in any order");
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "FTPPRIO") == 0) {
+        s32 prio = 0;
+        Handle thread = ftp_thread != NULL ? threadGetHandle(ftp_thread) : 0;
+        if(path != NULL && thread != 0) {
+            u32 wanted = (u32) strtoul(path, NULL, 16);
+            if(wanted >= 0x18 && wanted <= 0x3F) {
+                svcSetThreadPriority(thread, (s32) wanted);
+            }
+        }
+
+        if(thread != 0) {
+            svcGetThreadPriority(&prio, thread);
+        }
+
+        ftp_reply(s, "200 The FTP server's thread runs at priority 0x%02lX (SITE FTPPRIO <hex>; the UI is 0x30).", prio);
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "SENDCHUNK") == 0) {
+        u32 kb = path != NULL ? (u32) strtoul(path, NULL, 10) : 0;
+        if(kb >= 1 && kb <= 64) {
+            ftp_send_chunk = kb * 1024;
+        }
+
+        ftp_reply(s, "200 A send() offers at most %lu KB (SITE SENDCHUNK 1-64).", ftp_send_chunk / 1024);
         return;
     }
 

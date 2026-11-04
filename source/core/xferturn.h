@@ -23,6 +23,13 @@ typedef enum {
 
 #define XFERTURN_STALE_MS 60000
 
+// On an Old 3DS the network runs on the system core, and the share of it the app keeps for its own threads there
+// (APT_SetAppCpuTimeLimit, 30% since FBI) slows every send and receive. While a turn is held the app keeps only this
+// much. Measured on a 2DS, 30% -> 5%: FTP download 485 -> 650 KB/s, a URL download 560-680 -> 880-930, a URL install
+// 650 -> 760; but an install from the SD card, which moves no network data, took 43 s -> 50 s, so 30% stays outside
+// transfers.
+#define XFERTURN_CPU_LIMIT 5
+
 typedef struct {
     bool busy;
     xfer_kind kind;
@@ -34,6 +41,9 @@ typedef struct {
 } xferturn_status;
 
 void xferturn_init();
+// The app's usual share of the system core: a held turn lowers it to XFERTURN_CPU_LIMIT, the release restores it.
+// Only for an Old 3DS (a New 3DS runs the network elsewhere); without the call the limit is left alone.
+void xferturn_cpu_limits(u32 normal);
 
 // The turn for `name` (a file name or an address); 0 when it is taken, else a ticket for the calls below.
 u32 xferturn_take(xfer_kind kind, const char* name, u64 total);

@@ -1022,6 +1022,24 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    if(NSA_DEBUG && strcmp(sub, "CPULIMIT") == 0) {
+        // The share of the system core (core 1) this app keeps; the network runs there on an Old 3DS. The next transfer
+        // turn sets it again (xferturn_cpu_limits).
+        unsigned percent = 0;
+        if(path != NULL && sscanf(path, "%u", &percent) == 1) {
+            Result res = APT_SetAppCpuTimeLimit(percent);
+            if(R_FAILED(res)) {
+                ftp_reply(s, "550 APT_SetAppCpuTimeLimit(%u) failed: %08lX", percent, res);
+                return;
+            }
+        }
+
+        u32 limit = 0;
+        APT_GetAppCpuTimeLimit(&limit);
+        ftp_reply(s, "200 CPU time limit %lu%%.", limit);
+        return;
+    }
+
     if(NSA_DEBUG && strcmp(sub, "SHA256") == 0) {
         char vpath[FTP_PATH_MAX];
         char rpath[FTP_PATH_MAX + 8];

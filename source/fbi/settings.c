@@ -58,9 +58,8 @@ static u32 settings_get_uint(json_t* object, const char* key, u32 fallback, u32 
 }
 
 void settings_load() {
-    bool isNew = false;
-    APT_CheckNew3DS(&isNew);
-    settings.ftpPausesMusic = !isNew;
+    // Off everywhere: with 5% of the system core during transfers (xferturn.h) the music costs an Old 3DS's FTP only 2-3%.
+    settings.ftpPausesMusic = false;
 
     json_error_t err;
     json_t* json = json_load_file(SETTINGS_PATH, 0, &err);

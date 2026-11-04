@@ -433,8 +433,8 @@ static const char* settingsmenu_help(settings_option option) {
                                         : _("Off: only look for updates from this screen.");
         case OPTION_FTP: return _("Only the SD card, no password. Driving the console and SITE INSTALL need the file sdmc:/nsa/remote.flag.");
         case OPTION_FTP_MUSIC:
-            return settings->ftpPausesMusic ? _("On: the music stops while a file goes through the FTP server and comes back after. Without it transfers go 10-25% faster on an Old 3DS, 3-6% on a New 3DS.")
-                                            : _("Off: the music goes on during FTP transfers (10-25% slower on an Old 3DS, 3-6% on a New 3DS). On by default on an Old 3DS.");
+            return settings->ftpPausesMusic ? _("On: the music stops while a file goes through the FTP server and comes back after. Transfers go a little faster: 2-3% on an Old 3DS, 3-6% on a New 3DS.")
+                                            : _("Off: the music goes on during FTP transfers, which go a little slower (2-3% on an Old 3DS, 3-6% on a New 3DS). Off by default.");
         case OPTION_WEB: return _("A page to manage the console from a computer's browser: files, installing CIAs. It asks for the PIN shown here, which changes each time the server starts. Plain HTTP, only on your Wi-Fi.");
         case OPTION_CHECK_UPDATES: return _("Look for a newer release in your channel now.");
         case OPTION_CHANGELOG: return _("Every release of your channel, newest first.");

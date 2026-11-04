@@ -19,6 +19,7 @@ void tickets_open();
 void titles_open();
 void startup_run();
 void settingsmenu_open();
+void languagemenu_open();
 void systeminfo_draw_top(float x1, float y1, float x2, float y2);
 void systeminfo_draw_console(float x1, float y1, float x2, float y2);
 void systeminfo_draw_network(float x1, float y1, float x2, float y2);

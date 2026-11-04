@@ -49,6 +49,8 @@ void screen_draw_texture(u32 id, float x, float y, float width, float height);
 void screen_draw_texture_crop(u32 id, float x, float y, float width, float height);
 // The Pixel theme's font on or off (the theme sets it); sizes then come from the text scale.
 void screen_set_pixel_font(bool on);
+// Draws Simplified Chinese from the font in hanfont.c instead of the system font (see tools/make_hanfont.py).
+void screen_set_han_font(bool on);
 // Every rounded rectangle drawn square (a theme without rounding sets it).
 void screen_set_square_corners(bool on);
 bool screen_get_pixel_font();

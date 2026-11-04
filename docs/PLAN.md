@@ -162,6 +162,10 @@ What `release` holds, in the order it was built:
 - [ ] System follows the console's language (Settings of the console in French, German, Italian, Portuguese, Russian or Japanese); a console in Korean or Dutch shows English (Catalan is never picked by System: the 3DS has no Catalan).
 - [ ] The web page's Language drop-down lists all twelve and changes the console; the page itself is still English or Spanish.
 
+**JKSM backups** (2026-11-04, branch `feat/jksm-import`, builds; not tried in Azahar or on a console)
+- [ ] With a JKSM backup (`sdmc:/JKSM/User Saves|Extra Data|BOSS Extra Data/<game name>/<backup>/` with the tree inside, made by JKSM for 3DS), the title's Save data / Extra data list and the import list show it with the violet "J" badge and only the name. Restoring it asks the red question like Checkpoint's. The game's folder is found by its SMDH short description in any language (with `. , / \ < > : " | ? *` turned into spaces, `?` into `_`, as JKSM does), or by the 16 digit ID. Source read from J-D-K/JKSM (`FS.cpp`, `BackupMenuState.cpp`, `StringUtil.cpp`), never run. Also looks in the older folders `Saves`, `ExtData`, `Boss`.
+- Not done: JKSM's `.zip` backups; the `._secure_value` file JKSM can write in a backup would be copied into the archive; two games with the same name share a folder; the badge is NSA's own drawing, not JKSM's artwork. Delete from the web page / sheet warns "JKSM will not see it any more".
+
 **Badges of the backups** (2026-11-03; seen in Azahar and on the web page with fake NSA and Checkpoint backups)
 - [ ] A title's Save data / Extra data list and the import list show NSA's backups with NSA's badge (the blue window with an N) and only the date, and Checkpoint's with its flag badge (pale flag on navy) and only the name, no "[NSA]" / "[Checkpoint]"; readable selected and not, in day and night themes.
 

@@ -167,6 +167,22 @@ static void widget_row_draw(float x, float y, float width, float frameHeight, fl
         screen_fill_round_rect(tx - 2, iy - 2, size + 4, size + 4, 4, THEME_RGB(0x0E1936));
         screen_draw_icon((u32) icon, tx, iy, size, THEME_RGB(0xA8E2F0));
         tx += size + 8;
+    } else if(icon == WIDGET_ICON_JKSM) {
+        // JKSM's badge (our own drawing, not its artwork): a violet tile with a white J, pixel by pixel.
+        static const char* j[] = {"....##", "....##", "....##", "....##", "##..##", "##..##", ".####."};
+        float bx = tx - 2;
+        float by = (float) (int) (y + (height - 16) / 2) - 2;
+        screen_fill_round_rect(bx, by, 20, 20, 4, THEME_RGB(0x5B2D9E));
+        for(int row = 0; row < 7; row++) {
+            for(int col = 0; col < 6; col++) {
+                if(j[row][col] == '#') {
+                    screen_fill_rect(bx + 7 + col, by + 5 + row, 1, 1, THEME_RGB(0xFFFFFF));
+                }
+            }
+        }
+
+        screen_fill_rect(bx + 4, by + 15, 12, 1, THEME_RGB(0x9B7BD6));
+        tx += 16 + 8;
     } else if(icon == WIDGET_ICON_NSA) {
         // NSA's icon made small: the blue window with its title bar, and the N of its "NSA", pixel by pixel.
         static const char* n[] = {"##....##", "###...##", "####..##", "##.##.##", "##..####", "##...###", "##....##"};

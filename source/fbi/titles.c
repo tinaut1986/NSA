@@ -526,7 +526,7 @@ static void titles_data_draw_row(void* data, list_item* item, float x, float y, 
         widget_row(x, y, width, height, (int) icons[row], item->name, row == DATA_ROW_DELETE ? t->palette->danger : t->palette->text, NULL, selected);
     } else {
         save_backup* b = (save_backup*) item->data;
-        widget_row(x, y, width, height, b->checkpoint ? ICON_CHECKPOINT : WIDGET_ICON_NSA, item->name, t->palette->text, NULL, selected);
+        widget_row(x, y, width, height, b->jksm ? WIDGET_ICON_JKSM : b->checkpoint ? ICON_CHECKPOINT : WIDGET_ICON_NSA, item->name, t->palette->text, NULL, selected);
     }
 }
 
@@ -602,7 +602,7 @@ static void titles_data_delete(void* data) {
     titles_data_manager* mgr = (titles_data_manager*) data;
     char text[FILE_PATH_MAX + 160];
     snprintf(text, sizeof(text), "%s\n%s%s", _("Delete this backup? It cannot be undone."), mgr->chosen.label,
-             mgr->chosen.checkpoint ? _("\n(Checkpoint's: it will not see it any more.)") : "");
+             mgr->chosen.jksm ? _("\n(JKSM's: it will not see it any more.)") : mgr->chosen.checkpoint ? _("\n(Checkpoint's: it will not see it any more.)") : "");
     prompt_display_warning("Confirmation", text, COLOR_TEXT, mgr, titles_data_prompt_top, titles_data_delete_answer);
 }
 

@@ -125,6 +125,12 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Receive menus as lists** (2026-11-04, `feat/receive-list`; DEBUG 0.7.0 installed on the New 3DS XL only, the 2DS was off the network; the screen itself was not seen: `fake_peer.py send` got its connection reset before NSA logged anything):
+- [ ] An incoming file / CIA / folder / save from another console shows a list sheet ("Install now", "Save", "Reject", "Import now", "Save in a folder", "Original path") with a detail line per row, the file name and size as its title, and the transfer card on the top screen; A or a tap chooses.
+- [ ] B or a tap above the list rejects: the sender sees "declined" and NSA goes back to waiting.
+- [ ] "Existing files" (Original path with files already there) is a list too: Overwrite, Skip existing (folders), Cancel (= reject).
+- [ ] Only Spanish has the new strings (the other ten languages show the English ones until translated).
+
 **Web System tab** (2026-11-04, `feat/web-system`; DEBUG build on the New 3DS XL, page opened in the browser: the four cards showed the console's real data):
 - [ ] The page has a **System** tab (Tools): Console (model, user, region, country, language, serial, device ID, screens, system version, kernel, MCU, Luma3DS, CIA/3DSX, uptime), Network (SSID, IP, netmask, gateway, DNS, signal, MAC, DHCP lease, FTP and web ports), Storage (SD card made/speed/writable/cluster and the space of SD, CTR NAND, TWL NAND, TWL Photo) and Battery (percent, voltage, temperature, charger, rate, time left, level, history graph). It refreshes every 10 s and keeps its scroll. The cards are all the same size, in two columns at most (one when the window is too narrow for two), with at most four columns of data inside each and can be dragged by their header to change the order (kept in this browser; the refresh waits while dragging). Same data as the console's System screens: `GET /api/system`, read on the main thread (`systeminfo_json`). The battery rate and graph need a couple of minutes of the page open (the history grows only while someone asks). Texts such as "High speed" come in the console's language.
 

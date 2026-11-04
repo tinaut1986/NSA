@@ -2351,23 +2351,29 @@ static void transfer_receive_choose_folder(transfer_receive_data* receive) {
     list_show_title_bar(view);
 }
 
-static void transfer_receive_overwrite_onresponse(ui_view* view, void* data, u32 response) {
+// Answers of the "Existing files" question (see transfer_receive_keep_path).
+static void transfer_receive_overwrite_all(void* data) {
     transfer_receive_data* receive = (transfer_receive_data*) data;
-
-    // Overwrite, Skip existing (folders only), Cancel.
-    u32 cancel = receive->kind == TRANSFER_KIND_FOLDER ? 2 : 1;
-    if(response == cancel) {
-        transfer_receive_answer(receive, 0, 0, 0);
-        transfer_receive_reset(receive);
-        return;
-    }
-
-    receive->overwrite = response == 0 ? TRANSFER_OVERWRITE_ALL : TRANSFER_OVERWRITE_SKIP;
+    receive->overwrite = TRANSFER_OVERWRITE_ALL;
     transfer_receive_start(receive);
 }
 
+static void transfer_receive_overwrite_skip(void* data) {
+    transfer_receive_data* receive = (transfer_receive_data*) data;
+    receive->overwrite = TRANSFER_OVERWRITE_SKIP;
+    transfer_receive_start(receive);
+}
+
+// Rejecting, or backing out of a question: the sender is told no.
+static void transfer_receive_reject(void* data) {
+    transfer_receive_data* receive = (transfer_receive_data*) data;
+    transfer_receive_answer(receive, 0, 0, 0);
+    transfer_receive_reset(receive);
+}
+
 // "Original path" was chosen: it goes ahead at once, or asks first when files would be overwritten.
-static void transfer_receive_keep_path(transfer_receive_data* receive) {
+static void transfer_receive_keep_path(void* data) {
+    transfer_receive_data* receive = (transfer_receive_data*) data;
     receive->keepPath = true;
     receive->install = false;
     string_copy(receive->dir, TRANSFER_RECEIVED_DIR, sizeof(receive->dir));
@@ -2379,58 +2385,42 @@ static void transfer_receive_keep_path(transfer_receive_data* receive) {
         return;
     }
 
-    static const char* manyOptions[3] = {"Overwrite", "Skip existing", "Cancel"};
-    static u32 manyButtons[3] = {KEY_A, KEY_X, KEY_B};
-    static const char* oneOptions[2] = {"Overwrite", "Cancel"};
-    static u32 oneButtons[2] = {KEY_A, KEY_B};
-
-    if(receive->kind == TRANSFER_KIND_FOLDER) {
-        snprintf(receive->message, sizeof(receive->message), _("%lu of %lu files already exist in %s.\nWhat do you want to do with them?"),
-                 (unsigned long) receive->existing, (unsigned long) receive->fileCount, receive->origin);
-        prompt_display_multi_choice("Existing files", receive->message, COLOR_TEXT, manyOptions, manyButtons, 3, receive, transfer_receive_draw_top, transfer_receive_overwrite_onresponse);
+    bool folder = receive->kind == TRANSFER_KIND_FOLDER;
+    if(folder) {
+        snprintf(receive->message, sizeof(receive->message), _("%lu of %lu files already exist"),
+                 (unsigned long) receive->existing, (unsigned long) receive->fileCount);
     } else {
-        snprintf(receive->message, sizeof(receive->message), _("%s already exists.\nWhat do you want to do with it?"), receive->origin);
-        prompt_display_multi_choice("Existing files", receive->message, COLOR_TEXT, oneOptions, oneButtons, 2, receive, transfer_receive_draw_top, transfer_receive_overwrite_onresponse);
+        snprintf(receive->message, sizeof(receive->message), _("%s already exists"), receive->file);
     }
+
+    sheet_action actions[3];
+    u32 count = 0;
+    actions[count++] = (sheet_action) {.icon = ICON_CHECK, .label = _("Overwrite"), .run = transfer_receive_overwrite_all,
+                                       .detail = folder ? _("Replaces the files that already exist") : _("Replaces the existing file")};
+    if(folder) {
+        actions[count++] = (sheet_action) {.icon = ICON_PLAYER_TRACK_NEXT, .label = _("Skip existing"), .run = transfer_receive_overwrite_skip,
+                                           .detail = _("Only receives the files that are new")};
+    }
+
+    actions[count++] = (sheet_action) {.icon = ICON_X, .label = _("Cancel"), .run = transfer_receive_reject,
+                                       .detail = _("Nothing is received")};
+    sheet_display_choice(receive->message, actions, count, receive, transfer_receive_draw_top, transfer_receive_reject);
 }
 
-static void transfer_receive_action_onresponse(ui_view* view, void* data, u32 response) {
+// Answers of the "Incoming file" question (see transfer_receive_ask_action).
+static void transfer_receive_accept_install(void* data) {
     transfer_receive_data* receive = (transfer_receive_data*) data;
+    receive->install = true;
+    // A CIA that installs right away, or a save that is imported, goes to the default folder (and is deleted after).
+    string_copy(receive->dir, TRANSFER_RECEIVED_DIR, sizeof(receive->dir));
+    transfer_receive_start(receive);
+}
 
-    if(receive->offerOrigin) {
-        // Save, Original path, Reject.
-        if(response == 2) {
-            transfer_receive_answer(receive, 0, 0, 0);
-            transfer_receive_reset(receive);
-        } else if(response == 1) {
-            transfer_receive_keep_path(receive);
-        } else {
-            receive->keepPath = false;
-            receive->install = false;
-            transfer_receive_choose_folder(receive);
-        }
-
-        return;
-    }
-
-    // Without Install the choices are Save and Reject.
-    if(!receive->isCia && !(receive->isSave && receive->canImport)) {
-        response++;
-    }
-
-    if(response == 2) {
-        transfer_receive_answer(receive, 0, 0, 0);
-        transfer_receive_reset(receive);
-        return;
-    }
-
-    receive->install = response == 0;
+static void transfer_receive_save(void* data) {
+    transfer_receive_data* receive = (transfer_receive_data*) data;
+    receive->install = false;
     if(receive->isSave) {
-        // Whatever the choice, it arrives in the default folder and is unpacked into a folder of saves.
-        string_copy(receive->dir, TRANSFER_RECEIVED_DIR, sizeof(receive->dir));
-        transfer_receive_start(receive);
-    } else if(receive->install) {
-        // A CIA that installs right away goes to the default folder, and is deleted after.
+        // Whatever the choice, a save arrives in the default folder and is unpacked into a folder of saves.
         string_copy(receive->dir, TRANSFER_RECEIVED_DIR, sizeof(receive->dir));
         transfer_receive_start(receive);
     } else {
@@ -2438,44 +2428,55 @@ static void transfer_receive_action_onresponse(ui_view* view, void* data, u32 re
     }
 }
 
-static void transfer_receive_ask_action(transfer_receive_data* receive) {
-    static const char* ciaOptions[3] = {"Install now", "Save", "Reject"};
-    static u32 ciaButtons[3] = {KEY_A, KEY_X, KEY_B};
-    static const char* fileOptions[2] = {"Save", "Reject"};
-    static u32 fileButtons[2] = {KEY_A, KEY_B};
+static void transfer_receive_save_here(void* data) {
+    ((transfer_receive_data*) data)->keepPath = false;
+    transfer_receive_save(data);
+}
 
+static void transfer_receive_ask_action(transfer_receive_data* receive) {
     char size[32];
     transfer_size_text(size, sizeof(size), receive->size);
-    snprintf(receive->message, sizeof(receive->message), _("%s (%s)\nWhat do you want to do with it?"), receive->file, size);
+    snprintf(receive->message, sizeof(receive->message), "%s (%s)", receive->file, size);
+
+    sheet_action actions[3];
+    u32 count = 0;
 
     if(receive->offerOrigin) {
-        static const char* originOptions[3] = {"Save", "Original path", "Reject"};
-        static u32 originButtons[3] = {KEY_A, KEY_X, KEY_B};
-        snprintf(receive->message, sizeof(receive->message), _("%s (%s)\nOriginal path: %s\nWhat do you want to do with it?"), receive->file, size, receive->origin);
-        prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, originOptions, originButtons, 3, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
-        return;
-    }
-
-    if(receive->isSave) {
+        actions[count++] = (sheet_action) {.icon = ICON_FOLDER, .label = _("Save"), .run = transfer_receive_save_here,
+                                           .detail = _("Choose a folder on the SD card")};
+        actions[count++] = (sheet_action) {.icon = ICON_FOLDER_UP, .label = _("Original path"), .run = transfer_receive_keep_path,
+                                           .detail = receive->origin};
+    } else if(receive->isSave) {
         // Importing needs the title (and for extra data, its archive) here: otherwise it is only kept.
-        static const char* saveOptions[3] = {"Import now", "Save in a folder", "Reject"};
-        static const char* keepOptions[2] = {"Save in a folder", "Reject"};
+        if(receive->canImport) {
+            actions[count++] = (sheet_action) {.icon = ICON_DOWNLOAD, .label = _("Import now"), .run = transfer_receive_accept_install,
+                                               .detail = _("Puts it into the title on this console")};
+            actions[count++] = (sheet_action) {.icon = ICON_FOLDER, .label = _("Save in a folder"), .run = transfer_receive_save,
+                                               .detail = _("Keeps it to import later")};
+        } else {
+            actions[count++] = (sheet_action) {.icon = ICON_FOLDER, .label = _("Save in a folder"), .run = transfer_receive_save,
+                                               .detail = _("The title or its data is not here: it can only be kept")};
+        }
+
         u64 id = 0;
         save_kind kind = SAVE_KIND_SAVE;
         char what[LIST_ITEM_NAME_MAX];
         action_save_package_name(receive->file, &id, &kind, what, sizeof(what));
-        snprintf(receive->message, sizeof(receive->message), receive->canImport ? _("%s of %s (%s)\nWhat do you want to do with it?") : _("%s of %s (%s)\nThis title or its data is not here: it can only be kept.\nWhat do you want to do with it?"),
+        snprintf(receive->message, sizeof(receive->message), "%s: %s (%s)",
                  kind == SAVE_KIND_EXT ? _("Extra data") : kind == SAVE_KIND_BOSS ? _("SpotPass data") : _("Save data"), what, size);
-        if(receive->canImport) {
-            prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, saveOptions, ciaButtons, 3, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
-        } else {
-            prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, keepOptions, fileButtons, 2, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
-        }
-    } else if(receive->isCia) {
-        prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, ciaOptions, ciaButtons, 3, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
     } else {
-        prompt_display_multi_choice("Incoming file", receive->message, COLOR_TEXT, fileOptions, fileButtons, 2, receive, transfer_receive_draw_top, transfer_receive_action_onresponse);
+        if(receive->isCia) {
+            actions[count++] = (sheet_action) {.icon = ICON_PACKAGE, .label = _("Install now"), .run = transfer_receive_accept_install,
+                                               .detail = _("Installs it and deletes the CIA")};
+        }
+
+        actions[count++] = (sheet_action) {.icon = ICON_FOLDER, .label = _("Save"), .run = transfer_receive_save,
+                                           .detail = _("Choose a folder on the SD card")};
     }
+
+    actions[count++] = (sheet_action) {.icon = ICON_X, .label = _("Reject"), .run = transfer_receive_reject,
+                                       .detail = _("Tells the other console no")};
+    sheet_display_choice(receive->message, actions, count, receive, transfer_receive_draw_top, transfer_receive_reject);
 }
 
 static void transfer_receive_allow_onresponse(ui_view* view, void* data, u32 response) {

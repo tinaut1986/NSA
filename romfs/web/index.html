@@ -91,7 +91,8 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .row .pic{width:40px;height:40px;flex:none;border-radius:calc(var(--rs) - 2px);display:grid;place-items:center;background:var(--bg);color:var(--accent);overflow:hidden;position:relative}
 .row .pic img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s}
 .row .pic img.in{opacity:1}
-.sheet .head .back{flex:none;align-self:flex-start}
+.sheet .head{position:relative}
+.sheet .head .back{position:absolute;left:22px;top:20px;z-index:2;width:30px;height:30px;min-width:0;padding:0;border-radius:50%;background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.35),0 0 0 1px var(--line);display:grid;place-items:center}
 .chain{display:flex;flex-direction:column;gap:10px}
 .tcard{display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);text-align:left;width:100%;cursor:pointer;transition:background-color var(--fast),transform var(--fast) var(--ease)}
 .tcard:hover{background:var(--soft)}.tcard:active{transform:scale(.985)}

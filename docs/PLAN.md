@@ -128,7 +128,7 @@ What `release` holds, in the order it was built:
 **Transfer cards and readable URLs** (2026-11-04, `feat/transfer-info`; DEBUG on both consoles; seen on a real 40 MB send New 3DS XL -> 2DS, except the first three):
 - [x] Receiving: the top card shows the file, "From <console> (size)" and "Saving in <folder>" (or "Installing it on this console" / "Importing it into the title"); sending shows the file, "To <console>" and the size. Seen on the consoles.
 - [x] The question to a QR / typed / received URL shows the file name whole (over several lines) and, for one link, the whole address, with %XX turned into characters. Seen on the New 3DS XL with a link made of %20.
-- [ ] History: names and links on its rows and on the top card are decoded too (the stored address keeps its escapes, so "install again" asks for the real one). Built, not seen.
+- [x] History: names and links on its rows and on the top card are decoded and the top card shows each link whole, over several lines (the stored address keeps its escapes, so "install again" asks for the real one); the summary on Remote install keeps its lines inside the card. Seen on the New 3DS XL; the 2DS still has the build before this.
 - [ ] The install progress screen shows the decoded name.
 - [ ] `tools/console_tests.py`: its rules answer "Incoming file" / "Existing files" as prompts; they are list sheets now (named after the screen under them), so the rules need updating before the next run.
 - [ ] Not done: a preview of the icon of an incoming CIA / .3dsx. A CIA keeps its icon at the end and a .3dsx near it, so the sender has to send it: a protocol 9 (hello + icon) that both consoles must run.

@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / "source" / "core"
-CODES = ["es", "fr", "de", "it", "pt", "ru", "ja"]
+CODES = ["es", "ca", "fr", "de", "it", "pt", "ru", "ja", "zh", "tw"]
 
 MACROS = {"APP_NAME": "NSA", "APP_DATA_DIR": "/nsa/", "APP_LEGACY_DATA_DIR": "/fbi/", "APP_REPOSITORY": "tinaut1986/NSA",
           "APP_UPSTREAM_VERSION": "FBI 2.6.1"}

@@ -564,7 +564,7 @@ addEventListener('blur', closeMenu);
 const menuAt = (btn, items) => { const r = btn.getBoundingClientRect(); menu(r.left, r.bottom+6, items); };
 // The console's languages, each in its own name. The page itself has English and Spanish words; the others show English.
 function langSelect(value){
-  const names = [['system',T.lsystem],['en','English'],['es','Español'],['fr','Français'],['de','Deutsch'],['it','Italiano'],['pt','Português'],['ru','Русский'],['ja','日本語']];
+  const names = [['system',T.lsystem],['en','English'],['es','Español'],['ca','Català'],['fr','Français'],['de','Deutsch'],['it','Italiano'],['pt','Português'],['ru','Русский'],['ja','日本語'],['zh','简体中文'],['tw','繁體中文']];
   const sel = h('select', {'aria-label':T.language}, names.map(([v, n]) => h('option', {value:v, text:n, selected:v===value})));
   sel.onchange = () => { sfx('tick'); changeSetting({language:sel.value}); };
   return sel;

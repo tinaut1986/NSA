@@ -6,6 +6,8 @@
 
 extern const i18n_entry i18n_es[];
 extern const u32 i18n_es_count;
+extern const i18n_entry i18n_ca[];
+extern const u32 i18n_ca_count;
 extern const i18n_entry i18n_fr[];
 extern const u32 i18n_fr_count;
 extern const i18n_entry i18n_de[];
@@ -18,6 +20,10 @@ extern const i18n_entry i18n_ru[];
 extern const u32 i18n_ru_count;
 extern const i18n_entry i18n_ja[];
 extern const u32 i18n_ja_count;
+extern const i18n_entry i18n_zh[];
+extern const u32 i18n_zh_count;
+extern const i18n_entry i18n_tw[];
+extern const u32 i18n_tw_count;
 
 typedef struct {
     const char* code;               // In settings.json and the web API.
@@ -31,12 +37,15 @@ static const language_def languages[LANGUAGE_COUNT] = {
         [LANGUAGE_SYSTEM] = {"system", NULL, NULL, NULL, -1},
         [LANGUAGE_ENGLISH] = {"en", "English", NULL, NULL, CFG_LANGUAGE_EN},
         [LANGUAGE_SPANISH] = {"es", "Español", i18n_es, &i18n_es_count, CFG_LANGUAGE_ES},
+        [LANGUAGE_CATALAN] = {"ca", "Català", i18n_ca, &i18n_ca_count, -1},   // The 3DS has no Catalan: only chosen by hand.
         [LANGUAGE_FRENCH] = {"fr", "Français", i18n_fr, &i18n_fr_count, CFG_LANGUAGE_FR},
         [LANGUAGE_GERMAN] = {"de", "Deutsch", i18n_de, &i18n_de_count, CFG_LANGUAGE_DE},
         [LANGUAGE_ITALIAN] = {"it", "Italiano", i18n_it, &i18n_it_count, CFG_LANGUAGE_IT},
         [LANGUAGE_PORTUGUESE] = {"pt", "Português", i18n_pt, &i18n_pt_count, CFG_LANGUAGE_PT},
         [LANGUAGE_RUSSIAN] = {"ru", "Русский", i18n_ru, &i18n_ru_count, CFG_LANGUAGE_RU},
         [LANGUAGE_JAPANESE] = {"ja", "日本語", i18n_ja, &i18n_ja_count, CFG_LANGUAGE_JP},
+        [LANGUAGE_CHINESE_SIMPLIFIED] = {"zh", "简体中文", i18n_zh, &i18n_zh_count, CFG_LANGUAGE_ZH},
+        [LANGUAGE_CHINESE_TRADITIONAL] = {"tw", "繁體中文", i18n_tw, &i18n_tw_count, CFG_LANGUAGE_TW},
 };
 
 static language_id selected = LANGUAGE_SYSTEM;

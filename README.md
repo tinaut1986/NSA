@@ -96,7 +96,7 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
 - **Three themes**: *Cards*, *Pixel* (a pixel font, square corners and bars in blocks) and *HOME*
   (big icon tiles and dialogs as a sheet from the bottom), in day and night colours with eight
   accent colours and a yellow one. Settings → Theme.
-- English, Spanish, French, German, Italian, Portuguese, Russian and Japanese (a list in Settings), stereoscopic 3D on the top screen, touch and button controls everywhere
+- English, Spanish, Catalan, French, German, Italian, Portuguese, Russian, Japanese and Chinese, simplified and traditional (a list in Settings), stereoscopic 3D on the top screen, touch and button controls everywhere
   (pressed look, long press for an item's actions, flick scrolling, draggable scrollbars), and optional
   interface sounds, each with its own volume slider (sounds and music).
 - Optional **background music** made by the console itself, with no files: soft lift music, a calm

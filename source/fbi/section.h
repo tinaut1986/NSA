@@ -25,3 +25,6 @@ void systeminfo_draw_console(float x1, float y1, float x2, float y2);
 void systeminfo_draw_network(float x1, float y1, float x2, float y2);
 void systeminfo_draw_storage(float x1, float y1, float x2, float y2);
 void systeminfo_draw_battery(float x1, float y1, float x2, float y2);
+// The System details as JSON for the web page (main thread only: it reads what the System screens read).
+struct json_t;
+struct json_t* systeminfo_json();

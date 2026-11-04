@@ -1827,6 +1827,40 @@ static struct {
     settings_data values;
 } web_settings;
 
+// The System details are read on the main thread, like the screens do: the page asks, the main loop answers.
+static struct {
+    volatile int state;    // 0 nothing, 1 asked, 2 ready.
+    json_t* json;
+} web_system;
+
+static void web_api_system(web_request* r) {
+    if(web_system.state != 0) {
+        web_send_error(r, 409, "the console is still answering the last one");
+        return;
+    }
+
+    web_system.state = 1;
+    for(int waited = 0; web_system.state == 1 && web_run; waited += WEB_NAP_MS) {
+        if(waited > 2000) {
+            break;
+        }
+
+        svcSleepThread((s64) WEB_NAP_MS * 1000000);
+    }
+
+    if(web_system.state != 2) {
+        web_system.state = 0;
+        web_send_error(r, 503, "the console did not answer in time");
+        return;
+    }
+
+    json_t* json = web_system.json;
+    web_system.json = NULL;
+    web_system.state = 0;
+    json_object_set_new(json, "ok", json_true());
+    web_send_json(r, 200, json);
+}
+
 static json_t* web_settings_json() {
     settings_data* s = settings_get();
 
@@ -2069,6 +2103,8 @@ static void web_handle(web_request* r) {
         web_api_tap(r);
     } else if(post && strcmp(api, "input/drag") == 0) {
         web_api_drag(r);
+    } else if(get && strcmp(api, "system") == 0) {
+        web_api_system(r);
     } else if(get && strcmp(api, "settings") == 0) {
         web_api_settings(r);
     } else if(post && strcmp(api, "settings") == 0) {
@@ -2242,6 +2278,11 @@ void webserver_poll_main() {
     // A package uploaded by the page: unpacked (and imported, behind the red question) like one that was sent.
     if(web_job.pending) {
         web_job_run();
+    }
+
+    if(web_system.state == 1) {
+        web_system.json = systeminfo_json();
+        web_system.state = 2;
     }
 
     // Settings changed from the page.

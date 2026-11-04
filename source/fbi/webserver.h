@@ -46,6 +46,7 @@
 //   POST   /api/input/press?keys=A+R&frames=4   hold buttons (A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT)
 //   POST   /api/input/tap?x=&y=&frames=    touch the bottom screen
 //   POST   /api/input/drag?x=&y1=&y2=&frames=   slide a finger up or down
+//   GET    /api/system                     {console{model,user,region,language,country,serial,deviceId,screens,system,kernel,mcu,luma,cia}, uptime, network{...}, storage{..., media[{id,free,total}]}, battery{percent,charging,samples[]...}}: what the console's System screens show
 //   GET    /api/settings                   {theme, themes[{id,name}], accent, accents[{id,name,day,night}], night, language, sounds, soundVolume, music, musicVolume}
 //   POST   /api/settings?theme=&accent=&night=off|on|auto&language=system|en|es|ca|fr|de|it|pt|ru|ja|zh|tw&sounds=0-2&soundVolume=0-100&music=0-3&musicVolume=0-100
 //                                           only the named ones change; applied and saved by the main thread, as the Settings screen does

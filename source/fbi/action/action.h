@@ -122,7 +122,8 @@ void action_import_secure_value(linked_list* items, list_item* selected);
 void action_export_secure_value(linked_list* items, list_item* selected);
 void action_delete_secure_value(linked_list* items, list_item* selected);
 
-// Tests (SITE SAVEORDER, DEBUG): "Save" takes the file in order, as an install does, to try that path without installing.
+// Tests (SITE SAVEORDER, DEBUG): false makes "Save" take the file in long pieces written where they go (http_download_file)
+// instead of in order, as an install does (the default).
 void action_install_url_save_in_order(bool inOrder);
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                         void (*finishedURL)(void* data, u32 index),

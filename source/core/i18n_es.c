@@ -244,6 +244,7 @@ const i18n_entry i18n_es[] = {
         {"Press B to cancel.", "Pulsa  para cancelar."},
         {"Operation cancelled.", "Operación cancelada."},
         {"Another transfer is in progress (one at a time)", "Hay otra transferencia en curso (solo una a la vez)"},
+        {"The link leads to a web page, not to the file", "El enlace lleva a una página web, no al archivo"},
         {"Retry?", "¿Reintentar?"},
         {"Dumping NAND", "Copiando la NAND"},
         {"Dump raw NAND image to the SD card?", "¿Copiar la imagen completa de la NAND a la tarjeta SD?"},

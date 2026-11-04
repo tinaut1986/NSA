@@ -700,6 +700,25 @@ float screen_get_char_width(char c, float scale) {
 
 #define MAX_LINES 64
 
+// Japanese has no spaces: a line may break after any of its characters, except
+// before the closing marks and the small kana that must stay with the one before.
+static bool screen_is_cjk(u32 code) {
+    return (code >= 0x3000 && code <= 0x9FFF) || (code >= 0xFF00 && code <= 0xFFEF);
+}
+
+static bool screen_stays_with_previous(u32 code) {
+    switch(code) {
+        case 0x3001: case 0x3002: case 0x3009: case 0x300B: case 0x300D: case 0x300F: case 0x3011: // 、。〉》」』】
+        case 0x30FC: case 0x30FB: case 0x3041: case 0x3043: case 0x3045: case 0x3047: case 0x3049:  // ー・ぁぃぅぇぉ
+        case 0x30A1: case 0x30A3: case 0x30A5: case 0x30A7: case 0x30A9: case 0x3063: case 0x30C3:  // ァィゥェォっッ
+        case 0x3083: case 0x3085: case 0x3087: case 0x30E3: case 0x30E5: case 0x30E7:               // ゃゅょャュョ
+        case 0xFF01: case 0xFF09: case 0xFF0C: case 0xFF0E: case 0xFF1A: case 0xFF1B: case 0xFF1F:  // ！），．：；？
+            return true;
+        default:
+            return false;
+    }
+}
+
 inline static void screen_wrap_string_finish_line(float* w, float* h, float* lw, float* lh, u32* line, u32* linePos, u32* lastAlignPos,
                                                   u32* lines, float* lineWidths, float* lineHeights,
                                                   u32 maxLines) {
@@ -760,6 +779,12 @@ static void screen_wrap_string(u32* lines, float* lineWidths, float* lineHeights
         }
 
         charWidth *= font_char_width(code, scaleX, scaleY);
+
+        // A place to break a line, before the overflow is looked at.
+        if(screen_is_cjk(code) && !screen_stays_with_previous(code)) {
+            wordPos = -1;
+            ww = 0;
+        }
 
         if(code == '\n' || (wordWrap && lw + charWidth >= maxWidth)) {
             if(code == '\n') {

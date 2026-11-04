@@ -31,7 +31,6 @@ static settings_data settings = {
 };
 
 static const char* night_ids[] = {"off", "on", "auto"};
-static const char* language_ids[] = {"system", "en", "es"};
 
 static u32 settings_find(const char** ids, u32 count, const char* id) {
     for(u32 i = 0; i < count; i++) {
@@ -117,7 +116,7 @@ void settings_load() {
 
     json_t* language = json_object_get(json, "language");
     if(json_is_string(language)) {
-        settings.language = (language_id) settings_find(language_ids, LANGUAGE_COUNT, json_string_value(language));
+        settings.language = i18n_language_from_code(json_string_value(language));
     }
 
     json_t* titles = json_object_get(json, "titles");
@@ -196,7 +195,7 @@ Result settings_save() {
                              "theme", theme_get(settings.theme)->id,
                              "accent", theme_accent_get(settings.accent)->id,
                              "night_mode", night_ids[settings.night < 3 ? settings.night : 0],
-                             "language", language_ids[settings.language < LANGUAGE_COUNT ? settings.language : 0],
+                             "language", i18n_language_code(settings.language),
                              "sounds", (int) settings.sounds,
                              "sound_volume", (int) settings.soundVolume,
                              "music", (int) settings.music,

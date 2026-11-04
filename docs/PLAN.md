@@ -125,6 +125,14 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Languages** (2026-11-04, `feat/languages`; DEBUG 0.6.5 build installed on the New 3DS XL and driven over FTP: the list, Japanese, Russian and German looked right in the Cards theme with the console's own font; the console was put back on System afterwards. The rest is for the owner's hands)
+- [ ] Settings -> Language opens a list (System, English, Español, Français, Deutsch, Italiano, Português, Русский, 日本語); the highlighted one shows its name and a few words in it on the top screen; A or a tap picks it, everything changes at once and it is still set after a restart; B goes back without changing.
+- [ ] The Pixel theme in German (and the other languages with umlauts): at 10 px the pixel font draws the diaeresis faint (seen in Azahar). Russian has no yo: the Russian table writes it as e, because Azahar's font has no glyph for it.
+- [ ] Every screen in each language: texts fit their rows and buttons (German and Russian run longest), no tofu boxes. Cyrillic and kanji come from the console's own font: check Russian and Japanese on both consoles, and on a console set to another region if there is one.
+- [ ] Japanese lines break between characters (dialogs, the top screen's descriptions, the update changelog) and never leave 、 。 」 at the start of a line.
+- [ ] System follows the console's language (Settings of the console in French, German, Italian, Portuguese, Russian or Japanese); a console in Chinese, Korean or Dutch shows English.
+- [ ] The web page's Language drop-down lists all nine and changes the console; the page itself is still English or Spanish.
+
 **Badges of the backups** (2026-11-03; seen in Azahar and on the web page with fake NSA and Checkpoint backups)
 - [ ] A title's Save data / Extra data list and the import list show NSA's backups with NSA's badge (the blue window with an N) and only the date, and Checkpoint's with its flag badge (pale flag on navy) and only the name, no "[NSA]" / "[Checkpoint]"; readable selected and not, in day and night themes.
 
@@ -819,6 +827,16 @@ current, this list is the summary. What only the owner can test (local wireless)
   (looked up by content, never cached): `prompt_*`, `info_display`, `error_display*`,
   `kbd_display`, `list_display` and the default list row do it themselves. Format strings
   of progress text are wrapped in `_()` at the call site. Spanish table: `i18n_es.c`.
+- **Languages** (`feat/languages`): one table per language, `source/core/i18n_<code>.c`, registered in `i18n.c`'s
+  `languages[]` (code for settings.json and the web API, its own name, the console's `CFG_LANGUAGE_*` it answers to).
+  Spanish is the reference for which keys exist; `python3 tools/check_i18n.py` checks every table against it (same keys,
+  printf conversions in the same order, button glyphs, line breaks, edge spaces). Adding a language = a new table, one line in
+  `languages[]`, one in `language_id`, one in the web page's `langSelect`. Settings -> Language is a list
+  (`languagemenu.c`), not a button that steps through them. Chosen: French, German, Italian, Portuguese (Brazilian), Russian
+  and Japanese, the languages of the 3DS whose script the console's standard font draws. Not done: Chinese and Korean (the
+  console loads a different shared font for those regions, so the text would be boxes on the rest) and Dutch (the 3DS has it;
+  smaller audience). Japanese is one standard written language (kanji and kana, polite form, common kanji only); `screen.c`
+  breaks lines between its characters, since it has no spaces. The pixel theme falls back to the system font for what it lacks.
 - **Lists load in two passes** (Titles, Tickets, Ext Save Data): the task adds a
   placeholder row for every item (ID only), then fills each one's details in place and
   marks it `ready`; the screen draws grey blocks until then, fades the contents in,

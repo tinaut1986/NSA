@@ -213,8 +213,24 @@ Dropbox, catbox and the LAN, byte for byte, and an install by URL of an 8 MB CIA
 - [ ] The whole Dragon Quest VIII with Save (3.4 GB): ends, and the file is the right size.
 - [x] The 2DS: Save from Dropbox. In long pieces it went at 180-255 KB/s: each 256 KB write far into the 3.4 GB file took
       3.2-3.9 s (the trace's disk time), with a handle for each connection too; in order, into the same file set to its
-      size, 444-457 KB/s (3dsDL from Dropbox ends on one connection, so it writes in order too). So an Old 3DS saves in
-      order (segments, or one connection after a one-time link) and a New 3DS in long pieces (1227-1304 KB/s there).
+      size, 444-457 KB/s (3dsDL from Dropbox ends on one connection, so it writes in order too).
+- [x] The New 3DS XL too (2026-11-04, Google Drive, 534 MB): in long pieces the writes took 54-113 ms for 6 minutes,
+      then 3.7-4.4 s each (60 KB/s) to the end, the SD card's cache full with several places written at once. So every
+      model saves **in order**, as an install: segments over the connections that pay off, written in order (the same
+      engine; long pieces only with `SITE SAVEORDER ANY`). Segments of 1 MB, not 512 KB: a request (and its round trip)
+      every 512 KB started Google Drive at ~500 KB/s; at 1 MB it went at 963 KB/s from the start (3dsDL: ~1 MB/s). Drive
+      whole on the New 3DS XL: identical bytes (SHA-256), saved as "EUR - Paper Mario.cia" (Content-Disposition), FTP
+      answering throughout. The 2DS: 222-278 KB/s (3dsDL 127 KB/s there).
+- [x] The ramp (ramp.c): at most 4 (eight saturated the New 3DS's network: its FTP could not send 6 bytes), 10 s
+      measures from a sample a second, one more kept when its mean rose by more than twice the measures' error (and 5%),
+      one fewer when the speed falls under half of where it settled. The in-order engine (installs too) uses it, from 2.
+- [x] Links: Google Drive's share, open and uc links become `drive.usercontent.google.com/download?id=ID&export=download
+      &confirm=t` (its page, or a virus scan warning for big files, otherwise); a server that sends a web page instead of
+      the file fails with "The link leads to a web page, not to the file"; 429 hands an install over to one connection.
+      The user agent is `NSA/x.y.z (Nintendo 3DS)`: FBI's "Mozilla/5.0 (Nintendo 3DS; Mobile; rv:10.0) Gecko/20100101"
+      got 500 and 403 from Google Drive.
+- [ ] NSA went back to the HOME Menu by itself once (no Luma dump), right after a SITE SHA256 of the 534 MB file had
+      read it whole: find out what closed it.
 - [ ] Whether NSA stops answering again right after "the rest over one connection" (it did once): if it does, a photo of
       the screen and `transfer-log.txt` at once.
 - [ ] Remote Install's choices (#29): a list (Install, Save and install, Save install and delete, Save; X saves at once)

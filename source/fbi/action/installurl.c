@@ -109,6 +109,14 @@ static Result action_install_url_get_src_url(void* data, u32 index, char* url, s
 
 // "Game Name.cia" from ".../Game%20Name.cia?x=1": the URL's last part, decoded, without the characters FAT refuses.
 static void action_install_url_save_name(const char* url, const void* initialReadBlock, char* out, size_t size) {
+    // The name the server gave (Google Drive: "EUR - Paper Mario.cia" for .../file/d/ID/view), else the URL's.
+    char given[FILE_NAME_MAX];
+    if(http_file_name(given, sizeof(given))) {
+        string_escape_file_name(out, given, size);
+        out[size - 1] = '\0';
+        return;
+    }
+
     const char* start = strstr(url, "://");
     start = start != NULL ? start + 3 : url;
     const char* slash = strrchr(start, '/');
@@ -630,7 +638,7 @@ static void action_install_url_install_show(install_url_data* data) {
     ui_push(view);
 }
 
-static bool action_install_url_in_order = false;
+static bool action_install_url_in_order = true;
 
 void action_install_url_save_in_order(bool inOrder) {
     action_install_url_in_order = inOrder;
@@ -641,12 +649,11 @@ static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32
 
     installData->mode = response;
     installData->saveOnly = response != INSTALL_URL_CHOICE_INSTALL;
-    // A file being saved takes its pieces in any order: long pieces over several connections. Not on an Old 3DS: a
-    // write far into a big file takes seconds there (256 KB in 3.2 s at 1-3 GB into Dragon Quest VIII on the 2DS, with a
-    // handle for each connection too), while in order it saves at its network's ~450 KB/s, as fast as it gets there.
-    bool n3ds = false;
-    APT_CheckNew3DS(&n3ds);
-    installData->installInfo.dstAnyOrder = installData->saveOnly && n3ds && !action_install_url_in_order;
+    // A file is saved in order, over the connections that pay off (as an install), on every model: long pieces written
+    // where they go (http_download_file) made the SD card take seconds for each write once its cache was full (2DS: from
+    // the start, 3.2-3.9 s for 256 KB; New 3DS XL: after ~400 MB of Google Drive, 54 ms -> 4 s), as cards do with several
+    // places written at once. SITE SAVEORDER ANY (DEBUG) still tries the long pieces.
+    installData->installInfo.dstAnyOrder = installData->saveOnly && !action_install_url_in_order;
     if(response < INSTALL_URL_CHOICES) {
         Result res = task_data_op(&installData->installInfo);
         if(R_SUCCEEDED(res)) {

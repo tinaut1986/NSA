@@ -1033,7 +1033,7 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
     }
 
     if(NSA_DEBUG && strcmp(sub, "SAVEORDER") == 0) {
-        static bool inOrder = false;
+        static bool inOrder = true;
         if(path != NULL && strcasecmp(path, "INORDER") == 0) {
             inOrder = true;
         } else if(path != NULL && strcasecmp(path, "ANY") == 0) {

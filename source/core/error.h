@@ -19,6 +19,8 @@
 
 // Another transfer holds the turn (xferturn.h): one at a time.
 #define R_APP_BUSY MAKERESULT(RL_TEMPORARY, RS_OUTOFRESOURCE, RM_APPLICATION, 800)
+// A download whose server answered with a web page instead of the file (a share page, a warning to click through).
+#define R_APP_HTTP_WEB_PAGE MAKERESULT(RL_PERMANENT, RS_INVALIDARG, RM_APPLICATION, 802)
 
 #define R_APP_NOT_IMPLEMENTED MAKERESULT(RL_PERMANENT, RS_INTERNAL, RM_APPLICATION, RD_NOT_IMPLEMENTED)
 #define R_APP_OUT_OF_MEMORY MAKERESULT(RL_FATAL, RS_OUTOFRESOURCE, RM_APPLICATION, RD_OUT_OF_MEMORY)

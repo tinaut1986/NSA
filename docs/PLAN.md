@@ -80,7 +80,7 @@ What `release` holds, in the order it was built:
     assets) and played on DSP channels 8-11: tick (D-Pad, touch), click (A), back (B) from
     `ui_update`; success tune and error tones from any prompt named "Success" or
     "Failure"/"Error" (`prompt_display_multi_choice`), which covers transfers and installs.
-    Settings: Sounds (Off / Alerts / All, default All) and Sound volume (25-100 %). Requests are
+    Settings: Sounds (Off / Alerts / All, default All) and Sound volume (0-100 %, as on the console). Requests are
     bits set from any thread and played by `sound_update` on the UI loop. The DSP is shared with
     the audio player (`sound_dsp_start`; the player uses channel 0 and its own per-channel
     mix as volume).

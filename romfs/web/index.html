@@ -533,11 +533,21 @@ async function syncMusic(){
 }
 // A browser starts sound only after a click or key: the first one wakes it.
 for(const ev of ['pointerdown','keydown']) addEventListener(ev, () => { if(audio && audio.state==='suspended') audio.resume().catch(() => {}); }, {capture:true});
-// What the console plays can change from its own screen: ask now and then.
+// What the console plays (and any other setting) can change from its own screen: ask every few seconds, and redraw only when
+// something changed (not while a finger or the mouse is down, so a slider being dragged is not pulled away).
+let pointerDown = false;
+for(const ev of ['pointerdown','pointerup','pointercancel']) addEventListener(ev, e => { pointerDown = e.type==='pointerdown'; }, {capture:true});
 setInterval(async () => {
-  if(document.hidden || $('app').hidden) return;
-  try { settings = await api('GET', 'settings'); applyConsoleSettings(); } catch(e){}
-}, 30000);
+  if(document.hidden || $('app').hidden || pointerDown || setBusy) return;
+  try {
+    const s = await api('GET', 'settings');
+    if(JSON.stringify(s) === JSON.stringify(settings)) return;
+    settings = s; applyConsoleSettings(); themeKey = ''; loadTheme();
+    if(current==='settings') renderSettings();
+  } catch(e){}
+}, 5000);
+// A new song made by the console appears in /nsa: look for it now and then.
+setInterval(() => { if(!document.hidden && !$('app').hidden) syncMusic(); }, 30000);
 
 // ---- talking to the console ----
 let pin = '';
@@ -1488,8 +1498,8 @@ async function changeSetting(params){
 }
 function opt(icon, label, sub, ctl){ return h('div', {class:'opt'}, ic(icon), h('div', {class:'l'}, h('b', {text:label}), sub ? h('span', {text:sub}) : null), h('div', {class:'ctl'}, ctl)); }
 function volume(value, key){
-  const out = h('span', {text:value+'%'}), r = h('input', {type:'range', min:25, max:100, step:5, value});
-  const paintV = () => { r.style.setProperty('--v', ((r.value-25)/75*100)+'%'); out.textContent = r.value+'%'; };
+  const out = h('span', {text:value+'%'}), r = h('input', {type:'range', min:0, max:100, step:5, value});
+  const paintV = () => { r.style.setProperty('--v', r.value+'%'); out.textContent = r.value+'%'; };
   r.oninput = paintV; r.onchange = () => changeSetting({[key]:r.value}); paintV();
   return h('div', {class:'vol'}, ic('volume', 16), r, out);
 }

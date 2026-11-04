@@ -1924,9 +1924,8 @@ static void web_api_settings_set(web_request* r) {
     values.soundVolume = web_number(r, "soundVolume", values.soundVolume);
     values.music = web_number(r, "music", values.music);
     values.musicVolume = web_number(r, "musicVolume", values.musicVolume);
-    if(values.sounds > SOUNDS_ALL || values.music >= BGMUSIC_COUNT || values.soundVolume < 25 || values.soundVolume > 100
-       || values.musicVolume < 25 || values.musicVolume > 100) {
-        web_send_error(r, 400, "sounds 0-2, music 0-3, volumes 25-100");
+    if(values.sounds > SOUNDS_ALL || values.music >= BGMUSIC_COUNT || values.soundVolume > 100 || values.musicVolume > 100) {
+        web_send_error(r, 400, "sounds 0-2, music 0-3, volumes 0-100");
         return;
     }
 

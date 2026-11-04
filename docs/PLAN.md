@@ -125,6 +125,15 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Transfer cards and readable URLs** (2026-11-04, `feat/transfer-info`; DEBUG on both consoles; seen on a real 40 MB send New 3DS XL -> 2DS, except the first three):
+- [x] Receiving: the top card shows the file, "From <console> (size)" and "Saving in <folder>" (or "Installing it on this console" / "Importing it into the title"); sending shows the file, "To <console>" and the size. Seen on the consoles.
+- [x] The question to a QR / typed / received URL shows the file name whole (over several lines) and, for one link, the whole address, with %XX turned into characters. Seen on the New 3DS XL with a link made of %20.
+- [ ] History: names and links on its rows and on the top card are decoded too (the stored address keeps its escapes, so "install again" asks for the real one). Built, not seen.
+- [ ] The install progress screen shows the decoded name.
+- [ ] `tools/console_tests.py`: its rules answer "Incoming file" / "Existing files" as prompts; they are list sheets now (named after the screen under them), so the rules need updating before the next run.
+- [ ] Not done: a preview of the icon of an incoming CIA / .3dsx. A CIA keeps its icon at the end and a .3dsx near it, so the sender has to send it: a protocol 9 (hello + icon) that both consoles must run.
+- [ ] A 15 s "io: nothing for 15 s" stall killed one send while two screenshots were fetched over FTP mid-transfer; it did not come back in the reruns. Watch for it.
+
 **Receive menus as lists** (2026-11-04, `feat/receive-list`; DEBUG 0.7.0 installed on the New 3DS XL only, the 2DS was off the network; the screen itself was not seen: `fake_peer.py send` got its connection reset before NSA logged anything):
 - [ ] An incoming file / CIA / folder / save from another console shows a list sheet ("Install now", "Save", "Reject", "Import now", "Save in a folder", "Original path") with a detail line per row, the file name and size as its title, and the transfer card on the top screen; A or a tap chooses.
 - [ ] B or a tap above the list rejects: the sender sees "declined" and NSA goes back to waiting.

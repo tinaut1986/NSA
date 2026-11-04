@@ -404,7 +404,7 @@ static bool action_install_url_error(void* data, u32 index, Result res, ui_view*
 
 // ---- the install screen: the current URL's progress on top, every URL below ----
 
-// "game.cia" from "http://host/dir/game.cia?x=1".
+// "Game Name.cia" from ".../Game%20Name.cia?x=1": the part after the last slash, decoded as the saved name is.
 static void action_install_url_file_name(const char* url, char* out, size_t size) {
     const char* start = strstr(url, "://");
     start = start != NULL ? start + 3 : url;
@@ -412,12 +412,19 @@ static void action_install_url_file_name(const char* url, char* out, size_t size
     const char* slash = strrchr(start, '/');
     const char* name = slash != NULL && slash[1] != '\0' ? slash + 1 : start;
     size_t len = strcspn(name, "?#");
-    if(len >= size) {
-        len = size - 1;
+
+    size_t used = 0;
+    for(size_t i = 0; i < len && used < size - 1; i++) {
+        unsigned hex = 0;
+        if(name[i] == '%' && i + 2 < len && sscanf(name + i + 1, "%2x", &hex) == 1 && hex >= 0x20) {
+            out[used++] = (char) hex;
+            i += 2;
+        } else {
+            out[used++] = name[i] == '+' ? ' ' : name[i];
+        }
     }
 
-    memcpy(out, name, len);
-    out[len] = '\0';
+    out[used] = '\0';
 }
 
 // "192.168.1.143" from "http://192.168.1.143:8080/game.cia".
@@ -729,13 +736,17 @@ static void action_install_url_choose_draw_top(ui_view* view, void* data, float 
     screen_draw_string_wrap(installData->confirm, x, y, 0.5f, 0.5f, COLOR_TEXT, false, x + width);
     y += h + 6;
 
+    // Each name whole, over as many lines as it needs; one address is shown whole too (decoded).
     u32 shown = installData->installInfo.total < 3 ? installData->installInfo.total : 3;
     for(u32 i = 0; i < shown; i++) {
         char name[FILE_NAME_MAX];
         action_install_url_file_name(installData->urls[i], name, sizeof(name));
         screen_draw_icon(ICON_PACKAGE, x, y + 1, 14, t->accent);
-        widget_text_fit(name, x + 20, y, 0.5f, t->palette->text, width - 20);
-        y += widget_text_height(0.5f) + 3;
+        float nameW = 0;
+        float nameH = 0;
+        screen_get_string_size_wrap(&nameW, &nameH, name, 0.5f, 0.5f, width - 20);
+        screen_draw_text_wrap(name, x + 20, y, 0.5f, t->palette->text, x + width);
+        y += nameH + 3;
     }
 
     if(installData->installInfo.total > shown) {
@@ -743,6 +754,17 @@ static void action_install_url_choose_draw_top(ui_view* view, void* data, float 
         snprintf(more, sizeof(more), _("and %lu more"), installData->installInfo.total - shown);
         widget_text_fit(more, x + 20, y, 0.5f, t->palette->textMuted, width - 20);
         y += widget_text_height(0.5f) + 3;
+    } else if(installData->installInfo.total == 1) {
+        char address[DOWNLOAD_URL_MAX];
+        string_url_decode(installData->urls[0], address, sizeof(address));
+        float addressW = 0;
+        float addressH = 0;
+        screen_get_string_size_wrap(&addressW, &addressH, address, 0.4f, 0.4f, width);
+        // Only while the card under it keeps room for its text.
+        if(y + addressH + 4 + 70 <= y2) {
+            screen_draw_text_wrap(address, x, y, 0.4f, t->palette->textMuted, x + width);
+            y += addressH + 4;
+        }
     }
 
     // What the chosen way does.

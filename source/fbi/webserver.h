@@ -45,7 +45,7 @@
 //   POST   /api/input/tap?x=&y=&frames=    touch the bottom screen
 //   POST   /api/input/drag?x=&y1=&y2=&frames=   slide a finger up or down
 //   GET    /api/settings                   {theme, themes[{id,name}], accent, accents[{id,name,day,night}], night, language, sounds, soundVolume, music, musicVolume}
-//   POST   /api/settings?theme=&accent=&night=off|on|auto&language=system|en|es&sounds=0-2&soundVolume=25-100&music=0-3&musicVolume=25-100
+//   POST   /api/settings?theme=&accent=&night=off|on|auto&language=system|en|es|ca|fr|de|it|pt|ru|ja|zh|tw&sounds=0-2&soundVolume=25-100&music=0-3&musicVolume=25-100
 //                                           only the named ones change; applied and saved by the main thread, as the Settings screen does
 // What opens a question on the console runs on the main thread, one request at a time (409 while the last one is open).
 //

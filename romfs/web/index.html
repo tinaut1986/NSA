@@ -562,6 +562,13 @@ addEventListener('mousedown', e => { if(openMenu && !openMenu.contains(e.target)
 addEventListener('keydown', e => { if(e.key==='Escape') closeMenu(); });
 addEventListener('blur', closeMenu);
 const menuAt = (btn, items) => { const r = btn.getBoundingClientRect(); menu(r.left, r.bottom+6, items); };
+// The console's languages, each in its own name. The page itself has English and Spanish words; the others show English.
+function langSelect(value){
+  const names = [['system',T.lsystem],['en','English'],['es','Español'],['ca','Català'],['fr','Français'],['de','Deutsch'],['it','Italiano'],['pt','Português'],['ru','Русский'],['ja','日本語'],['zh','简体中文'],['tw','繁體中文']];
+  const sel = h('select', {'aria-label':T.language}, names.map(([v, n]) => h('option', {value:v, text:n, selected:v===value})));
+  sel.onchange = () => { sfx('tick'); changeSetting({language:sel.value}); };
+  return sel;
+}
 function seg(options, value, onpick){
   const s = h('div', {class:'seg'});
   options.forEach(([v, label, icon]) => s.append(h('button', {class:v===value?'on':'', onclick:() => { [...s.children].forEach(b => b.classList.remove('on')); s.children[options.findIndex(o => o[0]===v)].classList.add('on'); sfx('tick'); onpick(v); }}, icon ? ic(icon,16) : null, label)));
@@ -1338,7 +1345,7 @@ function renderSettings(){
       h('div', {class:'opt', style:'display:block'}, h('div', {class:'l', style:'margin-bottom:10px'}, h('b', {text:T.accent})),
         h('div', {class:'swatches'}, s.accents.map(a => h('button', {class:'sw'+(a.id===s.accent?' on':''), title:a.name, vars:{c:night ? a.night : a.day}, onclick:() => { sfx('click'); changeSetting({accent:a.id}); }}, ic('check', 16))))),
       opt('moon', T.night, T.nightsub, seg([['off',T.off,'sun'],['on',T.on,'moon'],['auto',T.auto,'sun-moon']], s.night, v => changeSetting({night:v}))),
-      opt('language', T.language, null, seg([['system',T.lsystem],['en','English'],['es','Español']], s.language, v => changeSetting({language:v})))),
+      opt('language', T.language, null, langSelect(s.language))),
     h('div', {class:'card'}, h('h3', {}, ic('volume', 16), T.snd),
       opt('volume', T.sounds, T.soundssub, seg([[0,T.off],[1,T.alerts],[2,T.all]], s.sounds, v => changeSetting({sounds:v}))), volume(s.soundVolume, 'soundVolume'),
       opt('music', T.music, T.musicsub, seg([[0,T.off],[1,T.m_lift],[2,T.m_calm],[3,T.m_shop]], s.music, v => changeSetting({music:v}))), volume(s.musicVolume, 'musicVolume')),

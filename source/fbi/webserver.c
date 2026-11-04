@@ -1797,7 +1797,6 @@ static void web_api_install_url(web_request* r) {
 // Read here; changed by the main thread (webserver_poll_main), which applies and saves them as the Settings screen does.
 
 static const char* web_night_ids[] = {"off", "on", "auto"};
-static const char* web_language_ids[] = {"system", "en", "es"};
 
 static struct {
     volatile int state;    // 0 nothing, 1 asked, 2 applied.
@@ -1826,7 +1825,7 @@ static json_t* web_settings_json() {
                      "theme", theme_get(s->theme)->id, "themes", themes,
                      "accent", theme_accent_get(s->accent)->id, "accents", accents,
                      "night", web_night_ids[s->night < 3 ? s->night : 0],
-                     "language", web_language_ids[s->language < LANGUAGE_COUNT ? s->language : 0],
+                     "language", i18n_language_code(s->language),
                      "sounds", (int) s->sounds, "soundVolume", (int) s->soundVolume,
                      "music", (int) s->music, "musicVolume", (int) s->musicVolume);
 }
@@ -1888,17 +1887,13 @@ static void web_api_settings_set(web_request* r) {
     }
 
     if(web_query_get(r->query, "language", text, sizeof(text))) {
-        u32 i = 0;
-        while(i < LANGUAGE_COUNT && strcmp(web_language_ids[i], text) != 0) {
-            i++;
-        }
-
-        if(i == LANGUAGE_COUNT) {
+        language_id language = i18n_language_from_code(text);
+        if(language == LANGUAGE_SYSTEM && strcmp(text, i18n_language_code(LANGUAGE_SYSTEM)) != 0) {
             web_send_error(r, 400, "unknown language");
             return;
         }
 
-        values.language = (language_id) i;
+        values.language = language;
     }
 
     values.sounds = web_number(r, "sounds", values.sounds);

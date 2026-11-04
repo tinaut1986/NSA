@@ -1217,6 +1217,7 @@ void remoteinstall_open() {
     ui_view* view = ui_create();
     view->name = _("Remote install");
     view->id = "Remote install";
+    view->backArrow = true;
     view->info = _("\uE000 open   \uE001 back");
     view->data = data;
     view->update = remoteinstall_update;

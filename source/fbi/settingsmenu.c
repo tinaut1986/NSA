@@ -157,8 +157,11 @@ static void settingsmenu_change(settings_option option, int direction) {
             settings->night = (theme_night_mode) settingsmenu_step(settings->night, 3, step);
             break;
         case OPTION_LANGUAGE:
-            settings->language = (language_id) settingsmenu_step(settings->language, LANGUAGE_COUNT, step);
-            break;
+            // Too many to step through: a list.
+            if(direction == 0) {
+                languagemenu_open();
+            }
+            return;
         case OPTION_SOUNDS:
             settings->sounds = settingsmenu_step(settings->sounds, 3, step);
             break;
@@ -258,6 +261,7 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
     float viewHeight = by2 - by1 - 2 * PAD;
 
     view->name = _("Settings");
+    view->backArrow = true;
     if(settings_get()->music != BGMUSIC_OFF) {
         bgmusic_status music;
         bgmusic_get_status(&music);
@@ -410,7 +414,7 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_THEME: return _("How the menus look.");
         case OPTION_ACCENT: return _("The colour of buttons, selections and bars.");
         case OPTION_NIGHT: return _("Dark colours. Automatic: from 20:00 to 8:00.");
-        case OPTION_LANGUAGE: return _("System: the console's language when NSA has it, else English.");
+        case OPTION_LANGUAGE: return _("Pick NSA's language from a list. System: the console's language when NSA has it, else English.");
         case OPTION_SOUNDS:
             return settings->sounds == SOUNDS_ALL ? _("All: a tick for buttons and touches, and a tune when something ends or fails.")
                    : settings->sounds == SOUNDS_ALERTS ? _("Alerts: only when something ends well or fails (a transfer, an install).")
@@ -582,9 +586,16 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
                 }
             }
         } else {
-            widget_row(rowX, y, rowW, WIDGET_ROW_HEIGHT, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, settingsmenu_value(option), i == menu->selected);
-            if(option == OPTION_CHANGELOG) {
-                widget_row_chevron(rowX + rowW - 8, y, WIDGET_ROW_HEIGHT, i == menu->selected);
+            // Language opens a list: its name and a chevron, not the arrows of a value that steps.
+            bool opens = option == OPTION_LANGUAGE;
+            widget_row(rowX, y, rowW, WIDGET_ROW_HEIGHT, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, opens ? NULL : settingsmenu_value(option), i == menu->selected);
+            if(option == OPTION_CHANGELOG || opens) {
+                float right = widget_row_chevron(rowX + rowW - 8, y, WIDGET_ROW_HEIGHT, i == menu->selected);
+                if(opens) {
+                    const char* name = settingsmenu_value(option);
+                    float nameW = widget_text_width(name, WIDGET_SMALL_SCALE);
+                    screen_draw_text(name, right - nameW, y + (WIDGET_ROW_HEIGHT - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, i == menu->selected ? theme()->onAccent : theme()->palette->textMuted);
+                }
             }
         }
 

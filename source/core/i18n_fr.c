@@ -816,6 +816,29 @@ const i18n_entry i18n_fr[] = {
         {"Failed to commit the changes.", "Impossible de valider les modifications."},
         {"Failed to list the files.", "Impossible de lister les fichiers."},
         {"Failed to start the copy.", "Impossible de lancer la copie."},
+
+        // Dump NAND (Advanced)
+        {"NAND size", "Taille de la NAND"},
+        {"Free (SD)", "Libre (SD)"},
+        {"Time left", "Temps restant"},
+        {"Took", "Durée"},
+        {"Space", "Espace"},
+        {"Needed", "Requis"},
+        {"Free on the SD card", "Libre sur la carte SD"},
+        {"%s missing: free some space first", "Il manque %s : libérez d'abord de l'espace"},
+        {"Fits, with %s left over", "Ça tient, il restera %s"},
+        {"It will be saved in", "Sera enregistré dans"},
+        {"Keep the console awake and the SD card in.", "Gardez la console allumée et la carte SD insérée."},
+        {"NAND dumped", "NAND copiée"},
+        {"%s in %s", "%s en %s"},
+        {"Saved as", "Enregistré sous"},
+        {"Back", "Retour"},
+        {"%lu min %lu s", "%lu min %lu s"},
+        {"%lu s", "%lu s"},
+        {"\uE000 start   \uE001 cancel", "\uE000 démarrer   \uE001 annuler"},
+        {"\uE000 OK", "\uE000 OK"},
+        {"Start dump", "Copier"},
+        {"Also saved as a .sha256 file next to it.", "Aussi enregistré dans un fichier .sha256 à côté."},
 };
 
 const u32 i18n_fr_count = sizeof(i18n_fr) / sizeof(*i18n_fr);

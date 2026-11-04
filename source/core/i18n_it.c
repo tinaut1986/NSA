@@ -821,6 +821,29 @@ const i18n_entry i18n_it[] = {
         {"Failed to commit the changes.", "Impossibile confermare le modifiche."},
         {"Failed to list the files.", "Impossibile elencare i file."},
         {"Failed to start the copy.", "Impossibile avviare la copia."},
+
+        // Dump NAND (Advanced)
+        {"NAND size", "Dimensione NAND"},
+        {"Free (SD)", "Libero (SD)"},
+        {"Time left", "Tempo rimasto"},
+        {"Took", "Ha impiegato"},
+        {"Space", "Spazio"},
+        {"Needed", "Necessario"},
+        {"Free on the SD card", "Libero sulla scheda SD"},
+        {"%s missing: free some space first", "Mancano %s: libera prima dello spazio"},
+        {"Fits, with %s left over", "Ci sta, avanzano %s"},
+        {"It will be saved in", "Verrà salvato in"},
+        {"Keep the console awake and the SD card in.", "Tieni la console accesa e la scheda SD inserita."},
+        {"NAND dumped", "NAND copiata"},
+        {"%s in %s", "%s in %s"},
+        {"Saved as", "Salvato come"},
+        {"Back", "Indietro"},
+        {"%lu min %lu s", "%lu min %lu s"},
+        {"%lu s", "%lu s"},
+        {"\uE000 start   \uE001 cancel", "\uE000 avvia   \uE001 annulla"},
+        {"\uE000 OK", "\uE000 OK"},
+        {"Start dump", "Copia"},
+        {"Also saved as a .sha256 file next to it.", "Salvato anche in un file .sha256 accanto."},
 };
 
 const u32 i18n_it_count = sizeof(i18n_it) / sizeof(*i18n_it);

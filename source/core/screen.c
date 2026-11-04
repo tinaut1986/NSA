@@ -854,7 +854,10 @@ static void screen_wrap_string(u32* lines, float* lineWidths, float* lineHeights
 
             u32 oldLinePos = linePos;
 
-            if(code != '\n' && wordPos != -1) {
+            // The word goes down to the next line, unless it is the whole line (an address with no
+            // spaces): that one is cut where the line ends, not moved after an empty line.
+            bool moveWord = code != '\n' && wordPos > 0;
+            if(moveWord) {
                 linePos = (u32) wordPos;
                 lw -= ww;
             }
@@ -863,7 +866,7 @@ static void screen_wrap_string(u32* lines, float* lineWidths, float* lineHeights
                                            lines, lineWidths, lineHeights,
                                            maxLines);
 
-            if(code != '\n' && wordPos != -1) {
+            if(moveWord) {
                 linePos = oldLinePos - wordPos;
                 lw = ww;
             }

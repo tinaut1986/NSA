@@ -91,6 +91,7 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .row .pic{width:40px;height:40px;flex:none;border-radius:calc(var(--rs) - 2px);display:grid;place-items:center;background:var(--bg);color:var(--accent);overflow:hidden;position:relative}
 .row .pic img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s}
 .row .pic img.in{opacity:1}
+.sheet .head .back{flex:none;align-self:flex-start}
 .chain{display:flex;flex-direction:column;gap:10px}
 .tcard{display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);text-align:left;width:100%;cursor:pointer;transition:background-color var(--fast),transform var(--fast) var(--ease)}
 .tcard:hover{background:var(--soft)}.tcard:active{transform:scale(.985)}
@@ -381,7 +382,7 @@ const WORDS = {
 en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',lost:'Cannot reach the console.',failed:'Failed: ',done:'Done.',
   g_manage:'Manage',g_tools:'Tools',titles:'Titles',files:'Files',tickets:'Tickets',extdata:'Extra data',install:'Install',screen:'Screen',settings:'Settings',
   search:'Search',filter:'Filter',sort:'Sort',view:'View',list:'List',grid:'Grid',more:'More',reload:'Reload',close:'Close',cancel:'Cancel',ok:'OK',save:'Save',
-  k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',group:'Group updates and DLC',yes:'Yes',no:'No',chain:'Updates and DLC',kg1:'Game',ku1:'Update',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
+  k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',group:'Group updates and DLC',yes:'Yes',no:'No',chain:'Updates and DLC',kg1:'Game',back:'Back',ku1:'Update',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
   loaded:'%a of %b',notitles:'Nothing matches.',loading:'Loading…',version:'Version',size:'Size',code:'Product code',publisher:'Publisher',id:'Title ID',type:'Type',path:'Path',modified:'Modified',
   launch:'Launch',deleteTitle:'Delete',delticket:'Delete with ticket',data:'Data',dsave:'Download save',dext:'Download extra data',dboss:'Download SpotPass data',m_save:'Save data',m_ext:'Extra data',m_boss:'SpotPass data',dpack:'Download (a .nsasave package)',backups:'Backups on the SD card',restore:'Restore (the console asks first)',confirmdelbackup:'Delete the backup "%s"? This cannot be undone.',cpnote:'It is Checkpoint\'s: Checkpoint will not see it any more.',
   sendpkg:'Send a save package',sendpkgsub:'A .nsasave package made by NSA: the console unpacks it and asks there.',packing:'Packing',packstart:'The console is packing it (B there cancels)…',counting:'Counting files…',downloading:'Downloading',cancelled:'Cancelled.',packbusy:'The console is still packing the last one.',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and kept on the console (this title or its data is not there).',
@@ -403,7 +404,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
 es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',lost:'No se puede contactar con la consola.',failed:'Error: ',done:'Hecho.',
   g_manage:'Gestionar',g_tools:'Herramientas',titles:'Títulos',files:'Archivos',tickets:'Tickets',extdata:'Datos extra',install:'Instalar',screen:'Pantalla',settings:'Ajustes',
   search:'Buscar',filter:'Filtrar',sort:'Ordenar',view:'Vista',list:'Lista',grid:'Cuadrícula',more:'Más',reload:'Recargar',close:'Cerrar',cancel:'Cancelar',ok:'Aceptar',save:'Guardar',
-  k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',group:'Agrupar actualizaciones y DLC',yes:'Sí',no:'No',chain:'Actualizaciones y DLC',kg1:'Juego',ku1:'Actualización',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
+  k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',group:'Agrupar actualizaciones y DLC',yes:'Sí',no:'No',chain:'Actualizaciones y DLC',kg1:'Juego',back:'Volver',ku1:'Actualización',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
   loaded:'%a de %b',notitles:'No hay nada que coincida.',loading:'Cargando…',version:'Versión',size:'Tamaño',code:'Código de producto',publisher:'Editor',id:'ID de título',type:'Tipo',path:'Ruta',modified:'Modificado',
   launch:'Lanzar',deleteTitle:'Borrar',delticket:'Borrar con ticket',data:'Datos',dsave:'Descargar partida',dext:'Descargar datos extra',dboss:'Descargar datos SpotPass',m_save:'Partidas',m_ext:'Datos extra',m_boss:'Datos SpotPass',dpack:'Descargar (un paquete .nsasave)',backups:'Copias en la SD',restore:'Restaurar (la consola pregunta antes)',confirmdelbackup:'¿Borrar la copia "%s"? No se puede deshacer.',cpnote:'Es de Checkpoint: Checkpoint dejará de verla.',
   sendpkg:'Enviar un paquete de partida',sendpkgsub:'Un paquete .nsasave hecho por NSA: la consola lo desempaqueta y pregunta allí.',packing:'Empaquetando',packstart:'La consola lo está empaquetando (B allí lo cancela)…',counting:'Contando archivos…',downloading:'Descargando',cancelled:'Cancelado.',packbusy:'La consola aún está empaquetando el anterior.',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están).',
@@ -547,7 +548,7 @@ function sheet({head, body, foot, wide, onclose}){
   pane.addEventListener('touchend', e => { if(y0==null) return; const dy = e.changedTouches[0].clientY-y0; y0 = null; pane.style.transition=''; pane.style.transform=''; if(dy>90) close(); });
   return {close, el:d, pane};
 }
-function sheetHead(pic, title, sub){ return h('div', {class:'head'}, h('div', {class:'big'}, pic), h('div', {style:'min-width:0'}, h('h3', {text:title}), sub ? h('div', {class:'sub', text:sub}) : null)); }
+function sheetHead(pic, title, sub, back){ return h('div', {class:'head'}, back ? h('button', {class:'tool back', title:T.back, 'aria-label':T.back, onclick:back}, ic('arrow-left')) : null, h('div', {class:'big'}, pic), h('div', {style:'min-width:0'}, h('h3', {text:title}), sub ? h('div', {class:'sub', text:sub}) : null)); }
 const cells = list => h('div', {class:'cells'}, list.filter(c => c && c[1]!=null && c[1]!=='').map(([b,s]) => h('div', {class:'cell'}, h('b', {text:b}), h('span', {text:s, title:s}))));
 // Actions: [icon, label, fn, {danger, note}] or a string (a group label). Choosing one closes the sheet first.
 function actions(list, closeFn){
@@ -834,24 +835,25 @@ function chainSheet(t, r){
     const card = h('button', {class:'tcard'}, pic, h('div', {class:'bd'}, h('div', {class:'top'}, nm, h('span', {class:'ver', text:'v'+fmtVer(x.version)}), h('span', {class:'sp'}), h('span', {class:'sz', text:x.media.toUpperCase()+' · '+fmtSize(x.size)}), h('span', {class:'badge', text:kindName(x)})), desc, pub));
     const fill = () => { const d = row._d; if(!d) return; nm.textContent = d.name || x.id; pub.textContent = d.publisher || ''; desc.textContent = d.description || ''; const im = row._pic.querySelector('img'); if(im) putIcon(pic, im.src); };
     if(row._d) fill(); else later(card, async () => { await loadTitle(x, row); fill(); }, true);
-    card.onclick = () => { s.close(true); titleSheet(x, row); };
+    card.onclick = () => { s.close(true); titleSheet(x, row, () => chainSheet(t, r)); };
     return card;
   });
   let s;
   s = sheet({wide:true, head:sheetHead(r._pic.querySelector('img') ? h('img', {src:r._pic.querySelector('img').src, class:'px'}) : ic('apps', 48), (r._d && r._d.name) || t.id, T.chain), body:[h('div', {class:'chain'}, cards)]});
 }
 // The kinds of data (save, extra, boss) are asked for when the sheet opens, once per session: opening the archives is slow.
-async function titleSheet(t, r){
+// back: when it was reached from a chain, a button in its header goes back to that chain.
+async function titleSheet(t, r, back){
   if(!r._data) await run(async () => { const j = await api('GET', 'title/data', {id:t.id, media:t.media}); r._data = {save:j.save, ext:j.ext, boss:j.boss}; });
-  titleSheetShow(t, r);
+  titleSheetShow(t, r, back);
 }
-function titleSheetShow(t, r){
+function titleSheetShow(t, r, back){
   const d = Object.assign({}, r._d, r._data), name = d.name || t.id;
   const big = r._pic.querySelector('img') ? h('img', {src:r._pic.querySelector('img').src, class:'px'}) : ic('apps', 48);
   const kindName = {game:T.k_game, demo:'Demo', update:T.k_update, dlc:T.k_dlc, system:T.k_system, dsiware:'DSiWare'}[t.kind] || t.kind;
   const data = [['save','m_save','device-floppy'],['ext','m_ext','database'],['boss','m_boss','world-download']].filter(([k]) => d[k]);
   let s;
-  s = sheet({head:sheetHead(big, name, d.publisher), body:[
+  s = sheet({head:sheetHead(big, name, d.publisher, back && (() => { s.close(true); back(); })), body:[
     cells([[T.id, t.id], [T.code, d.code], [T.version, fmtVer(t.version)+' ('+t.version+')'], [T.size, fmtSize(t.size)], [T.media, t.media.toUpperCase()], [T.kind, kindName]]),
     actions([
       (t.kind==='game'||t.kind==='demo') && ['player-play', T.launch, () => launchTitle(t, name)],

@@ -93,6 +93,10 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .row .pic img.in{opacity:1}
 .sheet .head.hasback{flex-wrap:wrap;row-gap:6px;padding-top:10px}
 .sheet .head .backrow{flex:0 0 100%;margin-left:-6px}
+.set.sysgrid{max-width:none;display:block;column-width:360px;column-gap:14px}
+.sysgrid .card{break-inside:avoid;margin-bottom:14px}
+.sysgrid .card.dragging{opacity:.45;outline:2px dashed var(--accent);outline-offset:-2px}
+.sysgrid .syshd{cursor:grab}
 .syshd{display:flex;gap:12px;align-items:center;padding:12px 0 8px}
 .syshd .stile{width:44px;height:44px;flex:none;border-radius:var(--rs);background:var(--soft);color:var(--accent);display:grid;place-items:center}
 .syshd b{display:block;font-size:17px}.syshd .sub{font-size:12.5px;color:var(--muted)}
@@ -1553,30 +1557,30 @@ screens.system = {
   leave(){ clearInterval(sysTimer); sysTimer = 0; }
 };
 async function loadSystem(){
-  if(current!=='system') return;
+  if(current!=='system' || sysDragging) return;
   try { drawSystem(await api('GET', 'system')); }
   catch(e){ if(e.auth) showLogin(e.message); else { const b = $('sysscroll'); if(b && !b.querySelector('.set')) b.replaceChildren(emptyEl('alert-triangle', e.message)); } }
 }
 const fmtDur = s => s>=3600 ? Math.floor(s/3600)+' h '+Math.floor(s/60%60)+' min' : Math.floor(s/60)+' min';
-function sysCard(icon, title, sub, kids){
-  return h('div', {class:'card'}, h('div', {class:'syshd'}, h('div', {class:'stile'}, ic(icon, 24)), h('div', {style:'min-width:0'}, h('b', {text:title}), h('div', {class:'sub', text:sub||''}))), ...kids);
+function sysCard(key, icon, title, sub, kids){
+  return h('div', {class:'card', 'data-k':key}, h('div', {class:'syshd'}, h('div', {class:'stile'}, ic(icon, 24)), h('div', {style:'min-width:0'}, h('b', {text:title}), h('div', {class:'sub', text:sub||''}))), ...kids);
 }
 function drawSystem(d){
   const box = $('sysscroll'); if(!box || current!=='system') return;
   const c = d.console, n = d.network, st = d.storage, b = d.battery, keep = box.scrollTop;
   const dash = v => v==null || v==='' ? '-' : v;
   const first = !box.querySelector('.set');
-  const consoleCard = sysCard('3ds', c.model+(c.user ? '  ·  '+c.user : ''), c.system ? T.sy_sysver+' '+c.system : '', [cells([
+  const consoleCard = sysCard('console', '3ds', c.model+(c.user ? '  ·  '+c.user : ''), c.system ? T.sy_sysver+' '+c.system : '', [cells([
     [T.sy_region, c.region], [T.sy_country, c.country], [T.sy_lang, c.language], [T.sy_serial, c.serial], [T.sy_devid, c.deviceId], [T.sy_screens, c.screens],
     [T.sy_sysver, c.system], [T.sy_kernel, c.kernel], [T.sy_mcu, c.mcu], ['Luma3DS', c.luma], [T.sy_runas, c.cia ? 'CIA' : '3DSX'], [T.sy_uptime, fmtDur(d.uptime)]])]);
   const port = p => p ? tr('sy_port', {n:p}) : T.off;
-  const netCard = sysCard(n.connected ? 'wifi' : 'wifi-off', n.ssid, n.connected ? T.sy_conn : T.sy_notconn, [cells([
+  const netCard = sysCard('network', n.connected ? 'wifi' : 'wifi-off', n.ssid, n.connected ? T.sy_conn : T.sy_notconn, [cells([
     ['IP', n.ip], [T.sy_netmask, n.netmask], [T.sy_gateway, n.gateway], ['DNS', n.dns], [T.sy_signal, n.signal], [T.sy_mac, n.mac], [T.sy_lease, n.lease],
     [T.sy_ftp, port(n.ftp)], [T.sy_web, port(n.web)]])]);
   const names = {sd:T.sy_sd, ctr:'CTR NAND', twl:'TWL NAND', photo:'TWL Photo'};
   const bars = st.media.map(m => h('div', {class:'mrow'}, h('span', {text:names[m.id]||m.id}), h('div', {class:'sbar'}, h('i', {style:'width:'+(100*(1-m.free/m.total)).toFixed(1)+'%'})),
     h('small', {text:tr('sy_freeof', {a:fmtSize(m.free), b:fmtSize(m.total)})})));
-  const stCard = sysCard('device-sd-card', st.maker!=='-' ? st.maker+' '+st.product : T.sy_sd, T.sy_cluster+': '+st.cluster,
+  const stCard = sysCard('storage', 'device-sd-card', st.maker!=='-' ? st.maker+' '+st.product : T.sy_sd, T.sy_cluster+': '+st.cluster,
     [cells([[T.sy_made, st.made], [T.sy_speed, st.speed], [T.sy_writable, st.writable]]), h('div', {style:'margin:0 0 12px'}, bars)]);
   const perHour = b.perHour;
   const left = b.charging && perHour>0.05 ? (100-b.percent)/perHour*3600 : !b.charging && perHour<-0.05 ? b.percent/-perHour*3600 : null;
@@ -1588,13 +1592,30 @@ function drawSystem(d){
     graph = h('div', {class:'bgraph'}, h('small', {}, h('span', {text:T.sy_watched+': '+fmtDur(b.watched)}), h('span', {text:lo.toFixed(0)+' - '+hi.toFixed(0)+' %'})));
     graph.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>');
   } else graph = h('div', {class:'bgraph'}, h('small', {}, h('span', {text:T.sy_measuring})));
-  const batCard = sysCard(icon, b.percent.toFixed(b.fine ? 1 : 0)+' %', b.charging ? T.sy_charging : b.adapter ? T.sy_onadapter : T.sy_onbat, [cells([
+  const batCard = sysCard('battery', icon, b.percent.toFixed(b.fine ? 1 : 0)+' %', b.charging ? T.sy_charging : b.adapter ? T.sy_onadapter : T.sy_onbat, [cells([
     [T.sy_voltage, b.fine ? b.voltage.toFixed(2)+' V' : '-'], [T.sy_temp, b.fine ? b.temperature+' °C' : '-'], [T.sy_charger, b.adapter ? T.sy_plugged : T.sy_unplugged],
     [b.charging ? T.sy_chrate : T.sy_drrate, perHour!=null ? (perHour>=0 ? '+' : '')+perHour.toFixed(1)+' %/h' : T.sy_measuring],
     [b.charging ? T.sy_fullin : T.sy_emptyin, left!=null ? fmtDur(left) : '-'], [T.sy_level, b.level+'/5']]), graph]);
-  const cards = [consoleCard, netCard, stCard, batCard];
-  cards.forEach((card, i) => { card.style.setProperty('--i', i); if(!first) card.style.animation = 'none'; });
-  box.replaceChildren(h('div', {class:'set'}, cards)); box.scrollTop = keep;
+  const byKey = {console:consoleCard, network:netCard, storage:stCard, battery:batCard};
+  const order = store.get('sysorder', []).filter(k => byKey[k]); for(const k in byKey) if(!order.includes(k)) order.push(k);
+  const cards = order.map(k => byKey[k]);
+  cards.forEach((card, i) => { card.style.setProperty('--i', i); if(!first) card.style.animation = 'none'; sysDrag(card); });
+  box.replaceChildren(h('div', {class:'set sysgrid'}, cards)); box.scrollTop = keep;
+}
+// The cards can be dragged by their header to put them in another order (kept in this browser). The 10 s refresh waits meanwhile.
+let sysDragging = null;
+function sysDrag(card){
+  const hd = card.querySelector('.syshd');
+  hd.onmousedown = () => { card.draggable = true; };
+  hd.onmouseup = () => { card.draggable = false; };
+  card.ondragstart = e => { sysDragging = card; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', card.dataset.k); } catch(x){} };
+  card.ondragend = () => { card.classList.remove('dragging'); card.draggable = false; sysDragging = null; store.set('sysorder', [...card.parentNode.children].map(c => c.dataset.k)); };
+  card.ondragover = e => {
+    if(!sysDragging || sysDragging===card) return; e.preventDefault();
+    // Passing over a card moves the dragged one to that card's place: after it when it came from before, else before it.
+    const after = !!(sysDragging.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING);
+    card.parentNode.insertBefore(sysDragging, after ? card.nextSibling : card);
+  };
 }
 
 // ---- start ----

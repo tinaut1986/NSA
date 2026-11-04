@@ -99,6 +99,8 @@ const i18n_entry i18n_es[] = {
         {"Now: playing", "Ahora: sonando"},
         {"On: the music stops while a file goes through the FTP server and comes back after. Transfers go a little faster: 2-3% on an Old 3DS, 3-6% on a New 3DS.", "Sí: la música se para mientras pasa un archivo por el servidor FTP y vuelve después. Las transferencias van algo más rápido: un 2-3% en una Old 3DS y un 3-6% en una New 3DS."},
         {"Off: the music goes on during FTP transfers, which go a little slower (2-3% on an Old 3DS, 3-6% on a New 3DS). Off by default.", "No: la música sigue durante las transferencias FTP, que van algo más lentas (un 2-3% en una Old 3DS, un 3-6% en una New 3DS). Desactivado por defecto."},
+        {"Music and FTP", "Música y FTP"},
+        {"The music no longer slows down FTP\ntransfers on this console (2-3%,\nit used to be 10-25%).\n\nLet it play during FTP transfers?\n\nSettings -> Pause music for FTP\nchanges it later.", "La música ya no ralentiza las\ntransferencias FTP en esta consola\n(un 2-3%; antes era un 10-25%).\n\n¿Dejar que suene durante el FTP?\n\nAjustes -> Pausar música con FTP\nlo cambia después."},
         {"Check for updates", "Buscar actualizaciones"},
         {"Changelog", "Novedades"},
         {"How the menus look.", "Cómo se ven los menús."},

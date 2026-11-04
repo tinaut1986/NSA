@@ -274,6 +274,12 @@ PC's O: drive) to /cias **641 KB/s** (ftpd ~850).
 - [x] Music during FTP on the 2DS with the limit at 5% (`ftp_pauses_music` off, 32 MB, two rounds): playing up 741 / 821,
       down 647 / 653 KB/s; paused 745 / 782, 667 / 670. A download right after NSA starts, while the music is made on
       core 1: 637 KB/s (675 after), and the music took 16.7 s to make, as usual.
+- [x] "Music and FTP", asked once at start on an Old 3DS that still has "Pause music for FTP" on (its old default; the
+      new default is off): Yes turns the pause off, No keeps it; either way `ftp_music_asked` is saved and it is not asked
+      again. A New 3DS, or a console with the pause off, only saves `ftp_music_asked`. On the 2DS (2026-11-04) it showed
+      after installing the build and the owner's Yes saved the pause off.
+- [ ] Its order with the other start-up questions: on a console with FBI's folder and no /nsa/, the import first, then
+      this, then the update check; and a translated language (the text has explicit line breaks: check none overflows).
 - [ ] Old 3DS, with the turn lowering the limit: console to console (both ways), the web page's upload and download, and
       the menus during a transfer (the app's core-1 threads get 5% then); whether the music sounds clean meanwhile.
 - [ ] Whether NSA stops answering again right after "the rest over one connection" (it did once): if it does, a photo of

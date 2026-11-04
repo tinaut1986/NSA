@@ -36,7 +36,7 @@
 //   GET    /api/save/pack/status           {running, finished, counting, processed, total, path, size, error}: follow it, then download path
 //   POST   /api/save/pack/cancel           stops it (B on the console does too)
 //   POST   /api/save/receive?path=/nsa/received/x.nsasave&import=1   the console takes it like a sent one and asks there
-//   GET    /api/save/backups?id=&media=&kind=   [{path, label, checkpoint}]: NSA's exports and Checkpoint's
+//   GET    /api/save/backups?id=&media=&kind=   [{path, label, checkpoint, jksm}]: NSA's exports, Checkpoint's and JKSM's
 //   POST   /api/save/import?id=&media=&kind=&path=&name=   the console asks (red) whether to replace the data with that backup
 //   POST   /api/save/backup/delete?id=&media=&kind=&path=   deletes one of the backups listed (that kind's part of an NSA export)
 //   POST   /api/title/launch?id=&media=    the console asks, then launches it

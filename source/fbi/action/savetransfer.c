@@ -24,6 +24,7 @@
 #define CHECKPOINT_DIR "/3ds/Checkpoint/"
 #define CHECKPOINT_TAG "[Checkpoint] "
 #define NSA_TAG "[NSA] "
+#define JKSM_TAG "[JKSM] "
 
 static const char* save_kind_dir(save_kind kind) {
     return kind == SAVE_KIND_EXT ? "ext" : kind == SAVE_KIND_BOSS ? "boss" : "save";
@@ -743,7 +744,7 @@ static void import_list_draw_top(ui_view* view, void* data, float x1, float y1, 
 
 static void import_list_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     save_backup* b = (save_backup*) item->data;
-    widget_row(x, y, width, height, b->checkpoint ? ICON_CHECKPOINT : WIDGET_ICON_NSA, item->name, theme()->palette->text, NULL, selected);
+    widget_row(x, y, width, height, b->jksm ? WIDGET_ICON_JKSM : b->checkpoint ? ICON_CHECKPOINT : WIDGET_ICON_NSA, item->name, theme()->palette->text, NULL, selected);
 }
 
 static void import_list_clear(linked_list* items) {
@@ -808,7 +809,7 @@ static void import_list_update(ui_view* view, void* data, linked_list* items, li
     }
 }
 
-static bool import_list_add(import_list* list, const char* path, bool checkpoint, const char* label) {
+static bool import_list_add(import_list* list, const char* path, bool checkpoint, bool jksm, const char* label) {
     if(list->count == list->capacity) {
         u32 capacity = list->capacity == 0 ? 32 : list->capacity * 2;
         save_backup* grown = (save_backup*) realloc(list->choices, capacity * sizeof(save_backup));
@@ -823,8 +824,9 @@ static bool import_list_add(import_list* list, const char* path, bool checkpoint
     save_backup* choice = &list->choices[list->count++];
     string_copy(choice->path, path, sizeof(choice->path));
     string_copy(choice->label, label, sizeof(choice->label));
-    choice->checkpoint = checkpoint;
-    choice->nameAt = (u8) strlen(checkpoint ? CHECKPOINT_TAG : NSA_TAG);
+    choice->checkpoint = checkpoint || jksm; // JKSM keeps the tree right in the folder too.
+    choice->jksm = jksm;
+    choice->nameAt = (u8) strlen(jksm ? JKSM_TAG : checkpoint ? CHECKPOINT_TAG : NSA_TAG);
     return true;
 }
 
@@ -870,7 +872,115 @@ static char (*save_list_dirs(FS_Archive sd, const char* dir, const char* prefix,
     return names;
 }
 
-// Every backup of the title's data: NSA's exports, then Checkpoint's.
+// ---- JKSM's backups: <sd>/JKSM/<kind folder>/<game>/<backup>/ with the tree inside (no manifest) ----
+// JKSM does not write the title ID: the game's folder is its SMDH short description with . , / \ < > : " | ? * made
+// into spaces (? into _) and the trailing spaces cut, or the 16 digit ID when the title has no SMDH. The language is the
+// console's at the time of the backup, so the name in every language is tried.
+
+static void jksm_sanitize(const char* in, char* out, size_t size) {
+    size_t n = 0;
+    for(; *in != '\0' && n + 1 < size; in++) {
+        char c = *in;
+        if(c == '?') {
+            c = '_';
+        } else if(strchr(".,/\\<>:\"|*\r\n", c) != NULL) {
+            c = ' ';
+        }
+
+        out[n++] = c;
+    }
+
+    while(n > 0 && (out[n - 1] == ' ' || out[n - 1] == '.')) {
+        n--;
+    }
+
+    out[n] = '\0';
+}
+
+// The folder names JKSM could have used for the title; returns how many were put in `out`.
+static u32 jksm_game_names(title_info* title, char (*out)[FILE_NAME_MAX], u32 max) {
+    u32 count = 0;
+
+    if(!title->twl) {
+        static const u32 filePath[5] = {0x00000000, 0x00000000, 0x00000002, 0x6E6F6369, 0x00000000};
+        u32 archivePath[4] = {(u32) (title->titleId & 0xFFFFFFFF), (u32) ((title->titleId >> 32) & 0xFFFFFFFF), title->mediaType, 0x00000000};
+
+        Handle fileHandle;
+        if(R_SUCCEEDED(FSUSER_OpenFileDirectly(&fileHandle, ARCHIVE_SAVEDATA_AND_CONTENT,
+                                               fs_make_path_binary(archivePath, sizeof(archivePath)),
+                                               fs_make_path_binary(filePath, sizeof(filePath)), FS_OPEN_READ, 0))) {
+            SMDH* smdh = (SMDH*) calloc(1, sizeof(SMDH));
+            if(smdh != NULL) {
+                u32 bytesRead = 0;
+                if(R_SUCCEEDED(FSFILE_Read(fileHandle, &bytesRead, 0, smdh, sizeof(SMDH))) && bytesRead == sizeof(SMDH)
+                   && smdh->magic[0] == 'S' && smdh->magic[1] == 'M' && smdh->magic[2] == 'D' && smdh->magic[3] == 'H') {
+                    for(u32 lang = 0; lang < 0x10 && count + 1 < max; lang++) {
+                        char raw[0x100] = {'\0'};
+                        utf16_to_utf8((uint8_t*) raw, smdh->titles[lang].shortDescription, sizeof(raw) - 1);
+
+                        char name[FILE_NAME_MAX];
+                        jksm_sanitize(raw, name, sizeof(name));
+                        bool known = name[0] == '\0';
+                        for(u32 i = 0; i < count && !known; i++) {
+                            known = strcmp(out[i], name) == 0;
+                        }
+
+                        if(!known) {
+                            string_copy(out[count++], name, FILE_NAME_MAX);
+                        }
+                    }
+                }
+
+                free(smdh);
+            }
+
+            FSFILE_Close(fileHandle);
+        }
+    }
+
+    if(count < max) {
+        snprintf(out[count++], FILE_NAME_MAX, "%016llX", (unsigned long long) title->titleId);
+    }
+
+    return count;
+}
+
+static void jksm_collect(import_list* list, FS_Archive sd, title_info* title, save_kind kind) {
+    // The folder of the data's kind: the current name, then the one older JKSM versions used.
+    static const char* const roots[3][2] = {{"User Saves", "Saves"}, {"Extra Data", "ExtData"}, {"BOSS Extra Data", "Boss"}};
+    char (*names)[FILE_NAME_MAX] = (char (*)[FILE_NAME_MAX]) calloc(0x11, FILE_NAME_MAX);
+    if(names == NULL) {
+        return;
+    }
+
+    u32 games = jksm_game_names(title, names, 0x11);
+    for(u32 r = 0; r < 2; r++) {
+        for(u32 g = 0; g < games; g++) {
+            char gameDir[FILE_PATH_MAX];
+            snprintf(gameDir, sizeof(gameDir), "/JKSM/%s/%s", roots[kind][r], names[g]);
+            if(!fs_is_dir(sd, gameDir)) {
+                continue;
+            }
+
+            strncat(gameDir, "/", sizeof(gameDir) - strlen(gameDir) - 1);
+            u32 n = 0;
+            char (*backups)[FILE_NAME_MAX] = save_list_dirs(sd, gameDir, NULL, &n);
+            for(u32 i = 0; i < n; i++) {
+                char label[96];
+                char path[FILE_PATH_MAX];
+                snprintf(label, sizeof(label), JKSM_TAG "%s", backups[i]);
+                snprintf(path, sizeof(path), "%s%s/", gameDir, backups[i]);
+                import_list_add(list, path, true, true, label);
+            }
+
+            free(backups);
+        }
+    }
+
+    free(names);
+}
+
+// Every backup of the title's data: NSA's exports, then Checkpoint's, then JKSM's.
 static void import_collect(import_list* list, FS_Archive sd, title_info* title, save_kind kind) {
     // NSA's own exports.
     char base[FILE_PATH_MAX];
@@ -896,7 +1006,7 @@ static void import_collect(import_list* list, FS_Archive sd, title_info* title, 
 
         char path[FILE_PATH_MAX];
         snprintf(path, sizeof(path), "%s%s/", base, n);
-        import_list_add(list, path, false, label);
+        import_list_add(list, path, false, false, label);
     }
 
     free(names);
@@ -920,13 +1030,15 @@ static void import_collect(import_list* list, FS_Archive sd, title_info* title, 
             char path[FILE_PATH_MAX];
             snprintf(label, sizeof(label), CHECKPOINT_TAG "%s", backups[i]);
             snprintf(path, sizeof(path), "%s%s/", gameDir, backups[i]);
-            import_list_add(list, path, true, label);
+            import_list_add(list, path, true, false, label);
         }
 
         free(backups);
     }
 
     free(gameNames);
+
+    jksm_collect(list, sd, title, kind);
 }
 
 void action_import_save_files(title_info* title, const char* name, save_kind kind, u32 extId) {

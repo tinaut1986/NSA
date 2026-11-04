@@ -150,6 +150,7 @@ version comes from the git tags (`tools/version.sh`).
 - SPI protocol information: [TuxSH](https://github.com/TuxSH/)
   ([TWLSaveTool](https://github.com/TuxSH/TWLSaveTool)).
 - Icons: [Tabler Icons](https://tabler.io/icons) (MIT) and a few of NSA's own.
+- Simplified Chinese font: [Noto Sans CJK SC](https://github.com/notofonts/noto-cjk) (SIL Open Font License 1.1), baked by `tools/make_hanfont.py`
 - Pixel theme font: [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans) (SIL Open Font
   License 1.1, `tools/fonts/`).
 - Audio decoding: [dr_libs](https://github.com/mackron/dr_libs) (public domain / MIT-0) and

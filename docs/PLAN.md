@@ -129,7 +129,7 @@ What `release` holds, in the order it was built:
 - [ ] Settings -> Language opens a list (System, English, Español, Català, Français, Deutsch, Italiano, Português, Русский, 日本語, 简体中文, 繁體中文); the highlighted one shows its name and a few words in it on the top screen; A or a tap picks it, everything changes at once and it is still set after a restart; B goes back without changing.
 - [ ] The Pixel theme in German (and the other languages with umlauts): at 10 px the pixel font draws the diaeresis faint (seen in Azahar). Russian has no yo: the Russian table writes it as e, because Azahar's font has no glyph for it.
 - [ ] Every screen in each language: texts fit their rows and buttons (German and Russian run longest), no tofu boxes. Cyrillic and kanji come from the console's own font: check Russian and Japanese on both consoles, and on a console set to another region if there is one.
-- [ ] Chinese: **Traditional** (繁體中文) draws completely with the console's font on the New 3DS XL (an EUR console), because its table only uses characters of JIS X 0208 (checked with `shift_jis`; a few Taiwan forms are written as their Japanese variants, 内 録 緑 ...). **Simplified** (简体中文) does NOT: about a quarter of its characters (设 软 单 远 请 ...) are boxes on that console, which only has the Japanese character set. It should look right on a console of the Chinese region (its own shared font), not tried. See Decisions.
+- [ ] Chinese: **Traditional** (繁體中文) draws completely with the console's font on the New 3DS XL (an EUR console), because its table only uses characters of JIS X 0208 (checked with `shift_jis`; a few Taiwan forms are written as their Japanese variants, 内 録 緑 ...). **Simplified** (简体中文) needs its own font: about a quarter of its characters (设 软 单 远 请 ...) are not in that console's Japanese character set, so while it is the language `screen.c` draws all of its Chinese from `romfs/hanfont.png` (Noto Sans CJK SC, 528 characters at one size, scaled like the system font; seen working on the New 3DS XL, Pixel theme not looked at). In any other language that font only fills in what the console's font lacks (the name 简体中文 in the language list). Check how it reads at the small sizes and in the Pixel theme.
 - [ ] Japanese lines break between characters (dialogs, the top screen's descriptions, the update changelog) and never leave 、 。 」 at the start of a line.
 - [ ] System follows the console's language (Settings of the console in French, German, Italian, Portuguese, Russian or Japanese); a console in Korean or Dutch shows English (Catalan is never picked by System: the 3DS has no Catalan).
 - [ ] The web page's Language drop-down lists all twelve and changes the console; the page itself is still English or Spanish.
@@ -838,8 +838,10 @@ current, this list is the summary. What only the owner can test (local wireless)
   on a European, American or Japanese console is the Japanese character set: Latin, Cyrillic and kana are fine, Traditional
   Chinese works if the table only uses characters of JIS X 0208 (the table is rewritten to do so: variants like 内 録 緑,
   no 檔 卡 你; test it with `ch.encode('shift_jis')`), but Simplified Chinese is about a quarter boxes there. Not done:
-  Korean (hangul is not in that font either) and Dutch (the 3DS has it; smaller audience). Open: a font of our own for
-  Simplified (a subset baked like the pixel font, drawn where the system font has no glyph). Japanese is one standard written language (kanji and kana, polite form, common kanji only); `screen.c`
+  Korean (hangul is not in that font either) and Dutch (the 3DS has it; smaller audience). Simplified has a font of our own
+  (`tools/make_hanfont.py` -> `romfs/hanfont.png` 86 KB + `source/core/hanfont.c`, from Noto Sans CJK SC, OFL; the OTF is not in the
+  repository, the script says where to get it). It holds every CJK character that `i18n_zh.c` uses: **run the script again after
+  changing that table**. Japanese is one standard written language (kanji and kana, polite form, common kanji only); `screen.c`
   breaks lines between its characters, since it has no spaces. The pixel theme falls back to the system font for what it lacks.
 - **Lists load in two passes** (Titles, Tickets, Ext Save Data): the task adds a
   placeholder row for every item (ID only), then fills each one's details in place and

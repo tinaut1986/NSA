@@ -3,6 +3,7 @@
 #include <3ds.h>
 
 #include "i18n.h"
+#include "screen.h"
 
 extern const i18n_entry i18n_es[];
 extern const u32 i18n_es_count;
@@ -80,6 +81,7 @@ void i18n_set_language(language_id language) {
     const language_def* def = &languages[i18n_resolve(selected)];
     table = def->entries;
     table_count = def->count != NULL ? *def->count : 0;
+    screen_set_han_font(def == &languages[LANGUAGE_CHINESE_SIMPLIFIED]);
 
     memset(cache_key, 0, sizeof(cache_key));
 }

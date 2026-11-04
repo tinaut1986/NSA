@@ -12,6 +12,7 @@
 #include "screen.h"
 #include "../libs/stb_image/stb_image.h"
 #include "pixelfont.h"
+#include "hanfont.h"
 
 #include "default_shbin.h"
 
@@ -50,6 +51,13 @@ static float font_scale;
 // (the button glyphs) comes from the system font, sized to match.
 static bool pixel_font_on = false;
 static u32 pixel_atlas = 0;
+
+// The font of Simplified Chinese (hanfont.c): one size scaled like the system font's, in place of it for
+// the characters it holds, because the console's own font may not have them. Its texture is loaded when
+// first drawn and freed when the language changes.
+static bool han_font_on = false;
+static bool han_loaded = false;
+static u32 han_atlas = 0;
 
 static u8 base_alpha = 0xFF;
 
@@ -663,8 +671,60 @@ static float pixel_fallback_scale(const pixelfont_size* size) {
     return (float) size->lineHeight / (float) fontGetInfo(NULL)->lineFeed;
 }
 
+// The glyph for `code`: always in Simplified Chinese (one font, so the characters match), and in any other
+// language for what the console's own font lacks (the language list names 简体中文 whatever is selected).
+static const hanfont_glyph* han_find(u32 code) {
+    if(code < 0x3000 || code > 0xFFEF) {
+        return NULL;
+    }
+
+    int low = 0;
+    int high = (int) hanfont_count - 1;
+    while(low <= high) {
+        int mid = (low + high) / 2;
+        u32 found = hanfont_glyphs[mid].code;
+        if(found == code) {
+            const hanfont_glyph* glyph = &hanfont_glyphs[mid];
+            if(!han_font_on && fontGlyphIndexFromCodePoint(NULL, code) != fontGetInfo(NULL)->alterCharIndex) {
+                return NULL;
+            }
+
+            return glyph;
+        }
+
+        if(found < code) {
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    return NULL;
+}
+
+// Pixels per atlas unit, so that its line is as tall as the one the text is drawn in (the pixel font's
+// or the system font's).
+static float han_scale(float scale) {
+    float line = pixel_font_on ? (float) pixel_size_for(scale)->lineHeight : scale * font_scale * (float) fontGetInfo(NULL)->lineFeed;
+    return line / (float) hanfont_line;
+}
+
+void screen_set_han_font(bool on) {
+    if(!on && han_loaded) {
+        screen_unload_texture(han_atlas);
+        han_loaded = false;
+    }
+
+    han_font_on = on;
+}
+
 // How far the pen moves for `code`, and the height of a line, in pixels.
 static float font_char_width(u32 code, float scaleX, float scaleY) {
+    const hanfont_glyph* han = han_find(code);
+    if(han != NULL) {
+        return han->advance * han_scale(pixel_font_on ? scaleY : scaleX);
+    }
+
     if(pixel_font_on) {
         const pixelfont_size* size = pixel_size_for(scaleY);
         const pixelfont_glyph* glyph = pixel_find(size, code);
@@ -918,6 +978,44 @@ static void screen_draw_string_internal(const char* text, float x, float y, floa
                     num = 4 - (linePos - lastAlignPos) % 4;
 
                     lastAlignPos = linePos;
+                }
+
+                const hanfont_glyph* hanGlyph = han_find(code);
+                if(hanGlyph != NULL && !han_loaded) {
+                    han_atlas = screen_allocate_free_texture();
+                    screen_load_texture_path(han_atlas, "romfs:/hanfont.png", true);
+                    han_loaded = textures[han_atlas].tex.data != NULL;
+                }
+
+                if(hanGlyph != NULL && han_loaded) {
+                    if(lastSheet != -3) {
+                        lastSheet = -3;
+                        C3D_TexBind(0, &textures[han_atlas].tex);
+                    }
+
+                    float kx = han_scale(pixelSize != NULL ? scaleY : scaleX);
+                    float ky = han_scale(scaleY);
+                    float baseline = currY + (pixelSize != NULL ? (float) pixelSize->ascent : (float) fontGetGlyphInfo(NULL)->baselinePos * sysScaleY);
+                    float uScale = (float) textures[han_atlas].width / textures[han_atlas].tex.width;
+                    float vScale = (float) textures[han_atlas].height / textures[han_atlas].tex.height;
+                    float gx = (float) (int) (currX + 0.5f) + hanGlyph->xoff * kx;
+                    float gy = (float) (int) (baseline + 0.5f) + hanGlyph->yoff * ky;
+                    float u1 = (float) hanGlyph->x / hanfont_atlas_width * uScale;
+                    float u2 = (float) (hanGlyph->x + hanGlyph->w) / hanfont_atlas_width * uScale;
+                    float v1 = (float) hanGlyph->y / hanfont_atlas_height;
+                    float v2 = (float) (hanGlyph->y + hanGlyph->h) / hanfont_atlas_height;
+
+                    for(u32 j = 0; j < num; j++) {
+                        if(hanGlyph->w > 0) {
+                            screen_draw_quad(gx, gy, gx + hanGlyph->w * kx, gy + hanGlyph->h * ky, u1, 1.0f - v2 * vScale, u2, 1.0f - v1 * vScale);
+                        }
+
+                        currX += hanGlyph->advance * kx;
+                        gx += hanGlyph->advance * kx;
+                    }
+
+                    linePos++;
+                    continue;
                 }
 
                 const pixelfont_glyph* pixelGlyph = pixelSize != NULL ? pixel_find(pixelSize, code) : NULL;

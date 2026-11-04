@@ -94,7 +94,7 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .sheet .head.hasback{flex-wrap:wrap;row-gap:6px;padding-top:10px}
 .sheet .head .backrow{flex:0 0 100%;margin-left:-6px}
 .syshd{display:flex;gap:12px;align-items:center;padding:12px 0 8px}
-.syshd .tile{width:44px;height:44px;flex:none;border-radius:var(--rs);background:var(--soft);color:var(--accent);display:grid;place-items:center}
+.syshd .stile{width:44px;height:44px;flex:none;border-radius:var(--rs);background:var(--soft);color:var(--accent);display:grid;place-items:center}
 .syshd b{display:block;font-size:17px}.syshd .sub{font-size:12.5px;color:var(--muted)}
 .mrow{display:grid;grid-template-columns:96px 1fr auto;gap:10px;align-items:center;font-size:13px;padding:4px 0}
 .mrow .sbar{height:8px;border-radius:4px;background:var(--bg);overflow:hidden}.mrow .sbar i{display:block;height:100%;background:var(--accent);border-radius:4px}
@@ -1559,7 +1559,7 @@ async function loadSystem(){
 }
 const fmtDur = s => s>=3600 ? Math.floor(s/3600)+' h '+Math.floor(s/60%60)+' min' : Math.floor(s/60)+' min';
 function sysCard(icon, title, sub, kids){
-  return h('div', {class:'card'}, h('div', {class:'syshd'}, h('div', {class:'tile'}, ic(icon, 24)), h('div', {style:'min-width:0'}, h('b', {text:title}), h('div', {class:'sub', text:sub||''}))), ...kids);
+  return h('div', {class:'card'}, h('div', {class:'syshd'}, h('div', {class:'stile'}, ic(icon, 24)), h('div', {style:'min-width:0'}, h('b', {text:title}), h('div', {class:'sub', text:sub||''}))), ...kids);
 }
 function drawSystem(d){
   const box = $('sysscroll'); if(!box || current!=='system') return;

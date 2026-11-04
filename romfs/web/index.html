@@ -99,9 +99,10 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .tcard .bd{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
 .tcard .top{display:flex;gap:8px;align-items:center}
 .tcard .nm{font-weight:600;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tcard .pub{font-size:12.5px;color:var(--muted)}
+.tcard .sz{font-size:11.5px;color:var(--muted);white-space:nowrap}
 .tcard .desc{font-size:12.5px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
-.tcard .meta2{font-size:11.5px;color:var(--muted);margin-top:2px}
+.tcard .meta2{display:flex;gap:10px;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:2px}
+.tcard .meta2 span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row.has-cnt{position:relative}
 .row .cnt{position:absolute;left:41px;top:5px;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:var(--accent);color:var(--onaccent);font-size:11px;font-weight:600;line-height:18px;text-align:center;box-shadow:0 0 0 2px var(--card);pointer-events:none}
 .list.grid .row .cnt{left:calc(50% + 14px);top:6px}
@@ -824,9 +825,9 @@ function chainSheet(t, r){
   const kindName = x => ({game:T.kg1, update:T.ku1, dlc:'DLC'}[x.kind] || x.kind);
   const cards = items.map(x => {
     const row = titleRows.get(tkey(x));
-    const pic = h('div', {class:'pic'}, ic('apps', 24)), nm = h('div', {class:'nm', text:x.id}), pub = h('div', {class:'pub'}), desc = h('div', {class:'desc'});
-    const card = h('button', {class:'tcard'}, pic, h('div', {class:'bd'}, h('div', {class:'top'}, nm, h('span', {class:'badge', text:kindName(x)})), pub, desc,
-      h('div', {class:'meta2', text:'v'+fmtVer(x.version)+' · '+fmtSize(x.size)+' · '+x.media.toUpperCase()})));
+    const pic = h('div', {class:'pic'}, ic('apps', 24)), nm = h('div', {class:'nm', text:x.id}), pub = h('span'), desc = h('div', {class:'desc'});
+    const card = h('button', {class:'tcard'}, pic, h('div', {class:'bd'}, h('div', {class:'top'}, nm, h('span', {class:'sz', text:fmtSize(x.size)}), h('span', {class:'badge', text:kindName(x)})), desc,
+      h('div', {class:'meta2'}, h('span', {text:'v'+fmtVer(x.version)+' · '+x.media.toUpperCase()}), pub)));
     const fill = () => { const d = row._d; if(!d) return; nm.textContent = d.name || x.id; pub.textContent = d.publisher || ''; desc.textContent = d.description || ''; const im = row._pic.querySelector('img'); if(im) putIcon(pic, im.src); };
     if(row._d) fill(); else later(card, async () => { await loadTitle(x, row); fill(); }, true);
     card.onclick = () => { s.close(true); titleSheet(x, row); };

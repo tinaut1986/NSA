@@ -401,7 +401,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
   live:'Live',nolive:'The console does not answer.',busy:'The console is busy with %k: %n%p. One transfer at a time: try again when it ends.',busylive:'Paused while the console transfers (%k: %n%p).',k_ftp:'FTP',k_web:'this page',k_download:'a download',k_console:'another 3DS',padnote:'Click the bottom screen to touch it, drag up or down to scroll. Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',
   ap:'Appearance',theme:'Theme',themesub:'How every screen looks, here and on the console.',accent:'Accent colour',night:'Night mode',nightsub:'Auto: from 20:00 to 8:00 by the console\'s clock.',off:'Off',on:'On',auto:'Auto',language:'Language',lsystem:'Console\'s',
   snd:'Sound',sounds:'Interface sounds',soundssub:'Ticks and clicks; Alerts plays only success and error.',alerts:'Alerts',all:'All',music:'Background music',musicsub:'Made on the console as it plays.',m_lift:'Lift',m_calm:'Calm',m_shop:'Shop',
-  page:'This page',psound:'Sounds in this page',psoundsub:'The console\'s tones, played by the browser (as set above).',pmotion:'Animations',pmotionsub:'Movement in lists, sheets and screens.',signout:'Sign out',signoutsub:'Forget the PIN in this browser.',about:'Console',address:'Address'},
+  page:'This page',pmusic:'Console music here',pmusicsub:'Plays the song the console is playing, in its style and volume. Needs the console to have made it once.',psound:'Sounds in this page',psoundsub:'The console\'s tones, played by the browser (as set above).',pmotion:'Animations',pmotionsub:'Movement in lists, sheets and screens.',signout:'Sign out',signoutsub:'Forget the PIN in this browser.',about:'Console',address:'Address'},
 es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',lost:'No se puede contactar con la consola.',failed:'Error: ',done:'Hecho.',
   g_manage:'Gestionar',g_tools:'Herramientas',titles:'Títulos',files:'Archivos',tickets:'Tickets',extdata:'Datos extra',install:'Instalar',screen:'Pantalla',settings:'Ajustes',
   search:'Buscar',filter:'Filtrar',sort:'Ordenar',view:'Vista',list:'Lista',grid:'Cuadrícula',more:'Más',reload:'Recargar',close:'Cerrar',cancel:'Cancelar',ok:'Aceptar',save:'Guardar',
@@ -423,7 +423,7 @@ es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wron
   live:'En vivo',nolive:'La consola no responde.',busy:'La consola está ocupada con %k: %n%p. Una transferencia a la vez: vuelve a probar cuando acabe.',busylive:'En pausa mientras la consola transfiere (%k: %n%p).',k_ftp:'FTP',k_web:'esta página',k_download:'una descarga',k_console:'otra 3DS',padnote:'Pulsa la pantalla de abajo para tocarla, arrastra arriba o abajo para desplazar. Teclas: flechas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Intro = Start, Retroceso = Select.',
   ap:'Apariencia',theme:'Tema',themesub:'Cómo se ven todas las pantallas, aquí y en la consola.',accent:'Color de acento',night:'Modo noche',nightsub:'Auto: de 20:00 a 8:00 según el reloj de la consola.',off:'No',on:'Sí',auto:'Auto',language:'Idioma',lsystem:'El de la consola',
   snd:'Sonido',sounds:'Sonidos de la interfaz',soundssub:'Ticks y clics; Avisos solo suena al acabar bien o mal.',alerts:'Avisos',all:'Todos',music:'Música de fondo',musicsub:'La consola la compone mientras suena.',m_lift:'Lift',m_calm:'Calma',m_shop:'Tienda',
-  page:'Esta página',psound:'Sonidos en esta página',psoundsub:'Los tonos de la consola, sonando en el navegador (como arriba).',pmotion:'Animaciones',pmotionsub:'Movimiento en listas, hojas y pantallas.',signout:'Cerrar sesión',signoutsub:'Olvidar el PIN en este navegador.',about:'Consola',address:'Dirección'}
+  page:'Esta página',pmusic:'Música de la consola aquí',pmusicsub:'Suena la canción que reproduce la consola, con su estilo y volumen. La consola tiene que haberla creado alguna vez.',psound:'Sonidos en esta página',psoundsub:'Los tonos de la consola, sonando en el navegador (como arriba).',pmotion:'Animaciones',pmotionsub:'Movimiento en listas, hojas y pantallas.',signout:'Cerrar sesión',signoutsub:'Olvidar el PIN en este navegador.',about:'Consola',address:'Dirección'}
 };
 const store = { get(k,d){ try { const v = localStorage.getItem('nsa.'+k); return v===null ? d : JSON.parse(v); } catch(e){ return d; } },
                 set(k,v){ try { localStorage.setItem('nsa.'+k, JSON.stringify(v)); } catch(e){} } };
@@ -477,6 +477,77 @@ function sfx(name){
     src.buffer = buffers[name]; src.connect(g).connect(audio.destination); src.start();
   } catch(e){}
 }
+
+// ---- the console's music, here ----
+// The console keeps the last song of each style on the SD card (/nsa/music-cache-N.pcm: a 20-byte header, then mono 16-bit at
+// 22050 Hz, a loop without a seam). The page plays that very file, in the console's style and volume, and fetches it again
+// (crossfading) when the console makes a new one. A copy is kept in this browser per song.
+const MUSIC_GAIN = .8;
+let mus = {style:0, mtime:0, src:null, gain:null, busy:false, timer:0};
+function musicCtx(){ audio = audio || new (window.AudioContext||window.webkitAudioContext)(); return audio; }
+function musicGainNow(){ return settings ? settings.musicVolume/100*MUSIC_GAIN : 0; }
+function stopMusic(){
+  if(!mus.src) return;
+  const {src, gain} = mus; mus.src = null; mus.gain = null; mus.style = 0; mus.mtime = 0;
+  try { const t = audio.currentTime; gain.gain.cancelScheduledValues(t); gain.gain.setValueAtTime(gain.gain.value, t); gain.gain.linearRampToValueAtTime(0, t+1); src.stop(t+1.05); } catch(e){}
+}
+async function musicBuffer(style, mtime){
+  const key = 'music/'+style+'/'+mtime;
+  let raw = await idbDo('readonly', st => st.get(key));
+  if(!raw){
+    const r = await fetch(fileUrl('/nsa/music-cache-'+style+'.pcm'), {headers:{'X-Pin':pin}});
+    if(r.status===401){ const e = new ApiError(T.wrong); e.auth = true; throw e; }
+    if(!r.ok) throw new ApiError(r.statusText);
+    raw = await r.arrayBuffer();
+    idbDo('readwrite', st => st.put(raw, key));
+  }
+  const v = new DataView(raw);
+  if(raw.byteLength < 20 || v.getUint32(0, true) !== 0x4D41534E) throw new ApiError('music');
+  const frames = v.getUint32(12, true), rate = v.getUint32(16, true);
+  if(20+frames*2 > raw.byteLength) throw new ApiError('music');
+  const ctx = musicCtx(), b = ctx.createBuffer(1, frames, rate), out = b.getChannelData(0);
+  for(let i=0;i<frames;i++) out[i] = v.getInt16(20+i*2, true)/32768;
+  return b;
+}
+async function syncMusic(){
+  if(mus.busy || !settings) return; mus.busy = true;
+  try {
+    const want = store.get('pageMusic', true) && settings.music>0 ? settings.music : 0;
+    if(!want){ stopMusic(); return; }
+    if(mus.src && mus.style===want){ mus.gain.gain.setTargetAtTime(musicGainNow(), audio.currentTime, .2); }
+    const j = await api('GET', 'list', {path:'/nsa'});
+    const f = (j.files||[]).find(f => f.name==='music-cache-'+want+'.pcm');
+    if(!f){ if(mus.style && mus.style!==want) stopMusic(); return; }
+    if(mus.src && mus.style===want && mus.mtime===f.mtime) return;
+    const buf = await musicBuffer(want, f.mtime);
+    if(!store.get('pageMusic', true) || !settings.music) return;
+    const ctx = musicCtx(), src = ctx.createBufferSource(), g = ctx.createGain(), t = ctx.currentTime;
+    src.buffer = buf; src.loop = true; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(musicGainNow(), t+3.5);
+    src.connect(g).connect(ctx.destination); src.start();
+    const old = mus.src, oldGain = mus.gain;
+    if(old){ oldGain.gain.cancelScheduledValues(t); oldGain.gain.setValueAtTime(oldGain.gain.value, t); oldGain.gain.linearRampToValueAtTime(0, t+3.5); old.stop(t+3.6); }
+    mus.src = src; mus.gain = g; mus.style = want; mus.mtime = f.mtime;
+    if(ctx.state==='suspended') ctx.resume().catch(() => {});
+  } catch(e){ if(e.auth) showLogin(e.message); }
+  finally { mus.busy = false; }
+}
+// A browser starts sound only after a click or key: the first one wakes it.
+for(const ev of ['pointerdown','keydown']) addEventListener(ev, () => { if(audio && audio.state==='suspended') audio.resume().catch(() => {}); }, {capture:true});
+// What the console plays (and any other setting) can change from its own screen: ask every few seconds, and redraw only when
+// something changed (not while a finger or the mouse is down, so a slider being dragged is not pulled away).
+let pointerDown = false;
+for(const ev of ['pointerdown','pointerup','pointercancel']) addEventListener(ev, e => { pointerDown = e.type==='pointerdown'; }, {capture:true});
+setInterval(async () => {
+  if(document.hidden || $('app').hidden || pointerDown || setBusy) return;
+  try {
+    const s = await api('GET', 'settings');
+    if(JSON.stringify(s) === JSON.stringify(settings)) return;
+    settings = s; applyConsoleSettings(); themeKey = ''; loadTheme();
+    if(current==='settings') renderSettings();
+  } catch(e){}
+}, 5000);
+// A new song made by the console appears in /nsa: look for it now and then.
+setInterval(() => { if(!document.hidden && !$('app').hidden) syncMusic(); }, 30000);
 
 // ---- talking to the console ----
 let pin = '';
@@ -647,6 +718,7 @@ async function login(p, auto){
 }
 function applyConsoleSettings(){
   soundMode = settings.sounds; soundVolume = settings.soundVolume;
+  syncMusic();
   const want = settings.language==='es' ? 'es' : settings.language==='en' ? 'en' : (navigator.language||'en').startsWith('es') ? 'es' : 'en';
   if(want!==L){ L = want; T = WORDS[L]; document.documentElement.lang = L; store.set('lang', L); if(!$('app').hidden){ buildRail(); route(true); } }
 }
@@ -1426,8 +1498,8 @@ async function changeSetting(params){
 }
 function opt(icon, label, sub, ctl){ return h('div', {class:'opt'}, ic(icon), h('div', {class:'l'}, h('b', {text:label}), sub ? h('span', {text:sub}) : null), h('div', {class:'ctl'}, ctl)); }
 function volume(value, key){
-  const out = h('span', {text:value+'%'}), r = h('input', {type:'range', min:25, max:100, step:5, value});
-  const paintV = () => { r.style.setProperty('--v', ((r.value-25)/75*100)+'%'); out.textContent = r.value+'%'; };
+  const out = h('span', {text:value+'%'}), r = h('input', {type:'range', min:0, max:100, step:5, value});
+  const paintV = () => { r.style.setProperty('--v', r.value+'%'); out.textContent = r.value+'%'; };
   r.oninput = paintV; r.onchange = () => changeSetting({[key]:r.value}); paintV();
   return h('div', {class:'vol'}, ic('volume', 16), r, out);
 }
@@ -1450,6 +1522,7 @@ function renderSettings(){
       opt('volume', T.sounds, T.soundssub, seg([[0,T.off],[1,T.alerts],[2,T.all]], s.sounds, v => changeSetting({sounds:v}))), volume(s.soundVolume, 'soundVolume'),
       opt('music', T.music, T.musicsub, seg([[0,T.off],[1,T.m_lift],[2,T.m_calm],[3,T.m_shop]], s.music, v => changeSetting({music:v}))), volume(s.musicVolume, 'musicVolume')),
     h('div', {class:'card'}, h('h3', {}, ic('device-desktop', 16), T.page),
+      opt('music', T.pmusic, T.pmusicsub, sw(store.get('pageMusic', true), v => { store.set('pageMusic', v); syncMusic(); })),
       opt('volume', T.psound, T.psoundsub, sw(store.get('pageSound', true), v => { store.set('pageSound', v); if(v) sfx('click'); })),
       opt('player-play', T.pmotion, T.pmotionsub, sw(store.get('motion', true), v => { store.set('motion', v); document.body.classList.toggle('nomotion', !v); })),
       opt('key', T.signout, T.signoutsub, h('button', {class:'btn danger', onclick:() => { sessionStorage.removeItem('pin'); document.cookie = 'pin=; path=/; max-age=0'; pin = ''; showLogin(); }}, ic('power', 16), T.signout))),

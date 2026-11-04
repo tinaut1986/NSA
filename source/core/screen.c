@@ -1104,6 +1104,10 @@ void screen_draw_text_wrap(const char* text, float x, float y, float scale, u32 
     screen_draw_string_internal(text, x, y, scale, scale, color, false, true, wrapX);
 }
 
+void screen_draw_text_wrap_centered(const char* text, float x, float y, float scale, u32 color, float wrapX) {
+    screen_draw_string_internal(text, x, y, scale, scale, color, true, true, wrapX);
+}
+
 // ---- themed shapes ----
 
 // The framebuffers are portrait (240 wide): the scissor box is in their

@@ -701,6 +701,7 @@ static void remoteinstall_history_draw_row(void* data, list_item* item, float x,
     const char* slash = strrchr(shown[0], '/');
     string_copy(name, slash != NULL && slash[1] != '\0' ? slash + 1 : shown[0], sizeof(name));
     name[strcspn(name, "?#")] = '\0';
+    string_url_decode(name, name, sizeof(name));
 
     char date[32];
     history_date(&history[index], date, sizeof(date));
@@ -761,7 +762,9 @@ static void remoteinstall_history_draw_top(ui_view* view, void* data, float x1, 
             break;
         }
 
-        widget_text_fit(shown[i], textX, y, WIDGET_SMALL_SCALE, t->palette->text, right - textX);
+        char decoded[DOWNLOAD_URL_MAX];
+        string_url_decode(decoded, shown[i], sizeof(decoded));
+        widget_text_fit(decoded, textX, y, WIDGET_SMALL_SCALE, t->palette->text, right - textX);
         y += lineH;
     }
 }
@@ -1091,7 +1094,9 @@ static void remoteinstall_draw_card(remoteinstall_data* menu, u32 index, float x
             char shown[1][DOWNLOAD_URL_MAX];
             history_describe(&history[i], host, sizeof(host), shown, 1);
             const char* slash = strrchr(shown[0], '/');
-            widget_text_fit(slash != NULL && slash[1] != '\0' ? slash + 1 : shown[0], textX, textY, WIDGET_SMALL_SCALE, t->palette->text, wrap - textX);
+            char recent[FILE_NAME_MAX];
+            string_url_decode(recent, slash != NULL && slash[1] != '\0' ? slash + 1 : shown[0], sizeof(recent));
+            widget_text_fit(recent, textX, textY, WIDGET_SMALL_SCALE, t->palette->text, wrap - textX);
             textY += widget_text_height(WIDGET_SMALL_SCALE) + 2;
         }
     }

@@ -86,3 +86,4 @@ void screen_fill_circle(float cx, float cy, float radius, u32 color);
 void screen_draw_icon(u32 icon, float x, float y, float size, u32 color);
 void screen_draw_text(const char* text, float x, float y, float scale, u32 color);
 void screen_draw_text_wrap(const char* text, float x, float y, float scale, u32 color, float wrapX);
+void screen_draw_text_wrap_centered(const char* text, float x, float y, float scale, u32 color, float wrapX);

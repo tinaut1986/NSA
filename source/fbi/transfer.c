@@ -193,8 +193,18 @@ static u64 transfer_get64(const u8* in) {
     return value;
 }
 
-// A card on the top screen: an icon, a line and a smaller one.
-static void transfer_draw_card(float x1, float y1, float x2, float y2, u32 icon, const char* line1, const char* line2) {
+// A line centered, or as much of it as fits when it is too wide.
+static void transfer_draw_centered_fit(const char* text, float x1, float x2, float y, float scale, u32 color) {
+    if(widget_text_width(text, scale) <= x2 - x1) {
+        widget_text_centered(text, x1, x2, y, scale, color);
+    } else {
+        widget_text_fit(text, x1, y, scale, color, x2 - x1);
+    }
+}
+
+// A card on the top screen: an icon, a line, a smaller one and, when given, a third (a path, say)
+// that goes over as many lines as it needs.
+static void transfer_draw_card(float x1, float y1, float x2, float y2, u32 icon, const char* line1, const char* line2, const char* line3) {
     const theme_current* t = theme();
 
     float w = x2 - x1;
@@ -202,10 +212,18 @@ static void transfer_draw_card(float x1, float y1, float x2, float y2, u32 icon,
     float cx = x1 + w / 2;
     float cy = y1 + h / 2;
 
-    screen_draw_icon(icon, cx - 16, cy - 50, 32, t->accent);
-    widget_text_centered(line1, x1 + 10, x2 - 10, cy - 4, WIDGET_TITLE_SCALE, t->palette->text);
+    screen_draw_icon(icon, cx - 16, cy - 56, 32, t->accent);
+    transfer_draw_centered_fit(line1, x1 + 10, x2 - 10, cy - 10, WIDGET_TITLE_SCALE, t->palette->text);
     if(line2 != NULL && line2[0] != '\0') {
-        widget_text_centered(line2, x1 + 10, x2 - 10, cy + 20, WIDGET_TEXT_SCALE, t->palette->textMuted);
+        transfer_draw_centered_fit(line2, x1 + 10, x2 - 10, cy + 14, WIDGET_TEXT_SCALE, t->palette->textMuted);
+    }
+
+    if(line3 != NULL && line3[0] != '\0') {
+        // The block is centered as a whole (the lines of a wrapped text are centered on its widest one).
+        float blockW = 0;
+        float blockH = 0;
+        screen_get_string_size_wrap(&blockW, &blockH, line3, WIDGET_SMALL_SCALE, WIDGET_SMALL_SCALE, w - 20);
+        screen_draw_text_wrap_centered(line3, cx - blockW / 2, cy + 36, WIDGET_SMALL_SCALE, t->palette->textMuted, x2 - 10);
     }
 }
 
@@ -335,7 +353,9 @@ static void transfer_send_draw_top(ui_view* view, void* data, float x1, float y1
 
     char size[32];
     transfer_size_text(size, sizeof(size), session->size);
-    transfer_draw_card(x1, y1, x2, y2, ICON_3DS, session->name, size);
+    char line[TRANSFER_NAME_MAX + 32];
+    snprintf(line, sizeof(line), _("To %s"), session->peerName);
+    transfer_draw_card(x1, y1, x2, y2, ICON_3DS, session->name, line, size);
 }
 
 static void transfer_send_free(transfer_send_session* session) {
@@ -876,7 +896,7 @@ static void transfer_send_list_draw_top(ui_view* view, void* data, float x1, flo
         snprintf(line, sizeof(line), "%s", _("Waiting for the Wi-Fi..."));
     }
 
-    transfer_draw_card(x1, y1, x2, y2, ICON_3DS, _("Send to another 3DS"), line);
+    transfer_draw_card(x1, y1, x2, y2, ICON_3DS, _("Send to another 3DS"), line, NULL);
 }
 
 static void transfer_send_list_exit(ui_view* view, transfer_send_data* data, linked_list* items) {
@@ -1503,9 +1523,25 @@ static void transfer_receive_draw_top(ui_view* view, void* data, float x1, float
     char size[32];
     transfer_size_text(size, sizeof(size), receive->size);
 
-    char line[FILE_NAME_MAX + 48];
-    snprintf(line, sizeof(line), "%s  (%s)", receive->file, size);
-    transfer_draw_card(x1, y1, x2, y2, ICON_DOWNLOAD, receive->sender, line);
+    char from[TRANSFER_NAME_MAX + 32];
+    snprintf(from, sizeof(from), _("From %s"), receive->sender);
+    char line[sizeof(from) + 48];
+    snprintf(line, sizeof(line), "%s  (%s)", from, size);
+
+    // Where it is going, once the user has chosen.
+    char where[FILE_PATH_MAX + 32];
+    where[0] = '\0';
+    if(receive->state == RECEIVE_RECEIVING) {
+        if(receive->install && receive->isSave) {
+            string_copy(where, _("Importing it into the title"), sizeof(where));
+        } else if(receive->install) {
+            string_copy(where, _("Installing it on this console"), sizeof(where));
+        } else {
+            snprintf(where, sizeof(where), _("Saving in %s"), receive->keepPath ? receive->origin : receive->dir);
+        }
+    }
+
+    transfer_draw_card(x1, y1, x2, y2, ICON_DOWNLOAD, receive->file, line, where);
 }
 
 static void transfer_receive_reset(transfer_receive_data* data) {
@@ -2257,7 +2293,7 @@ static void transfer_folder_draw_row(void* data, list_item* item, float x, float
 static void transfer_folder_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     transfer_folder_data* folder = (transfer_folder_data*) data;
 
-    transfer_draw_card(x1, y1, x2, y2, ICON_FOLDER, _("Choose where to save"), folder->path);
+    transfer_draw_card(x1, y1, x2, y2, ICON_FOLDER, _("Choose where to save"), folder->path, NULL);
 }
 
 static void transfer_folder_exit(ui_view* view, transfer_folder_data* data, linked_list* items) {
@@ -2800,7 +2836,7 @@ static void transfer_receive_draw_waiting_top(ui_view* view, void* data, float x
         transfer_ip_text(ip, sizeof(ip));
     }
 
-    transfer_draw_card(x1, y1, x2, y2, ICON_3DS, receive->localName, ip);
+    transfer_draw_card(x1, y1, x2, y2, ICON_3DS, receive->localName, ip, NULL);
 }
 
 static void transfer_receive_switch(ui_view* view, void* data);

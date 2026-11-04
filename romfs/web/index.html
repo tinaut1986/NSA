@@ -93,6 +93,14 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .row .pic img.in{opacity:1}
 .sheet .head.hasback{flex-wrap:wrap;row-gap:6px;padding-top:10px}
 .sheet .head .backrow{flex:0 0 100%;margin-left:-6px}
+.syshd{display:flex;gap:12px;align-items:center;padding:12px 0 8px}
+.syshd .tile{width:44px;height:44px;flex:none;border-radius:var(--rs);background:var(--soft);color:var(--accent);display:grid;place-items:center}
+.syshd b{display:block;font-size:17px}.syshd .sub{font-size:12.5px;color:var(--muted)}
+.mrow{display:grid;grid-template-columns:96px 1fr auto;gap:10px;align-items:center;font-size:13px;padding:4px 0}
+.mrow .sbar{height:8px;border-radius:4px;background:var(--bg);overflow:hidden}.mrow .sbar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.mrow small{color:var(--muted);white-space:nowrap}
+.bgraph{margin:0 0 12px;background:var(--bg);border-radius:var(--rs);padding:8px 10px}.bgraph small{display:flex;justify-content:space-between;color:var(--muted);font-size:11.5px}
+.bgraph svg{display:block;width:100%;height:70px;margin-top:4px}
 .chain{display:flex;flex-direction:column;gap:10px}
 .tcard{display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--r);text-align:left;width:100%;cursor:pointer;transition:background-color var(--fast),transform var(--fast) var(--ease)}
 .tcard:hover{background:var(--soft)}.tcard:active{transform:scale(.985)}
@@ -381,7 +389,7 @@ textarea.code{width:100%;height:56vh;font:13px/1.45 ui-monospace,Consolas,monosp
 // ---- words: the console's language when it is English or Spanish, else the browser's ----
 const WORDS = {
 en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wrong PIN.',locked:'Too many wrong PINs: wait a minute.',lost:'Cannot reach the console.',failed:'Failed: ',done:'Done.',
-  g_manage:'Manage',g_tools:'Tools',titles:'Titles',files:'Files',tickets:'Tickets',extdata:'Extra data',install:'Install',screen:'Screen',settings:'Settings',
+  g_manage:'Manage',g_tools:'Tools',system:'System',sy_console:'Console',sy_network:'Network',sy_storage:'Storage',sy_battery:'Battery',sy_region:'Region',sy_country:'Country',sy_lang:'Language',sy_serial:'Serial number',sy_devid:'Device ID',sy_screens:'Screens',sy_sysver:'System version',sy_kernel:'Kernel',sy_mcu:'MCU firmware',sy_runas:'Running as',sy_uptime:'Up for',sy_netmask:'Netmask',sy_gateway:'Gateway',sy_signal:'Signal',sy_mac:'MAC address',sy_lease:'DHCP lease',sy_ftp:'FTP server',sy_web:'Web server',sy_conn:'Connected',sy_notconn:'Not connected',sy_port:'Port %n',sy_made:'Made',sy_speed:'Speed',sy_writable:'Writable',sy_cluster:'Cluster size',sy_freeof:'%a free of %b',sy_sd:'SD card',sy_voltage:'Voltage',sy_temp:'Temperature',sy_charger:'Charger',sy_plugged:'Plugged in',sy_unplugged:'Unplugged',sy_charging:'Charging',sy_onadapter:'On the charger, not charging',sy_onbat:'On battery',sy_chrate:'Charging rate',sy_drrate:'Draining rate',sy_fullin:'Full in',sy_emptyin:'Empty in',sy_level:'Level (0-5)',sy_measuring:'Measuring…',sy_watched:'Watched for',titles:'Titles',files:'Files',tickets:'Tickets',extdata:'Extra data',install:'Install',screen:'Screen',settings:'Settings',
   search:'Search',filter:'Filter',sort:'Sort',view:'View',list:'List',grid:'Grid',more:'More',reload:'Reload',close:'Close',cancel:'Cancel',ok:'OK',save:'Save',
   k_game:'Games',k_update:'Updates',k_dlc:'DLC',k_system:'System',k_all:'All',group:'Group updates and DLC',yes:'Yes',no:'No',chain:'Updates and DLC',kg1:'Game',back:'Back',ku1:'Update',media:'Medium',s_name:'Name',s_size:'Size',s_id:'Title ID',s_date:'Modified',kind:'Kind',
   loaded:'%a of %b',notitles:'Nothing matches.',loading:'Loading…',version:'Version',size:'Size',code:'Product code',publisher:'Publisher',id:'Title ID',type:'Type',path:'Path',modified:'Modified',
@@ -403,7 +411,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
   snd:'Sound',sounds:'Interface sounds',soundssub:'Ticks and clicks; Alerts plays only success and error.',alerts:'Alerts',all:'All',music:'Background music',musicsub:'Made on the console as it plays.',m_lift:'Lift',m_calm:'Calm',m_shop:'Shop',
   page:'This page',pmusic:'Console music here',pmusicsub:'Plays the song the console is playing, in its style and volume. Needs the console to have made it once.',psound:'Sounds in this page',psoundsub:'The console\'s tones, played by the browser (as set above).',pmotion:'Animations',pmotionsub:'Movement in lists, sheets and screens.',signout:'Sign out',signoutsub:'Forget the PIN in this browser.',about:'Console',address:'Address'},
 es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wrong:'PIN incorrecto.',locked:'Demasiados PIN incorrectos: espera un minuto.',lost:'No se puede contactar con la consola.',failed:'Error: ',done:'Hecho.',
-  g_manage:'Gestionar',g_tools:'Herramientas',titles:'Títulos',files:'Archivos',tickets:'Tickets',extdata:'Datos extra',install:'Instalar',screen:'Pantalla',settings:'Ajustes',
+  g_manage:'Gestionar',g_tools:'Herramientas',system:'Sistema',sy_console:'Consola',sy_network:'Red',sy_storage:'Almacenamiento',sy_battery:'Batería',sy_region:'Región',sy_country:'País',sy_lang:'Idioma',sy_serial:'Número de serie',sy_devid:'ID de dispositivo',sy_screens:'Pantallas',sy_sysver:'Versión del sistema',sy_kernel:'Kernel',sy_mcu:'Firmware MCU',sy_runas:'Se ejecuta como',sy_uptime:'Encendida desde hace',sy_netmask:'Máscara',sy_gateway:'Puerta de enlace',sy_signal:'Señal',sy_mac:'Dirección MAC',sy_lease:'Concesión DHCP',sy_ftp:'Servidor FTP',sy_web:'Servidor web',sy_conn:'Conectada',sy_notconn:'Sin conexión',sy_port:'Puerto %n',sy_made:'Fabricada',sy_speed:'Velocidad',sy_writable:'Escritura',sy_cluster:'Tamaño de clúster',sy_freeof:'%a libres de %b',sy_sd:'Tarjeta SD',sy_voltage:'Voltaje',sy_temp:'Temperatura',sy_charger:'Cargador',sy_plugged:'Conectado',sy_unplugged:'Desconectado',sy_charging:'Cargando',sy_onadapter:'En el cargador, sin cargar',sy_onbat:'Con batería',sy_chrate:'Ritmo de carga',sy_drrate:'Ritmo de descarga',sy_fullin:'Llena en',sy_emptyin:'Vacía en',sy_level:'Nivel (0-5)',sy_measuring:'Midiendo…',sy_watched:'Observada durante',titles:'Títulos',files:'Archivos',tickets:'Tickets',extdata:'Datos extra',install:'Instalar',screen:'Pantalla',settings:'Ajustes',
   search:'Buscar',filter:'Filtrar',sort:'Ordenar',view:'Vista',list:'Lista',grid:'Cuadrícula',more:'Más',reload:'Recargar',close:'Cerrar',cancel:'Cancelar',ok:'Aceptar',save:'Guardar',
   k_game:'Juegos',k_update:'Actualizaciones',k_dlc:'DLC',k_system:'Sistema',k_all:'Todos',group:'Agrupar actualizaciones y DLC',yes:'Sí',no:'No',chain:'Actualizaciones y DLC',kg1:'Juego',back:'Volver',ku1:'Actualización',media:'Soporte',s_name:'Nombre',s_size:'Tamaño',s_id:'ID de título',s_date:'Modificado',kind:'Tipo',
   loaded:'%a de %b',notitles:'No hay nada que coincida.',loading:'Cargando…',version:'Versión',size:'Tamaño',code:'Código de producto',publisher:'Editor',id:'ID de título',type:'Tipo',path:'Ruta',modified:'Modificado',
@@ -756,7 +764,7 @@ setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString(L, {h
 })();
 
 // ---- the menu and the screens (#titles, #files/sd/path...) ----
-const SCREENS = [['g_manage'], ['titles','apps'], ['files','folder'], ['tickets','ticket'], ['extdata','database'], ['g_tools'], ['install','world-download'], ['screen','device-desktop'], ['settings','settings']];
+const SCREENS = [['g_manage'], ['titles','apps'], ['files','folder'], ['tickets','ticket'], ['extdata','database'], ['g_tools'], ['install','world-download'], ['screen','device-desktop'], ['system','3ds'], ['settings','settings']];
 let current = '';
 function buildRail(){
   const r = $('rail'); r.textContent = '';
@@ -1530,6 +1538,63 @@ function renderSettings(){
   ];
   cards.forEach((c, i) => { c.style.setProperty('--i', i); if(!first) c.style.animation = 'none'; });
   box.append(h('div', {class:'set'}, cards)); box.scrollTop = keepScroll;
+}
+
+
+// ---- system: what the console's System screens show (console, network, storage, battery) ----
+let sysTimer = 0;
+screens.system = {
+  render(){
+    const box = h('div', {class:'scroll', id:'sysscroll'}, emptyEl('apps', T.loading));
+    const el = screenEl(h('h2', {}, T.system), null, box);
+    clearInterval(sysTimer); sysTimer = setInterval(loadSystem, 10000); setTimeout(loadSystem);
+    return el;
+  },
+  leave(){ clearInterval(sysTimer); sysTimer = 0; }
+};
+async function loadSystem(){
+  if(current!=='system') return;
+  try { drawSystem(await api('GET', 'system')); }
+  catch(e){ if(e.auth) showLogin(e.message); else { const b = $('sysscroll'); if(b && !b.querySelector('.set')) b.replaceChildren(emptyEl('alert-triangle', e.message)); } }
+}
+const fmtDur = s => s>=3600 ? Math.floor(s/3600)+' h '+Math.floor(s/60%60)+' min' : Math.floor(s/60)+' min';
+function sysCard(icon, title, sub, kids){
+  return h('div', {class:'card'}, h('div', {class:'syshd'}, h('div', {class:'tile'}, ic(icon, 24)), h('div', {style:'min-width:0'}, h('b', {text:title}), h('div', {class:'sub', text:sub||''}))), ...kids);
+}
+function drawSystem(d){
+  const box = $('sysscroll'); if(!box || current!=='system') return;
+  const c = d.console, n = d.network, st = d.storage, b = d.battery, keep = box.scrollTop;
+  const dash = v => v==null || v==='' ? '-' : v;
+  const first = !box.querySelector('.set');
+  const consoleCard = sysCard('3ds', c.model+(c.user ? '  ·  '+c.user : ''), c.system ? T.sy_sysver+' '+c.system : '', [cells([
+    [T.sy_region, c.region], [T.sy_country, c.country], [T.sy_lang, c.language], [T.sy_serial, c.serial], [T.sy_devid, c.deviceId], [T.sy_screens, c.screens],
+    [T.sy_sysver, c.system], [T.sy_kernel, c.kernel], [T.sy_mcu, c.mcu], ['Luma3DS', c.luma], [T.sy_runas, c.cia ? 'CIA' : '3DSX'], [T.sy_uptime, fmtDur(d.uptime)]])]);
+  const port = p => p ? tr('sy_port', {n:p}) : T.off;
+  const netCard = sysCard(n.connected ? 'wifi' : 'wifi-off', n.ssid, n.connected ? T.sy_conn : T.sy_notconn, [cells([
+    ['IP', n.ip], [T.sy_netmask, n.netmask], [T.sy_gateway, n.gateway], ['DNS', n.dns], [T.sy_signal, n.signal], [T.sy_mac, n.mac], [T.sy_lease, n.lease],
+    [T.sy_ftp, port(n.ftp)], [T.sy_web, port(n.web)]])]);
+  const names = {sd:T.sy_sd, ctr:'CTR NAND', twl:'TWL NAND', photo:'TWL Photo'};
+  const bars = st.media.map(m => h('div', {class:'mrow'}, h('span', {text:names[m.id]||m.id}), h('div', {class:'sbar'}, h('i', {style:'width:'+(100*(1-m.free/m.total)).toFixed(1)+'%'})),
+    h('small', {text:tr('sy_freeof', {a:fmtSize(m.free), b:fmtSize(m.total)})})));
+  const stCard = sysCard('device-sd-card', st.maker!=='-' ? st.maker+' '+st.product : T.sy_sd, T.sy_cluster+': '+st.cluster,
+    [cells([[T.sy_made, st.made], [T.sy_speed, st.speed], [T.sy_writable, st.writable]]), h('div', {style:'margin:0 0 12px'}, bars)]);
+  const perHour = b.perHour;
+  const left = b.charging && perHour>0.05 ? (100-b.percent)/perHour*3600 : !b.charging && perHour<-0.05 ? b.percent/-perHour*3600 : null;
+  const icon = b.charging ? 'battery-charging' : b.level>=5 ? 'battery-4' : b.level>=4 ? 'battery-3' : b.level>=2 ? 'battery-2' : 'battery-1';
+  let graph = null;
+  if(b.samples.length > 1){
+    const lo = Math.max(0, Math.min(...b.samples)-1), hi = Math.min(100, Math.max(...b.samples)+1), W = 300, H = 60, k = Math.max(1, b.samples.length-1);
+    const pts = b.samples.map((v, i) => (i*W/k).toFixed(1)+','+(H-(v-lo)/(hi-lo||1)*H).toFixed(1)).join(' ');
+    graph = h('div', {class:'bgraph'}, h('small', {}, h('span', {text:T.sy_watched+': '+fmtDur(b.watched)}), h('span', {text:lo.toFixed(0)+' - '+hi.toFixed(0)+' %'})));
+    graph.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>');
+  } else graph = h('div', {class:'bgraph'}, h('small', {}, h('span', {text:T.sy_measuring})));
+  const batCard = sysCard(icon, b.percent.toFixed(b.fine ? 1 : 0)+' %', b.charging ? T.sy_charging : b.adapter ? T.sy_onadapter : T.sy_onbat, [cells([
+    [T.sy_voltage, b.fine ? b.voltage.toFixed(2)+' V' : '-'], [T.sy_temp, b.fine ? b.temperature+' °C' : '-'], [T.sy_charger, b.adapter ? T.sy_plugged : T.sy_unplugged],
+    [b.charging ? T.sy_chrate : T.sy_drrate, perHour!=null ? (perHour>=0 ? '+' : '')+perHour.toFixed(1)+' %/h' : T.sy_measuring],
+    [b.charging ? T.sy_fullin : T.sy_emptyin, left!=null ? fmtDur(left) : '-'], [T.sy_level, b.level+'/5']]), graph]);
+  const cards = [consoleCard, netCard, stCard, batCard];
+  cards.forEach((card, i) => { card.style.setProperty('--i', i); if(!first) card.style.animation = 'none'; });
+  box.replaceChildren(h('div', {class:'set'}, cards)); box.scrollTop = keep;
 }
 
 // ---- start ----

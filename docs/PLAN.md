@@ -125,6 +125,9 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Web System tab** (2026-11-04, `feat/web-system`; DEBUG build on the New 3DS XL, page opened in the browser: the four cards showed the console's real data):
+- [ ] The page has a **System** tab (Tools): Console (model, user, region, country, language, serial, device ID, screens, system version, kernel, MCU, Luma3DS, CIA/3DSX, uptime), Network (SSID, IP, netmask, gateway, DNS, signal, MAC, DHCP lease, FTP and web ports), Storage (SD card made/speed/writable/cluster and the space of SD, CTR NAND, TWL NAND, TWL Photo) and Battery (percent, voltage, temperature, charger, rate, time left, level, history graph). It refreshes every 10 s and keeps its scroll. Same data as the console's System screens: `GET /api/system`, read on the main thread (`systeminfo_json`). The battery rate and graph need a couple of minutes of the page open (the history grows only while someone asks). Texts such as "High speed" come in the console's language.
+
 **Web music** (2026-11-04, `feat/web-music`; decoded and looped against a mock server in the browser with a real `music-cache-3.pcm`):
 - [ ] The page plays the console's background music (the last song of the style set on the console, from `/nsa/music-cache-N.pcm`, 22050 Hz mono) at the console's music volume; Off on the console (or the page switch "Console music here" in Settings -> This page) silences it; changing the style or volume on the console shows up within 30 s; a new song made by the console is fetched and crossfaded in (3.5 s). The song is kept in the browser (IndexedDB) per style and file date. Needs the console to have made that style once (the cache file exists) and a click or key on the page first (browser rule). It is the same audio, not a second synthesis: the page just reads the file.
 

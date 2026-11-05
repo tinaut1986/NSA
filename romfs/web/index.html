@@ -399,7 +399,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
   loaded:'%a of %b',notitles:'Nothing matches.',loading:'Loading…',version:'Version',size:'Size',code:'Product code',publisher:'Publisher',id:'Title ID',type:'Type',path:'Path',modified:'Modified',
   launch:'Launch',deleteTitle:'Delete',delticket:'Delete with ticket',data:'Data',dsave:'Download save',dext:'Download extra data',dboss:'Download SpotPass data',m_save:'Save data',m_ext:'Extra data',m_boss:'SpotPass data',dpack:'Download (a .nsasave package)',backups:'Backups on the SD card',restore:'Restore (the console asks first)',confirmdelbackup:'Delete the backup "%s"? This cannot be undone.',cpnote:'It is Checkpoint\'s: Checkpoint will not see it any more.',jknote:'It is JKSM\'s: JKSM will not see it any more.',pknote:'It is PKSM\'s: PKSM will not see it any more.',
   sendpkg:'Send a save package',sendpkgsub:'A .nsasave package made by NSA: the console unpacks it and asks there.',packing:'Packing',packstart:'The console is packing it (B there cancels)…',counting:'Counting files…',downloading:'Downloading',cancelled:'Cancelled.',packbusy:'The console is still packing the last one.',pkgsent:'Sent. Look at the console: it asks what to do.',pkgsentkeep:'Sent and kept on the console (this title or its data is not there).',
-  nobackups:'No backups of this data (NSA\'s exports or Checkpoint\'s).',pickbackup:'Pick a backup: the console asks before replacing anything.',asked:'Look at the console: it asks there.',
+  nobackups:'No backups of this data (NSA\'s exports or Checkpoint\'s).',pickbackup:'Pick a backup: the console asks before replacing anything.',asked:'It asks here and on the console.',cquestion:'The console asks',
   confirmlaunch:'Launch "%s" on the console? NSA closes.',confirmdelete:'Ask the console to delete "%s"? It asks again there.',danger:'Delete',
   readonly:'Read only here: delete tickets and extra data from the console\'s own screens, which ask first.',notinstalled:'Not installed',installedOn:'Installed on',
   sd:'SD',nand:'NAND',folder:'Folder',file:'File',items:'%n items',item:'1 item',empty:'This folder is empty.',emptyHint:'Drop files here, or use Upload.',
@@ -421,7 +421,7 @@ es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wron
   loaded:'%a de %b',notitles:'No hay nada que coincida.',loading:'Cargando…',version:'Versión',size:'Tamaño',code:'Código de producto',publisher:'Editor',id:'ID de título',type:'Tipo',path:'Ruta',modified:'Modificado',
   launch:'Lanzar',deleteTitle:'Borrar',delticket:'Borrar con ticket',data:'Datos',dsave:'Descargar partida',dext:'Descargar datos extra',dboss:'Descargar datos SpotPass',m_save:'Partidas',m_ext:'Datos extra',m_boss:'Datos SpotPass',dpack:'Descargar (un paquete .nsasave)',backups:'Copias en la SD',restore:'Restaurar (la consola pregunta antes)',confirmdelbackup:'¿Borrar la copia "%s"? No se puede deshacer.',cpnote:'Es de Checkpoint: Checkpoint dejará de verla.',jknote:'Es de JKSM: JKSM dejará de verla.',pknote:'Es de PKSM: PKSM dejará de verla.',
   sendpkg:'Enviar un paquete de partida',sendpkgsub:'Un paquete .nsasave hecho por NSA: la consola lo desempaqueta y pregunta allí.',packing:'Empaquetando',packstart:'La consola lo está empaquetando (B allí lo cancela)…',counting:'Contando archivos…',downloading:'Descargando',cancelled:'Cancelado.',packbusy:'La consola aún está empaquetando el anterior.',pkgsent:'Enviado. Mira la consola: te pregunta qué hacer.',pkgsentkeep:'Enviado y guardado en la consola (ese título o sus datos no están).',
-  nobackups:'No hay copias de estos datos (exportaciones de NSA ni de Checkpoint).',pickbackup:'Elige una copia: la consola pregunta antes de reemplazar nada.',asked:'Mira la consola: pregunta allí.',
+  nobackups:'No hay copias de estos datos (exportaciones de NSA ni de Checkpoint).',pickbackup:'Elige una copia: la consola pregunta antes de reemplazar nada.',asked:'Pregunta aquí y en la consola.',cquestion:'La consola pregunta',
   confirmlaunch:'¿Lanzar "%s" en la consola? NSA se cierra.',confirmdelete:'¿Pedir a la consola que borre "%s"? Pregunta otra vez allí.',danger:'Borrar',
   readonly:'Aquí solo se consultan: los tickets y los datos extra se borran desde las pantallas de la consola, que preguntan antes.',notinstalled:'No instalado',installedOn:'Instalado en',
   sd:'SD',nand:'NAND',folder:'Carpeta',file:'Archivo',items:'%n elementos',item:'1 elemento',empty:'Esta carpeta está vacía.',emptyHint:'Suelta archivos aquí o usa Subir.',
@@ -771,6 +771,38 @@ setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString(L, {h
   }, info && info.transfer ? 3000 : 30000);
 })();
 
+// ---- the console's questions ----
+// What the console asks (a delete, a launch, a save to import, links to install...) is asked here too: answer it here or on the console, whichever is first.
+let consolePrompt = null, promptDismissed = 0, promptFastUntil = 0, promptBusy = false, promptEpoch = 0;
+const askedToast = kind => { promptFastUntil = Date.now()+30000; toast(T.asked, kind); };
+function closeConsolePrompt(){ if(consolePrompt){ const c = consolePrompt; consolePrompt = null; c.sheet.close(true); } }
+function showConsolePrompt(p){
+  if(consolePrompt && consolePrompt.id===p.id) return;
+  closeConsolePrompt();
+  if(p.id===promptDismissed) return;
+  const answer = i => async () => {
+    // Answered: not shown again even if a status request already on its way brings it back (the console takes a moment to close it).
+    promptDismissed = p.id; promptEpoch++; promptFastUntil = Date.now()+15000;
+    closeConsolePrompt();
+    try { await api('POST', 'prompt/answer', {id:p.id, option:i}); } catch(e){ toast(e.message, 'err'); }
+  };
+  const foot = p.options.map((o, i) => h('button', {class:'btn'+(i===0 ? (p.danger ? ' danger' : ' primary') : ''), onclick:answer(i), text:o}));
+  const s = sheet({head:h('div', {class:'head'}, h('h3', {text:p.title || T.cquestion})), body:h('div', {class:'ask'}, h('p', {text:p.text, style:'white-space:pre-wrap'})), foot,
+    onclose:() => { if(consolePrompt && consolePrompt.id===p.id){ consolePrompt = null; promptDismissed = p.id; } }});
+  consolePrompt = {id:p.id, sheet:s};
+}
+(function pollPrompt(){
+  setTimeout(async () => {
+    if(!$('app').hidden && !document.hidden && !promptBusy){
+      promptBusy = true;
+      const epoch = promptEpoch;
+      try { const r = await api('GET', 'prompt'); if(epoch===promptEpoch){ if(r.prompt) showConsolePrompt(r.prompt); else { closeConsolePrompt(); promptDismissed = 0; } } } catch(e){}
+      promptBusy = false;
+    }
+    pollPrompt();
+  }, Date.now() < promptFastUntil ? 700 : 2500);
+})();
+
 // ---- the menu and the screens (#titles, #files/sd/path...) ----
 const SCREENS = [['g_manage'], ['titles','apps'], ['files','folder'], ['tickets','ticket'], ['extdata','database'], ['g_tools'], ['install','world-download'], ['screen','device-desktop'], ['system','3ds'], ['settings','settings']];
 let current = '';
@@ -953,8 +985,8 @@ function titleSheetShow(t, r, back){
       t.kind!=='system' && ['trash-x', T.delticket, () => deleteTitle(t, name, true), {danger:true}]
     ], c => s.close(c))]});
 }
-async function launchTitle(t, name){ if(await confirmAsk(tr('confirmlaunch', {s:name}), false, T.launch)) run(async () => { await api('POST', 'title/launch', {id:t.id, media:t.media}); toast(T.asked); }); }
-async function deleteTitle(t, name, ticket){ if(await confirmAsk(tr('confirmdelete', {s:name}), true, T.del)) run(async () => { await api('POST', 'title/delete', {id:t.id, media:t.media, ticket:ticket?1:0}); toast(T.asked); }); }
+async function launchTitle(t, name){ if(await confirmAsk(tr('confirmlaunch', {s:name}), false, T.launch)) run(async () => { await api('POST', 'title/launch', {id:t.id, media:t.media}); askedToast(); }); }
+async function deleteTitle(t, name, ticket){ if(await confirmAsk(tr('confirmdelete', {s:name}), true, T.del)) run(async () => { await api('POST', 'title/delete', {id:t.id, media:t.media, ticket:ticket?1:0}); askedToast(); }); }
 // A save package: the console makes it (showing its own progress, B cancels), the page follows it and then downloads it.
 let packing = false;
 function downloadSave(t, name, kind){
@@ -1015,7 +1047,7 @@ function dataSheet(t, name, kind, label){
     list.replaceChildren();
     if(!j.backups.length){ list.append(h('p', {class:'note', text:T.nobackups})); return; }
     j.backups.forEach((b, i) => {
-      const restore = () => { s.close(true); run(async () => { await api('POST', 'save/import', {id:t.id, media:t.media, kind, path:b.path, name}); toast(T.asked); }); };
+      const restore = () => { s.close(true); run(async () => { await api('POST', 'save/import', {id:t.id, media:t.media, kind, path:b.path, name}); askedToast(); }); };
       const del = async () => { if(!await confirmAsk(tr('confirmdelbackup', {s:b.label})+(b.pksm ? ' '+T.pknote : b.jksm ? ' '+T.jknote : b.checkpoint ? ' '+T.cpnote : ''), true, T.del)) return;
         run(async () => { await api('POST', 'save/backup/delete', {id:t.id, media:t.media, kind, path:b.path}); sfx('success'); toast(T.done, 'ok'); load(); }); };
       list.append(h('div', {class:'act', vars:{i}, style:'cursor:default'}, b.pksm ? pksmBadge() : b.jksm ? jksmBadge() : b.checkpoint ? cpBadge() : nsaBadge(), h('span', {text:b.label.replace(/^\[(NSA|Checkpoint|JKSM|PKSM)\] /, ''), style:'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'}),
@@ -1399,7 +1431,7 @@ screens.install = {
       h('button', {class:'tile', vars:{i:n}, onclick:fn}, h('div', {class:'ib'}, ic(i, 24)), h('b', {text:b}), h('span', {text:s}))))));
   }
 };
-function sendUrls(text){ run(async () => { await api('POST', 'install-url', null, text); toast(T.asked, 'ok'); }); }
+function sendUrls(text){ run(async () => { await api('POST', 'install-url', null, text); askedToast('ok'); }); }
 function urlsSheet(){
   const ta = h('textarea', {class:'code', style:'height:160px', placeholder:'https://…/game.cia', spellcheck:'false'}); let s;
   s = sheet({head:sheetHead(ic('world-download', 32), T.i_urls, T.i_urlssub), body:[h('p', {class:'note', text:T.urls}), ta],

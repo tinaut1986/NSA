@@ -29,6 +29,7 @@
 #include "../core/speedlog.h"
 #include "../core/xferturn.h"
 #include "../core/input.h"
+#include "../core/ui/ui.h"
 #include "../core/data/smdh.h"
 
 #define WEB_PATH_MAX 512
@@ -1994,6 +1995,45 @@ static void web_settings_apply() {
 
 // ---- serving ----
 
+// The question the console shows now, so the page can show it too (and answer it).
+static void web_api_prompt(web_request* r) {
+    prompt_web_info info;
+    if(!prompt_web_get(&info)) {
+        web_send_json(r, 200, json_pack("{s:b,s:n}", "ok", 1, "prompt"));
+        return;
+    }
+
+    json_t* options = json_array();
+    for(u32 i = 0; i < info.numOptions; i++) {
+        json_array_append_new(options, json_string(info.options[i]));
+    }
+
+    web_send_json(r, 200, json_pack("{s:b,s:{s:I,s:s,s:s,s:o,s:b}}", "ok", 1, "prompt", "id", (json_int_t) info.id, "title", info.title, "text", info.text,
+                                    "options", options, "danger", info.danger));
+}
+
+// Answers the question the console shows: the same as pressing that button there.
+static void web_api_prompt_answer(web_request* r) {
+    char text[16];
+    if(!web_query_get(r->query, "id", text, sizeof(text))) {
+        web_send_error(r, 400, "id and option");
+        return;
+    }
+
+    u32 id = (u32) strtoul(text, NULL, 10);
+    if(!web_query_get(r->query, "option", text, sizeof(text))) {
+        web_send_error(r, 400, "id and option");
+        return;
+    }
+
+    if(!prompt_web_answer(id, (u32) strtoul(text, NULL, 10))) {
+        web_send_error(r, 409, "that question is not on the console any more");
+        return;
+    }
+
+    web_send_ok(r);
+}
+
 static void web_handle(web_request* r) {
     if(!web_read_head(r)) {
         return;
@@ -2111,6 +2151,10 @@ static void web_handle(web_request* r) {
         web_api_settings_set(r);
     } else if(post && strcmp(api, "install-url") == 0) {
         web_api_install_url(r);
+    } else if(get && strcmp(api, "prompt") == 0) {
+        web_api_prompt(r);
+    } else if(post && strcmp(api, "prompt/answer") == 0) {
+        web_api_prompt_answer(r);
     } else {
         web_send_error(r, 404, "unknown request");
     }

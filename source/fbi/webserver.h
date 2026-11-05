@@ -41,6 +41,8 @@
 //   POST   /api/save/backup/delete?id=&media=&kind=&path=   deletes one of the backups listed (that kind's part of an NSA export)
 //   POST   /api/title/launch?id=&media=    the console asks, then launches it
 //   POST   /api/title/delete?id=&media=&ticket=0|1   the console asks, then deletes it
+//   GET    /api/prompt                     {prompt: null | {id, title, text, options[], danger}}: the question the console shows now
+//   POST   /api/prompt/answer?id=&option=  presses that button (0 is the first) of that question; 409 when it is not on the console any more
 //   POST   /api/install-url                the body is http(s) URLs, one per line: the console asks, then installs (and notes them in Remote Install's history)
 //   GET    /api/screens                    both screens as raw RGB565: the top 400x240, then the bottom 320x240
 //   POST   /api/input/press?keys=A+R&frames=4   hold buttons (A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT)

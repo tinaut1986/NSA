@@ -702,10 +702,39 @@ static void action_install_url_choose_update(ui_view* view, void* data, linked_l
         return;
     }
 
+    // The web page can answer too: the same choices, and Cancel last.
+    char webText[512];
+    int webLen = snprintf(webText, sizeof(webText), "%s", installData->confirm);
+    u32 shown = installData->installInfo.total < 5 ? installData->installInfo.total : 5;
+    for(u32 i = 0; i < shown && webLen > 0 && (size_t) webLen < sizeof(webText); i++) {
+        char name[FILE_NAME_MAX];
+        action_install_url_file_name(installData->urls[i], name, sizeof(name));
+        webLen += snprintf(webText + webLen, sizeof(webText) - webLen, "\n%s", name);
+    }
+
+    if(installData->installInfo.total > shown && webLen > 0 && (size_t) webLen < sizeof(webText)) {
+        snprintf(webText + webLen, sizeof(webText) - webLen, "\n");
+        webLen = (int) strlen(webText);
+        snprintf(webText + webLen, sizeof(webText) - webLen, _("and %lu more"), installData->installInfo.total - shown);
+    }
+
+    char webNames[INSTALL_URL_CHOICES + 1][PROMPT_OPTION_TEXT_MAX];
+    const char* webOptions[INSTALL_URL_CHOICES + 1];
+    for(u32 i = 0; i < INSTALL_URL_CHOICES; i++) {
+        string_copy(webNames[i], _(action_install_url_choice_names[i]), sizeof(webNames[i]));
+        webOptions[i] = webNames[i];
+    }
+
+    string_copy(webNames[INSTALL_URL_CHOICES], _("Cancel"), sizeof(webNames[INSTALL_URL_CHOICES]));
+    webOptions[INSTALL_URL_CHOICES] = webNames[INSTALL_URL_CHOICES];
+    int webChoice = prompt_web_offer(installData, _("Install from URL"), webText, webOptions, INSTALL_URL_CHOICES + 1, false);
+
     // X saves at once, as the confirmation did (and the tests press).
     u32 choice = UINT32_MAX;
     u32 down = hidKeysDown();
-    if(down & KEY_B) {
+    if(webChoice >= 0 && webChoice <= INSTALL_URL_CHOICE_CANCEL) {
+        choice = (u32) webChoice;
+    } else if(down & KEY_B) {
         choice = INSTALL_URL_CHOICE_CANCEL;
     } else if(down & KEY_X) {
         choice = INSTALL_URL_CHOICE_SAVE;
@@ -717,6 +746,7 @@ static void action_install_url_choose_update(ui_view* view, void* data, linked_l
         return;
     }
 
+    prompt_web_forget(installData);
     ui_pop();
     action_install_url_choose_clear(items);
     list_destroy(view);

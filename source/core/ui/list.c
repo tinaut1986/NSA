@@ -740,6 +740,18 @@ void list_set_style(ui_view* view, const list_style* style) {
     ((list_data*) view->data)->style = *style;
 }
 
+float list_tile_size_of(u32 level) {
+    static const float sizes[LIST_TILE_LEVELS] = {38, 50, 64, 80};
+    return sizes[level < LIST_TILE_LEVELS ? level : LIST_TILE_LEVELS - 1];
+}
+
+void list_set_tile_size(ui_view* view, float size) {
+    list_data* listData = (list_data*) view->data;
+    listData->style.tileSize = size;
+    listData->scrollPos = listData->scrollTarget = listData->scrollVelocity = 0;
+    listData->scrollGliding = false;
+}
+
 void list_set_mode(ui_view* view, list_mode mode) {
     list_data* listData = (list_data*) view->data;
     listData->mode = mode;

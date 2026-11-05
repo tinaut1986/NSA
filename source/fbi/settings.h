@@ -19,6 +19,7 @@ typedef struct {
     bool group;
     u32 sort;
     bool grid;
+    u32 tile;        // Size of the tiles of the grid: a level of list_tile_size_of.
 } titles_settings;
 
 typedef struct {
@@ -56,6 +57,7 @@ typedef struct {
     u32 categories;   // One bit per category the Store knows (the last one is "other").
     u32 sort;
     bool grid;
+    u32 tile;
 } store_settings;
 
 typedef struct {

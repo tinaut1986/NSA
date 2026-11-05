@@ -757,6 +757,27 @@ static bool titles_is_grid(ui_view* view, void* data) {
 
 static void titles_store(titles_data* data);
 
+// The tiles of the grid in the next size (and the grid itself, when the rows were showing).
+static void titles_next_tile_size(ui_view* view) {
+    titles_settings* saved = &settings_get()->titles;
+    saved->tile = (saved->tile + 1) % LIST_TILE_LEVELS;
+    if(list_get_mode(view) != LIST_MODE_GRID) {
+        list_set_mode(view, LIST_MODE_GRID);
+        saved->grid = true;
+    }
+
+    list_set_tile_size(view, list_tile_size_of(saved->tile));
+    settings_save();
+}
+
+static bool titles_tile_active(ui_view* view, void* data) {
+    return false;
+}
+
+static void titles_tile_press(ui_view* view, void* data) {
+    titles_next_tile_size(view);
+}
+
 static void titles_show_rows(ui_view* view, void* data) {
     list_set_mode(view, LIST_MODE_ROWS);
     titles_store((titles_data*) data);
@@ -1066,6 +1087,10 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         return;
     }
 
+    if(hidKeysDown() & KEY_SELECT) {
+        titles_next_tile_size(view);
+    }
+
     if(hidKeysDown() & KEY_Y) {
         list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
         titles_store(listData);
@@ -1227,7 +1252,7 @@ void titles_open() {
     list_style style = {
             .rowHeight = ROW_HEIGHT,
             .drawRow = titles_draw_row,
-            .tileSize = TILE_SIZE,
+            .tileSize = list_tile_size_of(settings_get()->titles.tile),
             .drawTile = titles_draw_tile
     };
     list_set_style(view, &style);
@@ -1237,6 +1262,7 @@ void titles_open() {
     // Right to left.
     list_add_tool(view, ICON_SEARCH, titles_search_active, titles_search_open);
     list_add_tool(view, ICON_FILTER, titles_filter_active, titles_filter_open);
+    list_add_tool(view, ICON_ZOOM_IN, titles_tile_active, titles_tile_press);
     list_add_tool(view, ICON_LAYOUT_GRID, titles_is_grid, titles_show_grid);
     list_add_tool(view, ICON_LIST, titles_is_rows, titles_show_rows);
 }

@@ -23,12 +23,12 @@ static settings_data settings = {
         .music = BGMUSIC_SHOP,
         .musicVolume = 50,
         .language = LANGUAGE_SYSTEM,
-        .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false},
+        .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false, .tile = 1},
         .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false},
         .files = {.directories = true, .files = true, .cias = true, .tickets = true, .hidden = false, .sort = 0},
         .extsave = {.sd = true, .nand = true, .byId = false, .grid = false},
         .pending = {.sd = true, .nand = true},
-        .store = {.kinds = 3, .categories = 0xFF, .sort = 0, .grid = false}
+        .store = {.kinds = 3, .categories = 0xFF, .sort = 0, .grid = false, .tile = 2}
 };
 
 static const char* night_ids[] = {"off", "on", "auto"};
@@ -133,6 +133,7 @@ void settings_load() {
 
     json_t* titles = json_object_get(json, "titles");
     if(json_is_object(titles)) {
+        settings.titles.tile = settings_get_uint(titles, "tile", settings.titles.tile, 3);
         settings.titles.media = settings_get_uint(titles, "media", settings.titles.media, 7);
         settings.titles.kinds = settings_get_uint(titles, "kinds", settings.titles.kinds, 0x3F);
         settings.titles.regions = settings_get_uint(titles, "regions", settings.titles.regions, 0x1F);
@@ -175,6 +176,7 @@ void settings_load() {
         settings.store.categories = settings_get_uint(store, "categories", settings.store.categories, 0xFF);
         settings.store.sort = settings_get_uint(store, "sort", settings.store.sort, 3);
         settings.store.grid = settings_get_bool(store, "grid", settings.store.grid);
+        settings.store.tile = settings_get_uint(store, "tile", settings.store.tile, 3);
     }
 
     json_t* pending = json_object_get(json, "pending");
@@ -254,8 +256,10 @@ Result settings_save() {
         return R_APP_OUT_OF_MEMORY;
     }
 
-    json_object_set_new(json, "store", json_pack("{s:i,s:i,s:i,s:b}", "kinds", (int) settings.store.kinds, "categories", (int) settings.store.categories,
-                                                  "sort", (int) settings.store.sort, "grid", settings.store.grid));
+    json_object_set_new(json, "store", json_pack("{s:i,s:i,s:i,s:b,s:i}", "kinds", (int) settings.store.kinds, "categories", (int) settings.store.categories,
+                                                  "sort", (int) settings.store.sort, "grid", settings.store.grid,
+                                                  "tile", (int) settings.store.tile));
+    json_object_set_new(json_object_get(json, "titles"), "tile", json_integer(settings.titles.tile));
     json_object_set_new(json, "menu", json_string(settings.menu));
     json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));
 

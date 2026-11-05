@@ -37,6 +37,7 @@
 #define STORE_INFO_MAX 8192
 #define STORE_ICON_MAX (512 * 1024)
 #define STORE_ICON_QUEUE 24
+#define STORE_PREFETCH_PAUSE 4000   // ms between the icons fetched in the background, when no row is waiting for one.
 #define STORE_CACHE_FORMAT 2   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
 
 typedef enum {
@@ -76,6 +77,12 @@ typedef struct {
     u32 size;
 } store_icon_result;
 
+// An icon nobody has asked for yet: fetched slowly in the background so that scrolling finds it there.
+typedef struct {
+    char slug[64];
+    char* url;
+} store_prefetch_entry;
+
 typedef struct {
     store_app* apps;
     u32 count;
@@ -102,6 +109,9 @@ typedef struct {
     u32 jobCount;
     store_icon_result results[STORE_ICON_QUEUE];
     u32 resultCount;
+    store_prefetch_entry* prefetch;
+    u32 prefetchCount;
+    u32 prefetchNext;
 
     ui_view* view;
     linked_list* items;
@@ -138,6 +148,12 @@ static void store_release(store_data* store) {
         for(u32 i = 0; i < store->jobCount; i++) {
             free(store->jobs[i].url);
         }
+
+        for(u32 i = 0; i < store->prefetchCount; i++) {
+            free(store->prefetch[i].url);
+        }
+
+        free(store->prefetch);
 
         if(store->archive != 0) {
             fs_close_archive(store->archive);
@@ -499,11 +515,73 @@ static void store_push_result(store_data* store, const char* slug, u8 state, u32
     LightLock_Unlock(&store->lock);
 }
 
+// Downloads one icon to the SD card; false when it could not (and leaves no half file).
+static bool store_download_icon(const char* slug, const char* url, u8* buffer, u32* fileSize) {
+    char path[FILE_PATH_MAX];
+    snprintf(path, sizeof(path), STORE_ICON_PATH, slug);
+
+    u32 size = 0;
+    if(R_FAILED(http_download_buffer(url, &size, buffer, STORE_ICON_MAX)) || size == 0 || size >= STORE_ICON_MAX) {
+        return false;
+    }
+
+    FILE* file = fopen(path, "wb");
+    bool written = file != NULL && fwrite(buffer, 1, size, file) == size;
+    if(file != NULL) {
+        fclose(file);
+    }
+
+    if(!written) {
+        remove(path);
+        return false;
+    }
+
+    *fileSize = size;
+    return true;
+}
+
+// One step of the slow background fetch: skips the icons already on the SD card (a quick look each) and downloads the first
+// missing one. False when there is nothing left to fetch.
+static bool store_prefetch_step(store_data* store, u8* buffer) {
+    for(int looked = 0; looked < 24; looked++) {
+        char slug[64];
+        char* url = NULL;
+        LightLock_Lock(&store->lock);
+        if(store->prefetchNext < store->prefetchCount) {
+            store_prefetch_entry* entry = &store->prefetch[store->prefetchNext++];
+            string_copy(slug, entry->slug, sizeof(slug));
+            url = strdup(entry->url);
+        }
+
+        LightLock_Unlock(&store->lock);
+
+        if(url == NULL) {
+            return false;
+        }
+
+        char path[FILE_PATH_MAX];
+        snprintf(path, sizeof(path), STORE_ICON_PATH, slug);
+        struct stat st;
+        if(stat(path, &st) == 0 && st.st_size > 0) {
+            free(url);
+            continue;
+        }
+
+        u32 size = 0;
+        store_download_icon(slug, url, buffer, &size);
+        free(url);
+        return true;
+    }
+
+    return true;
+}
+
 static void store_icon_thread(void* arg) {
     store_data* store = (store_data*) arg;
 
     mkdir(STORE_ICON_DIR, 0777);
     u8* buffer = (u8*) malloc(STORE_ICON_MAX);
+    u64 nextPrefetch = osGetTime() + STORE_PREFETCH_PAUSE;
 
     while(!store->cancelled) {
         // The newest request first: it is what the rows show now.
@@ -516,6 +594,11 @@ static void store_icon_thread(void* arg) {
         LightLock_Unlock(&store->lock);
 
         if(job.url == NULL) {
+            // Nothing asked for: now and then, one of the icons not on the SD card yet.
+            if(buffer != NULL && osGetTime() >= nextPrefetch) {
+                nextPrefetch = osGetTime() + (store_prefetch_step(store, buffer) ? STORE_PREFETCH_PAUSE : 60 * 1000);
+            }
+
             svcSleepThread(50 * 1000 * 1000LL);
             continue;
         }
@@ -528,22 +611,7 @@ static void store_icon_thread(void* arg) {
             store_push_result(store, job.slug, ICON_READY, (u32) st.st_size);
         } else if(buffer != NULL) {
             u32 size = 0;
-            if(R_SUCCEEDED(http_download_buffer(job.url, &size, buffer, STORE_ICON_MAX)) && size > 0 && size < STORE_ICON_MAX) {
-                FILE* file = fopen(path, "wb");
-                bool written = file != NULL && fwrite(buffer, 1, size, file) == size;
-                if(file != NULL) {
-                    fclose(file);
-                }
-
-                if(written) {
-                    store_push_result(store, job.slug, ICON_READY, size);
-                } else {
-                    remove(path);
-                    store_push_result(store, job.slug, ICON_FAILED, 0);
-                }
-            } else {
-                store_push_result(store, job.slug, ICON_FAILED, 0);
-            }
+            store_push_result(store, job.slug, store_download_icon(job.slug, job.url, buffer, &size) ? ICON_READY : ICON_FAILED, size);
         } else {
             store_push_result(store, job.slug, ICON_FAILED, 0);
         }
@@ -555,6 +623,25 @@ static void store_icon_thread(void* arg) {
     store_release(store);
 }
 
+static bool store_start_icon_thread(store_data* store) {
+    if(store->iconThread) {
+        return true;
+    }
+
+    LightLock_Lock(&store->lock);
+    store->users++;
+    LightLock_Unlock(&store->lock);
+    if(threadCreate(store_icon_thread, store, 0x10000, 0x18, 1, true) == NULL) {
+        LightLock_Lock(&store->lock);
+        store->users--;
+        LightLock_Unlock(&store->lock);
+        return false;
+    }
+
+    store->iconThread = true;
+    return true;
+}
+
 // The texture of an app's icon, or 0 (the generic one is drawn): asks for the icon the first time. Main thread.
 static u32 store_icon(store_data* store, store_app* app) {
     if(app->iconUrl == NULL) {
@@ -562,19 +649,9 @@ static u32 store_icon(store_data* store, store_app* app) {
     }
 
     if(app->iconState == ICON_NONE) {
-        if(!store->iconThread) {
-            LightLock_Lock(&store->lock);
-            store->users++;
-            LightLock_Unlock(&store->lock);
-            if(threadCreate(store_icon_thread, store, 0x10000, 0x18, 1, true) == NULL) {
-                LightLock_Lock(&store->lock);
-                store->users--;
-                LightLock_Unlock(&store->lock);
-                app->iconState = ICON_FAILED;
-                return 0;
-            }
-
-            store->iconThread = true;
+        if(!store_start_icon_thread(store)) {
+            app->iconState = ICON_FAILED;
+            return 0;
         }
 
         LightLock_Lock(&store->lock);
@@ -773,6 +850,27 @@ static void store_save(store_data* store) {
     settings_save();
 }
 
+// The tiles of the grid in the next size (and the grid itself, when the rows were showing).
+static void store_next_tile_size(ui_view* view) {
+    store_settings* saved = &settings_get()->store;
+    saved->tile = (saved->tile + 1) % LIST_TILE_LEVELS;
+    if(list_get_mode(view) != LIST_MODE_GRID) {
+        list_set_mode(view, LIST_MODE_GRID);
+        saved->grid = true;
+    }
+
+    list_set_tile_size(view, list_tile_size_of(saved->tile));
+    settings_save();
+}
+
+static bool store_tile_active(ui_view* view, void* data) {
+    return false;
+}
+
+static void store_tile_press(ui_view* view, void* data) {
+    store_next_tile_size(view);
+}
+
 static bool store_is_rows(ui_view* view, void* data) {
     return list_get_mode(view) == LIST_MODE_ROWS;
 }
@@ -950,6 +1048,29 @@ static void store_take(store_data* store, ui_view* view, linked_list* items, lis
     store->haveCatalogue = true;
     store->handoff = 0;
 
+    // The icons to fetch slowly in the background, in the order of the list.
+    store_prefetch_entry* list = (store_prefetch_entry*) calloc(store->count + 1, sizeof(store_prefetch_entry));
+    u32 listed = 0;
+    for(u32 i = 0; list != NULL && i < store->count; i++) {
+        if(store->apps[i].iconUrl != NULL && store->apps[i].slug[0] != '\0') {
+            string_copy(list[listed].slug, store->apps[i].slug, sizeof(list[listed].slug));
+            list[listed].url = strdup(store->apps[i].iconUrl);
+            listed++;
+        }
+    }
+
+    LightLock_Lock(&store->lock);
+    for(u32 i = 0; i < store->prefetchCount; i++) {
+        free(store->prefetch[i].url);
+    }
+
+    free(store->prefetch);
+    store->prefetch = list;
+    store->prefetchCount = list != NULL ? listed : 0;
+    store->prefetchNext = 0;
+    LightLock_Unlock(&store->lock);
+    store_start_icon_thread(store);
+
     store_fill(store, view, items, keep);
     store->resort = true;
 }
@@ -1016,6 +1137,10 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
         store_open_app(store_of(selected));
     }
 
+    if(hidKeysDown() & KEY_SELECT) {
+        store_next_tile_size(view);
+    }
+
     if(hidKeysDown() & KEY_Y) {
         list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
         store_save(store);
@@ -1059,7 +1184,7 @@ void store_open() {
     list_style style = {
             .rowHeight = 36,
             .drawRow = store_draw_row,
-            .tileSize = 64,
+            .tileSize = list_tile_size_of(settings_get()->store.tile),
             .drawTile = store_draw_tile
     };
     list_set_style(view, &style);
@@ -1069,6 +1194,7 @@ void store_open() {
     // Right to left.
     list_add_tool(view, ICON_SEARCH, store_search_active, store_search_open);
     list_add_tool(view, ICON_FILTER, store_filter_active, store_filter_open);
+    list_add_tool(view, ICON_ZOOM_IN, store_tile_active, store_tile_press);
     list_add_tool(view, ICON_LAYOUT_GRID, store_is_grid, store_show_grid);
     list_add_tool(view, ICON_LIST, store_is_rows, store_show_rows);
 }

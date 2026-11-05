@@ -35,9 +35,11 @@ void widget_button_centered_danger(float x, float y, float width, float height, 
 // A button with its label centred (modal buttons).
 void widget_button_centered(float x, float y, float width, float height, const char* label, bool selected);
 // A list row: icon (or -1), label on the left and, if given, a value on the
-// right between ‹ › (an option that changes in place). ICON_CHECKPOINT and WIDGET_ICON_NSA are drawn as badges in
+// right between ‹ › (an option that changes in place). ICON_CHECKPOINT, WIDGET_ICON_NSA, WIDGET_ICON_JKSM and WIDGET_ICON_PKSM are drawn as badges in
 // their logos' colours (the backups of a title's data).
 #define WIDGET_ICON_NSA ICON_COUNT
+#define WIDGET_ICON_JKSM (ICON_COUNT + 1)
+#define WIDGET_ICON_PKSM (ICON_COUNT + 2)
 // The "opens another screen" mark at the right end of a row; returns where the row's text must stop.
 float widget_row_chevron(float right, float y, float height, bool selected);
 void widget_row(float x, float y, float width, float height, int icon, const char* label, u32 labelColor, const char* value, bool selected);

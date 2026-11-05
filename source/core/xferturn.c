@@ -159,7 +159,8 @@ bool xferturn_describe(char* out, size_t size) {
     const char* name = strrchr(status.name, '/');
     name = name != NULL && name[1] != '\0' ? name + 1 : status.name;
     if(status.total > 0) {
-        snprintf(out, size, "Busy: %s, %s (%u%%)", xferturn_kind_name(status.kind), name, (unsigned) (status.done * 100 / status.total));
+        u32 hundredths = status.done >= status.total ? 10000 : (u32) (status.done * 10000 / status.total);
+        snprintf(out, size, "Busy: %s, %s (%lu.%02lu%%)", xferturn_kind_name(status.kind), name, hundredths / 100, hundredths % 100);
     } else {
         snprintf(out, size, "Busy: %s, %s", xferturn_kind_name(status.kind), name);
     }

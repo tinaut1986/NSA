@@ -162,6 +162,15 @@ What `release` holds, in the order it was built:
 - [ ] System follows the console's language (Settings of the console in French, German, Italian, Portuguese, Russian or Japanese); a console in Korean or Dutch shows English (Catalan is never picked by System: the 3DS has no Catalan).
 - [ ] The web page's Language drop-down lists all twelve and changes the console; the page itself is still English or Spanish.
 
+**PKSM backups** (2026-11-05, branch `feat/pksm-import`, builds; not tried on a console)
+- [ ] A title's Save data list and the import list show PKSM's backups (`sdmc:/3ds/PKSM/backups/0x<unique ID, 5 digits>/<date>/main`, or `sav.dat` for a Game Boy title) with PKSM's icon badge (its SMDH, shrunk to 20x20) and the file's modification time as the name (the date folder's name changed between PKSM versions: `2019112821573`, `2026-11-5_9-7-3`). Restoring one asks the red question; the file lands in the save archive as `main`. Source read from FlagBrew/PKSM (`loader.cpp`: `backupSave`, `idToSaveName`, `load`, `saveToTitle`); the owner's console has such folders (0x01B50/<date>/main, 445440 bytes = 0x6CC00, an Ultra Sun/Moon save).
+- Not covered: GBA Virtual Console saves (`00000001.sav`, with their own CMAC), DS cartridge saves (`POKEMON X.sav`), PKSM's banks (below).
+- **PKSM banks** (the boxes), researched, not built: `sdmc:/3ds/PKSM/banks/<name>.bnk` (a raw header then 30 entries per box, each a generation byte and the Pokemon's bytes, 0xFF for an empty slot) and `<name>.json` (the box names), plus the index `sdmc:/3ds/PKSM/banks.json` (name -> number of boxes). PKSM lists banks only from that index: copying the two files to another console is not enough, the bank must also be added to its `banks.json`. No whole-bank export in PKSM's UI; individual Pokemon go to `.pkx` in `/3ds/PKSM/dumps` (Storage screen, DUMP). Magic and header size not verified (they live in PKSM-Core). Nothing in the container ties it to a console.
+
+**JKSM backups** (2026-11-04, branch `feat/jksm-import`, builds; not tried in Azahar or on a console)
+- [ ] With a JKSM backup (`sdmc:/JKSM/User Saves|Extra Data|BOSS Extra Data/<game name>/<backup>/` with the tree inside, made by JKSM for 3DS), the title's Save data / Extra data list and the import list show it with the violet "J" badge and only the name. Restoring it asks the red question like Checkpoint's. The game's folder is found by its SMDH short description in any language (with `. , / \ < > : " | ? *` turned into spaces, `?` into `_`, as JKSM does), or by the 16 digit ID. Source read from J-D-K/JKSM (`FS.cpp`, `BackupMenuState.cpp`, `StringUtil.cpp`), never run. Also looks in the older folders `Saves`, `ExtData`, `Boss`.
+- Not done: JKSM's `.zip` backups; the `._secure_value` file JKSM can write in a backup would be copied into the archive; two games with the same name share a folder; the badge is JKSM's own icon (SMDH of the installed CIA) shrunk to 20x20. Delete from the web page / sheet warns "JKSM will not see it any more".
+
 **Badges of the backups** (2026-11-03; seen in Azahar and on the web page with fake NSA and Checkpoint backups)
 - [ ] A title's Save data / Extra data list and the import list show NSA's backups with NSA's badge (the blue window with an N) and only the date, and Checkpoint's with its flag badge (pale flag on navy) and only the name, no "[NSA]" / "[Checkpoint]"; readable selected and not, in day and night themes.
 
@@ -869,6 +878,11 @@ current, this list is the summary. What only the owner can test (local wireless)
 
 ## Decisions
 
+- **Sleep and HOME** (`net_sleep_hook` in `main.c`): the app's `ac` session does not survive the console's sleep
+  (`ACU_GetWifiStatus` fails afterwards, so NSA saw no Wi-Fi and the servers never came back, and HOME froze the console).
+  On sleep/suspend the FTP and web servers are paused; on wake/restore `acExit(); acInit()` runs and they resume. DEBUG
+  builds write `sdmc:/nsa/sleep-log.txt` (hooks, Wi-Fi status, heartbeat, exit steps). If it ever fails again, SOC is the next
+  suspect (reinit it on wake).
 - Own app (`0xFB1A0`), own data folder (`sdmc:/nsa/`, import from `/fbi/` offered
   once), own versions from `v0.1.0`. Upstream is noted as "based on FBI 2.6.1".
 - Updates: Stable/Beta channels from GitHub releases; the changelog joins every

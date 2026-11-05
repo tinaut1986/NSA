@@ -813,6 +813,8 @@ const i18n_entry i18n_es[] = {
         {"Delete this backup", "Borrar esta copia"},
         {"Delete this backup? It cannot be undone.", "¿Borrar esta copia? No se puede deshacer."},
         {"\n(Checkpoint's: it will not see it any more.)", "\n(Es de Checkpoint: dejará de verla.)"},
+        {"\n(JKSM's: it will not see it any more.)", "\n(Es de JKSM: dejará de verla.)"},
+        {"\n(PKSM's: it will not see it any more.)", "\n(Es de PKSM: dejará de verla.)"},
         {"Failed to delete the backup.", "No se pudo borrar la copia."},
         {"Unpacking", "Desempaquetando"},
         {"Failed to start the task.", "No se pudo iniciar la tarea."},

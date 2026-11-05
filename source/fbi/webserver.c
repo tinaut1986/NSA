@@ -1654,7 +1654,7 @@ static void web_api_save_backups(web_request* r) {
     u32 count = action_save_backups(&title, kind, &backups);
     json_t* list = json_array();
     for(u32 i = 0; i < count; i++) {
-        json_array_append_new(list, json_pack("{s:s,s:s,s:b,s:b}", "path", backups[i].path, "label", backups[i].label, "checkpoint", backups[i].checkpoint, "jksm", backups[i].jksm));
+        json_array_append_new(list, json_pack("{s:s,s:s,s:b,s:b,s:b}", "path", backups[i].path, "label", backups[i].label, "checkpoint", backups[i].checkpoint, "jksm", backups[i].jksm, "pksm", backups[i].pksm));
     }
 
     free(backups);

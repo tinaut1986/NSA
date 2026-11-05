@@ -72,6 +72,10 @@ static const mainmenu_entry entries[] = {
 #define TILE_COUNT 3      // The first entries, as big tiles in one row.
 #define TILE_HEIGHT 80
 #define BUTTON_HEIGHT 36
+#define SMALL_ROW_HEIGHT 44   // The small entries: one row of icons...
+#define TIP_HEIGHT 26         // ...and a tooltip under the one with the focus, with its name.
+#define TIP_SLIDE 10          // The tooltip slides down this far while it appears.
+#define TIP_TIME 200
 #define GAP 6
 #define PAD 8
 
@@ -86,6 +90,10 @@ typedef struct {
     u32 shown;
     u32 leaving;
     u64 shownTime;
+
+    // The tooltip of the selected small entry slides in again at every new selection.
+    u32 lastSelected;
+    u64 tipTime;
 } mainmenu_data;
 
 // Advanced warns once per session.
@@ -118,12 +126,20 @@ static void mainmenu_button_rect(u32 index, float x1, float y1, float x2, float*
         *x = x1 + PAD + index * (*w + GAP);
         *y = y1 + PAD;
     } else {
+        // One row of icons.
         u32 i = index - TILE_COUNT;
-        *w = (area - GAP) / 2;
-        *h = BUTTON_HEIGHT;
-        *x = x1 + PAD + (i % 2) * (*w + GAP);
-        *y = y1 + PAD + TILE_HEIGHT + GAP + (i / 2) * (BUTTON_HEIGHT + GAP);
+        *w = (area - (ENTRY_COUNT - TILE_COUNT - 1) * GAP) / (ENTRY_COUNT - TILE_COUNT);
+        *h = SMALL_ROW_HEIGHT;
+        *x = x1 + PAD + i * (*w + GAP);
+        *y = y1 + PAD + TILE_HEIGHT + GAP;
     }
+}
+
+// Whether a touch is on entry `index`.
+static bool mainmenu_hit(const mainmenu_data* menu, u32 index, const touchPosition* pos, float x1, float y1, float x2) {
+    float x, y, w, h;
+    mainmenu_button_rect(index, x1, y1, x2, &x, &y, &w, &h);
+    return widget_touched(pos, x, y, w, h);
 }
 
 // The D-Pad over tiles and buttons: Up and Down move between rows (a tile
@@ -151,34 +167,18 @@ static u32 mainmenu_move(u32 selected, u32 key) {
     }
 
     u32 buttons = ENTRY_COUNT - TILE_COUNT;
-    u32 lastRow = (buttons - 1) / 2;
     if(key == KEY_RIGHT) {
         return (selected + 1) % ENTRY_COUNT;
     } else if(key == KEY_LEFT) {
         return selected > 0 ? selected - 1 : ENTRY_COUNT - 1;
-    } else if(key == KEY_DOWN) {
-        if(selected < TILE_COUNT) {
-            return TILE_COUNT + (selected == TILE_COUNT - 1 ? 1 : 0);
-        }
-
-        u32 i = selected - TILE_COUNT;
-        if(i / 2 < lastRow) {
-            return i + 2 < buttons ? selected + 2 : ENTRY_COUNT - 1;
-        }
-
-        return (i % 2) == 0 ? 0 : TILE_COUNT - 1;
+    } else if(selected < TILE_COUNT) {
+        // From a tile to the icon under it (Down) or, wrapping round, over it (Up).
+        u32 j = (u32) (((float) selected + 0.5f) / TILE_COUNT * buttons);
+        return TILE_COUNT + (j < buttons ? j : buttons - 1);
     } else {
-        if(selected < TILE_COUNT) {
-            u32 target = TILE_COUNT + lastRow * 2 + (selected == TILE_COUNT - 1 ? 1 : 0);
-            return target < ENTRY_COUNT ? target : ENTRY_COUNT - 1;
-        }
-
-        u32 i = selected - TILE_COUNT;
-        if(i < 2) {
-            return i == 0 ? 0 : TILE_COUNT - 1;
-        }
-
-        return selected - 2;
+        // From an icon to the tile over it, for Up and Down.
+        u32 i = (u32) (((float) (selected - TILE_COUNT) + 0.5f) / buttons * TILE_COUNT);
+        return i < TILE_COUNT ? i : TILE_COUNT - 1;
     }
 }
 
@@ -407,9 +407,7 @@ static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, flo
         menu->touching = true;
         widget_press_end(&menu->press);
         for(u32 i = 0; i < ENTRY_COUNT; i++) {
-            float x, y, w, h;
-            mainmenu_button_rect(i, bx1, by1, bx2, &x, &y, &w, &h);
-            if(widget_touched(&pos, x, y, w, h)) {
+            if(mainmenu_hit(menu, i, &pos, bx1, by1, bx2)) {
                 widget_press_begin(&menu->press, (int) i, true, pos.px, pos.py);
                 menu->selected = i;
             }
@@ -417,9 +415,7 @@ static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, flo
     } else if(menu->touching && (hidKeysHeld() & KEY_TOUCH)) {
         // Off the button: no longer pressed.
         if(menu->press.index >= 0) {
-            float x, y, w, h;
-            mainmenu_button_rect((u32) menu->press.index, bx1, by1, bx2, &x, &y, &w, &h);
-            if(!widget_touched(&pos, x, y, w, h)) {
+            if(!mainmenu_hit(menu, (u32) menu->press.index, &pos, bx1, by1, bx2)) {
                 menu->press.cancelled = true;
             }
         }
@@ -436,6 +432,12 @@ static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, flo
 
     if(hidKeysDown() & KEY_A) {
         mainmenu_open_entry(&entries[menu->selected]);
+    }
+
+    // A new selection: its tooltip slides in.
+    if(menu->selected != menu->lastSelected) {
+        menu->tipTime = osGetTime();
+        menu->lastSelected = menu->selected;
     }
 }
 
@@ -569,6 +571,60 @@ static void mainmenu_draw_home_tile(const mainmenu_entry* entry, float x, float 
     }
 }
 
+// A small entry: just its icon, filled when it has the focus.
+static void mainmenu_draw_small(const mainmenu_entry* entry, float x, float y, float w, float h, bool selected) {
+    const theme_current* t = theme();
+    bool danger = entry->warn;
+    u32 onDanger = t->night ? t->palette->background : t->onAccent;
+    u32 fill = selected ? (danger ? t->palette->danger : t->accent) : danger ? theme_mix(t->palette->surface, t->palette->danger, 0x26) : t->palette->surface;
+    u32 edge = selected ? fill : danger ? t->palette->danger : t->palette->border;
+    u32 ink = selected ? (danger ? onDanger : t->onAccent) : danger ? t->palette->danger : t->accent;
+    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
+
+    float iconSize = 32;
+    screen_draw_icon(entry->icon, x + (float) (int) ((w - iconSize) / 2), y + (float) (int) ((h - iconSize) / 2), iconSize, ink);
+}
+
+// The name of the entry with the focus, in a bubble under its icon that slides down and fades in.
+static void mainmenu_draw_tip(const mainmenu_data* menu, float x1, float y1, float x2) {
+    const theme_current* t = theme();
+    const mainmenu_entry* entry = &entries[menu->selected];
+    bool danger = entry->warn;
+
+    float ix, iy, iw, ih;
+    mainmenu_button_rect(menu->selected, x1, y1, x2, &ix, &iy, &iw, &ih);
+
+    const char* name = _(entry->name);
+    float width = widget_text_width(name, WIDGET_TEXT_SCALE) + 24;
+    float maxWidth = x2 - x1 - 2 * PAD;
+    if(width > maxWidth) {
+        width = maxWidth;
+    }
+
+    // Centred under the icon, kept inside the screen.
+    float x = ix + (iw - width) / 2;
+    if(x < x1 + PAD) {
+        x = x1 + PAD;
+    } else if(x + width > x2 - PAD) {
+        x = x2 - PAD - width;
+    }
+
+    float p = widget_ease(menu->tipTime, TIP_TIME);
+    float restY = iy + ih + GAP;
+    float y = (float) (int) (restY - (1 - p) * TIP_SLIDE);
+    u32 alpha = (u32) (p * 255);
+
+    u32 fill = danger ? t->palette->danger : t->accent;
+    u32 ink = danger ? (t->night ? t->palette->background : t->onAccent) : t->onAccent;
+
+    // A small notch pointing at the icon.
+    float centre = ix + iw / 2;
+    float notch = 10;
+    screen_fill_round_rect(centre - notch / 2, y - notch / 2, notch, notch, 2, THEME_ALPHA(fill, alpha));
+    screen_fill_round_rect(x, y, width, TIP_HEIGHT, t->def->radiusSmall, THEME_ALPHA(fill, alpha));
+    widget_text_fit(name, x + 12, y + (TIP_HEIGHT - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, THEME_ALPHA(ink, alpha), width - 24);
+}
+
 static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     mainmenu_data* menu = (mainmenu_data*) data;
     const theme_current* t = theme();
@@ -583,24 +639,35 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
             continue;
         }
 
-        if(i < TILE_COUNT) {
-            mainmenu_draw_tile(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
-        } else {
-            // Advanced warns before opening: its button is a soft red too.
-            bool danger = entries[i].warn;
-            if(danger) {
-                widget_button_danger(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
-            } else {
-                widget_button(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
-            }
+        if(i >= TILE_COUNT) {
+            continue;   // Below.
         }
+
+        mainmenu_draw_tile(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
+        widget_press_draw(&menu->press, (int) i, x, y, w, h, t->def->radius, selected ? t->onAccent : t->palette->text, false);
+    }
+
+    if(mainmenu_home()) {
+        return;
+    }
+
+    // The small entries as icons, and the focused one's name in a tooltip under them.
+    for(u32 i = TILE_COUNT; i < ENTRY_COUNT; i++) {
+        bool selected = i == menu->selected;
+        float x, y, w, h;
+        mainmenu_button_rect(i, x1, y1, x2, &x, &y, &w, &h);
+        mainmenu_draw_small(&entries[i], x, y, w, h, selected);
 
         u32 pressInk = selected ? t->onAccent : t->palette->text;
         if(entries[i].warn && selected) {
             pressInk = t->night ? t->palette->background : t->onAccent;
         }
 
-        widget_press_draw(&menu->press, (int) i, x, y, w, h, i < TILE_COUNT ? t->def->radius : t->def->radiusSmall, pressInk, false);
+        widget_press_draw(&menu->press, (int) i, x, y, w, h, t->def->radiusSmall, pressInk, false);
+    }
+
+    if(menu->selected >= TILE_COUNT) {
+        mainmenu_draw_tip(menu, x1, y1, x2);
     }
 }
 
@@ -612,6 +679,7 @@ void mainmenu_open() {
     }
 
     data->press.index = -1;
+    data->lastSelected = data->selected;
 
     ui_view* view = ui_create();
     view->name = _("Main menu");

@@ -14,5 +14,9 @@ typedef struct {
 // `info`, when given, is filled for a .3dsx that has one. The first call asks for it; keep asking while drawing. Main thread only.
 u32 thumbs_get(FS_Archive archive, const char* path, u64 size, thumbs_info* info);
 
+// The RGBA pixels (the order the GPU wants) of the picture's centre cropped square and shrunk to `side` pixels, or NULL when
+// it cannot be read. For a caller with its own textures (the Store keeps its icons); any thread. Free with free().
+u8* thumbs_decode_square(FS_Archive archive, const char* path, int side);
+
 // Stops the worker and frees the textures.
 void thumbs_exit();

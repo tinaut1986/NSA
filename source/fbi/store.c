@@ -1,5 +1,7 @@
 #include <ctype.h>
+#include <dirent.h>
 #include <malloc.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,10 +35,15 @@
 #define STORE_ICON_DIR "sdmc:" APP_DATA_DIR "store-icons"
 #define STORE_ICON_PATH "sdmc:" APP_DATA_DIR "store-icons/%s.png"
 #define STORE_ICON_ARCHIVE_PATH APP_DATA_DIR "store-icons/%s.png"
+// The icon already shrunk to STORE_ICON_SIDE pixels square, as the raw pixels the GPU wants: reading these 9 KB takes a few
+// milliseconds, where decoding the PNG (which may be much bigger than it looks) took about 300 ms each time.
+#define STORE_ICON_RAW_PATH "sdmc:" APP_DATA_DIR "store-icons/%s.t48"
 #define STORE_FULL_MAX (4 * 1024 * 1024)
 #define STORE_INFO_MAX 8192
 #define STORE_ICON_MAX (512 * 1024)
 #define STORE_ICON_QUEUE 24
+#define STORE_LOG_PATH "sdmc:" APP_DATA_DIR "store-log.txt"   // DEBUG builds: how long the Store takes to do things.
+#define STORE_ICON_SIDE 48   // The icons are kept as textures this many pixels square, for as long as the Store is open.
 #define STORE_PREFETCH_PAUSE 4000   // ms between the icons fetched in the background, when no row is waiting for one.
 #define STORE_INSTALLED_PATH "sdmc:" APP_DATA_DIR "store-installed.json"
 #define STORE_RECORDS_MAX 512
@@ -67,17 +74,31 @@ typedef struct {
     u8 category;        // An index of store_categories.
     u8 iconState;
     u32 iconFileSize;
+    u32 texture;        // The icon, once made (kept until the Store closes, so scrolling never loses it); 0 until then.
 } store_app;
 
 typedef struct {
     char slug[64];
     char* url;
+    bool decode;   // Not used any more: a job always ends with the icon's pixels.
+    u64 requested; // When a row asked for it (ms).
 } store_icon_job;
 
 typedef struct {
     char slug[64];
     u8 state;
     u32 size;
+    bool decoded;   // The answer to a job: `pixels` (NULL when it failed).
+    u8* pixels;
+
+    // How long each step took, for the log.
+    u64 requested;
+    u32 waitMs;
+    u32 statMs;
+    u32 downloadMs;
+    u32 decodeMs;
+    u32 fileSize;
+    bool downloaded;
 } store_icon_result;
 
 // What the Store itself installed or downloaded, and which version of the catalogue it was: the only way to tell an
@@ -154,12 +175,66 @@ typedef struct {
     ui_view* view;
     linked_list* items;
 
+    // The log (DEBUG builds): lines wait here and the background thread writes them out.
+    char logBuf[6144];
+    u32 logLen;
+    u64 opened;
+    u32 outstanding;     // Icons asked for and not yet there.
+    volatile u32 lastRequestMs;   // When a row last asked for an icon (osGetTime, low 32 bits).
+    u64 batchStart;
+    u32 batchCount;
+
     // What shows and in which order (kept in settings.json).
     u32 kinds;        // Bits: 1 CIA, 2 3DSX.
     u32 categories;   // One bit per store_categories entry.
     u32 sort;
     bool resort;
 } store_data;
+
+static void store_logf(store_data* store, const char* format, ...) {
+    if(!NSA_DEBUG) {
+        return;
+    }
+
+    char line[256];
+    int n = snprintf(line, sizeof(line), "[%7llu] ", (unsigned long long) (osGetTime() - store->opened));
+    va_list args;
+    va_start(args, format);
+    vsnprintf(line + n, sizeof(line) - n, format, args);
+    va_end(args);
+
+    LightLock_Lock(&store->lock);
+    size_t len = strlen(line);
+    if(store->logLen + len + 1 < sizeof(store->logBuf)) {
+        memcpy(store->logBuf + store->logLen, line, len);
+        store->logBuf[store->logLen + len] = '\n';
+        store->logLen += len + 1;
+    }
+
+    LightLock_Unlock(&store->lock);
+}
+
+// Writes the waiting lines to the file (never from the screen's thread while it draws: the SD card is slow).
+static void store_log_flush(store_data* store) {
+    if(!NSA_DEBUG) {
+        return;
+    }
+
+    char text[sizeof(store->logBuf)];
+    LightLock_Lock(&store->lock);
+    u32 len = store->logLen;
+    memcpy(text, store->logBuf, len);
+    store->logLen = 0;
+    LightLock_Unlock(&store->lock);
+
+    if(len > 0) {
+        FILE* file = fopen(STORE_LOG_PATH, "ab");
+        if(file != NULL) {
+            fwrite(text, 1, len, file);
+            fclose(file);
+        }
+    }
+}
 
 static void store_free_apps(store_app* apps, u32 count) {
     if(apps == NULL) {
@@ -189,6 +264,10 @@ static void store_release(store_data* store) {
 
         for(u32 i = 0; i < store->prefetchCount; i++) {
             free(store->prefetch[i].url);
+        }
+
+        for(u32 i = 0; i < store->resultCount; i++) {
+            free(store->results[i].pixels);
         }
 
         free(store->prefetch);
@@ -503,7 +582,9 @@ static void store_load_thread(void* arg) {
     // The copy on the SD card first: the list can show at once.
     store_app* cached = NULL;
     int cachedRevision = -1;
+    u64 loadStart = osGetTime();
     int cachedCount = store_read_cache(&cached, &cachedRevision);
+    store_logf(store, "copy on the SD card: %d apps read in %u ms", cachedCount, (u32) (osGetTime() - loadStart));
     bool haveCache = cachedCount > 0;
     if(haveCache) {
         store_hand_off(store, cached, (u32) cachedCount);
@@ -512,7 +593,9 @@ static void store_load_thread(void* arg) {
     }
 
     // Has the catalogue changed? A few hundred bytes tell.
+    u64 revisionStart = osGetTime();
     int revision = store->cancelled ? -1 : store_server_revision();
+    store_logf(store, "revision %d (the copy has %d), asked in %u ms", revision, cachedRevision, (u32) (osGetTime() - revisionStart));
     if(store->cancelled) {
         store_release(store);
         return;
@@ -533,6 +616,7 @@ static void store_load_thread(void* arg) {
             int count = R_SUCCEEDED(res) && size < STORE_FULL_MAX ? store_parse_full(text, size, &apps) : -1;
             free(text);
 
+            store_logf(store, "catalogue: %d apps downloaded and read in %u ms", count, (u32) (osGetTime() - revisionStart));
             if(count >= 0) {
                 store_write_cache(apps, (u32) count, revision);
                 store_hand_off(store, apps, (u32) count);
@@ -630,12 +714,49 @@ static bool store_file_exists(const char* path) {
 
 // What is on the console for one app. An update is only told when the Store installed that app before, as that is when
 // the version it left is known.
-static u8 store_compute_status(const store_scan_entry* entry) {
+static int store_compare_ids(const void* a, const void* b) {
+    u64 x = *(const u64*) a;
+    u64 y = *(const u64*) b;
+    return x < y ? -1 : x > y ? 1 : 0;
+}
+
+// Every title installed (SD card and system memory), sorted: two calls to AM instead of one per app. NULL when it fails.
+static u64* store_load_installed(u32* count) {
+    u32 sd = 0;
+    u32 nand = 0;
+    AM_GetTitleCount(MEDIATYPE_SD, &sd);
+    AM_GetTitleCount(MEDIATYPE_NAND, &nand);
+    u64* ids = (u64*) malloc((sd + nand + 1) * sizeof(u64));
+    if(ids == NULL) {
+        return NULL;
+    }
+
+    u32 total = 0;
+    u32 read = 0;
+    if(sd > 0 && R_SUCCEEDED(AM_GetTitleList(&read, MEDIATYPE_SD, sd, ids))) {
+        total += read;
+    }
+
+    if(nand > 0 && R_SUCCEEDED(AM_GetTitleList(&read, MEDIATYPE_NAND, nand, ids + total))) {
+        total += read;
+    }
+
+    qsort(ids, total, sizeof(u64), store_compare_ids);
+    *count = total;
+    return ids;
+}
+
+// `installed` is the sorted list of titles (NULL: ask AM about this one title).
+static u8 store_compute_status(const store_scan_entry* entry, const u64* installed, u32 installedCount) {
     u8 bits = 0;
     if(entry->hasCia) {
         // Without a unique ID, what the Store installed is all there is to go by.
-        bool installed = entry->uniqueId != 0 ? store_title_installed(entry->uniqueId) : entry->recCia[0] != '\0';
-        if(installed) {
+        u64 titleId = (0x00040000ULL << 32) | ((u64) entry->uniqueId << 8);
+        bool installedHere = entry->uniqueId != 0 ? (installed != NULL ? bsearch(&titleId, installed, installedCount, sizeof(u64), store_compare_ids) != NULL
+                                                                        : store_title_installed(entry->uniqueId))
+                                                  : entry->recCia[0] != '\0';
+        bool installed_ = installedHere;
+        if(installed_) {
             bits |= STATUS_CIA;
             if(entry->recCia[0] != '\0' && strcmp(entry->recCia, entry->version) != 0) {
                 bits |= STATUS_CIA_UPDATE;
@@ -663,9 +784,9 @@ static u8 store_compute_status(const store_scan_entry* entry) {
     return bits;
 }
 
-// A few apps' status, for the background thread to call now and then.
-static void store_scan_step(store_data* store) {
-    for(int n = 0; n < 4; n++) {
+// A few apps' status, for the background thread to call now and then (`installed` is its list of titles).
+static void store_scan_step(store_data* store, const u64* installed, u32 installedCount) {
+    for(int n = 0; n < 16; n++) {
         store_scan_entry entry;
         u32 index = 0;
         u32 generation = 0;
@@ -682,7 +803,7 @@ static void store_scan_step(store_data* store) {
             return;
         }
 
-        u8 bits = store_compute_status(&entry);
+        u8 bits = store_compute_status(&entry, installed, installedCount);
         LightLock_Lock(&store->lock);
         if(generation == store->generation && store->status != NULL && index < store->scanCount) {
             store->status[index] = bits | 0x80;
@@ -694,16 +815,20 @@ static void store_scan_step(store_data* store) {
 
 // ---- the icon thread ----
 
-static void store_push_result(store_data* store, const char* slug, u8 state, u32 size) {
+// The pixels of an icon (NULL when it could not be made) for the screen to turn into a texture, with how long it took.
+static void store_push_pixels(store_data* store, const store_icon_result* info, u8* pixels) {
     LightLock_Lock(&store->lock);
     if(store->resultCount < STORE_ICON_QUEUE) {
         store_icon_result* r = &store->results[store->resultCount++];
-        string_copy(r->slug, slug, sizeof(r->slug));
-        r->state = state;
-        r->size = size;
+        *r = *info;
+        r->state = pixels != NULL ? ICON_READY : ICON_FAILED;
+        r->decoded = true;
+        r->pixels = pixels;
+        pixels = NULL;
     }
 
     LightLock_Unlock(&store->lock);
+    free(pixels);
 }
 
 // Downloads one icon to the SD card; false when it could not (and leaves no half file).
@@ -731,10 +856,105 @@ static bool store_download_icon(const char* slug, const char* url, u8* buffer, u
     return true;
 }
 
-// One step of the slow background fetch: skips the icons already on the SD card (a quick look each) and downloads the first
-// missing one. False when there is nothing left to fetch.
-static bool store_prefetch_step(store_data* store, u8* buffer) {
-    for(int looked = 0; looked < 24; looked++) {
+// ---- the shrunk icons kept on the SD card ----
+
+static u8* store_read_raw(const char* slug) {
+    char path[FILE_PATH_MAX];
+    snprintf(path, sizeof(path), STORE_ICON_RAW_PATH, slug);
+    FILE* file = fopen(path, "rb");
+    if(file == NULL) {
+        return NULL;
+    }
+
+    size_t bytes = (size_t) STORE_ICON_SIDE * STORE_ICON_SIDE * 4;
+    u8* pixels = (u8*) malloc(bytes);
+    if(pixels != NULL && fread(pixels, 1, bytes, file) != bytes) {
+        free(pixels);
+        pixels = NULL;
+    }
+
+    fclose(file);
+    return pixels;
+}
+
+static void store_write_raw(const char* slug, const u8* pixels) {
+    char path[FILE_PATH_MAX];
+    snprintf(path, sizeof(path), STORE_ICON_RAW_PATH, slug);
+    FILE* file = fopen(path, "wb");
+    if(file != NULL) {
+        size_t bytes = (size_t) STORE_ICON_SIDE * STORE_ICON_SIDE * 4;
+        bool written = fwrite(pixels, 1, bytes, file) == bytes;
+        fclose(file);
+        if(!written) {
+            remove(path);
+        }
+    }
+}
+
+// The pixels of the PNG on the SD card (decoded, which is slow), keeping them shrunk for next time and dropping the PNG.
+static u8* store_make_raw_from_png(store_data* store, const char* slug) {
+    if(store->archive == 0) {
+        return NULL;
+    }
+
+    char archivePath[FILE_PATH_MAX];
+    snprintf(archivePath, sizeof(archivePath), STORE_ICON_ARCHIVE_PATH, slug);
+    u8* pixels = thumbs_decode_square(store->archive, archivePath, STORE_ICON_SIDE);
+    if(pixels != NULL) {
+        store_write_raw(slug, pixels);
+        char path[FILE_PATH_MAX];
+        snprintf(path, sizeof(path), STORE_ICON_PATH, slug);
+        remove(path);
+    }
+
+    return pixels;
+}
+
+// The names in the icons' folder, sorted: one look at the folder tells what is there, with no call per icon.
+typedef struct {
+    char (*names)[72];
+    u32 count;
+    u32 capacity;
+} store_files;
+
+static int store_compare_names(const void* a, const void* b) {
+    return strcmp((const char*) a, (const char*) b);
+}
+
+static void store_files_load(store_files* files) {
+    files->count = 0;
+    DIR* dir = opendir(STORE_ICON_DIR);
+    if(dir == NULL) {
+        return;
+    }
+
+    struct dirent* entry;
+    while((entry = readdir(dir)) != NULL) {
+        if(files->count < files->capacity && strlen(entry->d_name) < sizeof(files->names[0])) {
+            strcpy(files->names[files->count++], entry->d_name);
+        }
+    }
+
+    closedir(dir);
+    qsort(files->names, files->count, sizeof(files->names[0]), store_compare_names);
+}
+
+static bool store_files_has(const store_files* files, const char* slug, const char* ext) {
+    char name[72];
+    snprintf(name, sizeof(name), "%s.%s", slug, ext);
+    return bsearch(name, files->names, files->count, sizeof(files->names[0]), store_compare_names) != NULL;
+}
+
+// One step of the slow background work on the icons: the first one without its shrunk copy gets it, made from its PNG when
+// that is there already (quick: no network) or downloaded first. Looking is free (the listing is in memory).
+typedef enum {
+    PREFETCH_NOTHING,    // All have their copy.
+    PREFETCH_CONVERTED,  // One made from a PNG already on the SD card.
+    PREFETCH_DOWNLOADED  // One downloaded.
+} store_prefetch_result;
+
+static store_prefetch_result store_prefetch_step(store_data* store, u8* buffer, store_files* files) {
+    for(;;) {
         char slug[64];
         char* url = NULL;
         LightLock_Lock(&store->lock);
@@ -747,36 +967,60 @@ static bool store_prefetch_step(store_data* store, u8* buffer) {
         LightLock_Unlock(&store->lock);
 
         if(url == NULL) {
-            return false;
+            return PREFETCH_NOTHING;
         }
 
-        char path[FILE_PATH_MAX];
-        snprintf(path, sizeof(path), STORE_ICON_PATH, slug);
-        struct stat st;
-        if(stat(path, &st) == 0 && st.st_size > 0) {
+        if(strlen(slug) + 5 >= sizeof(files->names[0]) || store_files_has(files, slug, "t48")) {
             free(url);
             continue;
         }
 
-        u32 size = 0;
-        store_download_icon(slug, url, buffer, &size);
-        free(url);
-        return true;
-    }
+        // A row may have made it meanwhile.
+        u8* raw = store_read_raw(slug);
+        if(raw != NULL) {
+            free(raw);
+            free(url);
+            continue;
+        }
 
-    return true;
+        store_prefetch_result result = PREFETCH_CONVERTED;
+        u8* pixels = NULL;
+        if(store_files_has(files, slug, "png")) {
+            pixels = store_make_raw_from_png(store, slug);
+        } else {
+            u32 size = 0;
+            result = PREFETCH_DOWNLOADED;
+            if(store_download_icon(slug, url, buffer, &size)) {
+                pixels = store_make_raw_from_png(store, slug);
+            }
+        }
+
+        store_logf(store, "background: %s %s", slug, pixels != NULL ? (result == PREFETCH_DOWNLOADED ? "downloaded and shrunk" : "shrunk") : "FAILED");
+        free(pixels);
+        free(url);
+
+        // The listing now has it (or never will: not asked again this time).
+        if(files->count < files->capacity && strlen(slug) + 5 < sizeof(files->names[0])) {
+            snprintf(files->names[files->count++], sizeof(files->names[0]), "%s.t48", slug);
+            qsort(files->names, files->count, sizeof(files->names[0]), store_compare_names);
+        }
+
+        return result;
+    }
 }
 
+// Fetches the icons that rows are waiting for: the small copy on the SD card (a few milliseconds) or, the first time, made from
+// the PNG (downloaded if it is not there either). Nothing else runs here, so a download for later (the other thread's) never
+// holds a row up.
 static void store_icon_thread(void* arg) {
     store_data* store = (store_data*) arg;
 
     mkdir(STORE_ICON_DIR, 0777);
     u8* buffer = (u8*) malloc(STORE_ICON_MAX);
-    u64 nextPrefetch = osGetTime() + STORE_PREFETCH_PAUSE;
 
     while(!store->cancelled) {
         // The newest request first: it is what the rows show now.
-        store_icon_job job = {{0}, NULL};
+        store_icon_job job = {{0}, NULL, false, 0};
         LightLock_Lock(&store->lock);
         if(store->jobCount > 0) {
             job = store->jobs[--store->jobCount];
@@ -785,33 +1029,118 @@ static void store_icon_thread(void* arg) {
         LightLock_Unlock(&store->lock);
 
         if(job.url == NULL) {
-            // Nothing asked for: find out what is installed, a few apps at a time, and now and then fetch one of the
-            // icons not on the SD card yet.
-            store_scan_step(store);
-            if(buffer != NULL && osGetTime() >= nextPrefetch) {
-                nextPrefetch = osGetTime() + (store_prefetch_step(store, buffer) ? STORE_PREFETCH_PAUSE : 60 * 1000);
-            }
-
-            svcSleepThread(50 * 1000 * 1000LL);
+            svcSleepThread(10 * 1000 * 1000LL);
             continue;
         }
 
-        char path[FILE_PATH_MAX];
-        snprintf(path, sizeof(path), STORE_ICON_PATH, job.slug);
+        store_icon_result info;
+        memset(&info, 0, sizeof(info));
+        string_copy(info.slug, job.slug, sizeof(info.slug));
+        info.requested = job.requested;
+        u64 t = osGetTime();
+        info.waitMs = (u32) (t - job.requested);
 
-        struct stat st;
-        if(stat(path, &st) == 0 && st.st_size > 0) {
-            store_push_result(store, job.slug, ICON_READY, (u32) st.st_size);
-        } else if(buffer != NULL) {
-            u32 size = 0;
-            store_push_result(store, job.slug, store_download_icon(job.slug, job.url, buffer, &size) ? ICON_READY : ICON_FAILED, size);
-        } else {
-            store_push_result(store, job.slug, ICON_FAILED, 0);
+        // statMs: reading the small copy; decodeMs: making it from the PNG, when it was not there.
+        u8* pixels = store_read_raw(job.slug);
+        info.statMs = (u32) (osGetTime() - t);
+        info.fileSize = pixels != NULL ? STORE_ICON_SIDE * STORE_ICON_SIDE * 4 : 0;
+        if(pixels == NULL) {
+            char path[FILE_PATH_MAX];
+            snprintf(path, sizeof(path), STORE_ICON_PATH, job.slug);
+            struct stat st;
+            bool have = stat(path, &st) == 0 && st.st_size > 0;
+            if(!have && buffer != NULL) {
+                t = osGetTime();
+                u32 size = 0;
+                have = store_download_icon(job.slug, job.url, buffer, &size);
+                info.downloadMs = (u32) (osGetTime() - t);
+                info.downloaded = true;
+                info.fileSize = size;
+            }
+
+            t = osGetTime();
+            pixels = have ? store_make_raw_from_png(store, job.slug) : NULL;
+            info.decodeMs = (u32) (osGetTime() - t);
         }
 
+        store_push_pixels(store, &info, pixels);
         free(job.url);
     }
 
+    free(buffer);
+    store_release(store);
+}
+
+// What is not urgent, at the lowest priority so the screen never waits for it: which apps are on the console, a few at a
+// time, and now and then one of the icons' small copies (made from a PNG already there at a quick pace, downloaded slowly).
+static void store_background_thread(void* arg) {
+    store_data* store = (store_data*) arg;
+
+    u8* buffer = (u8*) malloc(STORE_ICON_MAX);
+    u64 nextPrefetch = osGetTime() + STORE_PREFETCH_PAUSE;
+    u64 nextFlush = osGetTime() + 500;
+    u64* installed = NULL;
+    u32 installedCount = 0;
+    u32 listGeneration = 0xFFFFFFFF;
+    u32 loggedGeneration = 0xFFFFFFFF;
+    u64 scanStart = 0;
+
+    store_files files;
+    files.capacity = 1024;
+    files.count = 0;
+    files.names = (char(*)[72]) malloc(files.capacity * sizeof(files.names[0]));
+    bool filesLoaded = false;
+
+    while(!store->cancelled) {
+        // The list of installed titles is read again for each catalogue.
+        LightLock_Lock(&store->lock);
+        u32 generation = store->generation;
+        bool scanning = store->scanNext < store->scanCount;
+        u32 scanCount = store->scanCount;
+        LightLock_Unlock(&store->lock);
+        if(scanning && listGeneration != generation) {
+            u64 t = osGetTime();
+            free(installed);
+            installed = store_load_installed(&installedCount);
+            listGeneration = generation;
+            scanStart = t;
+            store_logf(store, "installed titles: %u read in %u ms", installedCount, (u32) (osGetTime() - t));
+        }
+
+        if(scanning) {
+            store_scan_step(store, installed, installedCount);
+        } else {
+            if(listGeneration == generation && loggedGeneration != generation) {
+                loggedGeneration = generation;
+                store_logf(store, "status of %u apps found in %u ms", scanCount, (u32) (osGetTime() - scanStart));
+            }
+
+            // Not while rows are waiting for icons (or just were): their decoding gets all the time there is.
+            bool rowsBusy = store->outstanding > 0 || (u32) osGetTime() - store->lastRequestMs < 2500;
+            if(buffer != NULL && files.names != NULL && !rowsBusy && osGetTime() >= nextPrefetch) {
+                if(!filesLoaded) {
+                    u64 t = osGetTime();
+                    store_files_load(&files);
+                    filesLoaded = true;
+                    store_logf(store, "icons folder: %u files listed in %u ms", files.count, (u32) (osGetTime() - t));
+                }
+
+                store_prefetch_result result = store_prefetch_step(store, buffer, &files);
+                nextPrefetch = osGetTime() + (result == PREFETCH_DOWNLOADED ? STORE_PREFETCH_PAUSE : result == PREFETCH_CONVERTED ? 50 : 60 * 1000);
+            }
+        }
+
+        if(osGetTime() >= nextFlush) {
+            store_log_flush(store);
+            nextFlush = osGetTime() + 500;
+        }
+
+        svcSleepThread((scanning ? 5 : 50) * 1000 * 1000LL);
+    }
+
+    store_log_flush(store);
+    free(files.names);
+    free(installed);
     free(buffer);
     store_release(store);
 }
@@ -822,13 +1151,23 @@ static bool store_start_icon_thread(store_data* store) {
     }
 
     LightLock_Lock(&store->lock);
-    store->users++;
+    store->users += 2;
     LightLock_Unlock(&store->lock);
-    if(threadCreate(store_icon_thread, store, 0x10000, 0x18, 1, true) == NULL) {
+    // Core 2 on a New 3DS (full speed, as the HTTP threads use); the system core (1) only gets a fraction of the time, which
+    // made decoding several times slower. An Old 3DS has no such core: the default one.
+    bool isNew = false;
+    APT_CheckNew3DS(&isNew);
+    int core = isNew ? 2 : -2;
+    bool first = threadCreate(store_icon_thread, store, 0x10000, 0x18, core, true) != NULL;
+    // The slow one runs under the screen's own priority (a higher number is a lower priority).
+    bool second = threadCreate(store_background_thread, store, 0x10000, 0x3E, core, true) != NULL;
+    if(!first || !second) {
         LightLock_Lock(&store->lock);
-        store->users--;
+        store->users -= (first ? 0 : 1) + (second ? 0 : 1);
         LightLock_Unlock(&store->lock);
-        return false;
+        if(!first) {
+            return false;
+        }
     }
 
     store->iconThread = true;
@@ -837,6 +1176,10 @@ static bool store_start_icon_thread(store_data* store) {
 
 // The texture of an app's icon, or 0 (the generic one is drawn): asks for the icon the first time. Main thread.
 static u32 store_icon(store_data* store, store_app* app) {
+    if(app->texture != 0) {
+        return app->texture;
+    }
+
     if(app->iconUrl == NULL) {
         return 0;
     }
@@ -852,19 +1195,24 @@ static u32 store_icon(store_data* store, store_app* app) {
             store_icon_job* job = &store->jobs[store->jobCount++];
             string_copy(job->slug, app->slug, sizeof(job->slug));
             job->url = strdup(app->iconUrl);
+            job->decode = false;
+            job->requested = osGetTime();
             app->iconState = ICON_QUEUED;
+            if(store->outstanding == 0) {
+                store->batchStart = job->requested;
+                store->batchCount = 0;
+            }
+
+            store->outstanding++;
+            store->batchCount++;
+            store->lastRequestMs = (u32) job->requested;
         }
 
         LightLock_Unlock(&store->lock);
         return 0;
     }
 
-    if(app->iconState == ICON_READY) {
-        char path[FILE_PATH_MAX];
-        snprintf(path, sizeof(path), STORE_ICON_ARCHIVE_PATH, app->slug);
-        return thumbs_get(store->archive, path, app->iconFileSize, NULL);
-    }
-
+    // Asked for: its texture arrives when the thread has made it, and then stays.
     return 0;
 }
 
@@ -878,13 +1226,41 @@ static void store_apply_results(store_data* store) {
     LightLock_Unlock(&store->lock);
 
     for(u32 r = 0; r < n; r++) {
+        bool found = false;
+        u32 textureMs = 0;
         for(u32 i = 0; i < store->count; i++) {
-            if(strcmp(store->apps[i].slug, results[r].slug) == 0) {
-                store->apps[i].iconState = results[r].state;
-                store->apps[i].iconFileSize = results[r].size;
-                break;
+            if(strcmp(store->apps[i].slug, results[r].slug) != 0) {
+                continue;
             }
+
+            found = true;
+            store_app* app = &store->apps[i];
+            if(results[r].pixels != NULL) {
+                u64 t = osGetTime();
+                u32 id = screen_allocate_free_texture();
+                screen_load_texture_untiled(id, results[r].pixels, STORE_ICON_SIDE * STORE_ICON_SIDE * 4, STORE_ICON_SIDE, STORE_ICON_SIDE, GPU_RGBA8, true);
+                app->texture = id;
+                textureMs = (u32) (osGetTime() - t);
+            } else {
+                app->iconState = ICON_FAILED;
+            }
+
+            break;
         }
+
+        store_icon_result* x = &results[r];
+        if(store->outstanding > 0) {
+            store->outstanding--;
+        }
+
+        store_logf(store, "icon %s: waited %u ms, stat %u ms, %s %u ms (file %u B), decode %u ms, texture %u ms, in all %u ms%s%s",
+                   x->slug, x->waitMs, x->statMs, x->downloaded ? "download" : "on the SD card", x->downloadMs, x->fileSize, x->decodeMs, textureMs,
+                   (u32) (osGetTime() - x->requested), x->pixels == NULL ? " FAILED" : "", found ? "" : " (app gone)");
+        if(store->outstanding == 0) {
+            store_logf(store, "-- %u icons asked for in a row, all there in %u ms", store->batchCount, (u32) (osGetTime() - store->batchStart));
+        }
+
+        free(x->pixels);
     }
 }
 
@@ -1133,7 +1509,7 @@ static void store_install_finished_all(void* data) {
                 store_scan_entry entry = store->scan != NULL && i < store->scanCount ? store->scan[i] : (store_scan_entry) {{0}};
                 LightLock_Unlock(&store->lock);
 
-                u8 bits = store_compute_status(&entry);
+                u8 bits = store_compute_status(&entry, NULL, 0);
                 LightLock_Lock(&store->lock);
                 if(store->status != NULL && i < store->scanCount) {
                     store->status[i] = bits | 0x80;
@@ -1380,10 +1756,23 @@ static void store_clear_items(linked_list* items) {
     }
 }
 
+// The icons' textures go back (main thread: the textures belong to it).
+static void store_unload_textures(store_app* apps, u32 count) {
+    for(u32 i = 0; i < count; i++) {
+        if(apps[i].texture != 0) {
+            screen_unload_texture(apps[i].texture);
+            apps[i].texture = 0;
+        }
+    }
+}
+
 static void store_close(ui_view* view, store_data* store, linked_list* items) {
     ui_pop();
     store_clear_items(items);
     list_destroy(view);
+    store_unload_textures(store->apps, store->count);
+    store_logf(store, "Store closed");
+    store_log_flush(store);
 
     // The threads may still be running: each lets go of the data when it ends, and the last one frees it.
     store->cancelled = true;
@@ -1418,8 +1807,21 @@ static void store_take(store_data* store, ui_view* view, linked_list* items, lis
         string_copy(keep, store_of(selected)->title, sizeof(keep));
     }
 
-    // The rows point into the old apps: they go first.
+    // The rows point into the old apps: they go first. The icons of apps still there are handed to the new ones.
     store_clear_items(items);
+    for(u32 j = 0; j < store->pendingCount; j++) {
+        for(u32 i = 0; i < store->count; i++) {
+            if(strcmp(store->apps[i].slug, store->pending[j].slug) == 0) {
+                store->pending[j].texture = store->apps[i].texture;
+                store->pending[j].iconState = store->apps[i].iconState;
+                store->pending[j].iconFileSize = store->apps[i].iconFileSize;
+                store->apps[i].texture = 0;
+                break;
+            }
+        }
+    }
+
+    store_unload_textures(store->apps, store->count);
     store_free_apps(store->apps, store->count);
     store->apps = store->pending;
     store->count = store->pendingCount;
@@ -1488,8 +1890,10 @@ static void store_take(store_data* store, ui_view* view, linked_list* items, lis
     LightLock_Unlock(&store->lock);
     store_start_icon_thread(store);
 
+    u64 fillStart = osGetTime();
     store_fill(store, view, items, keep);
     store->resort = true;
+    store_logf(store, "catalogue of %u apps taken by the screen (list filled in %u ms)", store->count, (u32) (osGetTime() - fillStart));
 }
 
 static void store_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
@@ -1503,6 +1907,11 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
         // The first version kept the catalogue in another file.
         remove(STORE_OLD_CACHE_PATH);
         store_records_load(store);
+        if(NSA_DEBUG) {
+            remove(STORE_LOG_PATH);
+        }
+
+        store_logf(store, "Store opened");
 
         if(R_FAILED(fs_open_archive(&store->archive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
             store->archive = 0;
@@ -1583,6 +1992,7 @@ void store_open() {
 
     LightLock_Init(&store->lock);
     store->users = 2;   // The screen and the loading thread.
+    store->opened = osGetTime();
 
     store->kinds = settings_get()->store.kinds;
     store->categories = settings_get()->store.categories;

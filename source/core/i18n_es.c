@@ -849,6 +849,22 @@ const i18n_entry i18n_es[] = {
         {"Failed to commit the changes.", "No se pudieron confirmar los cambios."},
         {"Failed to list the files.", "No se pudieron listar los archivos."},
         {"Failed to start the copy.", "No se pudo iniciar la copia."},
+        // Store
+        {" get    search    back", " obtener    buscar    volver"},
+        {"Store", "Tienda"},
+        {"Homebrew from Universal-DB: browse the catalogue and install or download apps.", "Homebrew de Universal-DB: explora el catálogo e instala o descarga aplicaciones."},
+        {"Downloading the catalogue...", "Descargando el catálogo..."},
+        {"Nothing to show.", "No hay nada que mostrar."},
+        {"Download and install %s?", "¿Descargar e instalar %s?"},
+        {"Download %s into /3ds/?", "¿Descargar %s en /3ds/?"},
+        {"Install the CIA", "Instalar el CIA"},
+        {"Installs it as a title on the console.", "Lo instala como título en la consola."},
+        {"Download the 3DSX", "Descargar el 3DSX"},
+        {"Saves it in /3ds/ to run from the Homebrew Launcher.", "Lo guarda en /3ds/ para ejecutarlo desde el Homebrew Launcher."},
+        {"Search the Store", "Buscar en la tienda"},
+        {"Failed to open the Store.", "No se pudo abrir la tienda."},
+        {"Failed to download the Store's catalogue.", "No se pudo descargar el catálogo de la tienda."},
+        {"No connection: this is the catalogue saved from last time.", "Sin conexión: es el catálogo guardado la última vez."},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

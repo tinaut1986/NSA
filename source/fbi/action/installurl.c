@@ -605,7 +605,8 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
         if(current) {
             icon = ICON_DOWNLOAD;
             iconColor = t->accent;
-            snprintf(status, sizeof(status), "%d %%", info->currTotal != 0 ? (int) (info->currProcessed * 100 / info->currTotal) : 0);
+            u32 hundredths = info->currTotal != 0 ? (u32) ((u64) info->currProcessed * 10000 / info->currTotal) : 0;
+            snprintf(status, sizeof(status), "%lu.%02lu %%", hundredths / 100, hundredths % 100);
         } else if(installData->states[i] == URL_INSTALLED || installData->states[i] == URL_SAVED) {
             icon = ICON_CHECK;
             iconColor = t->palette->success;

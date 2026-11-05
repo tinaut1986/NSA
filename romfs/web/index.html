@@ -257,7 +257,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .tile:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 22px rgba(0,0,0,.08)}
 .tile .ib{width:46px;height:46px;border-radius:var(--rs);background:var(--soft);color:var(--accent);display:grid;place-items:center;transition:background-color var(--fast),color var(--fast)}
 .tile:hover .ib{background:var(--accent);color:var(--onaccent)}
-.tile b{font-size:16px}.tile span{color:var(--muted);font-size:13px}
+.tile b{font-size:16px}.tile>span{color:var(--muted);font-size:13px}
 pre.log{max-height:60vh;overflow:auto;background:var(--bg);border-radius:var(--rs);padding:10px;font-size:12px;white-space:pre-wrap;word-break:break-all;margin:0}
 .hist{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:var(--bw) solid var(--line)}
 .hist:first-child{border-top:0}
@@ -568,9 +568,11 @@ let pin = '';
 class ApiError extends Error {}
 // What the console is transferring (info.transfer, or a 503's "busy"), in words: one transfer at a time.
 const XFER_KINDS = {'FTP':'k_ftp', 'web page':'k_web', 'download':'k_download', 'another 3DS':'k_console'};
+// A fraction as a percentage with two decimals, rounded down (never 100.00 before it is done).
+const pct2 = f => (Math.floor(Math.max(0,Math.min(1,f))*10000)/100).toFixed(2);
 function busyText(b, key){
   const name = (b.name||'').replace(/\/+$/, '').split('/').pop() || b.name || '';
-  return tr(key, {k:T[XFER_KINDS[b.kind]] || b.kind, n:name, p:b.total ? ' ('+Math.floor(100*b.done/b.total)+' %)' : ''});
+  return tr(key, {k:T[XFER_KINDS[b.kind]] || b.kind, n:name, p:b.total ? ' ('+pct2(b.done/b.total)+' %)' : ''});
 }
 async function api(method, path, params, body){
   let r;
@@ -751,12 +753,12 @@ let xferToast = null;
 function drawTransfer(x){
   if(!x){ if(xferToast){ const t = xferToast; xferToast = null; t.classList.add('out'); setTimeout(() => t.remove(), 260); } return; }
   const name = (x.name||'').split('/').pop() || x.name || '';
-  const pct = x.total ? Math.floor(100*x.done/x.total) : -1;
+  const pct = x.total ? Math.floor(10000*Math.min(1,x.done/x.total))/100 : -1;
   if(!xferToast){
     xferToast = h('div', {class:'toast xfer'}, ic('download', 16), h('span', {class:'xt'}), h('span', {class:'xbar'}, h('i')));
     $('toasts').prepend(xferToast);
   }
-  xferToast.querySelector('.xt').textContent = (T[XFER_KINDS[x.kind]] || x.kind)+': '+name+(pct>=0 ? ' · '+pct+' %' : '')+(x.kbs ? ' · '+x.kbs+' KB/s' : '');
+  xferToast.querySelector('.xt').textContent = (T[XFER_KINDS[x.kind]] || x.kind)+': '+name+(pct>=0 ? ' · '+pct.toFixed(2)+' %' : '')+(x.kbs ? ' · '+x.kbs+' KB/s' : '');
   xferToast.querySelector('.xbar i').style.width = Math.max(0, pct)+'%';
   xferToast.classList.toggle('indef', pct<0);
 }
@@ -1326,7 +1328,7 @@ async function uploadOne(file, path, el){
   el = el || upItem(file.name, fmtSize(file.size)); const t0 = performance.now();
   try { info = await api('GET', 'info'); drawStatus(); } catch(e){}
   if(info.transfer){ toast(busyText(info.transfer, 'busy'), 'err'); el._st.textContent = '✕'; el._fill.style.width = '100%'; el._fill.style.background = 'var(--danger)'; return false; }
-  const ok = await put(path, file, (f, n) => { el._fill.style.width = (100*f)+'%'; const s = n/Math.max(.001,(performance.now()-t0)/1000); el._st.textContent = Math.round(100*f)+'% · '+fmtSize(s)+'/s'; });
+  const ok = await put(path, file, (f, n) => { el._fill.style.width = (100*f)+'%'; const s = n/Math.max(.001,(performance.now()-t0)/1000); el._st.textContent = pct2(f)+'% · '+fmtSize(s)+'/s'; });
   el._st.textContent = ok ? el._size : '✕'; el._fill.style.width = '100%'; if(!ok) el._fill.style.background = 'var(--danger)';
   setTimeout(() => { el.style.transition = 'opacity .4s'; el.style.opacity = 0; setTimeout(() => { el.remove(); if(upPanel && !upPanel.lastChild.children.length){ upPanel.remove(); upPanel = null; } }, 400); }, ok ? 2500 : 8000);
   return ok;

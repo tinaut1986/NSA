@@ -112,8 +112,11 @@ static void info_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
     float cy = y + 14;
     if(infoData->bar) {
         // The bar with its percentage on the right.
-        char percent[8];
-        snprintf(percent, sizeof(percent), "%d %%", (int) (infoData->progress * 100 + 0.5f));
+        // Two decimals, rounded down so it never shows 100.00 before the work is done.
+        char percent[16];
+        float shown = infoData->progress < 0 ? 0 : infoData->progress > 1 ? 1 : infoData->progress;
+        u32 hundredths = (u32) (shown * 10000.0f);
+        snprintf(percent, sizeof(percent), "%lu.%02lu %%", hundredths / 100, hundredths % 100);
         float percentW = widget_text_width(percent, WIDGET_SMALL_SCALE);
         widget_progress(x + 12, cy, width - 24 - percentW - 8, 10, infoData->progress);
         screen_draw_text(percent, x + width - 12 - percentW, cy + 5 - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->palette->textMuted);

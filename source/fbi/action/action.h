@@ -82,12 +82,13 @@ void action_send_save_backup(title_info* title, const char* name, save_kind kind
 bool action_find_ext_data(title_info* info, u32* extId);
 typedef struct {
     char path[512];      // The backup's folder, with the trailing slash.
-    char label[96];      // "[NSA] 2026-10-31 14:25:30", "[Checkpoint] name", "[JKSM] name".
+    char label[96];      // "[NSA] 2026-10-31 14:25:30", "[Checkpoint] name", "[JKSM] name", "[PKSM] date".
     bool checkpoint;     // The tree right in the folder, no manifest (Checkpoint's layout, and JKSM's: both set for JKSM's).
+    bool pksm;           // PKSM's: <sd>/3ds/PKSM/backups/0x<unique ID>/<date>/main (a single file; checkpoint is set too).
     bool jksm;           // JKSM's: <sd>/JKSM/<kind>/<game>/<backup>/.
-    u8 nameAt;           // Where the name starts in label: after "[NSA] ", "[Checkpoint] " or "[JKSM] " (lists show a badge instead).
+    u8 nameAt;           // Where the name starts in label: after "[NSA] ", "[Checkpoint] ", "[JKSM] " or "[PKSM] " (lists show a badge instead).
 } save_backup;
-// The backups of a title's data, NSA's, Checkpoint's then JKSM's (free the array); the count is the return value.
+// The backups of a title's data, NSA's, Checkpoint's, JKSM's then PKSM's (free the array); the count is the return value.
 u32 action_save_backups(title_info* title, save_kind kind, save_backup** out);
 // Asks on the console (red) whether to replace the data with the backup in `path`; false when it is not one of those listed.
 bool action_save_import_backup(title_info* title, const char* name, save_kind kind, u32 extId, const char* path);

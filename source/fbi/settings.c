@@ -27,7 +27,8 @@ static settings_data settings = {
         .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false},
         .files = {.directories = true, .files = true, .cias = true, .tickets = true, .hidden = false, .sort = 0},
         .extsave = {.sd = true, .nand = true, .byId = false, .grid = false},
-        .pending = {.sd = true, .nand = true}
+        .pending = {.sd = true, .nand = true},
+        .store = {.kinds = 3, .categories = 0xFF, .sort = 0, .grid = false}
 };
 
 static const char* night_ids[] = {"off", "on", "auto"};
@@ -168,6 +169,14 @@ void settings_load() {
         settings.extsave.grid = settings_get_bool(extsave, "grid", settings.extsave.grid);
     }
 
+    json_t* store = json_object_get(json, "store");
+    if(json_is_object(store)) {
+        settings.store.kinds = settings_get_uint(store, "kinds", settings.store.kinds, 3);
+        settings.store.categories = settings_get_uint(store, "categories", settings.store.categories, 0xFF);
+        settings.store.sort = settings_get_uint(store, "sort", settings.store.sort, 3);
+        settings.store.grid = settings_get_bool(store, "grid", settings.store.grid);
+    }
+
     json_t* pending = json_object_get(json, "pending");
     if(json_is_object(pending)) {
         settings.pending.sd = settings_get_bool(pending, "sd", settings.pending.sd);
@@ -245,6 +254,8 @@ Result settings_save() {
         return R_APP_OUT_OF_MEMORY;
     }
 
+    json_object_set_new(json, "store", json_pack("{s:i,s:i,s:i,s:b}", "kinds", (int) settings.store.kinds, "categories", (int) settings.store.categories,
+                                                  "sort", (int) settings.store.sort, "grid", settings.store.grid));
     json_object_set_new(json, "menu", json_string(settings.menu));
     json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));
 

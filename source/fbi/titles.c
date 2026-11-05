@@ -872,7 +872,7 @@ static void titles_filter_open(ui_view* view, void* data) {
                     {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {-1, -1, -1, -1, -1, -1}},
                     {_("Region"), true, 5, {_("Region free"), _("Europe"), _("America"), _("Japan"), _("Other")}, {-1, -1, -1, -1, -1}},
                     {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {-1, -1}},
-                    {_("Sort by"), false, 3, {_("Name"), "ID", _("Size")}, {-1, -1, -1}}
+                    {_("Sort by"), false, 3, {_("Name"), "ID", _("Size")}, {ICON_ABC, ICON_KEY, ICON_DATABASE}, true}
             },
             .isOn = titles_popover_is_on,
             .select = titles_popover_select

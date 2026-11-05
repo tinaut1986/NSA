@@ -52,6 +52,13 @@ typedef struct {
 } pending_settings;
 
 typedef struct {
+    u32 kinds;        // Bits: 1 CIA, 2 3DSX.
+    u32 categories;   // One bit per category the Store knows (the last one is "other").
+    u32 sort;
+    bool grid;
+} store_settings;
+
+typedef struct {
     update_channel channel;
     bool autoUpdate;
     bool ftpServer;
@@ -85,6 +92,7 @@ typedef struct {
     files_settings files;
     extsave_settings extsave;
     pending_settings pending;
+    store_settings store;
 } settings_data;
 
 // Pushes the appearance settings to the theme and the translation layer.

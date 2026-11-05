@@ -922,7 +922,7 @@ static void files_filter_open(ui_view* view, void* data) {
             .groupCount = 2,
             .groups = {
                     {_("Show"), true, 5, {_("Folders"), _("Files"), "CIA", _("Tickets"), _("Hidden")}, {ICON_FOLDER, ICON_FILE, ICON_PACKAGE, ICON_TICKET, -1}},
-                    {_("Sort by"), false, 3, {_("Name"), _("Size"), _("Type")}, {-1, -1, -1}}
+                    {_("Sort by"), false, 3, {_("Name"), _("Size"), _("Type")}, {ICON_ABC, ICON_DATABASE, ICON_APPS}, true}
             },
             .isOn = files_popover_is_on,
             .select = files_popover_select

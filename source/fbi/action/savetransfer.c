@@ -914,19 +914,31 @@ static u32 jksm_game_names(title_info* title, char (*out)[FILE_NAME_MAX], u32 ma
                 u32 bytesRead = 0;
                 if(R_SUCCEEDED(FSFILE_Read(fileHandle, &bytesRead, 0, smdh, sizeof(SMDH))) && bytesRead == sizeof(SMDH)
                    && smdh->magic[0] == 'S' && smdh->magic[1] == 'M' && smdh->magic[2] == 'D' && smdh->magic[3] == 'H') {
-                    for(u32 lang = 0; lang < 0x10 && count + 1 < max; lang++) {
-                        char raw[0x100] = {'\0'};
-                        utf16_to_utf8((uint8_t*) raw, smdh->titles[lang].shortDescription, sizeof(raw) - 1);
+                    // Many games have a two line description ("The Legend of Zelda\nOcarina of Time 3D"): the name as
+                    // a whole, and the first line alone (what older versions made the folder from).
+                    for(u32 lang = 0; lang < 0x10; lang++) {
+                        for(u32 variant = 0; variant < 2 && count + 1 < max; variant++) {
+                            char raw[0x100] = {'\0'};
+                            utf16_to_utf8((uint8_t*) raw, smdh->titles[lang].shortDescription, sizeof(raw) - 1);
+                            if(variant == 1) {
+                                char* eol = strchr(raw, '\n');
+                                if(eol == NULL) {
+                                    continue;
+                                }
 
-                        char name[FILE_NAME_MAX];
-                        jksm_sanitize(raw, name, sizeof(name));
-                        bool known = name[0] == '\0';
-                        for(u32 i = 0; i < count && !known; i++) {
-                            known = strcmp(out[i], name) == 0;
-                        }
+                                *eol = '\0';
+                            }
 
-                        if(!known) {
-                            string_copy(out[count++], name, FILE_NAME_MAX);
+                            char name[FILE_NAME_MAX];
+                            jksm_sanitize(raw, name, sizeof(name));
+                            bool known = name[0] == '\0';
+                            for(u32 i = 0; i < count && !known; i++) {
+                                known = strcmp(out[i], name) == 0;
+                            }
+
+                            if(!known) {
+                                string_copy(out[count++], name, FILE_NAME_MAX);
+                            }
                         }
                     }
                 }
@@ -946,18 +958,22 @@ static u32 jksm_game_names(title_info* title, char (*out)[FILE_NAME_MAX], u32 ma
 }
 
 static void jksm_collect(import_list* list, FS_Archive sd, title_info* title, save_kind kind) {
-    // The folder of the data's kind: the current name, then the one older JKSM versions used.
-    static const char* const roots[3][2] = {{"User Saves", "Saves"}, {"Extra Data", "ExtData"}, {"BOSS Extra Data", "Boss"}};
-    char (*names)[FILE_NAME_MAX] = (char (*)[FILE_NAME_MAX]) calloc(0x11, FILE_NAME_MAX);
+    // The folder of the data's kind: the current name, then the ones older versions used (the oldest, JKSV's, sits
+    // at the root of the SD as /JKSV/Saves|ExtData|Boss).
+    static const char* const roots[3][3] = {
+            {"/JKSM/User Saves", "/JKSM/Saves", "/JKSV/Saves"},
+            {"/JKSM/Extra Data", "/JKSM/ExtData", "/JKSV/ExtData"},
+            {"/JKSM/BOSS Extra Data", "/JKSM/Boss", "/JKSV/Boss"}};
+    char (*names)[FILE_NAME_MAX] = (char (*)[FILE_NAME_MAX]) calloc(0x21, FILE_NAME_MAX);
     if(names == NULL) {
         return;
     }
 
-    u32 games = jksm_game_names(title, names, 0x11);
-    for(u32 r = 0; r < 2; r++) {
+    u32 games = jksm_game_names(title, names, 0x21);
+    for(u32 r = 0; r < 3; r++) {
         for(u32 g = 0; g < games; g++) {
             char gameDir[FILE_PATH_MAX];
-            snprintf(gameDir, sizeof(gameDir), "/JKSM/%s/%s", roots[kind][r], names[g]);
+            snprintf(gameDir, sizeof(gameDir), "%s/%s", roots[kind][r], names[g]);
             if(!fs_is_dir(sd, gameDir)) {
                 continue;
             }

@@ -168,20 +168,46 @@ static void widget_row_draw(float x, float y, float width, float frameHeight, fl
         screen_draw_icon((u32) icon, tx, iy, size, THEME_RGB(0xA8E2F0));
         tx += size + 8;
     } else if(icon == WIDGET_ICON_JKSM) {
-        // JKSM's badge (our own drawing, not its artwork): a violet tile with a white J, pixel by pixel.
-        static const char* j[] = {"....##", "....##", "....##", "....##", "##..##", "##..##", ".####."};
+        // JKSM's own icon (its SMDH, 48x48) shrunk to 20x20 and reduced to a few colours: the console's screen with an
+        // SD card. Drawn in runs of one colour, row by row.
+        static const u32 palette[] = {THEME_RGB(0xFFFFFF), THEME_RGB(0xFFFDFF), THEME_RGB(0xEBE9EB), THEME_RGB(0xE4E4E4), THEME_RGB(0xE2E0E2), THEME_RGB(0xDEDEDE), THEME_RGB(0xD7D5D7), THEME_RGB(0xA7A399), THEME_RGB(0x746942), THEME_RGB(0x5A595A), THEME_RGB(0x3A382D), THEME_RGB(0x181818)};
+        static const char* const art[20] = {
+            "65555555555555555556",
+            "52111111111111111335",
+            "52000000000000001235",
+            "53333333333333333335",
+            "57999999999999999567",
+            "57999999999999999569",
+            "57999999999999999569",
+            "57999999999999999569",
+            "57999999999999999569",
+            "57999999999999999569",
+            "5799999999999A88888A",
+            "5799999999999888888A",
+            "5799999999999A88888A",
+            "5799999999999BBBBBBA",
+            "579999999999ABBBBBBA",
+            "5799999999999BBBBBBA",
+            "5433333333337BBBBBBA",
+            "5321000000007BBBBBBA",
+            "5332222222227BBBBBBA",
+            "7555555555557BBBBBBA"};
         float bx = tx - 2;
         float by = (float) (int) (y + (height - 16) / 2) - 2;
-        screen_fill_round_rect(bx, by, 20, 20, 4, THEME_RGB(0x5B2D9E));
-        for(int row = 0; row < 7; row++) {
-            for(int col = 0; col < 6; col++) {
-                if(j[row][col] == '#') {
-                    screen_fill_rect(bx + 7 + col, by + 5 + row, 1, 1, THEME_RGB(0xFFFFFF));
+        for(int row = 0; row < 20; row++) {
+            int col = 0;
+            while(col < 20) {
+                int end = col;
+                while(end < 20 && art[row][end] == art[row][col]) {
+                    end++;
                 }
+
+                char c = art[row][col];
+                screen_fill_rect(bx + col, by + row, (float) (end - col), 1, palette[c <= '9' ? c - '0' : c - 'A' + 10]);
+                col = end;
             }
         }
 
-        screen_fill_rect(bx + 4, by + 15, 12, 1, THEME_RGB(0x9B7BD6));
         tx += 16 + 8;
     } else if(icon == WIDGET_ICON_NSA) {
         // NSA's icon made small: the blue window with its title bar, and the N of its "NSA", pixel by pixel.

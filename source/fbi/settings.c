@@ -115,6 +115,16 @@ void settings_load() {
         settings.night = (theme_night_mode) settings_find(night_ids, 3, json_string_value(night));
     }
 
+    json_t* menu = json_object_get(json, "menu");
+    if(json_is_string(menu)) {
+        string_copy(settings.menu, json_string_value(menu), sizeof(settings.menu));
+    }
+
+    json_t* remoteMenu = json_object_get(json, "remote_menu");
+    if(json_is_string(remoteMenu)) {
+        string_copy(settings.remoteMenu, json_string_value(remoteMenu), sizeof(settings.remoteMenu));
+    }
+
     json_t* language = json_object_get(json, "language");
     if(json_is_string(language)) {
         settings.language = i18n_language_from_code(json_string_value(language));
@@ -234,6 +244,9 @@ Result settings_save() {
     if(json == NULL) {
         return R_APP_OUT_OF_MEMORY;
     }
+
+    json_object_set_new(json, "menu", json_string(settings.menu));
+    json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));
 
     if(json_dump_file(json, SETTINGS_PATH, JSON_INDENT(2)) != 0) {
         res = R_APP_IO_ERROR;

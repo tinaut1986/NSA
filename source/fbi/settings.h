@@ -75,6 +75,11 @@ typedef struct {
     u32 music;
     u32 musicVolume;
 
+    // The main menu's layout: the ids of the entries shown in order, then "|" and the hidden ones; "" for the default.
+    char menu[128];
+    // Remote install's four tiles in order, by id ("3ds,pc,qr,url"); "" for the default.
+    char remoteMenu[32];
+
     titles_settings titles;
     tickets_settings tickets;
     files_settings files;

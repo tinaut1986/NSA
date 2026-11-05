@@ -399,6 +399,7 @@ typedef struct {
     widget_press press;   // Touched action, run on release over it.
     bool dragged;         // The touch turned into a scroll (list).
     bool barDrag;         // A finger holds the scrollbar (list).
+    u16 touchStartX;
     u16 touchStartY;
     u16 lastTouchY;
     u64 opened;           // For the slide up.
@@ -620,6 +621,7 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
             }
         }
 
+        s->touchStartX = pos.px;
         s->touchStartY = pos.py;
         if(s->barDrag) {
             s->scroll = widget_scrollbar_offset(listTop, sheet_visible_height(s), sheet_visible_height(s), sheet_content_height(s), pos.py);
@@ -636,6 +638,24 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
             float max = sheet_content_height(s) - sheet_visible_height(s);
             if(s->scroll > max) s->scroll = max;
             if(s->scroll < 0) s->scroll = 0;
+        }
+
+        // Nothing to scroll: a finger sliding over the actions moves the focus to the one under it, and letting go there
+        // runs nothing.
+        int moved = abs((int) pos.px - (int) s->touchStartX) + abs((int) pos.py - (int) s->touchStartY);
+        if(!(s->list && sheet_content_height(s) > sheet_room(s)) && moved > 8 && pos.py >= listTop) {
+            for(u32 i = 0; i < s->count; i++) {
+                float x, y, w;
+                sheet_button_rect(s, i, bx1, bx2, top, &x, &y, &w);
+                if(widget_touched(&pos, x, y, w, sheet_button_height(s))) {
+                    if(i != s->selected) {
+                        s->selected = i;
+                        s->press.cancelled = true;
+                    }
+
+                    break;
+                }
+            }
         }
 
         if(s->press.index >= 0) {

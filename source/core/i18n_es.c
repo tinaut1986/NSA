@@ -849,6 +849,13 @@ const i18n_entry i18n_es[] = {
         {"Failed to commit the changes.", "No se pudieron confirmar los cambios."},
         {"Failed to list the files.", "No se pudieron listar los archivos."},
         {"Failed to start the copy.", "No se pudo iniciar la copia."},
+        // Main menu editing
+        {" move    hide    reset   SELECT done", " mover    ocultar    restaurar   SELECT listo"},
+        {"Edit the menu", "Editar el menú"},
+        {"Put the menu back as it came?", "¿Dejar el menú como venía?"},
+        {"Drag an entry to move it, or pick it up with A and use the D-Pad. Drop it on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back. The first three are big tiles, the rest icons. System and Settings always stay.", "Arrastra una entrada para moverla, o cógela con A y usa la cruceta. Suéltala en la fila de abajo, o pulsa X, para ocultarla; toca una oculta para recuperarla. Las tres primeras son tiles grandes y el resto iconos. Sistema y Ajustes siempre se quedan."},
+        {" move    reset   SELECT done", " mover    restaurar   SELECT listo"},
+        {"Drag a tile, or pick it up with A and use the D-Pad, to put it where you want. The history row stays at the bottom.", "Arrastra un botón, o cógelo con A y usa la cruceta, para ponerlo donde quieras. La fila del historial se queda abajo."},
         // Store
         {" get    search    back", " obtener    buscar    volver"},
         {"Store", "Tienda"},

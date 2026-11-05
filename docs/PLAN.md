@@ -125,6 +125,13 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Editable menus and sliding focus** (2026-11-05, `feat/store`; tried on the New 3DS XL by the owner)
+- [x] Main menu: three big tiles, the rest as one row of icons; the focused icon shows its name in a tooltip that slides in. Advanced is red as an icon and as a tile.
+- [x] SELECT or a long press edits the menu: entries jiggle; A picks one up and the D-Pad moves it; X hides, Y puts it back as it came; hidden ones wait in a tray at the bottom (tap one to bring it back). By touch an entry is dragged and the layout follows the finger live: the others make way, and it is a tile over the tiles and an icon over the icons. System and Settings can not be hidden. Kept in `settings.json` (`menu`: ids shown, `|`, ids hidden).
+- [x] Remote install: the four tiles can be reordered the same way (the history row stays below); `remote_menu` in `settings.json`.
+- [x] A finger sliding over the buttons of the main menu, Remote install, a list with nothing to scroll or an action sheet moves the focus to what is under it; letting go there opens nothing.
+- Only Spanish has the new strings.
+
 **Store** (2026-11-05, branch `feat/store`, `source/fbi/store.c`; builds, not run in Azahar or on a console)
 - [ ] Main menu -> Store downloads Universal-DB's UniStore (`https://db.universal-team.net/unistore/universal-db.unistore`, ~0.9 MB, kept as `sdmc:/nsa/store.unistore` and used when there is no connection) and lists the 3DS apps that publish a CIA or a .3dsx with a plain "downloadFile" first step (about 320 of 447 on 2026-11-05: 260 CIA, 280 .3dsx). Zips and multi-step scripts are left out. The top screen shows the selected app (author, version, description, sizes, category); R or the tool searches.
 - [ ] A opens it: a CIA only -> asks and installs through the Remote install screens (`action_install_url`); a .3dsx only -> downloads to `/3ds/<name>/<name>.3dsx`; both -> a sheet to choose.

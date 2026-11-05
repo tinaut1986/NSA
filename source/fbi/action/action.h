@@ -131,3 +131,11 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
                         void (*finishedURL)(void* data, u32 index),
                         void (*finishedAll)(void* data),
                         void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index));
+// The same with the choice made for the user (>= 0, one of installurl.c's INSTALL_URL_CHOICE_*), or -1 to ask.
+void action_install_url_choice(const char* confirmMessage, const char* urls, const char* paths, void* userData,
+                               void (*finishedURL)(void* data, u32 index),
+                               void (*finishedAll)(void* data),
+                               void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index),
+                               int choice);
+// Only downloads the file(s) to /nsa/received/, to install later from Files.
+void action_save_url(const char* urls, void* userData, void (*finishedURL)(void* data, u32 index), void (*finishedAll)(void* data));

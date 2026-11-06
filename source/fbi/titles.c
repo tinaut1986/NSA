@@ -937,6 +937,7 @@ static void titles_chain_draw_row(void* data, list_item* item, float x, float y,
 
 static void titles_chain_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     titles_chain_data* chain = (titles_chain_data*) data;
+    coach_anchor("titles.chain", x1, y1, x2 - x1, y2 - y1, false);   // A game's updates and DLC are open (guide.c).
     titles_draw_details(chain->parentItems, selected != NULL ? titles_chain_target(selected) : NULL, x1, y1, x2, y2);
 }
 

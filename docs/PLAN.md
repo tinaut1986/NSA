@@ -138,10 +138,13 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
   Remote install).
 - [ ] The tours: each chapter first goes back to the main menu by itself (B until only it is open); the rest of the screen is dimmed
   and only what the bubble asks for gets through (the button, a tap on what is framed, the D-Pad to bring the focus there); an
-  explanation goes on with A or a tap. A bubble goes next to what it points at, or on the other screen when that fills its own
+  explanation goes on with A or a tap on the bubble (a tap elsewhere does nothing). A bubble goes next to what it points at, or on the other screen when that fills its own
   (the actions sheet, a list, the top screen). START leaves at any time without reaching the screen (it would exit NSA on the main
   menu). Something not on the screen (an entry hidden from the menu, a title with no save) says so after a moment and A goes on.
   A chapter counts as seen when its last step is done; the update check runs after the guide.
+- [ ] Opening the actions of a game that has updates or DLC (2026-11-06, the owner hit it: the list of updates opened and the
+  tour waited for the actions): the bubble now asks to open the game itself, and to go back from that list after the actions.
+  Not tried: Azahar has no such game (there the extra steps are skipped, which works).
 - [ ] Every chapter on the console, in both themes with a different menu order (the anchors follow the layout) and with the HOME theme
   (tiles drawn differently): Titles (L popover, Y view), Remote install, Saves (a game with a save), Console to console, Look and sound,
   Cleanup and System, Updates.
@@ -944,6 +947,9 @@ current, this list is the summary. What only the owner can test (local wireless)
   goes through `coach_filter` (in `input_scan`): only the step's keys (A only while the anchor has the focus), keys pressed after
   the step began, and a touch that went down on the anchor; START ends the tour and is kept from the views until let go. Steps
   should never reach anything that changes data: point at it with `INFO` instead.
+  A step with `only` runs just when that anchor is on the screen, for a branch the last one may have taken (`until` takes
+  alternatives with `|`): a game with updates or DLC opens their list (`titles.chain`) instead of its actions, so "Getting around"
+  and "Saves" then ask to open the game itself and, after the actions, to go back from that list.
 - **Dialogs scroll** (`prompt.c`): a message taller than the card scrolls between the header and the buttons, so a long question
   never hides behind them; no dialog needs its text cut for that any more.
 - **Sleep and HOME** (`net_sleep_hook` in `main.c`): the app's `ac` session does not survive the console's sleep

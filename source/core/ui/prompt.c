@@ -34,6 +34,13 @@ typedef struct {
     u64 opened;           // For the card's entrance.
     float width;          // Set by the layout: the card, or the whole screen for a sheet.
     bool danger;          // A warning: the card, icon and first button in a soft red.
+
+    // A message taller than the room above the buttons scrolls: D-Pad / Circle Pad up and down, a finger dragging
+    // it, or its scrollbar.
+    float scroll;
+    bool textDrag;        // A finger moves the text.
+    bool barDrag;         // A finger holds the scrollbar.
+    float lastTouchY;
 } prompt_data;
 
 // What the web page sees of the prompt on top: copied while it is updated, so it is gone a moment after the prompt is.
@@ -135,6 +142,8 @@ static void prompt_layout(prompt_data* promptData, float bx1, float by1, float b
     float maxH = by2 - by1 - 8;
     if(*cardH > maxH) {
         *cardH = maxH;
+        // It scrolls: the text wraps narrower, leaving room for the scrollbar (prompt_draw_bottom).
+        screen_get_string_size_wrap(&textWidth, textH, promptData->text, PROMPT_TEXT_SCALE, PROMPT_TEXT_SCALE, promptData->width - 2 * PROMPT_PAD - WIDGET_SCROLLBAR_WIDTH - 6);
     }
 
     *cardX = bx1 + (bx2 - bx1 - promptData->width) / 2;
@@ -147,6 +156,36 @@ static void prompt_button_rect(prompt_data* promptData, u32 i, float cardX, floa
     *x = cardX + PROMPT_PAD + (*w + gap) * i;
     *y = cardY + cardH - PROMPT_PAD - PROMPT_BUTTON_HEIGHT;
 }
+
+// The room the message has, between the header and the buttons (a sheet keeps 8 px under its buttons).
+static void prompt_text_rect(prompt_data* promptData, float cardX, float cardY, float cardH, float* x, float* y, float* w, float* h) {
+    float buttonX, buttonY, buttonW;
+    prompt_button_rect(promptData, 0, cardX, cardY, cardH, &buttonX, &buttonY, &buttonW);
+    *x = cardX + PROMPT_PAD;
+    *y = cardY + PROMPT_PAD + PROMPT_HEADER;
+    *w = promptData->width - 2 * PROMPT_PAD;
+    *h = buttonY - PROMPT_PAD - *y;
+    if(*h < 0) {
+        *h = 0;
+    }
+}
+
+static float prompt_max_scroll(float textH, float visibleH) {
+    return textH > visibleH ? textH - visibleH : 0;
+}
+
+static void prompt_clamp_scroll(prompt_data* promptData, float textH, float visibleH) {
+    float max = prompt_max_scroll(textH, visibleH);
+    if(promptData->scroll > max) {
+        promptData->scroll = max;
+    }
+
+    if(promptData->scroll < 0) {
+        promptData->scroll = 0;
+    }
+}
+
+#define PROMPT_SCROLL_STEP 3
 
 static void prompt_notify_response(ui_view* view, prompt_data* promptData, u32 response) {
     prompt_web_forget(promptData);
@@ -194,7 +233,44 @@ static void prompt_update(ui_view* view, void* data, float bx1, float by1, float
     float cardX, cardY, cardH, textH;
     prompt_layout(promptData, bx1, by1, bx2, by2, &cardX, &cardY, &cardH, &textH);
 
-    if(hidKeysDown() & KEY_TOUCH) {
+    // A message that does not fit scrolls.
+    float textX, textY, textW, visibleH;
+    prompt_text_rect(promptData, cardX, cardY, cardH, &textX, &textY, &textW, &visibleH);
+    bool scrolls = prompt_max_scroll(textH, visibleH) > 0;
+    float barX = textX + textW - WIDGET_SCROLLBAR_WIDTH;
+    if(scrolls) {
+        u32 held = hidKeysHeld();
+        if(held & KEY_UP) {
+            promptData->scroll -= PROMPT_SCROLL_STEP;
+        } else if(held & KEY_DOWN) {
+            promptData->scroll += PROMPT_SCROLL_STEP;
+        }
+
+        prompt_clamp_scroll(promptData, textH, visibleH);
+    }
+
+    if((hidKeysDown() & KEY_TOUCH) && scrolls && widget_scrollbar_touched(&pos, barX, textY, visibleH, visibleH, textH)) {
+        widget_press_end(&promptData->press);
+        promptData->barDrag = true;
+        promptData->scroll = widget_scrollbar_offset(textY, visibleH, visibleH, textH, pos.py);
+        prompt_clamp_scroll(promptData, textH, visibleH);
+    } else if((hidKeysDown() & KEY_TOUCH) && scrolls && widget_touched(&pos, textX, textY, textW, visibleH)) {
+        widget_press_end(&promptData->press);
+        promptData->textDrag = true;
+        promptData->lastTouchY = pos.py;
+    } else if((hidKeysHeld() & KEY_TOUCH) && (promptData->textDrag || promptData->barDrag)) {
+        if(promptData->barDrag) {
+            promptData->scroll = widget_scrollbar_offset(textY, visibleH, visibleH, textH, pos.py);
+        } else {
+            promptData->scroll += promptData->lastTouchY - pos.py;
+            promptData->lastTouchY = pos.py;
+        }
+
+        prompt_clamp_scroll(promptData, textH, visibleH);
+    } else if(!(hidKeysHeld() & KEY_TOUCH) && (promptData->textDrag || promptData->barDrag)) {
+        promptData->textDrag = false;
+        promptData->barDrag = false;
+    } else if(hidKeysDown() & KEY_TOUCH) {
         widget_press_end(&promptData->press);
         for(u32 i = 0; i < promptData->numOptions; i++) {
             float x, y, w;
@@ -314,7 +390,19 @@ static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, fl
     widget_text_fit(promptData->title, cardX + PROMPT_PAD + 22, cardY + PROMPT_PAD, WIDGET_TEXT_SCALE, t->palette->text, promptData->width - 2 * PROMPT_PAD - 22);
 
     u32 textColor = promptData->color == COLOR_TEXT ? t->palette->text : screen_get_color(promptData->color);
-    screen_draw_text_wrap(promptData->text, cardX + PROMPT_PAD, cardY + PROMPT_PAD + PROMPT_HEADER, PROMPT_TEXT_SCALE, textColor, cardX + promptData->width - PROMPT_PAD);
+    float textX, textY, textW, visibleH;
+    prompt_text_rect(promptData, cardX, cardY, cardH, &textX, &textY, &textW, &visibleH);
+    if(prompt_max_scroll(textH, visibleH) > 0) {
+        // Too long for the card: clipped to the room above the buttons, with a scrollbar on its right.
+        prompt_clamp_scroll(promptData, textH, visibleH);
+        float offsetY = (1 - e) * (sheet ? cardH : 14);
+        screen_set_clip(textX, textY + offsetY, textW, visibleH);
+        screen_draw_text_wrap(promptData->text, textX, textY - promptData->scroll, PROMPT_TEXT_SCALE, textColor, textX + textW - WIDGET_SCROLLBAR_WIDTH - 6);
+        screen_clear_clip();
+        widget_scrollbar(textX + textW - WIDGET_SCROLLBAR_WIDTH, textY, visibleH, promptData->scroll, visibleH, textH);
+    } else {
+        screen_draw_text_wrap(promptData->text, textX, textY, PROMPT_TEXT_SCALE, textColor, textX + textW);
+    }
 
     char button[64];
     char label[PROMPT_OPTION_TEXT_MAX + 65];

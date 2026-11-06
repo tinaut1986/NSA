@@ -150,7 +150,9 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
   Cleanup and System, Updates.
 - [ ] The Store with no copy of the catalogue on the SD card (`sdmc:/nsa/store-cache.json` deleted): a ring of dots turns in
   the middle of the bottom screen, "Loading the catalogue..." under it, until the catalogue is here (2026-11-06; seen turning in
-  Azahar, which never gets it). `list_set_busy` gives the same to any list that loads in the background.
+  Azahar, which never gets it). `list_set_busy` gives the same to any list that loads in the background; the same wheel
+  (`widget_busy`) turns in the "Loading" dialogs before their bar (it was three blinking dots) and over "Loading..." in the
+  picture viewer: both too quick in Azahar to see.
 - [ ] Settings -> Guide: "Everything not seen yet (N)", every chapter with New or a tick, "Start again" (asks); the top screen shows the
   summary, steps and the version it came with. The Settings row shows "N of 12 chapters seen".
 - [ ] Every dialog whose message is taller than its card scrolls it above the buttons (D-Pad / Circle Pad up and down, a finger

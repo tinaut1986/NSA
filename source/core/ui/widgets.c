@@ -340,6 +340,19 @@ void widget_row_with_slider(float x, float y, float width, int icon, const char*
 }
 
 
+void widget_busy(float cx, float cy, float radius, u32 color) {
+    const u32 dots = 8;
+    float dot = radius * 0.28f;
+    u32 lead = (u32) (osGetTime() / 90) % dots;
+    for(u32 i = 0; i < dots; i++) {
+        float angle = (float) i * 2 * (float) M_PI / dots - (float) M_PI / 2;
+        u32 behind = (lead + dots - i) % dots;
+        u8 alpha = (u8) (0xFF - behind * 0xFF / (dots + 1));
+        float size = dot * (1 - behind * 0.07f);
+        screen_fill_circle(cx + cosf(angle) * radius, cy + sinf(angle) * radius, size, THEME_ALPHA(color, alpha));
+    }
+}
+
 void widget_progress(float x, float y, float width, float height, float progress) {
     const theme_current* t = theme();
     if(progress < 0) {

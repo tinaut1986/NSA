@@ -68,7 +68,7 @@ typedef struct {
 
 static float popover_chip_width(popover_group* group, u32 o) {
     if(group->iconOnly) {
-        return 36;
+        return group->directional ? 46 : 36;
     }
 
     return widget_text_width(group->options[o], WIDGET_SMALL_SCALE) + (group->icons[o] >= 0 ? 14 : 0) + 20;
@@ -337,6 +337,17 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
                 screen_frame_round_rect(x, y, w, POPOVER_OPTION_HEIGHT, radius, t->def->border, t->palette->border, t->palette->surface);
             }
 
+            if(group->iconOnly && group->directional && on) {
+                // The icon and, beside it, which way the sort goes: down as it comes, up turned round.
+                bool reversed = p->def.isReversed != NULL && p->def.isReversed(p->data, g, o);
+                float iy = y + (float) (int) ((POPOVER_OPTION_HEIGHT - 16) / 2);
+                float ix = x + (float) (int) ((w - 32) / 2);
+                screen_draw_icon((u32) group->icons[o], ix, iy, 16, ink);
+                screen_draw_icon(reversed ? ICON_CHEVRON_UP : ICON_CHEVRON_DOWN, ix + 16, iy, 16, ink);
+                widget_press_draw(&p->press, (int) (g * POPOVER_OPTIONS_MAX + o), x, y, w, POPOVER_OPTION_HEIGHT, radius, ink, false);
+                continue;
+            }
+
             if(group->iconOnly) {
                 screen_draw_icon((u32) group->icons[o], x + (float) (int) ((w - 16) / 2), y + (float) (int) ((POPOVER_OPTION_HEIGHT - 16) / 2), 16, ink);
                 widget_press_draw(&p->press, (int) (g * POPOVER_OPTIONS_MAX + o), x, y, w, POPOVER_OPTION_HEIGHT, radius, ink, false);
@@ -364,7 +375,7 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
         tipOption = p->option;
     } else {
         for(u32 g = 0; g < p->def.groupCount && tipGroup < 0; g++) {
-            for(u32 o = 0; o < p->def.groups[g].count && p->def.groups[g].iconOnly; o++) {
+            for(u32 o = 0; o < p->def.groups[g].count && p->def.groups[g].iconOnly && !p->def.groups[g].multiple; o++) {
                 if(p->def.isOn(p->data, g, o)) {
                     tipGroup = (int) g;
                     tipOption = o;

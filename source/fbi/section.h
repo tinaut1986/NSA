@@ -15,6 +15,9 @@ void remoteinstall_open();
 // Adds URLs to the history of Remote Install (the web page installs through the same screens).
 void remoteinstall_note_urls(const char* urls);
 void store_open();
+// NSA is leaving (a restart after an install, or the exit) with the Store maybe open: stops its threads first, so none
+// is left running on memory that is going away.
+void store_exit();
 void systemsavedata_open();
 void tickets_open();
 void titles_open();

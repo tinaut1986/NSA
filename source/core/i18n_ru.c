@@ -993,6 +993,8 @@ const i18n_entry i18n_ru[] = {
         {"Every game and app installed. The top screen shows the one with the focus.", "Все установленные игры и программы. Верхний экран показывает то, что в фокусе."},
         {"This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", "У этой игры есть обновления или DLC: они ждут здесь, под ней. Откройте саму игру, первую, кнопкой \uE000."},
         {"\uE001 goes back to the list of titles.", "\uE001 возвращает к списку приложений."},
+        {"Extracting...", "Распаковка..."},
+        {"Failed to take the files out of the archive.", "Не удалось извлечь файлы из архива."},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

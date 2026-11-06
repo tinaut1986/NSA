@@ -16,6 +16,7 @@
 #include "resources.h"
 #include "section.h"
 #include "settings.h"
+#include "storescript.h"
 #include "thumbs.h"
 #include "action/action.h"
 #include "../core/core.h"
@@ -54,7 +55,7 @@
 #define STORE_PREFETCH_PAUSE 4000   // ms between the icons fetched in the background, when no row is waiting for one.
 #define STORE_INSTALLED_PATH "sdmc:" APP_DATA_DIR "store-installed.json"
 #define STORE_RECORDS_MAX 512
-#define STORE_CACHE_FORMAT 4   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
+#define STORE_CACHE_FORMAT 5   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
 
 typedef enum {
     ICON_NONE,      // Not asked for yet.
@@ -74,6 +75,10 @@ typedef struct {
     char ciaSize[16];
     char* dsxUrl;
     char dsxSize[16];
+    // Universal-DB's steps for each (storescript.h, as JSON text): NULL for a plain CIA, which installs as it downloads.
+    char* ciaScript;
+    char* dsxScript;
+    char dsxName[64];   // The .3dsx it leaves, without the extension, to look for it in /3ds/.
     char* iconUrl;      // Where the icon is: "sheet:index" in the catalogue's sprite sheets.
     char* preMessage;   // What the author asks to be read before installing (NULL: nothing).
     u32 stars;
@@ -251,6 +256,8 @@ static void store_free_apps(store_app* apps, u32 count) {
     for(u32 i = 0; i < count; i++) {
         free(apps[i].ciaUrl);
         free(apps[i].dsxUrl);
+        free(apps[i].ciaScript);
+        free(apps[i].dsxScript);
         free(apps[i].iconUrl);
         free(apps[i].preMessage);
     }
@@ -389,14 +396,13 @@ static int store_parse_full(const char* text, size_t size, store_app** out) {
                 continue;
             }
 
-            // Only what a plain download gives: the first step of the script fetches the file.
+            // Only the steps NSA can follow (storescript.h): downloads, .zip and .7z, CIAs, moves and deletes.
             json_t* script = json_object_get(file, "script");
-            json_t* first = json_is_array(script) && json_array_size(script) > 0 ? json_array_get(script, 0) : NULL;
-            if(!json_is_object(first) || strcmp(store_str(first, "type"), "downloadFile") != 0) {
+            if(!storescript_supported(script)) {
                 continue;
             }
 
-            const char* url = store_str(first, "file");
+            const char* url = storescript_first_url(script);
             if(!store_https(url)) {
                 continue;
             }
@@ -404,9 +410,14 @@ static int store_parse_full(const char* text, size_t size, store_app** out) {
             if(store_has_ext(key, ".cia") && app->ciaUrl == NULL) {
                 app->ciaUrl = strdup(url);
                 string_copy(app->ciaSize, store_str(file, "size"), sizeof(app->ciaSize));
+                if(!storescript_plain_cia(script)) {
+                    app->ciaScript = json_dumps(script, JSON_COMPACT);
+                }
             } else if(store_has_ext(key, ".3dsx") && app->dsxUrl == NULL) {
                 app->dsxUrl = strdup(url);
                 string_copy(app->dsxSize, store_str(file, "size"), sizeof(app->dsxSize));
+                app->dsxScript = json_dumps(script, JSON_COMPACT);
+                storescript_dsx_name(script, app->dsxName, sizeof(app->dsxName));
             }
         }
 
@@ -414,6 +425,8 @@ static int store_parse_full(const char* text, size_t size, store_app** out) {
         if((app->ciaUrl == NULL && app->dsxUrl == NULL) || app->title[0] == '\0') {
             free(app->ciaUrl);
             free(app->dsxUrl);
+            free(app->ciaScript);
+            free(app->dsxScript);
             memset(app, 0, sizeof(*app));
             continue;
         }
@@ -479,6 +492,15 @@ static json_t* store_app_to_json(const store_app* app) {
     if(app->dsxUrl != NULL) {
         json_object_set_new(object, "du", json_string(app->dsxUrl));
         json_object_set_new(object, "ds", json_string(app->dsxSize));
+        json_object_set_new(object, "dn", json_string(app->dsxName));
+    }
+
+    if(app->ciaScript != NULL) {
+        json_object_set_new(object, "cx", json_string(app->ciaScript));
+    }
+
+    if(app->dsxScript != NULL) {
+        json_object_set_new(object, "dx", json_string(app->dsxScript));
     }
 
     if(app->iconUrl != NULL) {
@@ -550,6 +572,15 @@ static int store_read_cache(store_app** out, int* revision) {
         if(store_str(entry, "du")[0] != '\0') {
             app->dsxUrl = strdup(store_str(entry, "du"));
             string_copy(app->dsxSize, store_str(entry, "ds"), sizeof(app->dsxSize));
+            string_copy(app->dsxName, store_str(entry, "dn"), sizeof(app->dsxName));
+        }
+
+        if(store_str(entry, "cx")[0] != '\0') {
+            app->ciaScript = strdup(store_str(entry, "cx"));
+        }
+
+        if(store_str(entry, "dx")[0] != '\0') {
+            app->dsxScript = strdup(store_str(entry, "dx"));
         }
 
         if(store_str(entry, "i")[0] != '\0') {
@@ -1556,6 +1587,11 @@ static void store_install_finished_all(void* data) {
 static store_data* store_sheet_store;
 static store_app* store_sheet_app;
 
+static void store_script_done(void* data, bool ok) {
+    ((store_install_ctx*) data)->ok = ok;
+    store_install_finished_all(data);
+}
+
 static void store_start(store_data* store, store_app* app, bool cia, const char* what) {
     store_install_ctx* ctx = (store_install_ctx*) calloc(1, sizeof(store_install_ctx));
     if(ctx == NULL) {
@@ -1567,7 +1603,14 @@ static void store_start(store_data* store, store_app* app, bool cia, const char*
     ctx->cia = cia;
     string_copy(ctx->slug, app->slug, sizeof(ctx->slug));
     string_copy(ctx->version, app->version, sizeof(ctx->version));
-    action_install_url(what, cia ? app->ciaUrl : app->dsxUrl, NULL, ctx, store_install_finished_url, store_install_finished_all, NULL);
+    // A plain CIA installs as it downloads (the usual choice of how); the rest follow Universal-DB's steps.
+    const char* script = cia ? app->ciaScript : app->dsxScript;
+    if(script == NULL) {
+        action_install_url(what, cia ? app->ciaUrl : app->dsxUrl, NULL, ctx, store_install_finished_url, store_install_finished_all, NULL);
+        return;
+    }
+
+    storescript_run(script, what, ctx, store_script_done);
 }
 
 // The question, followed by what the author asks to be read first (if anything).
@@ -1576,6 +1619,14 @@ static void store_ask_text(char* out, size_t size, const store_app* app, const c
     if(app->preMessage != NULL) {
         size_t used = strlen(out);
         snprintf(out + used, size - used, "\n\n%.300s%s", app->preMessage, strlen(app->preMessage) > 300 ? "..." : "");
+
+        // Authors break their lines for Universal-Updater's screen: a lone line break joins the words again (a blank line
+        // between paragraphs stays).
+        for(char* c = out + used + 2; *c != '\0'; c++) {
+            if(*c == '\n' && c[1] != '\n' && c[-1] != '\n') {
+                *c = ' ';
+            }
+        }
     }
 }
 
@@ -1884,7 +1935,9 @@ static void store_take(store_data* store, ui_view* view, linked_list* items, lis
             scan[i].uniqueId = app->uniqueId;
             scan[i].hasCia = app->ciaUrl != NULL;
             scan[i].hasDsx = app->dsxUrl != NULL;
-            if(app->dsxUrl != NULL) {
+            if(app->dsxName[0] != '\0') {
+                string_copy(scan[i].dsxName, app->dsxName, sizeof(scan[i].dsxName));
+            } else if(app->dsxUrl != NULL) {
                 store_dsx_name(app->dsxUrl, scan[i].dsxName, sizeof(scan[i].dsxName));
             }
 

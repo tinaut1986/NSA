@@ -18,6 +18,8 @@ LIBRARIES += vorbisidec ogg curl mbedtls mbedx509 mbedcrypto jansson z citro3d c
 EXTRA_OUTPUT_FILES := servefiles
 
 BUILD_FLAGS := -Wno-format-truncation
+# source/libs/lzma (the Store's .7z): PPMd-compressed archives too.
+BUILD_FLAGS += -DZ7_PPMD_SUPPORT
 
 # tools/version.sh: X.Y.Z, X.Y.Z-beta or X.Y.Z-dev.N+hash. The release
 # workflow passes VERSION and CHANNEL (beta|release).

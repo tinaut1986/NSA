@@ -42,6 +42,8 @@ typedef struct {
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index);
 
     bool saveOnly;   // A "Save" choice: the files go to INSTALL_URL_SAVE_DIR (and may be installed from there).
+    bool exactPaths; // Saving: each file goes to its `paths` entry, replacing what is there (the Store's scripts).
+    bool quiet;      // No "Saved in" or "Install finished." at the end: the caller goes on (errors are still shown).
     u32 mode;        // INSTALL_URL_CHOICE_*.
     bool currIsCia;  // The file being saved is a CIA.
     char* toInstall; // The CIAs saved, one a line, to install once the downloads end ("Save and install").
@@ -183,7 +185,39 @@ static Result action_install_url_open_save(install_url_data* installData, u32 in
         return res;
     }
 
-    if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR)) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, INSTALL_URL_SAVE_DIR))) {
+    if(installData->exactPaths && installData->paths[index][0] == '/') {
+        // Where the caller says: its folders made, and a file already there replaced.
+        string_copy(installData->currPath, installData->paths[index], FILE_PATH_MAX);
+        char dir[FILE_PATH_MAX];
+        string_copy(dir, installData->currPath, sizeof(dir));
+        for(char* c = dir + 1; *c != '\0'; c++) {
+            if(*c == '/') {
+                *c = '\0';
+                FS_Path* dirPath = fs_make_path_utf8(dir);
+                if(dirPath != NULL) {
+                    FSUSER_CreateDirectory(sdmcArchive, *dirPath, 0);
+                    fs_free_path_utf8(dirPath);
+                }
+
+                *c = '/';
+            }
+        }
+
+        FS_Path* path = fs_make_path_utf8(installData->currPath);
+        if(path != NULL) {
+            FSUSER_DeleteFile(sdmcArchive, *path);
+            res = FSUSER_OpenFile(handle, sdmcArchive, *path, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);
+            if(R_SUCCEEDED(res) && size > 0 && R_FAILED(res = FSFILE_SetSize(*handle, size))) {
+                FSFILE_Close(*handle);
+                *handle = 0;
+                FSUSER_DeleteFile(sdmcArchive, *path);
+            }
+
+            fs_free_path_utf8(path);
+        } else {
+            res = R_APP_OUT_OF_MEMORY;
+        }
+    } else if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, APP_DATA_DIR)) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, INSTALL_URL_SAVE_DIR))) {
         char base[FILE_NAME_MAX];
         string_get_file_name(base, name, sizeof(base));
         const char* ext = strlen(base) < strlen(name) ? name + strlen(base) : "";
@@ -465,7 +499,7 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
         u32 failed = action_install_url_count(installData, URL_FAILED);
         u32 skipped = action_install_url_count(installData, URL_SKIPPED);
         bool installAfter = installData->toInstall != NULL && installData->installInfo.result != R_APP_CANCELLED;
-        if(installData->installInfo.result != R_APP_CANCELLED) {
+        if(installData->installInfo.result != R_APP_CANCELLED && !installData->quiet) {
             if(failed == 0 && skipped == 0) {
                 if(saved > 0 && installAfter) {
                     // The install says when it is done.
@@ -816,11 +850,11 @@ static void action_install_url_choose_draw_top(ui_view* view, void* data, float 
                             COLOR_TEXT, false, x + width - 4);
 }
 
-void action_install_url_choice(const char* confirmMessage, const char* urls, const char* paths, void* userData,
-                               void (*finishedURL)(void* data, u32 index),
-                               void (*finishedAll)(void* data),
-                               void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index),
-                               int choice) {
+static void action_install_url_start(const char* confirmMessage, const char* urls, const char* paths, void* userData,
+                                     void (*finishedURL)(void* data, u32 index),
+                                     void (*finishedAll)(void* data),
+                                     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index),
+                                     int choice, bool exactPaths) {
     install_url_data* data = (install_url_data*) calloc(1, sizeof(install_url_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate URL install data.");
@@ -883,6 +917,8 @@ void action_install_url_choice(const char* confirmMessage, const char* urls, con
         }
     }
 
+    data->exactPaths = exactPaths;
+    data->quiet = exactPaths;
     data->userData = userData;
     data->finishedURL = finishedURL;
     data->finishedAll = finishedAll;
@@ -937,6 +973,20 @@ void action_install_url_choice(const char* confirmMessage, const char* urls, con
     }
 
     view->id = "Confirmation";
+}
+
+void action_install_url_choice(const char* confirmMessage, const char* urls, const char* paths, void* userData,
+                               void (*finishedURL)(void* data, u32 index),
+                               void (*finishedAll)(void* data),
+                               void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index),
+                               int choice) {
+    action_install_url_start(confirmMessage, urls, paths, userData, finishedURL, finishedAll, drawTop, choice, false);
+}
+
+// The Store's scripts: each URL saved to its path (one a line), with no question and nothing said at the end.
+void action_download_urls_to(const char* urls, const char* paths, void* userData, void (*finishedURL)(void* data, u32 index),
+                             void (*finishedAll)(void* data)) {
+    action_install_url_start(NULL, urls, paths, userData, finishedURL, finishedAll, NULL, INSTALL_URL_CHOICE_SAVE, true);
 }
 
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,

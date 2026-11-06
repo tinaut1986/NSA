@@ -109,8 +109,9 @@ typedef struct {
     bool downloaded;
 } store_icon_result;
 
-// What the Store itself installed or downloaded, and which version of the catalogue it was: the only way to tell an
-// update is waiting (the console's version number is not the catalogue's).
+// What the Store itself installed or downloaded, and which version of the catalogue it was. It only tells whether an
+// app with no unique ID in the catalogue is installed: it cannot tell an update is waiting, as an app installed any
+// other way, or updated by its own updater, leaves it behind (and the console's version number is not the catalogue's).
 typedef struct {
     char slug[64];
     char cia[24];
@@ -124,16 +125,12 @@ typedef struct {
     bool hasCia;
     bool hasDsx;
     char dsxName[96];
-    char version[24];
-    char recCia[24];
-    char recDsx[24];
+    char recCia[24];     // The Store installed its CIA (an app without a unique ID).
 } store_scan_entry;
 
 // Bits of an app's status.
 #define STATUS_CIA 1           // The title is installed.
 #define STATUS_DSX 2           // The .3dsx is in /3ds/.
-#define STATUS_CIA_UPDATE 4    // The catalogue has another version than the one the Store installed.
-#define STATUS_DSX_UPDATE 8
 
 // An icon nobody has asked for yet: fetched slowly in the background so that scrolling finds it there.
 typedef struct {
@@ -753,8 +750,7 @@ static bool store_file_exists(const char* path) {
     return stat(path, &st) == 0;
 }
 
-// What is on the console for one app. An update is only told when the Store installed that app before, as that is when
-// the version it left is known.
+// What is on the console for one app.
 static int store_compare_ids(const void* a, const void* b) {
     u64 x = *(const u64*) a;
     u64 y = *(const u64*) b;
@@ -796,12 +792,8 @@ static u8 store_compute_status(const store_scan_entry* entry, const u64* install
         bool installedHere = entry->uniqueId != 0 ? (installed != NULL ? bsearch(&titleId, installed, installedCount, sizeof(u64), store_compare_ids) != NULL
                                                                         : store_title_installed(entry->uniqueId))
                                                   : entry->recCia[0] != '\0';
-        bool installed_ = installedHere;
-        if(installed_) {
+        if(installedHere) {
             bits |= STATUS_CIA;
-            if(entry->recCia[0] != '\0' && strcmp(entry->recCia, entry->version) != 0) {
-                bits |= STATUS_CIA_UPDATE;
-            }
         }
     }
 
@@ -816,9 +808,6 @@ static u8 store_compute_status(const store_scan_entry* entry, const u64* install
 
         if(present) {
             bits |= STATUS_DSX;
-            if(entry->recDsx[0] != '\0' && strcmp(entry->recDsx, entry->version) != 0) {
-                bits |= STATUS_DSX_UPDATE;
-            }
         }
     }
 
@@ -1334,34 +1323,27 @@ static u8 store_status(store_data* store, const store_app* app) {
     }
 
     u32 index = (u32) (app - store->apps);
-    return index < store->scanCount ? store->status[index] & 0x0F : 0;
+    return index < store->scanCount ? store->status[index] & (STATUS_CIA | STATUS_DSX) : 0;
 }
 
-// A small pill for a kind that is on the console: soft when up to date, filled with a refresh mark when a newer one waits.
-// Drawn ending at `right`; returns where it starts.
-static float store_draw_pill(const char* text, float right, float y, float height, bool update, bool selected) {
+// A small pill for a kind that is on the console. Drawn ending at `right`; returns where it starts.
+static float store_draw_pill(const char* text, float right, float y, float height, bool selected) {
     const theme_current* t = theme();
     float textW = widget_text_width(text, WIDGET_SMALL_SCALE);
     float pillH = widget_text_height(WIDGET_SMALL_SCALE) + 4;
-    float width = textW + 12 + (update ? 12 : 0);
+    float width = textW + 12;
     float x = right - width;
     float py = y + (height - pillH) / 2;
-    u32 fill = update ? (selected ? t->onAccent : t->accent) : (selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft);
-    u32 ink = update ? (selected ? t->accent : t->onAccent) : (selected ? t->onAccent : t->accent);
+    u32 fill = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft;
+    u32 ink = selected ? t->onAccent : t->accent;
     screen_fill_round_rect(x, py, width, pillH, pillH / 2, fill);
-    float tx = x + 6;
-    if(update) {
-        screen_draw_icon(ICON_REFRESH, tx - 1, py + (pillH - 12) / 2, 12, ink);
-        tx += 12;
-    }
-
-    screen_draw_text(text, tx, py + 2, WIDGET_SMALL_SCALE, ink);
+    screen_draw_text(text, x + 6, py + 2, WIDGET_SMALL_SCALE, ink);
     return x;
 }
 
 // A badge on the top card for a kind the app offers: soft while it is not on the console, filled with a check when it
-// is, and with a refresh mark when a newer version waits. Returns where the next badge goes.
-static float store_draw_kind_badge(float x, float y, const char* text, bool present, bool update) {
+// is. Returns where the next badge goes.
+static float store_draw_kind_badge(float x, float y, const char* text, bool present) {
     const theme_current* t = theme();
     float textW = widget_text_width(text, WIDGET_SMALL_SCALE);
     float height = widget_text_height(WIDGET_SMALL_SCALE) + 2;
@@ -1369,7 +1351,7 @@ static float store_draw_kind_badge(float x, float y, const char* text, bool pres
     screen_fill_round_rect(x, y, width, height, 6, present ? t->accent : t->accentSoft);
     float tx = x + 6;
     if(present) {
-        screen_draw_icon(update ? ICON_REFRESH : ICON_CHECK, tx - 1, y + (height - 12) / 2, 12, t->onAccent);
+        screen_draw_icon(ICON_CHECK, tx - 1, y + (height - 12) / 2, 12, t->onAccent);
         tx += 14;
     }
 
@@ -1418,9 +1400,8 @@ static void store_draw_row(void* data, list_item* item, float x, float y, float 
 
         const char* label = kind == 1 ? "3DSX" : "CIA";
         bool present = (status & (kind == 1 ? STATUS_DSX : STATUS_CIA)) != 0;
-        bool update = (status & (kind == 1 ? STATUS_DSX_UPDATE : STATUS_CIA_UPDATE)) != 0;
         if(present) {
-            right = store_draw_pill(label, right, y, height, update, selected) - 5;
+            right = store_draw_pill(label, right, y, height, selected) - 5;
         } else {
             float labelW = widget_text_width(label, WIDGET_SMALL_SCALE);
             screen_draw_text(label, right - labelW, y + (height - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, muted);
@@ -1476,7 +1457,6 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
     float smallH = widget_text_height(WIDGET_SMALL_SCALE);
     float by = cardY + cardH - smallH - 14;
     if(status & (STATUS_CIA | STATUS_DSX)) {
-        store_record* record = store_record_find(store, app->slug);
         char have[96] = "";
         size_t used = 0;
         for(int kind = 0; kind < 2; kind++) {
@@ -1485,19 +1465,12 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
                 continue;
             }
 
-            const char* version = record != NULL ? (kind == 0 ? record->cia : record->dsx) : "";
-            used += snprintf(have + used, sizeof(have) - used, "%s%s%s%s", used > 0 ? ", " : "", kind == 0 ? "CIA" : "3DSX", version[0] != '\0' ? " " : "", version);
+            // No version: what the Store once installed may have been updated since, or installed another way.
+            used += snprintf(have + used, sizeof(have) - used, "%s%s", used > 0 ? ", " : "", kind == 0 ? "CIA" : "3DSX");
         }
 
         char text[160];
         float ly = by - smallH - 8;
-        if(status & (STATUS_CIA_UPDATE | STATUS_DSX_UPDATE)) {
-            snprintf(text, sizeof(text), _("Update available: %s"), app->version);
-            screen_draw_icon(ICON_REFRESH, textX, ly - 2, 16, t->accent);
-            widget_text_fit(text, textX + 20, ly, WIDGET_SMALL_SCALE, t->accent, right - textX - 20);
-            ly -= smallH + 4;
-        }
-
         snprintf(text, sizeof(text), _("On this console: %s"), have);
         widget_text_fit(text, textX, ly, WIDGET_SMALL_SCALE, t->palette->textMuted, right - textX);
     }
@@ -1507,13 +1480,13 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
     if(app->ciaUrl != NULL) {
         char text[40];
         snprintf(text, sizeof(text), "CIA %s", app->ciaSize);
-        bx = store_draw_kind_badge(bx, by, text, (status & STATUS_CIA) != 0, (status & STATUS_CIA_UPDATE) != 0);
+        bx = store_draw_kind_badge(bx, by, text, (status & STATUS_CIA) != 0);
     }
 
     if(app->dsxUrl != NULL) {
         char text[40];
         snprintf(text, sizeof(text), "3DSX %s", app->dsxSize);
-        bx = store_draw_kind_badge(bx, by, text, (status & STATUS_DSX) != 0, (status & STATUS_DSX_UPDATE) != 0);
+        bx = store_draw_kind_badge(bx, by, text, (status & STATUS_DSX) != 0);
     }
 
     if(app->categoryId[0] != '\0') {
@@ -1560,7 +1533,6 @@ static void store_install_finished_all(void* data) {
                 LightLock_Lock(&store->lock);
                 if(store->scan != NULL && i < store->scanCount) {
                     string_copy(store->scan[i].recCia, record->cia, sizeof(store->scan[i].recCia));
-                    string_copy(store->scan[i].recDsx, record->dsx, sizeof(store->scan[i].recDsx));
                 }
 
                 store_scan_entry entry = store->scan != NULL && i < store->scanCount ? store->scan[i] : (store_scan_entry) {{0}};
@@ -1630,12 +1602,12 @@ static void store_open_app(store_data* store, store_app* app) {
     }
 
     u8 status = store_status(store, app);
-    const char* installLabel = (status & STATUS_CIA_UPDATE) ? _("Update the CIA") : (status & STATUS_CIA) ? _("Reinstall the CIA") : _("Install the CIA");
+    const char* installLabel = (status & STATUS_CIA) ? _("Reinstall the CIA") : _("Install the CIA");
     sheet_action actions[2];
     u32 count = 0;
     actions[count++] = (sheet_action) {ICON_DOWNLOAD, installLabel, false, store_install_cia, false, _("Installs it as a title on the console.")};
     if(app->dsxUrl != NULL) {
-        const char* dsxLabel = (status & STATUS_DSX_UPDATE) ? _("Update the 3DSX") : (status & STATUS_DSX) ? _("Download the 3DSX again") : _("Download the 3DSX");
+        const char* dsxLabel = (status & STATUS_DSX) ? _("Download the 3DSX again") : _("Download the 3DSX");
         actions[count++] = (sheet_action) {ICON_WORLD_DOWNLOAD, dsxLabel, false, store_download_dsx, false, _("Saves it in /3ds/ to run from the Homebrew Launcher.")};
     }
 
@@ -1788,16 +1760,15 @@ static void store_draw_tile(void* data, list_item* item, float x, float y, float
     store_app* app = store_of(item);
     store_draw_app_icon(store, app, x + 4, y + 4, size - 8, false);
 
-    // A mark in the corner when something of it is on the console (a refresh mark when a newer version waits).
+    // A mark in the corner when something of it is on the console.
     u8 status = store_status(store, app);
     if(status & (STATUS_CIA | STATUS_DSX)) {
-        bool update = (status & (STATUS_CIA_UPDATE | STATUS_DSX_UPDATE)) != 0;
         float r = size >= 64 ? 20 : 16;
         float mx = x + size - r - 1;
         float my = y + size - r - 1;
         screen_fill_round_rect(mx - 1, my - 1, r + 2, r + 2, (r + 2) / 2, t->palette->surface);
         screen_fill_round_rect(mx, my, r, r, r / 2, t->accent);
-        screen_draw_icon(update ? ICON_REFRESH : ICON_CHECK, mx + (r - 12) / 2, my + (r - 12) / 2, 12, t->onAccent);
+        screen_draw_icon(ICON_CHECK, mx + (r - 12) / 2, my + (r - 12) / 2, 12, t->onAccent);
     }
 }
 
@@ -1917,11 +1888,9 @@ static void store_take(store_data* store, ui_view* view, linked_list* items, lis
                 store_dsx_name(app->dsxUrl, scan[i].dsxName, sizeof(scan[i].dsxName));
             }
 
-            string_copy(scan[i].version, app->version, sizeof(scan[i].version));
             store_record* record = store_record_find(store, app->slug);
             if(record != NULL) {
                 string_copy(scan[i].recCia, record->cia, sizeof(scan[i].recCia));
-                string_copy(scan[i].recDsx, record->dsx, sizeof(scan[i].recDsx));
             }
         }
     }

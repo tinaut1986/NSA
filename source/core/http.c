@@ -1334,9 +1334,12 @@ static const char* http_direct_url(const char* url, char* buffer, size_t size) {
     return buffer;
 }
 
-Result http_download_callback(const char* givenUrl, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
-                                                                               Result (*checkRunning)(void* userData),
-                                                                               Result (*progress)(void* userData, u64 total, u64 curr, u32 connections)) {
+// `probe`: ask first where the file is and how big, to fetch a big one over several connections. A download that can not be
+// big (into a small buffer) skips it: on an Old 3DS that first request is a whole connection and TLS handshake, 1-3 s.
+static Result http_download_callback_probe(const char* givenUrl, u32 bufferSize, void* userData,
+                                           Result (*callback)(void* userData, void* buffer, size_t size),
+                                           Result (*checkRunning)(void* userData),
+                                           Result (*progress)(void* userData, u64 total, u64 curr, u32 connections), bool probe) {
     char direct[256];
     const char* url = http_direct_url(givenUrl, direct, sizeof(direct));
     http_disposition[0] = '\0';
@@ -1349,7 +1352,7 @@ Result http_download_callback(const char* givenUrl, u32 bufferSize, void* userDa
     http_shared_open(shared);
 
     // A big file from a server that serves ranges: several connections.
-    char* effective = (char*) malloc(1024);
+    char* effective = probe ? (char*) malloc(1024) : NULL;
     u64 size = 0;
     if(effective != NULL && http_probe(url, effective, 1024, &size, NULL, NULL, shared) && size >= HTTP_PARALLEL_MIN) {
         u64 handed = 0;
@@ -1964,6 +1967,12 @@ Result http_download_file(const char* givenUrl, u32 firstSize, void* userData, R
     return res;
 }
 
+Result http_download_callback(const char* givenUrl, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
+                                                                               Result (*checkRunning)(void* userData),
+                                                                               Result (*progress)(void* userData, u64 total, u64 curr, u32 connections)) {
+    return http_download_callback_probe(givenUrl, bufferSize, userData, callback, checkRunning, progress, true);
+}
+
 typedef struct {
     void* buf;
     size_t size;
@@ -1991,7 +2000,7 @@ static Result http_download_buffer_callback(void* userData, void* buffer, size_t
 
 Result http_download_buffer(const char* url, u32* downloadedSize, void* buf, size_t size) {
     http_buffer_data data = {buf, size, 0};
-    Result res = http_download_callback(url, size, &data, http_download_buffer_callback, NULL, NULL);
+    Result res = http_download_callback_probe(url, size, &data, http_download_buffer_callback, NULL, NULL, size >= HTTP_PARALLEL_MIN);
 
     if(R_SUCCEEDED(res)) {
         *downloadedSize = data.pos;

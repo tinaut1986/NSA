@@ -19,6 +19,7 @@ typedef struct {
     bool group;
     u32 sort;
     bool grid;
+    u32 tile;        // Size of the tiles of the grid: a level of list_tile_size_of.
 } titles_settings;
 
 typedef struct {
@@ -52,6 +53,15 @@ typedef struct {
 } pending_settings;
 
 typedef struct {
+    u32 kinds;        // Bits: 1 CIA, 2 3DSX.
+    u32 categories;   // One bit per category the Store knows (the last one is "other").
+    u32 sort;
+    bool grid;
+    u32 tile;
+    u32 shown;        // 0 all, 1 what is on the console (installed or downloaded), 2 what is not.
+} store_settings;
+
+typedef struct {
     update_channel channel;
     bool autoUpdate;
     bool ftpServer;
@@ -75,11 +85,22 @@ typedef struct {
     u32 music;
     u32 musicVolume;
 
+    // The main menu's layout: the ids of the entries shown in order, then "|" and the hidden ones; "" for the default.
+    char menu[128];
+    // Remote install's four tiles in order, by id ("3ds,pc,qr,url"); "" for the default.
+    char remoteMenu[32];
+
+    // The guide (guide.h): the ids of the chapters seen ("basics,titles"), and the newest chapter version this
+    // console was offered (0 on a first start; consoles that ran NSA before the guide start at v0.7).
+    char guideSeen[256];
+    u32 guideKnown;
+
     titles_settings titles;
     tickets_settings tickets;
     files_settings files;
     extsave_settings extsave;
     pending_settings pending;
+    store_settings store;
 } settings_data;
 
 // Pushes the appearance settings to the theme and the translation layer.

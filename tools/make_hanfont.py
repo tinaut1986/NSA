@@ -24,7 +24,8 @@ FONT = sys.argv[1] if len(sys.argv) > 1 else "tools/fonts/NotoSansCJKsc-Regular.
 TABLE = "source/core/i18n_zh.c"
 EM = 26           # Size of an ideograph, in atlas pixels.
 LINE = 30         # The line feed screen.c scales by: the system font's.
-CELL = EM + 4     # Room for a glyph and a margin, so linear filtering does not bleed one into the next.
+CELL = EM + 2     # Room for a glyph and a margin, so linear filtering does not bleed one into the next. The atlas
+                  # must stay within 1024 pixels high (the GPU's limit): 18 glyphs a row, up to 594 glyphs.
 ATLAS_W = 512
 
 

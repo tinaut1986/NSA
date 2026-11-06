@@ -15,6 +15,9 @@ typedef struct {
     u32 count;
     const char* options[POPOVER_OPTIONS_MAX];
     int icons[POPOVER_OPTIONS_MAX];   // -1 for none.
+    // Only the icons show (a small chip each), and the one with the focus (or, with none, the one chosen) shows its
+    // label in a tooltip above it. Every option needs an icon.
+    bool iconOnly;
 } popover_group;
 
 typedef struct {

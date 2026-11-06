@@ -122,8 +122,76 @@ What `release` holds, in the order it was built:
 21. **Settings**: a volume slider under Sounds and Background music (one box each), draggable scrollbars in lists, Settings,
     action sheets and popovers, "Open as text" only on files with no known extension.
 22. **README with pictures** taken on a real console (`docs/images/`), v0.4.0 and v0.4.1 published.
+23. **Guide** (`feat/guide`, `source/fbi/guide.c` on `source/core/ui/coach.c`): how NSA works, as guided tours on its own
+    screens (a bubble points at a button and waits for the user to press it), offered at start and kept in Settings -> Guide. See
+    Decisions, "The guide's chapters", before adding one for a new feature.
 
 ## Pending tests on the console (2026-10-31)
+
+**Guide and scrolling dialogs** (2026-11-06, `feat/guide`; DEBUG 0.7.3 tried in Azahar, in Spanish, Cards theme: the offer at
+start, Getting around, Your main menu, Store, SD card and From your computer played through, a chapter started from Settings -> Guide,
+START on the main menu, and a long message scrolled with the D-Pad and a finger)
+- [ ] A console that ran NSA before (settings.json without `guide_known`) is asked once at start "New in this version": Your
+  main menu and Store, with Getting around chained before them while not seen; the top screen lists what it will play with the steps
+  of each, and X "Everything" adds every other chapter not seen. Any answer, Later too, is not asked again.
+- [ ] A first start (no settings.json) is welcomed with the five essential chapters (Getting around, Your main menu, Titles, SD card,
+  Remote install).
+- [ ] The tours: each chapter first goes back to the main menu by itself (B until only it is open); the rest of the screen is dimmed
+  and only what the bubble asks for gets through (the button, a tap on what is framed, the D-Pad to bring the focus there); an
+  explanation goes on with A or a tap on the bubble (a tap elsewhere does nothing). A bubble goes next to what it points at, or on the other screen when that fills its own
+  (the actions sheet, a list, the top screen). START leaves at any time without reaching the screen (it would exit NSA on the main
+  menu). Something not on the screen (an entry hidden from the menu, a title with no save) says so after a moment and A goes on.
+  A chapter counts as seen when its last step is done; the update check runs after the guide.
+- [ ] Opening the actions of a game that has updates or DLC (2026-11-06, the owner hit it: the list of updates opened and the
+  tour waited for the actions): the bubble now asks to open the game itself, and to go back from that list after the actions.
+  Not tried: Azahar has no such game (there the extra steps are skipped, which works).
+- [ ] Every chapter on the console, in both themes with a different menu order (the anchors follow the layout) and with the HOME theme
+  (tiles drawn differently): Titles (L popover, Y view), Remote install, Saves (a game with a save), Console to console, Look and sound,
+  Cleanup and System, Updates.
+- [ ] The Store with no copy of the catalogue on the SD card (`sdmc:/nsa/store-cache.json` deleted): a ring of dots turns in
+  the middle of the bottom screen, "Loading the catalogue..." under it, until the catalogue is here (2026-11-06; seen turning in
+  Azahar, which never gets it). `list_set_busy` gives the same to any list that loads in the background; the same wheel
+  (`widget_busy`) turns in the "Loading" dialogs before their bar (it was three blinking dots) and over "Loading..." in the
+  picture viewer: both too quick in Azahar to see.
+- [ ] The 0.8 texts (Store, guide, menu editing, receive choices...) in the nine other languages (2026-11-06, translated in one go; only
+  Simplified Chinese seen in Azahar: the guide's offer and a bubble). Simplified Chinese's font now has 587 characters in a 512x924 atlas
+  (cells of 28 px: `tools/make_hanfont.py` must keep it within 1024 high, or NSA freezes at start in that language).
+- [ ] Settings -> Guide: "Everything not seen yet (N)", every chapter with New or a tick, "Start again" (asks); the top screen shows the
+  summary, steps and the version it came with. The Settings row shows "N of 12 chapters seen".
+- [ ] Every dialog whose message is taller than its card scrolls it above the buttons (D-Pad / Circle Pad up and down, a finger
+  dragging the text, or its scrollbar); short ones look as before. Check a sheet (HOME theme) and the Pixel theme.
+- [ ] The texts of the chapters fit their card on the console's own font, in English and Spanish (only Spanish has the new strings).
+- [ ] `tools/console_tests.py` on a fresh `sdmc:/nsa/`: the guide's question comes up at start; answer it once before the run.
+
+**Editable menus and sliding focus** (2026-11-05, `feat/store`; tried on the New 3DS XL by the owner)
+- [x] Main menu: three big tiles, the rest as one row of icons; the focused icon shows its name in a tooltip that slides in. Advanced is red as an icon and as a tile.
+- [x] SELECT or a long press edits the menu: entries jiggle; A picks one up and the D-Pad moves it; X hides, Y puts it back as it came; hidden ones wait in a tray at the bottom (tap one to bring it back). By touch an entry is dragged and the layout follows the finger live: the others make way, and it is a tile over the tiles and an icon over the icons. System and Settings can not be hidden. Kept in `settings.json` (`menu`: ids shown, `|`, ids hidden).
+- [x] Remote install: the four tiles can be reordered the same way (the history row stays below); `remote_menu` in `settings.json`.
+- [x] A finger sliding over the buttons of the main menu, Remote install, a list with nothing to scroll or an action sheet moves the focus to what is under it; letting go there opens nothing.
+- Only Spanish has the new strings.
+
+**Store** (2026-11-05, branch `feat/store`, `source/fbi/store.c`; builds, not run in Azahar or on a console)
+- [ ] Main menu -> Store downloads Universal-DB's UniStore (`https://db.universal-team.net/unistore/universal-db.unistore`, ~0.9 MB, kept as `sdmc:/nsa/store.unistore` and used when there is no connection) and lists the 3DS apps that publish a CIA or a .3dsx with a plain "downloadFile" first step (about 320 of 447 on 2026-11-05: 260 CIA, 280 .3dsx). Zips and multi-step scripts are left out. The top screen shows the selected app (author, version, description, sizes, category); R or the tool searches.
+- [ ] A opens it: a CIA only -> asks and installs through the Remote install screens (`action_install_url`); a .3dsx only -> downloads to `/3ds/<name>/<name>.3dsx`; both -> a sheet to choose.
+- [ ] Memory: parsing ~1 MB of JSON on an Old 3DS / 2DS; leaving the screen while it loads (B).
+- Not done: DS apps, `downloadRelease` (the latest GitHub release: 13 apps, left out).
+- [ ] **Universal-DB's scripts** (2026-11-06, `feat/store-scripts`, `source/fbi/storescript.c`, `source/core/unarchive.c`): the
+  Store follows each file's steps as Universal-Updater does (downloadFile, extractFile from a .zip through zlib or a .7z through the
+  LZMA SDK in `source/libs/lzma`, installCia, deleteFile, move). Tried on the New 3DS XL (DEBUG): a plain .3dsx goes straight to
+  `/3ds/<name>.3dsx` after a yes/no (no Install/Save sheet), 3D Pinball's CIA out of a .7z installed and its files deleted, 3DS
+  Quick Reboot's .3dsx out of a .zip. Still to try: an app whose CIA and data both come out of one zip, Cancel during
+  "Extracting...", and an archive that does not hold what the script names (Cirrus's 3DSX zip: it must say it failed and delete
+  the download).
+- [ ] **Big .7z** (2026-11-06, v0.8.3): a block packed with LZMA, LZMA2 or stored is decoded a piece at a time and each file written
+  as it comes out (its CRC checked), so only the dictionary is in memory (no bigger than the block; on the heap, else the linear
+  heap): HoriHD-Gallery (36 MB .7z, a 43 MB block, 16 MB dictionary) ran out of memory before on the New 3DS XL and now works on
+  it and on the 2DS (the 2DS: about 1 min 30 s to extract). Other methods (BCJ, PPMd) still unpack the whole block in memory.
+  The bar follows the archive's bytes read. The extraction runs below the UI's priority (0x38; core 2 on a New 3DS): the owner
+  saw the screen stop during the extraction before that change; check it now moves smoothly.
+- [ ] What is on the console is marked (a check on the row, the grid and the top card; "On this console: CIA, 3DSX"), with no
+  version and **no "update available"** (removed 2026-11-06 at the owner's request): the console does not keep Universal-DB's version
+  number, so the Store could only compare with what it installed itself (`sdmc:/nsa/store-installed.json`), which an app installed another way
+  or updated by its own updater leaves behind. That file now only tells whether an app with no unique ID was installed by the Store.
 
 **Transfer cards and readable URLs** (2026-11-04, `feat/transfer-info`; DEBUG on both consoles; seen on a real 40 MB send New 3DS XL -> 2DS, except the first three):
 - [x] Receiving: the top card shows the file, "From <console> (size)" and "Saving in <folder>" (or "Installing it on this console" / "Importing it into the title"); sending shows the file, "To <console>" and the size. Seen on the consoles.
@@ -151,7 +219,8 @@ What `release` holds, in the order it was built:
 - [ ] While the console transfers (FTP, a download, another 3DS), the page shows a toast at the bottom with the kind, name, percentage and KB/s and a progress bar, in place of the old text at the top right; it goes away when the transfer ends.
 - [ ] Titles: start loading, switch to another tab and back: the names and icons still missing keep loading (they used to stay frozen).
 - [ ] Titles: the filter menu has "Group updates and DLC" (Yes by default, remembered), as on the console: an update or DLC whose game is listed hides behind it (while Games or All is shown), the game shows a small round badge with how many hang from it, on the icon's corner like the console, and opening it lists the game and its updates and DLC as cards (icon, name, publisher, description, a medal for Game / Update / DLC, version and size), each opening its own sheet. `/api/title` now also returns `description`.
-- [ ] Titles: names, publisher and icons are kept in the browser per console and title version (localStorage + IndexedDB), so the list fills at once on the next visit. Titles screen menu -> Reload forgets them. The title's data kinds (save, extra, boss) are not kept: the sheet asks for them (`/api/title/data`) the first time it opens in a session, and the list only asks `/api/title?data=0`.
+- [ ] Titles: names, publisher and icons are kept in the browser per console and title version (localStorage + IndexedDB), so the list fills at once on the next visit. Titles screen menu -> Reload forgets them.
+ The title's data kinds (save, extra, boss) are not kept: the sheet asks for them (`/api/title/data`) the first time it opens in a session, and the list only asks `/api/title?data=0`.
 
 **Languages** (2026-11-04, `feat/languages`; DEBUG 0.6.5 build installed on the New 3DS XL and driven over FTP: the list, Japanese, Russian and German looked right in the Cards theme with the console's own font; the console was put back on System afterwards. The rest is for the owner's hands)
 - [ ] Settings -> Language opens a list (System, English, Español, Català, Français, Deutsch, Italiano, Português, Русский, 日本語, 简体中文, 繁體中文); the highlighted one shows its name and a few words in it on the top screen; A or a tap picks it, everything changes at once and it is still set after a restart; B goes back without changing.
@@ -878,6 +947,28 @@ current, this list is the summary. What only the owner can test (local wireless)
 
 ## Decisions
 
+- **The guide's chapters** (`source/fbi/guide.c`, the owner asked 2026-11-06 for a tutorial where an update plays only the new
+  feature, chains the earlier ones not seen, and does not overwhelm): each chapter has a stable `id`, the version it came with
+  (`since`, `GUIDE_VERSION(0, 8)`), `essential` (offered on a first start) and `needs` (a chapter shown first while unseen).
+  `settings.json` keeps `guide_seen` (ids) and `guide_known` (the newest `since` offered; missing = a console from before the guide,
+  taken as v0.7; 0 = a first start). At start, after the other questions and before the update check, NSA asks once about the
+  chapters with `since` > `guide_known`; any answer moves `guide_known` on. **For a new feature**: append a chapter with the
+  release's version as `since` and the chapter it builds on as `needs`, add its Spanish to `i18n_es.c`, and never rename an id.
+- **Guided tours** (`source/core/ui/coach.c`; the owner chose 2026-11-06 a tutorial on the real screens where the user does each
+  action, not a slide show): a chapter is a list of `coach_step` (macros in `guide.c`: `INFO` explains, A goes on; `DO` waits for a
+  button or a tap on the anchor, then for `until`; `OPEN` a main menu entry; `REACH` a row with the D-Pad). Screens say where they draw
+  what a step may point at with `coach_anchor(id, rect, selected)`: `menu.<entry id>`, `menu.tiles`, `menu.icons`, `menu.editing`,
+  `tool.<search|filter|grid|rows|size|more|clipboard|nearby>`, `list`, `list.selected`, `sheet` and each sheet row by its label,
+  `popover`, `settings.<option>`, `remote.<3ds|pc|qr|url|history>`, `back`, `hints`, `top`. A new screen a chapter visits needs its
+  anchors. `until`: `v:<view id or English name>` on top, `<anchor>` drawn, `!<anchor>` gone, `@<anchor>` with the focus. All input
+  goes through `coach_filter` (in `input_scan`): only the step's keys (A only while the anchor has the focus), keys pressed after
+  the step began, and a touch that went down on the anchor; START ends the tour and is kept from the views until let go. Steps
+  should never reach anything that changes data: point at it with `INFO` instead.
+  A step with `only` runs just when that anchor is on the screen, for a branch the last one may have taken (`until` takes
+  alternatives with `|`): a game with updates or DLC opens their list (`titles.chain`) instead of its actions, so "Getting around"
+  and "Saves" then ask to open the game itself and, after the actions, to go back from that list.
+- **Dialogs scroll** (`prompt.c`): a message taller than the card scrolls between the header and the buttons, so a long question
+  never hides behind them; no dialog needs its text cut for that any more.
 - **Sleep and HOME** (`net_sleep_hook` in `main.c`): the app's `ac` session does not survive the console's sleep
   (`ACU_GetWifiStatus` fails afterwards, so NSA saw no Wi-Fi and the servers never came back, and HOME froze the console).
   On sleep/suspend the FTP and web servers are paused; on wake/restore `acExit(); acInit()` runs and they resume. DEBUG
@@ -1106,9 +1197,11 @@ current, this list is the summary. What only the owner can test (local wireless)
 
 ## Known issues
 
-- `SITE SCREENSHOT` on the console answers "not taken in time", yet the files appear a few
-  seconds later: fetch `/nsa/screenshots/top.bmp` after waiting. Suspected: NSA paused
-  in the background; not confirmed.
+- `SITE SCREENSHOT` on the console takes 17-21 s (2026-11-06, both consoles, 0.8.1; 0.17 s in Azahar) and the screen freezes
+  meanwhile; it answers "not taken in time" after 15 s and the files appear later. Not the music (off: the same) nor core 1 (idle:
+  the same); an FTP upload of 512 KB to the same card takes under a second. Still to measure where it goes (open, copy, write,
+  close). A second `SITE INSTALL` right after one left the 2DS stuck on the FTP install bar at its end (no HOME, touch or
+  buttons; the owner had to hold the power button), on the same afternoon: maybe the same slow SD writes.
 - **Azahar cannot judge** the console's data: its battery is 0, its Wi-Fi/SSID/system
   version are empty, its ticket list repeats one ticket, its ext data is a dummy with ID 0
   and size 0, its font differs (measure text and digits on the console). HTTPS (the

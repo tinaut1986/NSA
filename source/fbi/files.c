@@ -922,7 +922,7 @@ static void files_filter_open(ui_view* view, void* data) {
             .groupCount = 2,
             .groups = {
                     {_("Show"), true, 5, {_("Folders"), _("Files"), "CIA", _("Tickets"), _("Hidden")}, {ICON_FOLDER, ICON_FILE, ICON_PACKAGE, ICON_TICKET, -1}},
-                    {_("Sort by"), false, 3, {_("Name"), _("Size"), _("Type")}, {-1, -1, -1}}
+                    {_("Sort by"), false, 3, {_("Name"), _("Size"), _("Type")}, {ICON_ABC, ICON_DATABASE, ICON_APPS}, true}
             },
             .isOn = files_popover_is_on,
             .select = files_popover_select
@@ -943,7 +943,7 @@ static void files_search_done(ui_view* kbdView, void* data, SwkbdButton button, 
 }
 
 static void files_search_open(ui_view* view, void* data) {
-    kbd_display(_("Search files"), list_get_search(view), SWKBD_TYPE_NORMAL, 0, SWKBD_ANYTHING, 63, data, files_search_done);
+    osk_display(_("Search files"), list_get_search(view), 64, 0, data, files_search_done);
 }
 
 static void files_folder_press(ui_view* view, void* data) {

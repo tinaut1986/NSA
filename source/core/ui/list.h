@@ -37,6 +37,10 @@ typedef struct {
 
 void list_set_style(ui_view* view, const list_style* style);
 void list_set_mode(ui_view* view, list_mode mode);
+// The size of the tiles in a grid: `level` 0 to LIST_TILE_LEVELS - 1 picks one of a few sizes, smallest first.
+#define LIST_TILE_LEVELS 4
+float list_tile_size_of(u32 level);
+void list_set_tile_size(ui_view* view, float size);
 list_mode list_get_mode(ui_view* view);
 
 // A tool icon in the title bar, right to left in the order added. `active`
@@ -59,6 +63,9 @@ void list_select(ui_view* view, list_item* item);
 void list_hold(ui_view* view, bool held);
 // While items load, the title bar shows "done/total" instead of the count.
 void list_set_progress(ui_view* view, u32 done, u32 total);
+// While the list is empty: a turning wheel in the middle with `text` (English, translated when drawn) under it; NULL
+// takes it away.
+void list_set_busy(ui_view* view, const char* text);
 // Items shown after the search filter.
 u32 list_visible_count(ui_view* view);
 

@@ -51,6 +51,9 @@ void widget_row_with_slider(float x, float y, float width, int icon, const char*
 void widget_row_slider_track(float x, float y, float width, float* trackX, float* trackWidth, float* centerY);
 
 void widget_progress(float x, float y, float width, float height, float progress);
+// Something with no measure is going on: a ring of dots of `radius` around (cx, cy) turning in `color` (the brightest
+// leads, the others fade behind it).
+void widget_busy(float cx, float cy, float radius, u32 color);
 void widget_scrollbar(float x, float y, float height, float offset, float visible, float total);
 // A finger on a scrollbar takes it, from a wider area than the bar (x is the bar's left), and the
 // scroll offset that puts the thumb under the finger. Nothing to take while all of it is visible.

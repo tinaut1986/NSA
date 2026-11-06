@@ -98,5 +98,8 @@ typedef enum {
     ICON_EXTERNAL_LINK,
     ICON_ARROW_RIGHT,
     ICON_CHECKPOINT,
+    ICON_ABC,
+    ICON_USER,
+    ICON_STAR,
     ICON_COUNT
 } icon_id;

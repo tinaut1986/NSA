@@ -355,6 +355,10 @@ static void image_draw_top(ui_view* view, void* v, float x1, float y1, float x2,
     screen_fill_rect(x1, y1, vw, vh, 0xFF101010);
 
     if(data->state != IMAGE_READY) {
+        if(data->state != IMAGE_FAILED) {
+            widget_busy(x1 + vw / 2, y1 + vh / 2 - 30, 16, t->accent);
+        }
+
         widget_text_centered(data->state == IMAGE_FAILED ? data->error : _("Loading..."), x1, x2, y1 + (vh - widget_text_height(WIDGET_TEXT_SCALE)) / 2,
                              WIDGET_TEXT_SCALE, data->state == IMAGE_FAILED ? t->palette->danger : 0xFFFFFFFF);
         return;

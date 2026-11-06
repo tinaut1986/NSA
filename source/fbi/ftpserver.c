@@ -19,7 +19,9 @@
 #include "relaunch.h"
 #include "selftest.h"
 #include "../core/core.h"
+#include "../core/minire.h"
 #include "../core/speedlog.h"
+#include "../core/unarchive.h"
 #include "../core/xferturn.h"
 #include "action/action.h"
 #include "transferconn.h"
@@ -981,6 +983,67 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         } else {
             ftp_reply(s, "451 The main thread did not answer in time.");
         }
+        return;
+    }
+
+    // How much memory is left: the biggest malloc block (found by halving) and the linear heap.
+    if(NSA_DEBUG && strcmp(sub, "MEM") == 0) {
+        size_t lo = 0;
+        size_t hi = 64 * 1024 * 1024;
+        while(hi - lo > 64 * 1024) {
+            size_t mid = lo + (hi - lo) / 2;
+            void* p = malloc(mid);
+            if(p != NULL) {
+                free(p);
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+
+        ftp_reply(s, "200 malloc %lu KB, linear free %lu KB", (unsigned long) (lo / 1024), (unsigned long) (linearSpaceFree() / 1024));
+        return;
+    }
+
+    // Tests of the Store's scripts: "SITE UNARCHIVE /a.zip|^dir/|/out/" (paths on the SD card), "SITE MINIRE pattern|text".
+    if(NSA_DEBUG && (strcmp(sub, "UNARCHIVE") == 0 || strcmp(sub, "MINIRE") == 0)) {
+        char args[512];
+        string_copy(args, path != NULL ? path : "", sizeof(args));
+        char* second = strchr(args, '|');
+        char* third = second != NULL ? strchr(second + 1, '|') : NULL;
+        if(second != NULL) {
+            *second++ = '\0';
+        }
+
+        if(third != NULL) {
+            *third++ = '\0';
+        }
+
+        if(strcmp(sub, "MINIRE") == 0) {
+            size_t start = 0;
+            size_t end = 0;
+            bool found = second != NULL && minire_search(args, second, &start, &end);
+            ftp_reply(s, found ? "200 match %u-%u" : "200 no match", (unsigned) start, (unsigned) end);
+            return;
+        }
+
+        if(second == NULL || third == NULL) {
+            ftp_reply(s, "501 SITE UNARCHIVE archive|pattern|output");
+            return;
+        }
+
+        char archive[300];
+        char output[300];
+        snprintf(archive, sizeof(archive), "sdmc:%s", args);
+        snprintf(output, sizeof(output), "sdmc:%s", third);
+        unarchive_progress progress;
+        memset(&progress, 0, sizeof(progress));
+        u32 count = 0;
+        u64 start = osGetTime();
+        Result res = unarchive_extract(archive, second, output, &progress, &count);
+        extern u32 unarchive_last_dictionary;
+        ftp_reply(s, "200 res %08lX files %lu bytes %llu of %llu in %llu ms, dictionary %lu", res, count, progress.done, progress.total, osGetTime() - start,
+                  unarchive_last_dictionary);
         return;
     }
 

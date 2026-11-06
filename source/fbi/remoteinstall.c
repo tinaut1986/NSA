@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <malloc.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -12,6 +13,7 @@
 
 #include "resources.h"
 #include "section.h"
+#include "settings.h"
 #include "ftpserver.h"
 #include "transfer.h"
 #include "action/action.h"
@@ -632,7 +634,7 @@ static void remoteinstall_manually_enter_urls_onresponse(ui_view* view, void* da
 }
 
 static void remoteinstall_manually_enter_urls() {
-    kbd_display("Enter URL(s)", "", SWKBD_TYPE_NORMAL, SWKBD_MULTILINE, SWKBD_NOTEMPTY_NOTBLANK, DOWNLOAD_URL_MAX * INSTALL_URLS_MAX, NULL, remoteinstall_manually_enter_urls_onresponse);
+    osk_display("Enter URL(s)", "", DOWNLOAD_URL_MAX * INSTALL_URLS_MAX, OSK_NOT_BLANK | OSK_MULTILINE, NULL, remoteinstall_manually_enter_urls_onresponse);
 }
 
 static void remoteinstall_install_entry(u32 index) {
@@ -892,6 +894,70 @@ static const remoteinstall_entry entries[] = {
 };
 
 #define ENTRY_COUNT (sizeof(entries) / sizeof(*entries))
+
+// Ids for the order kept in settings.json, in the order of entries[].
+static const char* const entry_ids[] = {"3ds", "pc", "qr", "url"};
+_Static_assert(sizeof(entry_ids) / sizeof(*entry_ids) == ENTRY_COUNT, "an id for every tile");
+
+// The tiles' order: position p (0 to 3, two by two) holds entries[order[p]]. The history row stays below them.
+static u8 order[ENTRY_COUNT] = {0, 1, 2, 3};
+static bool editing = false;
+
+static void remoteinstall_order_load() {
+    for(u32 i = 0; i < ENTRY_COUNT; i++) {
+        order[i] = (u8) i;
+    }
+
+    const char* c = settings_get()->remoteMenu;
+    bool used[ENTRY_COUNT] = {false};
+    u8 loaded[ENTRY_COUNT];
+    u32 count = 0;
+    while(*c != '\0') {
+        char id[8];
+        size_t len = 0;
+        while(*c != '\0' && *c != ',') {
+            if(len < sizeof(id) - 1) {
+                id[len++] = *c;
+            }
+
+            c++;
+        }
+
+        id[len] = '\0';
+        if(*c == ',') {
+            c++;
+        }
+
+        for(u32 e = 0; e < ENTRY_COUNT; e++) {
+            if(!used[e] && strcmp(id, entry_ids[e]) == 0) {
+                used[e] = true;
+                loaded[count++] = (u8) e;
+                break;
+            }
+        }
+    }
+
+    // A saved order that does not name every tile is not used.
+    if(count == ENTRY_COUNT) {
+        memcpy(order, loaded, sizeof(order));
+    }
+}
+
+static void remoteinstall_order_save() {
+    char text[sizeof(settings_get()->remoteMenu)];
+    size_t len = 0;
+    bool isDefault = true;
+    for(u32 p = 0; p < ENTRY_COUNT; p++) {
+        isDefault = isDefault && order[p] == p;
+        len += snprintf(text + len, sizeof(text) - len, "%s%s", p > 0 ? "," : "", entry_ids[order[p]]);
+    }
+
+    string_copy(settings_get()->remoteMenu, isDefault ? "" : text, sizeof(settings_get()->remoteMenu));
+    Result res = settings_save();
+    if(R_FAILED(res)) {
+        error_display_res(NULL, NULL, res, _("Failed to save settings."));
+    }
+}
 #define HISTORY_INDEX ENTRY_COUNT   // The last request's row, when there is one.
 #define TILE_HEIGHT 60
 #define HISTORY_HEIGHT 36
@@ -912,6 +978,12 @@ typedef struct {
     u32 shown;
     u32 leaving;
     u64 shownTime;
+
+    // Editing the order of the tiles.
+    bool grabbed;       // The selected tile is picked up: the D-Pad moves it.
+    int dragFrom;       // A finger holds the tile at this position, or -1.
+    bool dragMoved;
+    float dragStartX, dragStartY, dragX, dragY;
 } remoteinstall_data;
 
 static void remoteinstall_read_last(remoteinstall_data* data) {
@@ -981,9 +1053,127 @@ static bool remoteinstall_repeat(remoteinstall_data* data, u32 key) {
 
 static void remoteinstall_open_target(remoteinstall_data* data, u32 index) {
     if(index < ENTRY_COUNT) {
-        entries[index].open();
+        entries[order[index]].open();
     } else if(data->haveLast) {
         remoteinstall_history_open();
+    }
+}
+
+static void remoteinstall_edit_exit(remoteinstall_data* menu) {
+    editing = false;
+    menu->grabbed = false;
+    menu->dragFrom = -1;
+    remoteinstall_order_save();
+}
+
+static void remoteinstall_reset_onresponse(ui_view* view, void* data, u32 response) {
+    if(response == PROMPT_YES) {
+        remoteinstall_data* menu = (remoteinstall_data*) data;
+        for(u32 i = 0; i < ENTRY_COUNT; i++) {
+            order[i] = (u8) i;
+        }
+
+        menu->grabbed = false;
+        menu->dragFrom = -1;
+        remoteinstall_order_save();
+    }
+}
+
+static void remoteinstall_swap(u32 a, u32 b) {
+    u8 tmp = order[a];
+    order[a] = order[b];
+    order[b] = tmp;
+}
+
+// Editing the tiles: A picks one up (and the D-Pad moves it), or drag it by touch; Y puts the order back; SELECT or B finish.
+static void remoteinstall_edit_update(remoteinstall_data* menu, float bx1, float by1, float bx2) {
+    u32 down = hidKeysDown();
+    if((down & KEY_SELECT) || ((down & KEY_B) && !menu->grabbed)) {
+        remoteinstall_edit_exit(menu);
+        return;
+    }
+
+    if(down & KEY_B) {
+        menu->grabbed = false;
+    }
+
+    if(menu->selected >= ENTRY_COUNT) {
+        menu->selected = 0;
+    }
+
+    static const u32 keys[] = {KEY_DOWN, KEY_UP, KEY_RIGHT, KEY_LEFT};
+    for(u32 i = 0; i < sizeof(keys) / sizeof(*keys); i++) {
+        if(remoteinstall_repeat(menu, keys[i])) {
+            // Two by two: only the tiles take part.
+            u32 key = keys[i];
+            u32 target = menu->selected;
+            switch(key) {
+                case KEY_LEFT: target = menu->selected % 2 == 1 ? menu->selected - 1 : menu->selected; break;
+                case KEY_RIGHT: target = menu->selected % 2 == 0 ? menu->selected + 1 : menu->selected; break;
+                case KEY_UP: target = menu->selected >= 2 ? menu->selected - 2 : menu->selected + 2; break;
+                case KEY_DOWN: target = menu->selected < 2 ? menu->selected + 2 : menu->selected - 2; break;
+            }
+
+            if(menu->grabbed && target != menu->selected) {
+                remoteinstall_swap(menu->selected, target);
+            }
+
+            menu->selected = target;
+            break;
+        }
+    }
+
+    if(down & KEY_A) {
+        menu->grabbed = !menu->grabbed;
+    }
+
+    if(down & KEY_Y) {
+        prompt_display_yes_no(_("Edit the menu"), _("Put the menu back as it came?"), COLOR_TEXT, menu, NULL, remoteinstall_reset_onresponse);
+        return;
+    }
+
+    touchPosition pos;
+    hidTouchRead(&pos);
+    if(down & KEY_TOUCH) {
+        menu->dragFrom = -1;
+        menu->dragMoved = false;
+        for(u32 i = 0; i < ENTRY_COUNT; i++) {
+            float x, y, w, h;
+            remoteinstall_rect(i, bx1, by1, bx2, &x, &y, &w, &h);
+            if(widget_touched(&pos, x, y, w, h)) {
+                menu->dragFrom = (int) i;
+                menu->selected = i;
+                menu->grabbed = false;
+                menu->dragStartX = menu->dragX = pos.px;
+                menu->dragStartY = menu->dragY = pos.py;
+                break;
+            }
+        }
+    } else if(menu->dragFrom >= 0 && (hidKeysHeld() & KEY_TOUCH)) {
+        menu->dragX = pos.px;
+        menu->dragY = pos.py;
+        float dx = menu->dragX - menu->dragStartX;
+        float dy = menu->dragY - menu->dragStartY;
+        if(dx * dx + dy * dy > 64) {
+            menu->dragMoved = true;
+        }
+
+        // The tile in the hand takes the place of the one under the finger at once; that one makes way.
+        if(menu->dragMoved) {
+            for(u32 i = 0; i < ENTRY_COUNT; i++) {
+                float x, y, w, h;
+                remoteinstall_rect(i, bx1, by1, bx2, &x, &y, &w, &h);
+                if(i != (u32) menu->dragFrom && widget_touched(&pos, x, y, w, h)) {
+                    remoteinstall_swap((u32) menu->dragFrom, i);
+                    menu->dragFrom = (int) i;
+                    menu->selected = i;
+                    break;
+                }
+            }
+        }
+    } else if(menu->dragFrom >= 0 && (hidKeysUp() & KEY_TOUCH)) {
+        // A drag was applied as it went.
+        menu->dragFrom = -1;
     }
 }
 
@@ -991,7 +1181,11 @@ static void remoteinstall_update(ui_view* view, void* data, float bx1, float by1
     remoteinstall_data* menu = (remoteinstall_data*) data;
 
     view->name = _("Remote install");
-    view->info = menu->haveLast ? _("\uE000 open   \uE003 install the last again   \uE001 back") : _("\uE000 open   \uE001 back");
+    if(editing) {
+        view->info = _("\uE000 move   \uE003 reset   SELECT done");
+    } else {
+        view->info = menu->haveLast ? _("\uE000 open   \uE003 install the last again   \uE001 back") : _("\uE000 open   \uE001 back");
+    }
 
     if(menu->lastVersion != history_version) {
         remoteinstall_read_last(menu);
@@ -1000,10 +1194,26 @@ static void remoteinstall_update(ui_view* view, void* data, float bx1, float by1
         }
     }
 
+    if(editing) {
+        ui_wake();   // The tiles jiggle: keep drawing.
+        remoteinstall_edit_update(menu, bx1, by1, bx2);
+        return;
+    }
+
     if(hidKeysDown() & KEY_B) {
         ui_pop();
         free(menu);
         ui_destroy(view);
+        return;
+    }
+
+    if(hidKeysDown() & KEY_SELECT) {
+        editing = true;
+        menu->grabbed = false;
+        if(menu->selected >= ENTRY_COUNT) {
+            menu->selected = 0;
+        }
+
         return;
     }
 
@@ -1022,7 +1232,8 @@ static void remoteinstall_update(ui_view* view, void* data, float bx1, float by1
         }
     }
 
-    // A, or a finger: acts on release; a long hold on the last request offers its actions.
+    // A, or a finger: acts on release; held long on a tile, it starts editing the order; a finger sliding over the tiles
+    // moves the focus to the one under it.
     touchPosition pos;
     hidTouchRead(&pos);
     if(hidKeysDown() & KEY_TOUCH) {
@@ -1039,6 +1250,24 @@ static void remoteinstall_update(ui_view* view, void* data, float bx1, float by1
         float x, y, w, h;
         remoteinstall_rect(menu->selected, bx1, by1, bx2, &x, &y, &w, &h);
         widget_press_begin(&menu->press, (int) menu->selected, false, x + w / 2, y + h / 2);
+    } else if(menu->press.touch && menu->press.index >= 0 && (hidKeysHeld() & KEY_TOUCH)) {
+        for(u32 i = 0; i < remoteinstall_targets(menu); i++) {
+            float x, y, w, h;
+            remoteinstall_rect(i, bx1, by1, bx2, &x, &y, &w, &h);
+            if(i != menu->selected && widget_touched(&pos, x, y, w, h)) {
+                menu->selected = i;
+                menu->press.cancelled = true;
+                break;
+            }
+        }
+
+        if(!menu->press.cancelled && (u32) menu->press.index < ENTRY_COUNT && widget_press_long_due(&menu->press)) {
+            menu->press.cancelled = true;
+            editing = true;
+            menu->grabbed = false;
+            menu->dragFrom = -1;
+            return;
+        }
     }
 
     if(menu->press.index >= 0) {
@@ -1081,8 +1310,10 @@ static void remoteinstall_draw_card(remoteinstall_data* menu, u32 index, float x
     float cardH = 96;
     widget_card(cardX, cardY, cardW, cardH);
 
-    u32 icon = index < ENTRY_COUNT ? entries[index].icon : ICON_HISTORY;
-    const char* name = index < ENTRY_COUNT ? _(entries[index].name) : _("History");
+    // The entry shown at position `index` (the history is past the tiles).
+    u32 entry = index < ENTRY_COUNT ? order[index] : index;
+    u32 icon = index < ENTRY_COUNT ? entries[entry].icon : ICON_HISTORY;
+    const char* name = index < ENTRY_COUNT ? _(entries[entry].name) : _("History");
 
     float tile = 64;
     float tileX = cardX + 16;
@@ -1100,7 +1331,7 @@ static void remoteinstall_draw_card(remoteinstall_data* menu, u32 index, float x
     textY += widget_text_height(WIDGET_TITLE_SCALE) + 4;
 
     if(index < ENTRY_COUNT) {
-        screen_draw_text_wrap(_(entries[index].description), textX, textY, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap);
+        screen_draw_text_wrap(_(entries[entry].description), textX, textY, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap);
     } else {
         // The newest requests, one line each.
         char line[128];
@@ -1126,11 +1357,11 @@ static void remoteinstall_draw_card(remoteinstall_data* menu, u32 index, float x
     struct in_addr addr = {(in_addr_t) gethostid()};
     bool wifi = addr.s_addr != 0;
     char value[64];
-    if(index == 0) {
+    if(index < ENTRY_COUNT && entry == 0) {
         transfer_local_name(value, sizeof(value));
         remoteinstall_draw_cell(cardX, cellY, cellW, _("This console"), value);
         remoteinstall_draw_cell(cardX + cellW + 6, cellY, cellW, _("Saved to"), "/nsa/received/");
-    } else if(index == 1) {
+    } else if(index < ENTRY_COUNT && entry == 1) {
         if(wifi) {
             snprintf(value, sizeof(value), "%s:5000", inet_ntoa(addr));
         } else {
@@ -1154,6 +1385,19 @@ static void remoteinstall_draw_card_fade(void* data, bool leaving) {
 
 static void remoteinstall_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     remoteinstall_data* menu = (remoteinstall_data*) data;
+
+    if(editing) {
+        const theme_current* t = theme();
+        float cardX = x1 + 12;
+        float cardY = y1 + 14;
+        float cardW = x2 - x1 - 24;
+        widget_card(cardX, cardY, cardW, 96);
+        float textX = cardX + 16;
+        screen_draw_text(_("Edit the menu"), textX, cardY + 12, WIDGET_TITLE_SCALE, t->palette->text);
+        screen_draw_text_wrap(_("Drag a tile, or pick it up with A and use the D-Pad, to put it where you want. The history row stays at the bottom."),
+                              textX, cardY + 12 + widget_text_height(WIDGET_TITLE_SCALE) + 8, WIDGET_TEXT_SCALE, t->palette->textMuted, cardX + cardW - 14);
+        return;
+    }
 
     if(menu->shown != menu->selected) {
         menu->leaving = menu->shown;
@@ -1210,21 +1454,90 @@ static void remoteinstall_draw_history(remoteinstall_data* menu, float x, float 
     widget_badge(x + w - 9 - badgeW, y + (h - smallH - 6) / 2, badge, selected ? THEME_ALPHA(t->onAccent, 0x30) : t->accentSoft, selected ? t->onAccent : t->accent);
 }
 
+// Where each tile (by entry) is drawn: it eases towards its place, so while one is dragged the others make way.
+static float remoteinstall_anim[ENTRY_COUNT][4];
+static bool remoteinstall_anim_valid[ENTRY_COUNT];
+
+static bool remoteinstall_anim_step(u32 e, const float target[4], float out[4]) {
+    if(!remoteinstall_anim_valid[e]) {
+        memcpy(remoteinstall_anim[e], target, sizeof(remoteinstall_anim[e]));
+        remoteinstall_anim_valid[e] = true;
+    }
+
+    bool moving = false;
+    for(int k = 0; k < 4; k++) {
+        float d = target[k] - remoteinstall_anim[e][k];
+        if(d > -0.5f && d < 0.5f) {
+            remoteinstall_anim[e][k] = target[k];
+        } else {
+            remoteinstall_anim[e][k] += d * 0.35f;
+            moving = true;
+        }
+    }
+
+    memcpy(out, remoteinstall_anim[e], sizeof(remoteinstall_anim[e]));
+    return moving;
+}
+
 static void remoteinstall_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     remoteinstall_data* menu = (remoteinstall_data*) data;
     const theme_current* t = theme();
+    bool dragging = menu->dragFrom >= 0 && menu->dragMoved;
+    bool moving = false;
 
-    for(u32 i = 0; i < remoteinstall_targets(menu); i++) {
-        float x, y, w, h;
-        remoteinstall_rect(i, x1, y1, x2, &x, &y, &w, &h);
-        bool selected = i == menu->selected;
-        if(i < ENTRY_COUNT) {
-            remoteinstall_draw_tile(x, y, w, h, entries[i].icon, _(entries[i].name), selected);
-        } else {
-            remoteinstall_draw_history(menu, x, y, w, h, selected);
+    // The tile in the hand is drawn last, over the rest.
+    for(int pass = 0; pass < 2; pass++) {
+        for(u32 i = 0; i < remoteinstall_targets(menu); i++) {
+            bool isDragged = dragging && i == (u32) menu->dragFrom;
+            if(isDragged != (pass == 1)) {
+                continue;
+            }
+
+            float slot[4];
+            remoteinstall_rect(i, x1, y1, x2, &slot[0], &slot[1], &slot[2], &slot[3]);
+            float cur[4] = {slot[0], slot[1], slot[2], slot[3]};
+            if(i < ENTRY_COUNT) {
+                float target[4] = {slot[0], slot[1], slot[2], slot[3]};
+                if(isDragged) {
+                    target[0] = menu->dragX - slot[2] / 2;
+                    target[1] = menu->dragY - slot[3] / 2 - 8;
+                    screen_fill_round_rect(slot[0], slot[1], slot[2], slot[3], t->def->radius, THEME_ALPHA(t->palette->border, 0x70));
+                }
+
+                moving |= remoteinstall_anim_step(order[i], target, cur);
+            }
+
+            float x = cur[0], y = cur[1], w = cur[2], h = cur[3];
+            bool selected = i == menu->selected;
+            if(i < ENTRY_COUNT && editing && !isDragged) {
+                // The tile picked up with the D-Pad is lifted; the others jiggle, each out of step.
+                if(selected && menu->grabbed) {
+                    y -= 4;
+                } else {
+                    float phase = (float) (osGetTime() % 100000) * 0.022f + (float) i * 1.9f;
+                    x += roundf(sinf(phase) * 1.5f);
+                    y += roundf(cosf(phase * 1.3f));
+                }
+            }
+
+            if(i < ENTRY_COUNT) {
+                remoteinstall_draw_tile(x, y, w, h, entries[order[i]].icon, _(entries[order[i]].name), selected);
+            } else {
+                remoteinstall_draw_history(menu, x, y, w, h, selected);
+            }
+
+            widget_press_draw(&menu->press, (int) i, x, y, w, h, i < ENTRY_COUNT ? t->def->radius : t->def->radiusSmall, selected ? t->onAccent : t->palette->text, !editing);
+
+            // Where a guided tour finds it (coach.h): "remote.qr"..., "remote.history".
+            char anchor[32];
+            snprintf(anchor, sizeof(anchor), "remote.%s", i < ENTRY_COUNT ? entry_ids[order[i]] : "history");
+            coach_anchor(anchor, slot[0], slot[1], slot[2], slot[3], selected);
         }
+    }
 
-        widget_press_draw(&menu->press, (int) i, x, y, w, h, i < ENTRY_COUNT ? t->def->radius : t->def->radiusSmall, selected ? t->onAccent : t->palette->text, i == HISTORY_INDEX);
+    // Keep drawing while the tiles are still gliding into place.
+    if(moving) {
+        ui_wake();
     }
 }
 
@@ -1236,6 +1549,9 @@ void remoteinstall_open() {
     }
 
     data->press.index = -1;
+    data->dragFrom = -1;
+    editing = false;
+    remoteinstall_order_load();
     remoteinstall_read_last(data);
 
     ui_view* view = ui_create();

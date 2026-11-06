@@ -403,7 +403,7 @@ static void tickets_filter_open(ui_view* view, void* data) {
                     {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {-1, -1, -1, -1, -1, -1}},
                     {_("Memory"), true, 2, {"SD", "NAND"}, {ICON_DEVICE_SD_CARD, ICON_CPU}},
                     {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {-1, -1}},
-                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {-1, -1}}
+                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true}
             },
             .isOn = tickets_popover_is_on,
             .select = tickets_popover_select
@@ -424,7 +424,7 @@ static void tickets_search_done(ui_view* kbdView, void* data, SwkbdButton button
 }
 
 static void tickets_search_open(ui_view* view, void* data) {
-    kbd_display(_("Search tickets"), list_get_search(view), SWKBD_TYPE_NORMAL, 0, SWKBD_ANYTHING, 63, data, tickets_search_done);
+    osk_display(_("Search tickets"), list_get_search(view), 64, 0, data, tickets_search_done);
 }
 
 // ---- a game's chain: its ticket, its update and its DLC ----

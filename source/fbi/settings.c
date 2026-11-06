@@ -187,6 +187,8 @@ void settings_load() {
         settings.store.grid = settings_get_bool(store, "grid", settings.store.grid);
         settings.store.tile = settings_get_uint(store, "tile", settings.store.tile, 3);
         settings.store.shown = settings_get_uint(store, "shown", settings.store.shown, 2);
+        settings.store.updated = settings_get_uint(store, "updated", settings.store.updated, 3);
+        settings.store.sortReverse = settings_get_bool(store, "sortReverse", settings.store.sortReverse);
     }
 
     json_t* pending = json_object_get(json, "pending");
@@ -266,9 +268,10 @@ Result settings_save() {
         return R_APP_OUT_OF_MEMORY;
     }
 
-    json_object_set_new(json, "store", json_pack("{s:i,s:i,s:i,s:b,s:i,s:i}", "kinds", (int) settings.store.kinds, "categories", (int) settings.store.categories,
+    json_object_set_new(json, "store", json_pack("{s:i,s:i,s:i,s:b,s:i,s:i,s:i,s:b}", "kinds", (int) settings.store.kinds, "categories", (int) settings.store.categories,
                                                   "sort", (int) settings.store.sort, "grid", settings.store.grid,
-                                                  "tile", (int) settings.store.tile, "shown", (int) settings.store.shown));
+                                                  "tile", (int) settings.store.tile, "shown", (int) settings.store.shown,
+                                                  "updated", (int) settings.store.updated, "sortReverse", settings.store.sortReverse));
     json_object_set_new(json_object_get(json, "titles"), "tile", json_integer(settings.titles.tile));
     json_object_set_new(json, "menu", json_string(settings.menu));
     json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));

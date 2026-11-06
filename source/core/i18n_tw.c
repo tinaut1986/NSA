@@ -851,6 +851,11 @@ const i18n_entry i18n_tw[] = {
         {"Save tools", "儲存資料工具"},
         {"Plugins", "外掛"},
         {"Newest", "最新"},
+        {"Updated %s", "更新於 %s"},
+        {"Updated", "更新時間"},
+        {"1 month", "1 個月"},
+        {"6 months", "6 個月"},
+        {"1 year", "1 年"},
         {"Stars", "星數"},
         {"Author", "作者"},
         {"\uE000 get   \uE005 search   \uE001 back", "\uE000 取得   \uE005 搜尋   \uE001 返回"},
@@ -987,6 +992,7 @@ const i18n_entry i18n_tw[] = {
         {"\uE001 goes back to the list of titles.", "\uE001 返回軟體清單。"},
         {"Extracting...", "解凍中..."},
         {"Failed to take the files out of the archive.", "無法從壓縮包中取出文件。"},
+        {"\uE000 change   \uE002 \uE003 volume   \uE001 back", "\uE000 變更   \uE002 \uE003 音量   \uE001 返回"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

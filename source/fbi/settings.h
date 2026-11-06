@@ -56,9 +56,11 @@ typedef struct {
     u32 kinds;        // Bits: 1 CIA, 2 3DSX.
     u32 categories;   // One bit per category the Store knows (the last one is "other").
     u32 sort;
+    bool sortReverse; // The sort turned round (choosing the same sort again).
     bool grid;
     u32 tile;
     u32 shown;        // 0 all, 1 what is on the console (installed or downloaded), 2 what is not.
+    u32 updated;      // 0 any time, else updated in the last month, 6 months or year (store.c's store_updated_days).
 } store_settings;
 
 typedef struct {

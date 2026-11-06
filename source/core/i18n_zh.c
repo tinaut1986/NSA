@@ -850,6 +850,11 @@ const i18n_entry i18n_zh[] = {
         {"Save tools", "存档工具"},
         {"Plugins", "插件"},
         {"Newest", "最新"},
+        {"Updated %s", "更新于 %s"},
+        {"Updated", "更新时间"},
+        {"1 month", "1 个月"},
+        {"6 months", "6 个月"},
+        {"1 year", "1 年"},
         {"Stars", "星数"},
         {"Author", "作者"},
         {"\uE000 get   \uE005 search   \uE001 back", "\uE000 获取   \uE005 搜索   \uE001 返回"},
@@ -986,6 +991,7 @@ const i18n_entry i18n_zh[] = {
         {"\uE001 goes back to the list of titles.", "\uE001 返回软件列表。"},
         {"Extracting...", "正在解压..."},
         {"Failed to take the files out of the archive.", "无法从压缩包中取出文件。"},
+        {"\uE000 change   \uE002 \uE003 volume   \uE001 back", "\uE000 更改   \uE002 \uE003 音量   \uE001 返回"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

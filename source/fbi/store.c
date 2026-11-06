@@ -9,6 +9,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #include <3ds.h>
 #include <jansson.h>
@@ -199,9 +200,15 @@ typedef struct {
     u32 kinds;        // Bits: 1 CIA, 2 3DSX.
     u32 categories;   // One bit per store_categories entry.
     u32 shown;        // 0 all, 1 what is on the console, 2 what is not.
+    u32 updated;      // 0 any time, else an index of store_updated_days.
+    char since[12];   // The first day that filter lets through ("2026-05-06"), worked out when it is chosen.
     u32 sort;
+    bool sortReverse;   // Choosing the same sort again turns it round.
     bool resort;
 } store_data;
+
+// The Store on screen (NULL: closed), for store_exit. Main thread only.
+static store_data* store_active = NULL;
 
 static void store_logf(store_data* store, const char* format, ...) {
     if(!NSA_DEBUG) {
@@ -1447,6 +1454,12 @@ static void store_draw_row(void* data, list_item* item, float x, float y, float 
 
     char sub[96];
     snprintf(sub, sizeof(sub), "%s%s%s", app->author, app->author[0] != '\0' && app->version[0] != '\0' ? "  -  " : "", app->version);
+    // Sorted or filtered by date: the date leads the line.
+    if((store->sort == 2 || store->updated != 0) && app->updated[0] != '\0') {
+        char dated[96];
+        snprintf(dated, sizeof(dated), "%s%s%s", app->updated, sub[0] != '\0' ? "  -  " : "", sub);
+        string_copy(sub, dated, sizeof(sub));
+    }
     widget_text_fit(sub, tx, top + lineH + 1, WIDGET_SMALL_SCALE, muted, right - tx);
 }
 
@@ -1478,7 +1491,12 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
 
     char line[160];
     snprintf(line, sizeof(line), "%s%s%s", app->author, app->author[0] != '\0' && app->version[0] != '\0' ? "  -  " : "", app->version);
-    widget_text_fit(line, titleX, cardY + 12 + widget_text_height(WIDGET_TITLE_SCALE) + 4, WIDGET_SMALL_SCALE, t->palette->textMuted, right - titleX);
+    float lineY = cardY + 12 + widget_text_height(WIDGET_TITLE_SCALE) + 4;
+    widget_text_fit(line, titleX, lineY, WIDGET_SMALL_SCALE, t->palette->textMuted, right - titleX);
+    if(app->updated[0] != '\0') {
+        snprintf(line, sizeof(line), _("Updated %s"), app->updated);
+        widget_text_fit(line, titleX, lineY + widget_text_height(WIDGET_SMALL_SCALE) + 2, WIDGET_SMALL_SCALE, t->palette->textMuted, right - titleX);
+    }
 
     float y = cardY + 12 + icon + 8;
     screen_draw_text_wrap(app->description, textX, y, WIDGET_TEXT_SCALE, t->palette->text, right);
@@ -1672,7 +1690,9 @@ static void store_save(store_data* store) {
     saved->kinds = store->kinds;
     saved->categories = store->categories;
     saved->shown = store->shown;
+    saved->updated = store->updated;
     saved->sort = store->sort;
+    saved->sortReverse = store->sortReverse;
     saved->grid = store->view != NULL && list_get_mode(store->view) == LIST_MODE_GRID;
     settings_save();
 }
@@ -1724,6 +1744,11 @@ static bool store_visible(void* data, list_item* item) {
         return false;
     }
 
+    // Dates are "YYYY-MM-DD", so they compare as text; an app with no date is left out.
+    if(store->updated != 0 && (app->updated[0] == '\0' || strcmp(app->updated, store->since) < 0)) {
+        return false;
+    }
+
     if(store->shown != 0) {
         bool onConsole = (store_status(store, app) & (STATUS_CIA | STATUS_DSX)) != 0;
         return onConsole == (store->shown == 1);
@@ -1732,18 +1757,40 @@ static bool store_visible(void* data, list_item* item) {
     return true;
 }
 
-static bool store_filter_active(ui_view* view, void* data) {
-    store_data* store = (store_data*) data;
-    return store->shown != 0 || store->kinds != 3 || store->categories != (1u << STORE_CATEGORY_COUNT) - 1;
+// The "Updated" filter: how far back each choice goes, in days (the first one is "any time").
+static const u32 store_updated_days[] = {0, 31, 183, 366};
+
+// The first day the chosen filter lets through, from the console's clock.
+static void store_set_since(store_data* store) {
+    store->since[0] = '\0';
+    if(store->updated >= sizeof(store_updated_days) / sizeof(store_updated_days[0])) {
+        store->updated = 0;
+    }
+
+    if(store->updated == 0) {
+        return;
+    }
+
+    time_t since = time(NULL) - (time_t) store_updated_days[store->updated] * 24 * 60 * 60;
+    struct tm* day = gmtime(&since);
+    if(day == NULL || strftime(store->since, sizeof(store->since), "%Y-%m-%d", day) == 0) {
+        store->since[0] = '\0';
+    }
 }
 
-// Popover groups: type, category, sort.
+static bool store_filter_active(ui_view* view, void* data) {
+    store_data* store = (store_data*) data;
+    return store->shown != 0 || store->updated != 0 || store->kinds != 3 || store->categories != (1u << STORE_CATEGORY_COUNT) - 1;
+}
+
+// Popover groups: type, category, show, updated, sort.
 static bool store_popover_is_on(void* data, u32 group, u32 option) {
     store_data* store = (store_data*) data;
     switch(group) {
         case 0: return (store->kinds >> option) & 1;
         case 1: return (store->categories >> option) & 1;
         case 2: return store->shown == option;
+        case 3: return store->updated == option;
         default: return store->sort == option;
     }
 }
@@ -1754,7 +1801,13 @@ static void store_popover_select(void* data, u32 group, u32 option) {
         case 0: store->kinds ^= 1u << option; break;
         case 1: store->categories ^= 1u << option; break;
         case 2: store->shown = option; break;
+        case 3:
+            store->updated = option;
+            store_set_since(store);
+            break;
         default:
+            // The same sort again turns it round; another starts the usual way.
+            store->sortReverse = store->sort == option ? !store->sortReverse : false;
             store->sort = option;
             store->resort = true;
             break;
@@ -1763,25 +1816,34 @@ static void store_popover_select(void* data, u32 group, u32 option) {
     store_save(store);
 }
 
+static bool store_popover_is_reversed(void* data, u32 group, u32 option) {
+    store_data* store = (store_data*) data;
+    return group == 4 && store->sort == option && store->sortReverse;
+}
+
 static void store_filter_open(ui_view* view, void* data) {
     popover_def def = {
-            .groupCount = 4,
+            .groupCount = 5,
             .groups = {
                     {_("Type"), true, 2, {"CIA", "3DSX"}, {-1, -1}},
+                    // Icons with the name in a tooltip, as Show and Sort by: eight names take three lines.
                     {_("Category"), true, STORE_CATEGORY_COUNT, {_("Games"), _("Apps"), _("Utilities"), _("Emulators"), _("Media"), _("Save tools"), _("Plugins"), _("Other")},
-                     {-1, -1, -1, -1, -1, -1, -1, -1}},
+                     {ICON_DEVICE_GAMEPAD_2, ICON_APPS, ICON_SETTINGS, ICON_DEVICE_NINTENDO, ICON_MOVIE, ICON_DEVICE_FLOPPY, ICON_FILE_CODE, ICON_DOTS}, true},
                     {_("Show"), false, 3, {_("All"), _("Installed / downloaded"), _("Not installed / downloaded")}, {ICON_APPS, ICON_CHECK, ICON_X}, true},
+                    {_("Updated"), false, 4, {_("All"), _("1 month"), _("6 months"), _("1 year")}, {-1, -1, -1, -1}},
                     // Icons with the name in a tooltip: four names this long do not fit in one line.
-                    {_("Sort by"), false, 4, {_("Name"), _("Author"), _("Newest"), _("Stars")}, {ICON_ABC, ICON_USER, ICON_CLOCK, ICON_STAR}, true}
+                    {_("Sort by"), false, 4, {_("Name"), _("Author"), _("Newest"), _("Stars")}, {ICON_ABC, ICON_USER, ICON_CLOCK, ICON_STAR}, true, true}
             },
             .isOn = store_popover_is_on,
-            .select = store_popover_select
+            .select = store_popover_select,
+            .isReversed = store_popover_is_reversed
     };
 
     popover_display(&def, data);
 }
 
-// Name, author, newest first, most stars first; the name breaks ties.
+// Name, author, newest first, most stars first; the name breaks ties. Turned round, the sort goes the other way (the
+// name still breaks ties A to Z, unless the name is the sort).
 static int store_compare_items(void* data, const void* p1, const void* p2) {
     store_data* store = (store_data*) data;
     const store_app* a = store_of((const list_item*) p1);
@@ -1794,7 +1856,16 @@ static int store_compare_items(void* data, const void* p1, const void* p2) {
         default: break;
     }
 
-    return result != 0 ? result : strcasecmp(a->title, b->title);
+    if(store->sortReverse) {
+        result = -result;
+    }
+
+    if(result != 0) {
+        return result;
+    }
+
+    result = strcasecmp(a->title, b->title);
+    return store->sortReverse && store->sort == 0 ? -result : result;
 }
 
 // A tile: the icon over the whole of it (the name is on the top screen).
@@ -1870,8 +1941,29 @@ static void store_close(ui_view* view, store_data* store, linked_list* items) {
     store_log_flush(store);
 
     // The threads may still be running: each lets go of the data when it ends, and the last one frees it.
+    store_active = NULL;
     store->cancelled = true;
     store_release(store);
+}
+
+void store_exit() {
+    store_data* store = store_active;
+    if(store == NULL) {
+        return;
+    }
+
+    // Only the screen's share is left once every thread has ended; a thread busy past 3 s (a download) is not waited for.
+    store->cancelled = true;
+    for(int i = 0; i < 300; i++) {
+        LightLock_Lock(&store->lock);
+        int users = store->users;
+        LightLock_Unlock(&store->lock);
+        if(users <= 1) {
+            break;
+        }
+
+        svcSleepThread(10 * 1000 * 1000LL);
+    }
 }
 
 // Lists the apps of `store->apps`, keeping the selection on the same app (by title) when there was one.
@@ -2091,11 +2183,15 @@ void store_open() {
     LightLock_Init(&store->lock);
     store->users = 2;   // The screen and the loading thread.
     store->opened = osGetTime();
+    store_active = store;
 
     store->kinds = settings_get()->store.kinds;
     store->categories = settings_get()->store.categories;
     store->shown = settings_get()->store.shown;
+    store->updated = settings_get()->store.updated;
+    store_set_since(store);
     store->sort = settings_get()->store.sort;
+    store->sortReverse = settings_get()->store.sortReverse;
 
     ui_view* view = list_display(_("Store"), _(" get    search    back"), store, store_update, store_draw_top);
     if(view == NULL) {

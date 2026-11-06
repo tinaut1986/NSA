@@ -278,7 +278,7 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         }
     }
 
-    view->info = settingsmenu_slider_value((settings_option) menu->selected) != NULL ? _(" change     volume    back") : _(" change    back");
+    view->info = settingsmenu_slider_value((settings_option) menu->selected) != NULL ? _("\uE000 change   \uE002 \uE003 volume   \uE001 back") : _(" change    back");
 
     if(hidKeysDown() & KEY_B) {
         ui_pop();

@@ -863,6 +863,11 @@ const i18n_entry i18n_de[] = {
         {"Save tools", "Spielstand-Tools"},
         {"Plugins", "Plugins"},
         {"Newest", "Neueste"},
+        {"Updated %s", "Aktualisiert am %s"},
+        {"Updated", "Aktualisiert"},
+        {"1 month", "1 Monat"},
+        {"6 months", "6 Monate"},
+        {"1 year", "1 Jahr"},
         {"Stars", "Sterne"},
         {"Author", "Autor"},
         {"\uE000 get   \uE005 search   \uE001 back", "\uE000 holen   \uE005 Suche   \uE001 zurück"},
@@ -999,6 +1004,7 @@ const i18n_entry i18n_de[] = {
         {"\uE001 goes back to the list of titles.", "\uE001 geht zurück zur Titelliste."},
         {"Extracting...", "Entpacken..."},
         {"Failed to take the files out of the archive.", "Die Dateien konnten nicht entpackt werden."},
+        {"\uE000 change   \uE002 \uE003 volume   \uE001 back", "\uE000 ändern   \uE002 \uE003 Lautstärke   \uE001 zurück"},
 };
 
 const u32 i18n_de_count = sizeof(i18n_de) / sizeof(*i18n_de);

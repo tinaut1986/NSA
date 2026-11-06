@@ -863,6 +863,11 @@ const i18n_entry i18n_ja[] = {
         {"Save tools", "セーブツール"},
         {"Plugins", "プラグイン"},
         {"Newest", "新しい順"},
+        {"Updated %s", "更新日 %s"},
+        {"Updated", "更新日"},
+        {"1 month", "1か月"},
+        {"6 months", "6か月"},
+        {"1 year", "1年"},
         {"Stars", "スター数"},
         {"Author", "作者"},
         {"\uE000 get   \uE005 search   \uE001 back", "\uE000 入手   \uE005 検索   \uE001 戻る"},
@@ -999,6 +1004,7 @@ const i18n_entry i18n_ja[] = {
         {"\uE001 goes back to the list of titles.", "\uE001でタイトルの一覧に戻ります。"},
         {"Extracting...", "展開中..."},
         {"Failed to take the files out of the archive.", "アーカイブからファイルを取り出せませんでした。"},
+        {"\uE000 change   \uE002 \uE003 volume   \uE001 back", "\uE000 変更   \uE002 \uE003 音量   \uE001 戻る"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

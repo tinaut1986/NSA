@@ -871,6 +871,11 @@ const i18n_entry i18n_es[] = {
         {"Save tools", "Herramientas de partidas"},
         {"Plugins", "Plugins"},
         {"Newest", "Más recientes"},
+        {"Updated %s", "Actualizado el %s"},
+        {"Updated", "Actualizado"},
+        {"1 month", "1 mes"},
+        {"6 months", "6 meses"},
+        {"1 year", "1 año"},
         {"Stars", "Estrellas"},
         {"Author", "Autor"},
         {" get    search    back", " obtener    buscar    volver"},
@@ -1016,6 +1021,7 @@ const i18n_entry i18n_es[] = {
         {"Every game and app installed. The top screen shows the one with the focus.", "Todos los juegos y aplicaciones instalados. Arriba ves el que tiene el foco."},
         {"This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", "Este juego tiene actualizaciones o DLC: esperan aquí, bajo él. Abre el propio juego, el primero, con \uE000."},
         {"\uE001 goes back to the list of titles.", "\uE001 vuelve a la lista de títulos."},
+        {"\uE000 change   \uE002 \uE003 volume   \uE001 back", "\uE000 cambiar   \uE002 \uE003 volumen   \uE001 volver"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

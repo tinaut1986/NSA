@@ -18,6 +18,9 @@ typedef struct {
     // Only the icons show (a small chip each), and the one with the focus (or, with none, the one chosen) shows its
     // label in a tooltip above it. Every option needs an icon.
     bool iconOnly;
+    // A sort: the chosen option shows which way it goes (a chevron beside its icon), and choosing it again turns it
+    // round (the caller's select does that; isReversed says which way it is).
+    bool directional;
 } popover_group;
 
 typedef struct {
@@ -25,6 +28,7 @@ typedef struct {
     popover_group groups[POPOVER_GROUPS_MAX];
     bool (*isOn)(void* data, u32 group, u32 option);
     void (*select)(void* data, u32 group, u32 option);   // Toggle, or choose.
+    bool (*isReversed)(void* data, u32 group, u32 option);   // Only for directional groups; NULL: never.
 } popover_def;
 
 void popover_display(const popover_def* def, void* data);

@@ -1007,6 +1007,8 @@ const i18n_entry i18n_zh[] = {
         {"Every game and app installed. The top screen shows the one with the focus.", "所有已安装的游戏和应用。上屏显示选中的项目。"},
         {"This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", "这个游戏有更新或 DLC：它们就在下面。按 \uE000 打开游戏本身，也就是第一个。"},
         {"\uE001 goes back to the list of titles.", "\uE001 返回软件列表。"},
+        {"Extracting...", "正在解压..."},
+        {"Failed to take the files out of the archive.", "无法从压缩包中取出文件。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

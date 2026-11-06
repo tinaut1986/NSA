@@ -1020,6 +1020,8 @@ const i18n_entry i18n_it[] = {
         {"Every game and app installed. The top screen shows the one with the focus.", "Tutti i giochi e le app installati. Lo schermo superiore mostra quello con il focus."},
         {"This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", "Questo gioco ha aggiornamenti o DLC: stanno qui, sotto di lui. Apri il gioco stesso, il primo, con \uE000."},
         {"\uE001 goes back to the list of titles.", "\uE001 torna all'elenco dei titoli."},
+        {"Extracting...", "Estrazione..."},
+        {"Failed to take the files out of the archive.", "Impossibile estrarre i file dall'archivio."},
 };
 
 const u32 i18n_it_count = sizeof(i18n_it) / sizeof(*i18n_it);

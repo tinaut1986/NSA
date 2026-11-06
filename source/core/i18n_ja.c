@@ -1020,6 +1020,8 @@ const i18n_entry i18n_ja[] = {
         {"Every game and app installed. The top screen shows the one with the focus.", "インストールされているすべてのゲームとアプリです。上画面には選んでいるものが表示されます。"},
         {"This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", "このゲームには更新データや追加コンテンツがあり、その下にまとまっています。最初にあるゲーム本体を\uE000で開きましょう。"},
         {"\uE001 goes back to the list of titles.", "\uE001でタイトルの一覧に戻ります。"},
+        {"Extracting...", "展開中..."},
+        {"Failed to take the files out of the archive.", "アーカイブからファイルを取り出せませんでした。"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

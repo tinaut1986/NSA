@@ -119,7 +119,7 @@ static const coach_step console_steps[] = {
 
 static const coach_step store_steps[] = {
         OPEN("menu.store", "Open Store.", "v:Store"),
-        INFO("list", "The homebrew of Universal-DB. The top screen shows the one with the focus, and a mark says what you have or can update."),
+        INFO("list", "The homebrew of Universal-DB. The top screen shows the one with the focus, and a mark says what is already on the console."),
         INFO("list.selected", "\uE000 gets it: a CIA installs, a .3dsx goes to /3ds/."),
         DO("tool.filter", "\uE004 filters by kind, category and what you have. Open it.", KEY_L, true, "popover"),
         DO("popover", "Close it with \uE001.", KEY_B, false, "!popover"),

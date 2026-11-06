@@ -13,13 +13,15 @@ typedef struct {
     const char* title;   // Shown small above the text (the chapter): set by the caller, translated by it.
     const char* anchor;  // What it points at (an English label is translated before matching), or NULL.
     const char* text;    // English: translated when drawn.
-    // What the user must do. With neither, it is an explanation: A (or a tap on the bubble) goes on.
+    // What the user must do. With neither, it is an explanation: A, or a tap on the bubble, goes on (not a tap elsewhere).
     u32 keys;            // Buttons that do it. A only counts while the anchor is the selected one.
     bool tap;            // A tap on the anchor does it.
     u32 pass;            // Also let through, without going on (the D-Pad, to bring the focus to the anchor).
-    // After doing it, wait for: "v:<view id or English name>" on top, "<anchor>" drawn, or "!<anchor>" gone.
-    // NULL: the step is done as soon as it is done.
+    // After doing it, wait for: "v:<view id or English name>" on top, "<anchor>" drawn, "!<anchor>" gone, "@<anchor>"
+    // with the focus; several separated by "|" wait for any of them. NULL: the step is done as soon as it is done.
     const char* until;
+    // Only when this anchor is on the screen as the step comes (a branch the last step may have taken); else skipped.
+    const char* only;
     bool home;           // Before it, go back to the main menu (B until only it is open).
     u32 tag;             // For the caller (the chapter).
 } coach_step;

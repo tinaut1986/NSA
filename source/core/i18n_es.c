@@ -955,7 +955,6 @@ const i18n_entry i18n_es[] = {
         {"The top screen tells you about what has the focus on the bottom one.", "La pantalla de arriba te cuenta lo que tiene el foco en la de abajo."},
         {"This bar lists the buttons that work on each screen.", "Esta barra dice qué botones sirven en cada pantalla."},
         {"Open Titles: tap it, or bring the focus to it with the D-Pad and press \uE000.", "Abre Títulos: tócalo, o llévale el foco con la cruceta y pulsa \uE000."},
-        {"Every game and app installed. The top screen shows the one with the focus; slide a finger to scroll.", "Todos los juegos y aplicaciones instalados. Arriba ves el que tiene el foco; desliza el dedo para recorrerlos."},
         {"Press \uE000, or tap the one with the focus: its actions open.", "Pulsa \uE000, o toca el que tiene el foco: se abren sus acciones."},
         {"Its actions. Whatever deletes asks first, in red. Close them with \uE001.", "Sus acciones. Lo que borra pregunta antes, en rojo. Ciérralas con \uE001."},
         {"\uE001, or this arrow, goes back.", "\uE001, o esta flecha, vuelve atrás."},
@@ -1014,6 +1013,9 @@ const i18n_entry i18n_es[] = {
         {"NSA speaks 11 languages. System follows the console's own.", "NSA habla 11 idiomas. Sistema sigue el de la consola."},
         {"The console's own memories. NSA asks before going in: a wrong change there can stop the console from starting.", "Las memorias de la propia consola. NSA pregunta antes de entrar: un cambio equivocado ahí puede impedir que la consola arranque."},
         {"Tickets, half-finished installs and the games' extra data: free space or back it up.", "Tickets, instalaciones a medias y los datos extra de los juegos: libera espacio o haz copias."},
+        {"Every game and app installed. The top screen shows the one with the focus.", "Todos los juegos y aplicaciones instalados. Arriba ves el que tiene el foco."},
+        {"This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", "Este juego tiene actualizaciones o DLC: esperan aquí, bajo él. Abre el propio juego, el primero, con \uE000."},
+        {"\uE001 goes back to the list of titles.", "\uE001 vuelve a la lista de títulos."},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

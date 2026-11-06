@@ -914,7 +914,7 @@ static void titles_search_done(ui_view* kbdView, void* data, SwkbdButton button,
 }
 
 static void titles_search_open(ui_view* view, void* data) {
-    kbd_display(_("Search titles"), list_get_search(view), SWKBD_TYPE_NORMAL, 0, SWKBD_ANYTHING, 63, data, titles_search_done);
+    osk_display(_("Search titles"), list_get_search(view), 64, 0, data, titles_search_done);
 }
 
 // ---- a game's chain: the game, its update and its DLC ----

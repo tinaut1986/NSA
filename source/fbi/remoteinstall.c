@@ -634,7 +634,7 @@ static void remoteinstall_manually_enter_urls_onresponse(ui_view* view, void* da
 }
 
 static void remoteinstall_manually_enter_urls() {
-    kbd_display("Enter URL(s)", "", SWKBD_TYPE_NORMAL, SWKBD_MULTILINE, SWKBD_NOTEMPTY_NOTBLANK, DOWNLOAD_URL_MAX * INSTALL_URLS_MAX, NULL, remoteinstall_manually_enter_urls_onresponse);
+    osk_display("Enter URL(s)", "", DOWNLOAD_URL_MAX * INSTALL_URLS_MAX, OSK_NOT_BLANK | OSK_MULTILINE, NULL, remoteinstall_manually_enter_urls_onresponse);
 }
 
 static void remoteinstall_install_entry(u32 index) {

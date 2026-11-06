@@ -63,5 +63,5 @@ void action_new_folder(linked_list* items, list_item* selected) {
     data->items = items;
     data->selected = selected;
 
-    kbd_display("Enter folder name", "", SWKBD_TYPE_NORMAL, 0, SWKBD_NOTEMPTY_NOTBLANK, FILE_NAME_MAX, data, action_new_folder_onresponse);
+    osk_display("Enter folder name", "", FILE_NAME_MAX, OSK_NOT_BLANK, data, action_new_folder_onresponse);
 }

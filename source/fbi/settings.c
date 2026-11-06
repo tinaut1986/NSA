@@ -28,7 +28,7 @@ static settings_data settings = {
         .files = {.directories = true, .files = true, .cias = true, .tickets = true, .hidden = false, .sort = 0},
         .extsave = {.sd = true, .nand = true, .byId = false, .grid = false},
         .pending = {.sd = true, .nand = true},
-        .store = {.kinds = 3, .categories = 0xFF, .sort = 0, .grid = false, .tile = 2}
+        .store = {.kinds = 3, .categories = 0xFF, .sort = 0, .grid = false, .tile = 2, .shown = 0}
 };
 
 static const char* night_ids[] = {"off", "on", "auto"};
@@ -177,6 +177,7 @@ void settings_load() {
         settings.store.sort = settings_get_uint(store, "sort", settings.store.sort, 3);
         settings.store.grid = settings_get_bool(store, "grid", settings.store.grid);
         settings.store.tile = settings_get_uint(store, "tile", settings.store.tile, 3);
+        settings.store.shown = settings_get_uint(store, "shown", settings.store.shown, 2);
     }
 
     json_t* pending = json_object_get(json, "pending");
@@ -256,9 +257,9 @@ Result settings_save() {
         return R_APP_OUT_OF_MEMORY;
     }
 
-    json_object_set_new(json, "store", json_pack("{s:i,s:i,s:i,s:b,s:i}", "kinds", (int) settings.store.kinds, "categories", (int) settings.store.categories,
+    json_object_set_new(json, "store", json_pack("{s:i,s:i,s:i,s:b,s:i,s:i}", "kinds", (int) settings.store.kinds, "categories", (int) settings.store.categories,
                                                   "sort", (int) settings.store.sort, "grid", settings.store.grid,
-                                                  "tile", (int) settings.store.tile));
+                                                  "tile", (int) settings.store.tile, "shown", (int) settings.store.shown));
     json_object_set_new(json_object_get(json, "titles"), "tile", json_integer(settings.titles.tile));
     json_object_set_new(json, "menu", json_string(settings.menu));
     json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));

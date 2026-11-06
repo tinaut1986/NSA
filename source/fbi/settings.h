@@ -58,6 +58,7 @@ typedef struct {
     u32 sort;
     bool grid;
     u32 tile;
+    u32 shown;        // 0 all, 1 what is on the console (installed or downloaded), 2 what is not.
 } store_settings;
 
 typedef struct {

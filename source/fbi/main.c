@@ -343,7 +343,8 @@ int main(int argc, const char* argv[]) {
     bool aptAlive = true;
     bool uiAlive = true;
     while((aptAlive = aptMainLoop()) && (uiAlive = ui_update())) {
-        if(osGetTime() - beat >= 5000) {
+        // Each beat opens a file on the SD card and asks the network manager: seconds of a frozen screen at times, so rarely.
+        if(osGetTime() - beat >= 60000) {
             beat = osGetTime();
             sleeplog("beat");
         }

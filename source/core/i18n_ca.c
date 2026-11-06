@@ -994,6 +994,7 @@ const i18n_entry i18n_ca[] = {
         {"\uE001 goes back to the list of titles.", "\uE001 torna a la llista de títols."},
         {"Extracting...", "Extraient..."},
         {"Failed to take the files out of the archive.", "No s'han pogut treure els fitxers del comprimit."},
+        {"\uE000 change   \uE002 \uE003 volume   \uE001 back", "\uE000 canviar   \uE002 \uE003 volum   \uE001 tornar"},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

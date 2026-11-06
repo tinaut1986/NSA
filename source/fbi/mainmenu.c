@@ -754,7 +754,7 @@ static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, flo
     if(layout_editing) {
         view->info = _(" move    hide    reset   SELECT done");
     } else {
-        view->info = mainmenu_can_open(POS(menu->selected)) ? _(" open   START exit") : _("START exit");
+        view->info = mainmenu_can_open(POS(menu->selected)) ? _("\uE000 open   START exit") : _("START exit");
     }
 
     if(layout_editing) {
@@ -1214,7 +1214,7 @@ void mainmenu_open() {
 
     ui_view* view = ui_create();
     view->name = _("Main menu");
-    view->info = _(" open   START exit");
+    view->info = _("\uE000 open   START exit");
     view->data = data;
     view->update = mainmenu_update;
     view->drawTop = mainmenu_draw_top;

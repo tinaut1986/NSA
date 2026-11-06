@@ -262,8 +262,10 @@ static bool coach_tap_on_bubble() {
 }
 
 // What the step lets through now (before the touch is looked at).
+// With the anchor not on the screen the step's buttons still work (but A, which goes with the focus): a step must never
+// leave the user stuck.
 static u32 coach_allowed_keys(const coach_step* step, const coach_anchor_rec* a) {
-    if(coach_info_step(step) || (step->anchor != NULL && a == NULL && !acted && !coach_wait_step(step))) {
+    if(coach_info_step(step)) {
         return 0;
     }
 

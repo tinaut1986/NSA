@@ -20,6 +20,7 @@ typedef enum {
     K_PAGE_EXTRA,
     K_SPACE,
     K_OK,
+    K_ENTER,
     K_CANCEL,
     K_LEFT,
     K_RIGHT,
@@ -43,6 +44,8 @@ typedef struct {
     u32 count;
     key_def keys[KB_ROW_MAX];
 } key_row;
+
+static const key_def osk_enter_key = KA(K_ENTER, 2);
 
 static const key_row osk_toolbar = {5, {KA(K_CANCEL, 3), KA(K_CLEAR, 1), KA(K_LEFT, 1), KA(K_RIGHT, 1), KA(K_OK, 4)}};
 
@@ -80,6 +83,7 @@ typedef struct {
     u32 len;
     u32 cursor;
     u32 maxSize;   // With the final NUL.
+    u32 flags;
 
     u32 page;
     u32 shift;     // 0 off, 1 next letter, 2 caps lock.
@@ -105,7 +109,7 @@ static void osk_build_keys(osk_data* d) {
         float h = r < 0 ? 28 : 34;
         float x = 4;
         for(u32 i = 0; i < row->count && d->keyCount < OSK_KEYS_MAX; i++) {
-            const key_def* def = &row->keys[i];
+            const key_def* def = (d->flags & OSK_MULTILINE) && r == 3 && row->keys[i].action == K_OK ? &osk_enter_key : &row->keys[i];
             float w = def->width * unit;
             d->keys[d->keyCount++] = (key_rect) {x + 1, y, w - 2, h, def};
             x += w;
@@ -171,6 +175,19 @@ static void osk_finish(ui_view* view, osk_data* d, bool accepted) {
         return;
     }
 
+    if(accepted && (d->flags & OSK_NOT_BLANK)) {
+        bool text = false;
+        for(u32 i = 0; i < d->len; i++) {
+            if(d->text[i] != ' ' && d->text[i] != '\n' && d->text[i] != '\t') {
+                text = true;
+            }
+        }
+
+        if(!text) {
+            return;
+        }
+    }
+
     d->finished = true;
     ui_pop();
     if(accepted) {
@@ -202,24 +219,48 @@ static void osk_draw_top(ui_view* view, void* v, float x1, float y1, float x2, f
     widget_text_fit(d->hint, boxX, boxY - 22, WIDGET_TEXT_SCALE, t->palette->textMuted, boxW);
     screen_frame_round_rect(boxX, boxY, boxW, boxH, t->def->radiusSmall, t->def->border, t->accent, t->palette->background);
 
-    // When the text is wider than the box, the part before the cursor that does not fit is left out.
+    // New lines show as "|" while the text is drawn (and are put back below).
+    for(u32 i = 0; (d->flags & OSK_MULTILINE) && i < d->len; i++) {
+        if(d->text[i] == '\n') {
+            d->text[i] = '\r';
+        }
+    }
+
+    // When the text is wider than the box, the part before the cursor that does not fit is left out: the window starts
+    // as far back from the cursor as still fits.
     float room = boxW - 20;
-    u32 start = 0;
-    while(start < d->cursor) {
+    u32 start = d->cursor;
+    while(start > 0) {
+        u32 back = osk_prev_char(d, start);
         char saved = d->text[d->cursor];
         d->text[d->cursor] = '\0';
-        float w = widget_text_width(d->text + start, WIDGET_TEXT_SCALE);
+        float w = widget_text_width(d->text + back, WIDGET_TEXT_SCALE);
         d->text[d->cursor] = saved;
-        if(w <= room - 6) {
+        if(w > room - 6) {
             break;
         }
 
-        start = osk_next_char(d, start);
+        start = back;
     }
 
     float textY = boxY + (boxH - widget_text_height(WIDGET_TEXT_SCALE)) / 2;
     if(d->len > start) {
-        widget_text_fit(d->text + start, boxX + 10, textY, WIDGET_TEXT_SCALE, t->palette->text, room);
+        // Only what can be seen is handed over (the text may be thousands of characters long).
+        char shown[256];
+        u32 n = d->len - start < sizeof(shown) - 1 ? d->len - start : (u32) sizeof(shown) - 1;
+        while(n > 0 && start + n < d->len && ((u8) d->text[start + n] & 0xC0) == 0x80) {
+            n--;
+        }
+
+        memcpy(shown, d->text + start, n);
+        shown[n] = '\0';
+        for(u32 i = 0; i < n; i++) {
+            if(shown[i] == '\r') {
+                shown[i] = '|';
+            }
+        }
+
+        widget_text_fit(shown, boxX + 10, textY, WIDGET_TEXT_SCALE, t->palette->text, room);
     }
 
     if((osGetTime() / 500) % 2 == 0) {
@@ -228,6 +269,12 @@ static void osk_draw_top(ui_view* view, void* v, float x1, float y1, float x2, f
         float cx = boxX + 10 + widget_text_width(d->text + start, WIDGET_TEXT_SCALE);
         d->text[d->cursor] = saved;
         screen_fill_rect(cx, boxY + 6, 1.5f, boxH - 12, t->accent);
+    }
+
+    for(u32 i = 0; (d->flags & OSK_MULTILINE) && i < d->len; i++) {
+        if(d->text[i] == '\r') {
+            d->text[i] = '\n';
+        }
     }
 
     char count[24];
@@ -255,6 +302,7 @@ static void osk_draw_key(osk_data* d, const key_rect* k, bool pressed) {
         case K_PAGE_SYMBOLS: label = "123"; break;
         case K_PAGE_EXTRA: label = "áé="; break;
         case K_SPACE: break;
+        case K_ENTER: icon = ICON_ARROW_BACK_UP; break;
         case K_OK: icon = ICON_CHECK; if(k->w > 80) { label = _("OK"); } break;
         case K_CANCEL: icon = ICON_X; label = _("Cancel"); break;
         case K_LEFT: icon = ICON_CHEVRON_LEFT; break;
@@ -303,6 +351,7 @@ static bool osk_run_key(ui_view* view, osk_data* d, const key_def* def) {
         case K_LEFT: d->cursor = osk_prev_char(d, d->cursor); return true;
         case K_RIGHT: d->cursor = osk_next_char(d, d->cursor); return true;
         case K_CLEAR: d->text[0] = '\0'; d->len = 0; d->cursor = 0; return false;
+        case K_ENTER: osk_insert(d, "\n"); return true;
         case K_OK: osk_finish(view, d, true); return false;
         case K_CANCEL: osk_finish(view, d, false); return false;
     }
@@ -391,7 +440,7 @@ static void osk_update(ui_view* view, void* v, float bx1, float by1, float bx2, 
     }
 }
 
-ui_view* osk_display(const char* hint, const char* initialText, u32 maxSize, void* data, void (*onResponse)(ui_view* view, void* data, SwkbdButton button, const char* response)) {
+ui_view* osk_display(const char* hint, const char* initialText, u32 maxSize, u32 flags, void* data, void (*onResponse)(ui_view* view, void* data, SwkbdButton button, const char* response)) {
     osk_data* d = (osk_data*) calloc(1, sizeof(osk_data));
     if(d == NULL) {
         error_display(NULL, NULL, "Failed to allocate keyboard data.");
@@ -399,6 +448,7 @@ ui_view* osk_display(const char* hint, const char* initialText, u32 maxSize, voi
     }
 
     d->maxSize = maxSize < 2 ? 2 : maxSize;
+    d->flags = flags;
     d->text = (char*) calloc(1, d->maxSize);
     if(d->text == NULL) {
         free(d);

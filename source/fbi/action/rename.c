@@ -86,5 +86,5 @@ void action_rename(linked_list* items, list_item* selected) {
     data->items = items;
     data->selected = selected;
 
-    kbd_display("Enter new name", ((file_info*) selected->data)->name, SWKBD_TYPE_NORMAL, 0, SWKBD_NOTEMPTY_NOTBLANK, FILE_NAME_MAX, data, action_rename_onresponse);
+    osk_display("Enter new name", ((file_info*) selected->data)->name, FILE_NAME_MAX, OSK_NOT_BLANK, data, action_rename_onresponse);
 }

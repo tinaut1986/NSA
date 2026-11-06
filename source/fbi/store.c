@@ -1815,7 +1815,7 @@ static void store_search_done(ui_view* kbdView, void* data, SwkbdButton button, 
 }
 
 static void store_search_open(ui_view* view, void* data) {
-    osk_display(_("Search the Store"), list_get_search(view), 64, data, store_search_done);
+    osk_display(_("Search the Store"), list_get_search(view), 64, 0, data, store_search_done);
 }
 
 // ---- the screen ----

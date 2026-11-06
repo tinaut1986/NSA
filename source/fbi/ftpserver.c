@@ -986,6 +986,25 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    // How much memory is left: the biggest malloc block (found by halving) and the linear heap.
+    if(NSA_DEBUG && strcmp(sub, "MEM") == 0) {
+        size_t lo = 0;
+        size_t hi = 64 * 1024 * 1024;
+        while(hi - lo > 64 * 1024) {
+            size_t mid = lo + (hi - lo) / 2;
+            void* p = malloc(mid);
+            if(p != NULL) {
+                free(p);
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+
+        ftp_reply(s, "200 malloc %lu KB, linear free %lu KB", (unsigned long) (lo / 1024), (unsigned long) (linearSpaceFree() / 1024));
+        return;
+    }
+
     // Tests of the Store's scripts: "SITE UNARCHIVE /a.zip|^dir/|/out/" (paths on the SD card), "SITE MINIRE pattern|text".
     if(NSA_DEBUG && (strcmp(sub, "UNARCHIVE") == 0 || strcmp(sub, "MINIRE") == 0)) {
         char args[512];
@@ -1022,7 +1041,9 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         u32 count = 0;
         u64 start = osGetTime();
         Result res = unarchive_extract(archive, second, output, &progress, &count);
-        ftp_reply(s, "200 res %08lX files %lu bytes %llu of %llu in %llu ms", res, count, progress.done, progress.total, osGetTime() - start);
+        extern u32 unarchive_last_dictionary;
+        ftp_reply(s, "200 res %08lX files %lu bytes %llu of %llu in %llu ms, dictionary %lu", res, count, progress.done, progress.total, osGetTime() - start,
+                  unarchive_last_dictionary);
         return;
     }
 

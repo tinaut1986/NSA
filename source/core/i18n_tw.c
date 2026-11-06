@@ -985,6 +985,8 @@ const i18n_entry i18n_tw[] = {
         {"Every game and app installed. The top screen shows the one with the focus.", "所有已安裝的遊戲與應用程式。上螢幕顯示選中的項目。"},
         {"This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", "這個遊戲有更新資料或DLC：它們就在下面。按 \uE000 開啓遊戲本身，也就是第一個。"},
         {"\uE001 goes back to the list of titles.", "\uE001 返回軟體清單。"},
+        {"Extracting...", "解凍中..."},
+        {"Failed to take the files out of the archive.", "無法從壓縮包中取出文件。"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

@@ -992,6 +992,8 @@ const i18n_entry i18n_ca[] = {
         {"Every game and app installed. The top screen shows the one with the focus.", "Tots els jocs i aplicacions instal·lats. A dalt veus el que té el focus."},
         {"This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", "Aquest joc té actualitzacions o DLC: esperen aquí, a sota. Obre el joc mateix, el primer, amb \uE000."},
         {"\uE001 goes back to the list of titles.", "\uE001 torna a la llista de títols."},
+        {"Extracting...", "Extraient..."},
+        {"Failed to take the files out of the archive.", "No s'han pogut treure els fitxers del comprimit."},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

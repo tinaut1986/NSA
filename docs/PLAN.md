@@ -174,7 +174,14 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Main menu -> Store downloads Universal-DB's UniStore (`https://db.universal-team.net/unistore/universal-db.unistore`, ~0.9 MB, kept as `sdmc:/nsa/store.unistore` and used when there is no connection) and lists the 3DS apps that publish a CIA or a .3dsx with a plain "downloadFile" first step (about 320 of 447 on 2026-11-05: 260 CIA, 280 .3dsx). Zips and multi-step scripts are left out. The top screen shows the selected app (author, version, description, sizes, category); R or the tool searches.
 - [ ] A opens it: a CIA only -> asks and installs through the Remote install screens (`action_install_url`); a .3dsx only -> downloads to `/3ds/<name>/<name>.3dsx`; both -> a sheet to choose.
 - [ ] Memory: parsing ~1 MB of JSON on an Old 3DS / 2DS; leaving the screen while it loads (B).
-- Not done: zip extraction, DS apps.
+- Not done: DS apps, `downloadRelease` (the latest GitHub release: 13 apps, left out).
+- [ ] **Universal-DB's scripts** (2026-11-06, `feat/store-scripts`, `source/fbi/storescript.c`, `source/core/unarchive.c`): the
+  Store follows each file's steps as Universal-Updater does (downloadFile, extractFile from a .zip through zlib or a .7z through the
+  LZMA SDK in `source/libs/lzma`, installCia, deleteFile, move). Tried on the New 3DS XL (DEBUG): a plain .3dsx goes straight to
+  `/3ds/<name>.3dsx` after a yes/no (no Install/Save sheet), 3D Pinball's CIA out of a .7z installed and its files deleted, 3DS
+  Quick Reboot's .3dsx out of a .zip. Still to try: an app whose CIA and data both come out of one zip, a big .7z on the 2DS (a
+  solid block is unpacked in memory: HoriHD-Gallery's 36 MB took 38 s in Azahar), Cancel during "Extracting...", and an archive
+  that does not hold what the script names (Cirrus's 3DSX zip: it must say it failed and delete the download).
 - [ ] What is on the console is marked (a check on the row, the grid and the top card; "On this console: CIA, 3DSX"), with no
   version and **no "update available"** (removed 2026-11-06 at the owner's request): the console does not keep Universal-DB's version
   number, so the Store could only compare with what it installed itself (`sdmc:/nsa/store-installed.json`), which an app installed another way
@@ -1184,9 +1191,10 @@ current, this list is the summary. What only the owner can test (local wireless)
 
 ## Known issues
 
-- `SITE SCREENSHOT` on the console answers "not taken in time", yet the files appear a few
-  seconds later: fetch `/nsa/screenshots/top.bmp` after waiting. Suspected: NSA paused
-  in the background; not confirmed.
+- `SITE SCREENSHOT` on the console takes 17-21 s (2026-11-06, both consoles, 0.8.1; 0.17 s in Azahar) and the screen freezes
+  meanwhile; it answers "not taken in time" after 15 s and the files appear later. Not the music (off: the same) nor core 1 (idle:
+  the same); an FTP upload of 512 KB to the same card takes under a second. Still to measure where it goes (open, copy, write,
+  close). A second `SITE INSTALL` right after one left the 2DS without answering (perhaps hung), on the same afternoon.
 - **Azahar cannot judge** the console's data: its battery is 0, its Wi-Fi/SSID/system
   version are empty, its ticket list repeats one ticket, its ext data is a dummy with ID 0
   and size 0, its font differs (measure text and digits on the console). HTTPS (the

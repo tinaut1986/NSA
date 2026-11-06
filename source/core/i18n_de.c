@@ -997,6 +997,8 @@ const i18n_entry i18n_de[] = {
         {"Every game and app installed. The top screen shows the one with the focus.", "Alle installierten Spiele und Apps. Oben sehen Sie das mit Fokus."},
         {"This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", "Dieses Spiel hat Updates oder DLC: Sie warten hier, darunter. Öffnen Sie das Spiel selbst, das erste, mit \uE000."},
         {"\uE001 goes back to the list of titles.", "\uE001 geht zurück zur Titelliste."},
+        {"Extracting...", "Entpacken..."},
+        {"Failed to take the files out of the archive.", "Die Dateien konnten nicht entpackt werden."},
 };
 
 const u32 i18n_de_count = sizeof(i18n_de) / sizeof(*i18n_de);

@@ -1037,6 +1037,8 @@ static void titles_chain_open(titles_data* data, linked_list* items, list_item* 
             .drawRow = titles_chain_draw_row
     };
     list_set_style(view, &style);
+    // The back arrow (and the count) of the other lists.
+    list_show_title_bar(view);
 }
 
 // ---- the list ----

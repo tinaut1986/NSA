@@ -153,6 +153,9 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
   Azahar, which never gets it). `list_set_busy` gives the same to any list that loads in the background; the same wheel
   (`widget_busy`) turns in the "Loading" dialogs before their bar (it was three blinking dots) and over "Loading..." in the
   picture viewer: both too quick in Azahar to see.
+- [ ] The 0.8 texts (Store, guide, menu editing, receive choices...) in the nine other languages (2026-11-06, translated in one go; only
+  Simplified Chinese seen in Azahar: the guide's offer and a bubble). Simplified Chinese's font now has 587 characters in a 512x924 atlas
+  (cells of 28 px: `tools/make_hanfont.py` must keep it within 1024 high, or NSA freezes at start in that language).
 - [ ] Settings -> Guide: "Everything not seen yet (N)", every chapter with New or a tick, "Start again" (asks); the top screen shows the
   summary, steps and the version it came with. The Settings row shows "N of 12 chapters seen".
 - [ ] Every dialog whose message is taller than its card scrolls it above the buttons (D-Pad / Circle Pad up and down, a finger

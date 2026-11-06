@@ -368,6 +368,10 @@ int main(int argc, const char* argv[]) {
 
     sleeplog("main loop left: aptMainLoop=%d ui_update=%d", aptAlive ? 1 : 0, uiAlive ? 1 : 0);
 
+    // The Store's threads read its data in a loop: stopped before anything they use goes away.
+    store_exit();
+    sleeplog("store_exit done");
+
     ftpserver_stop();
     sleeplog("ftpserver_stop done");
     webserver_stop();

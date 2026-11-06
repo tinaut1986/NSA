@@ -28,6 +28,7 @@ typedef struct {
 
 #define INFO_BUTTON_HEIGHT 28
 #define INFO_BUTTON_GAP 10
+#define INFO_WHEEL_RADIUS 11   // The wheel shown when there is no bar.
 
 // Where the card and the button go on the bottom screen.
 static void info_layout(info_data* infoData, float x1, float y1, float x2, float y2, float* cardX, float* cardY, float* cardW, float* cardH,
@@ -37,7 +38,7 @@ static void info_layout(info_data* infoData, float x1, float y1, float x2, float
     float textHeight = 0;
     screen_get_string_size_wrap(&textWidth, &textHeight, infoData->text, WIDGET_TEXT_SCALE, WIDGET_TEXT_SCALE, width - 24);
 
-    float barHeight = infoData->bar ? 10 + 12 : 18 + 6;
+    float barHeight = infoData->bar ? 10 + 12 : INFO_WHEEL_RADIUS * 2 + 4 + 10;
     float height = 14 + barHeight + textHeight + 14;
     float total = height + (infoData->onButton != NULL ? INFO_BUTTON_GAP + INFO_BUTTON_HEIGHT : 0);
 
@@ -101,7 +102,7 @@ static void info_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
 
     float x, y, width, height, btnX, btnY, btnW;
     info_layout(infoData, x1, y1, x2, y2, &x, &y, &width, &height, &btnX, &btnY, &btnW);
-    float barHeight = infoData->bar ? 10 + 12 : 18 + 6;
+    float barHeight = infoData->bar ? 10 + 12 : INFO_WHEEL_RADIUS * 2 + 4 + 10;
     widget_card(x, y, width, height);
 
     if(infoData->onButton != NULL) {
@@ -122,11 +123,8 @@ static void info_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
         screen_draw_text(percent, x + width - 12 - percentW, cy + 5 - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
         cy += barHeight;
     } else {
-        // No measure: three dots, one lit at a time.
-        u32 lit = (u32) (osGetTime() / 250) % 3;
-        for(u32 i = 0; i < 3; i++) {
-            screen_fill_circle(x + width / 2 + (i - 1) * 14, cy + 6, 4, i == lit ? t->accent : t->palette->border);
-        }
+        // No measure: a turning wheel.
+        widget_busy(x + width / 2, cy + INFO_WHEEL_RADIUS + 2, INFO_WHEEL_RADIUS, t->accent);
 
         cy += barHeight;
     }

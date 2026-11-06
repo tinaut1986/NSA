@@ -1,6 +1,5 @@
 #define _GNU_SOURCE
 #include <malloc.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -671,23 +670,12 @@ static void list_draw_top(ui_view* view, void* data, float x1, float y1, float x
     }
 }
 
-// Something is loading: a ring of dots turning in the middle (the brightest leads, the others fade behind it), and `text`
-// under it.
+// Something is loading: a turning wheel in the middle, and `text` under it.
 static void list_draw_busy(const char* text, float x1, float y1, float x2, float y2) {
     const theme_current* t = theme();
-    const u32 dots = 8;
     const float radius = 16;
-    float cx = (x1 + x2) / 2;
     float cy = y1 + (y2 - y1) / 2 - 12;
-    u32 lead = (u32) (osGetTime() / 90) % dots;
-    for(u32 i = 0; i < dots; i++) {
-        float angle = (float) i * 2 * (float) M_PI / dots - (float) M_PI / 2;
-        u32 behind = (lead + dots - i) % dots;
-        u8 alpha = (u8) (0xFF - behind * 0xFF / (dots + 1));
-        float size = 4.5f - behind * 0.3f;
-        screen_fill_circle(cx + cosf(angle) * radius, cy + sinf(angle) * radius, size, THEME_ALPHA(t->accent, alpha));
-    }
-
+    widget_busy((x1 + x2) / 2, cy, radius, t->accent);
     widget_text_centered(i18n_translate_text(text), x1, x2, cy + radius + 12, WIDGET_TEXT_SCALE, t->palette->textMuted);
 }
 

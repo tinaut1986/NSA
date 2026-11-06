@@ -179,9 +179,15 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
   Store follows each file's steps as Universal-Updater does (downloadFile, extractFile from a .zip through zlib or a .7z through the
   LZMA SDK in `source/libs/lzma`, installCia, deleteFile, move). Tried on the New 3DS XL (DEBUG): a plain .3dsx goes straight to
   `/3ds/<name>.3dsx` after a yes/no (no Install/Save sheet), 3D Pinball's CIA out of a .7z installed and its files deleted, 3DS
-  Quick Reboot's .3dsx out of a .zip. Still to try: an app whose CIA and data both come out of one zip, a big .7z on the 2DS (a
-  solid block is unpacked in memory: HoriHD-Gallery's 36 MB took 38 s in Azahar), Cancel during "Extracting...", and an archive
-  that does not hold what the script names (Cirrus's 3DSX zip: it must say it failed and delete the download).
+  Quick Reboot's .3dsx out of a .zip. Still to try: an app whose CIA and data both come out of one zip, Cancel during
+  "Extracting...", and an archive that does not hold what the script names (Cirrus's 3DSX zip: it must say it failed and delete
+  the download).
+- [ ] **Big .7z** (2026-11-06, v0.8.3): a block packed with LZMA, LZMA2 or stored is decoded a piece at a time and each file written
+  as it comes out (its CRC checked), so only the dictionary is in memory (no bigger than the block; on the heap, else the linear
+  heap): HoriHD-Gallery (36 MB .7z, a 43 MB block, 16 MB dictionary) ran out of memory before on the New 3DS XL and now works on
+  it and on the 2DS (the 2DS: about 1 min 30 s to extract). Other methods (BCJ, PPMd) still unpack the whole block in memory.
+  The bar follows the archive's bytes read. The extraction runs below the UI's priority (0x38; core 2 on a New 3DS): the owner
+  saw the screen stop during the extraction before that change; check it now moves smoothly.
 - [ ] What is on the console is marked (a check on the row, the grid and the top card; "On this console: CIA, 3DSX"), with no
   version and **no "update available"** (removed 2026-11-06 at the owner's request): the console does not keep Universal-DB's version
   number, so the Store could only compare with what it installed itself (`sdmc:/nsa/store-installed.json`), which an app installed another way
@@ -1194,7 +1200,8 @@ current, this list is the summary. What only the owner can test (local wireless)
 - `SITE SCREENSHOT` on the console takes 17-21 s (2026-11-06, both consoles, 0.8.1; 0.17 s in Azahar) and the screen freezes
   meanwhile; it answers "not taken in time" after 15 s and the files appear later. Not the music (off: the same) nor core 1 (idle:
   the same); an FTP upload of 512 KB to the same card takes under a second. Still to measure where it goes (open, copy, write,
-  close). A second `SITE INSTALL` right after one left the 2DS without answering (perhaps hung), on the same afternoon.
+  close). A second `SITE INSTALL` right after one left the 2DS stuck on the FTP install bar at its end (no HOME, touch or
+  buttons; the owner had to hold the power button), on the same afternoon: maybe the same slow SD writes.
 - **Azahar cannot judge** the console's data: its battery is 0, its Wi-Fi/SSID/system
   version are empty, its ticket list repeats one ticket, its ext data is a dummy with ID 0
   and size 0, its font differs (measure text and digits on the console). HTTPS (the

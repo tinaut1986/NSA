@@ -987,6 +987,7 @@ const i18n_entry i18n_tw[] = {
         {"\uE001 goes back to the list of titles.", "\uE001 返回軟體清單。"},
         {"Extracting...", "解凍中..."},
         {"Failed to take the files out of the archive.", "無法從壓縮包中取出文件。"},
+        {"\uE000 change   \uE002 \uE003 volume   \uE001 back", "\uE000 變更   \uE002 \uE003 音量   \uE001 返回"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

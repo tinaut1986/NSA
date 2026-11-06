@@ -188,6 +188,9 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
   it and on the 2DS (the 2DS: about 1 min 30 s to extract). Other methods (BCJ, PPMd) still unpack the whole block in memory.
   The bar follows the archive's bytes read. The extraction runs below the UI's priority (0x38; core 2 on a New 3DS): the owner
   saw the screen stop during the extraction before that change; check it now moves smoothly.
+- [x] Hints (2026-11-06, `fix/hints-i18n`): the main menu's " open   START exit" had lost its A glyph in the code, so it
+  showed in English with no button in every language; Settings' hint on a row with a volume slider had no translation. Both seen in
+  Spanish in Azahar.
 - [ ] What is on the console is marked (a check on the row, the grid and the top card; "On this console: CIA, 3DSX"), with no
   version and **no "update available"** (removed 2026-11-06 at the owner's request): the console does not keep Universal-DB's version
   number, so the Store could only compare with what it installed itself (`sdmc:/nsa/store-installed.json`), which an app installed another way

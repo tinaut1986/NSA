@@ -999,6 +999,7 @@ const i18n_entry i18n_pt[] = {
         {"\uE001 goes back to the list of titles.", "\uE001 volta à lista de títulos."},
         {"Extracting...", "Extraindo..."},
         {"Failed to take the files out of the archive.", "Não foi possível extrair os arquivos do compactado."},
+        {"\uE000 change   \uE002 \uE003 volume   \uE001 back", "\uE000 alterar   \uE002 \uE003 volume   \uE001 voltar"},
 };
 
 const u32 i18n_pt_count = sizeof(i18n_pt) / sizeof(*i18n_pt);

@@ -995,6 +995,7 @@ const i18n_entry i18n_ru[] = {
         {"\uE001 goes back to the list of titles.", "\uE001 возвращает к списку приложений."},
         {"Extracting...", "Распаковка..."},
         {"Failed to take the files out of the archive.", "Не удалось извлечь файлы из архива."},
+        {"\uE000 change   \uE002 \uE003 volume   \uE001 back", "\uE000 изменить   \uE002 \uE003 громкость   \uE001 назад"},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

@@ -986,6 +986,7 @@ const i18n_entry i18n_zh[] = {
         {"\uE001 goes back to the list of titles.", "\uE001 返回软件列表。"},
         {"Extracting...", "正在解压..."},
         {"Failed to take the files out of the archive.", "无法从压缩包中取出文件。"},
+        {"\uE000 change   \uE002 \uE003 volume   \uE001 back", "\uE000 更改   \uE002 \uE003 音量   \uE001 返回"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

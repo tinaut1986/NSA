@@ -122,23 +122,31 @@ What `release` holds, in the order it was built:
 21. **Settings**: a volume slider under Sounds and Background music (one box each), draggable scrollbars in lists, Settings,
     action sheets and popovers, "Open as text" only on files with no known extension.
 22. **README with pictures** taken on a real console (`docs/images/`), v0.4.0 and v0.4.1 published.
-23. **Guide** (`feat/guide`, `source/fbi/guide.c`): how NSA works in short chapters of 2-5 pages, offered at start and kept in
-    Settings -> Guide. See Decisions, "The guide's chapters", before adding one for a new feature.
+23. **Guide** (`feat/guide`, `source/fbi/guide.c` on `source/core/ui/coach.c`): how NSA works, as guided tours on its own
+    screens (a bubble points at a button and waits for the user to press it), offered at start and kept in Settings -> Guide. See
+    Decisions, "The guide's chapters", before adding one for a new feature.
 
 ## Pending tests on the console (2026-10-31)
 
-**Guide and scrolling dialogs** (2026-11-06, `feat/guide`; DEBUG 0.7.3 tried in Azahar, in Spanish, Cards theme: the three ways in
-below, the viewer with several chapters and with one, Settings -> Guide, and a long message scrolled with the D-Pad and a finger)
+**Guide and scrolling dialogs** (2026-11-06, `feat/guide`; DEBUG 0.7.3 tried in Azahar, in Spanish, Cards theme: the offer at
+start, Getting around, Your main menu, Store, SD card and From your computer played through, a chapter started from Settings -> Guide,
+START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] A console that ran NSA before (settings.json without `guide_known`) is asked once at start "New in this version": Your
-  main menu and Store, with Getting around chained before them while not seen; the top screen lists what it will play with the pages
+  main menu and Store, with Getting around chained before them while not seen; the top screen lists what it will play with the steps
   of each, and X "Everything" adds every other chapter not seen. Any answer, Later too, is not asked again.
 - [ ] A first start (no settings.json) is welcomed with the five essential chapters (Getting around, Your main menu, Titles, SD card,
   Remote install).
-- [ ] The viewer: the page on top (chapter, "Chapter 2 of 5", icon, title, text, dots), the chapters of the run (or the pages of a
-  lone chapter) ticked on the bottom screen, A / Right / R next, Left / L back, X skips a chapter, B closes; Previous and Next by touch.
-  A chapter counts as seen at its last page. The update check runs after the guide closes.
+- [ ] The tours: each chapter first goes back to the main menu by itself (B until only it is open); the rest of the screen is dimmed
+  and only what the bubble asks for gets through (the button, a tap on what is framed, the D-Pad to bring the focus there); an
+  explanation goes on with A or a tap. A bubble goes next to what it points at, or on the other screen when that fills its own
+  (the actions sheet, a list, the top screen). START leaves at any time without reaching the screen (it would exit NSA on the main
+  menu). Something not on the screen (an entry hidden from the menu, a title with no save) says so after a moment and A goes on.
+  A chapter counts as seen when its last step is done; the update check runs after the guide.
+- [ ] Every chapter on the console, in both themes with a different menu order (the anchors follow the layout) and with the HOME theme
+  (tiles drawn differently): Titles (L popover, Y view), Remote install, Saves (a game with a save), Console to console, Look and sound,
+  Cleanup and System, Updates.
 - [ ] Settings -> Guide: "Everything not seen yet (N)", every chapter with New or a tick, "Start again" (asks); the top screen shows the
-  summary, pages and the version it came with. The Settings row shows "N of 12 chapters seen".
+  summary, steps and the version it came with. The Settings row shows "N of 12 chapters seen".
 - [ ] Every dialog whose message is taller than its card scrolls it above the buttons (D-Pad / Circle Pad up and down, a finger
   dragging the text, or its scrollbar); short ones look as before. Check a sheet (HOME theme) and the Pixel theme.
 - [ ] The texts of the chapters fit their card on the console's own font, in English and Spanish (only Spanish has the new strings).
@@ -916,9 +924,18 @@ current, this list is the summary. What only the owner can test (local wireless)
   (`since`, `GUIDE_VERSION(0, 8)`), `essential` (offered on a first start) and `needs` (a chapter shown first while unseen).
   `settings.json` keeps `guide_seen` (ids) and `guide_known` (the newest `since` offered; missing = a console from before the guide,
   taken as v0.7; 0 = a first start). At start, after the other questions and before the update check, NSA asks once about the
-  chapters with `since` > `guide_known`; any answer moves `guide_known` on. **For a new feature**: append a chapter (2-3 pages of
-  at most ~45 words each, so they fit the card) with the release's version as `since` and the chapter it builds on as `needs`, add its
-  Spanish to `i18n_es.c`, and never rename an id. Pages are text only, with the button glyphs; no pictures.
+  chapters with `since` > `guide_known`; any answer moves `guide_known` on. **For a new feature**: append a chapter with the
+  release's version as `since` and the chapter it builds on as `needs`, add its Spanish to `i18n_es.c`, and never rename an id.
+- **Guided tours** (`source/core/ui/coach.c`; the owner chose 2026-11-06 a tutorial on the real screens where the user does each
+  action, not a slide show): a chapter is a list of `coach_step` (macros in `guide.c`: `INFO` explains, A goes on; `DO` waits for a
+  button or a tap on the anchor, then for `until`; `OPEN` a main menu entry; `REACH` a row with the D-Pad). Screens say where they draw
+  what a step may point at with `coach_anchor(id, rect, selected)`: `menu.<entry id>`, `menu.tiles`, `menu.icons`, `menu.editing`,
+  `tool.<search|filter|grid|rows|size|more|clipboard|nearby>`, `list`, `list.selected`, `sheet` and each sheet row by its label,
+  `popover`, `settings.<option>`, `remote.<3ds|pc|qr|url|history>`, `back`, `hints`, `top`. A new screen a chapter visits needs its
+  anchors. `until`: `v:<view id or English name>` on top, `<anchor>` drawn, `!<anchor>` gone, `@<anchor>` with the focus. All input
+  goes through `coach_filter` (in `input_scan`): only the step's keys (A only while the anchor has the focus), keys pressed after
+  the step began, and a touch that went down on the anchor; START ends the tour and is kept from the views until let go. Steps
+  should never reach anything that changes data: point at it with `INFO` instead.
 - **Dialogs scroll** (`prompt.c`): a message taller than the card scrolls between the header and the buttons, so a long question
   never hides behind them; no dialog needs its text cut for that any more.
 - **Sleep and HOME** (`net_sleep_hook` in `main.c`): the app's `ac` session does not survive the console's sleep

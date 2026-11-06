@@ -2,6 +2,7 @@
 
 // This file reads the real hardware, so it must not see the redirections.
 #include "input.h"
+#include "ui/coach.h"
 #undef hidKeysDown
 #undef hidKeysHeld
 #undef hidKeysUp
@@ -49,7 +50,8 @@ void input_scan() {
     // Down and up come from the combined state, so an injected press behaves
     // exactly like a real one.
     u32 previous = keys_held;
-    keys_held = held | injected;
+    // A guided tour lets through only what its step asks for (coach.h).
+    keys_held = coach_filter(held | injected, &touch);
     keys_down = keys_held & ~previous;
     keys_up = previous & ~keys_held;
     injected_last = injected;

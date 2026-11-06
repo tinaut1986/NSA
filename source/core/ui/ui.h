@@ -69,4 +69,5 @@ const char* ui_get_display_size_units(u64 size);
 #include "prompt.h"
 #include "widgets.h"
 #include "overlay.h"
+#include "coach.h"
 #include "../input.h"

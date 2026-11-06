@@ -585,6 +585,14 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
 
         settings_option option = (settings_option) i;
         u32* volume = settingsmenu_slider_value(option);
+
+        // Where a guided tour finds it (coach.h).
+        static const char* const anchors[OPTION_COUNT] = {
+                "settings.theme", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
+                "settings.ftp", "settings.ftp_music", "settings.web", "settings.channel", "settings.auto_update",
+                "settings.check_updates", "settings.changelog", "settings.guide"
+        };
+        coach_anchor(anchors[i], rowX, y, rowW, settingsmenu_row_height(i), i == menu->selected);
         if(volume != NULL) {
             char percent[8];
             snprintf(percent, sizeof(percent), "%lu%%", *volume);

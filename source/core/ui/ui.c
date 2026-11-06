@@ -18,6 +18,7 @@
 #include "../icons.h"
 #include "../theme.h"
 #include "widgets.h"
+#include "coach.h"
 
 #define MAX_UI_VIEWS 16
 
@@ -221,7 +222,9 @@ static void ui_draw_top_bar() {
 
 static void ui_draw_top_eye(ui_view* ui, gfx3dSide_t side, float shift) {
     screen_select_eye(GFX_TOP, side, shift);
+    coach_screen_begin(GFX_TOP, side == GFX_LEFT);
     widget_background(TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT);
+    coach_anchor("top", 0, WIDGET_TOP_BAR_HEIGHT, TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT - WIDGET_TOP_BAR_HEIGHT, false);
 
     screen_set_base_alpha(ui_fade_alpha);
 
@@ -236,6 +239,7 @@ static void ui_draw_top_eye(ui_view* ui, gfx3dSide_t side, float shift) {
     screen_set_depth(0);
 
     screen_set_base_alpha(0xFF);
+    coach_draw(GFX_TOP);
 }
 
 static void ui_draw_top(ui_view* ui) {
@@ -294,6 +298,7 @@ static void ui_draw_bottom(ui_view* ui) {
     const theme_current* t = theme();
 
     screen_select(GFX_BOTTOM);
+    coach_screen_begin(GFX_BOTTOM, true);
     widget_background(BOTTOM_SCREEN_WIDTH, BOTTOM_SCREEN_HEIGHT);
 
     screen_set_base_alpha(ui_fade_alpha);
@@ -317,6 +322,7 @@ static void ui_draw_bottom(ui_view* ui) {
         }
 
         screen_draw_icon(ICON_ARROW_LEFT, 6, cy + 3, 16, t->palette->text);
+        coach_anchor("back", 3, cy, UI_BACK_ARROW_SIZE, UI_BACK_ARROW_SIZE, true);
         widget_text_fit(ui->name, UI_BACK_ARROW_WIDTH, (contentTop - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, t->palette->text, BOTTOM_SCREEN_WIDTH - UI_BACK_ARROW_WIDTH - 6);
     } else if(ui->name != NULL) {
         widget_text_centered(ui->name, 0, BOTTOM_SCREEN_WIDTH, (contentTop - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, t->palette->text);
@@ -325,6 +331,7 @@ static void ui_draw_bottom(ui_view* ui) {
     // Hint bar: the view's buttons.
     screen_fill_rect(0, contentBottom, BOTTOM_SCREEN_WIDTH, WIDGET_HINT_BAR_HEIGHT, t->palette->surface);
     screen_fill_rect(0, contentBottom, BOTTOM_SCREEN_WIDTH, 1, t->palette->border);
+    coach_anchor("hints", 0, contentBottom, BOTTOM_SCREEN_WIDTH, WIDGET_HINT_BAR_HEIGHT, false);
     if(ui->info != NULL) {
         const char* hint = i18n_translate_text(ui->info);
         float scale = WIDGET_SMALL_SCALE;
@@ -343,6 +350,7 @@ static void ui_draw_bottom(ui_view* ui) {
     }
 
     screen_set_base_alpha(0xFF);
+    coach_draw(GFX_BOTTOM);
 }
 
 // Drawing every frame costs the app core much of its time (on an Old 3DS over
@@ -399,6 +407,7 @@ bool ui_update() {
 
     sound_update();
     bgmusic_update();
+    coach_update();
 
     ui = ui_top();
     ui_update_back_arrow(ui);
@@ -420,6 +429,7 @@ bool ui_update() {
         if(ui_should_draw(ui)) {
             speedlog_frame();
             screen_begin_frame();
+            coach_frame_begin();
             ui_draw_top(ui);
             ui_draw_bottom(ui);
             screen_end_frame();

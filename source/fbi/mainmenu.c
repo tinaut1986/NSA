@@ -1160,7 +1160,32 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
 
                 widget_press_draw(&menu->press, (int) p, x, y, w, h, radius, pressInk, !layout_editing);
             }
+
+            // Where a guided tour finds it (coach.h): "menu.titles"...
+            if(!hidden && !isDragged) {
+                char id[32];
+                snprintf(id, sizeof(id), "menu.%s", entry_ids[layout_perm[p]]);
+                coach_anchor(id, slot[0], slot[1], slot[2], slot[3], selected);
+            }
         }
+    }
+
+    // The big tiles and the row of icons, as groups.
+    if(!mainmenu_home() && layout_visible > 0) {
+        float ax, ay, aw, ah, bx, by, bw, bh;
+        u32 tiles = layout_visible < TILE_COUNT ? layout_visible : TILE_COUNT;
+        mainmenu_button_rect(0, x1, y1, x2, &ax, &ay, &aw, &ah);
+        mainmenu_button_rect(tiles - 1, x1, y1, x2, &bx, &by, &bw, &bh);
+        coach_anchor("menu.tiles", ax, ay, bx + bw - ax, ah, false);
+        if(layout_visible > TILE_COUNT) {
+            mainmenu_button_rect(TILE_COUNT, x1, y1, x2, &ax, &ay, &aw, &ah);
+            mainmenu_button_rect(layout_visible - 1, x1, y1, x2, &bx, &by, &bw, &bh);
+            coach_anchor("menu.icons", ax, ay, bx + bw - ax, ah, false);
+        }
+    }
+
+    if(layout_editing) {
+        coach_anchor("menu.editing", x1, y1, x2 - x1, y2 - y1, false);
     }
 
     // The name of the focused icon.

@@ -404,7 +404,7 @@ static bool action_install_url_error(void* data, u32 index, Result res, ui_view*
 
 // ---- the install screen: the current URL's progress on top, every URL below ----
 
-// "game.cia" from "http://host/dir/game.cia?x=1".
+// "Game Name.cia" from ".../Game%20Name.cia?x=1": the part after the last slash, decoded as the saved name is.
 static void action_install_url_file_name(const char* url, char* out, size_t size) {
     const char* start = strstr(url, "://");
     start = start != NULL ? start + 3 : url;
@@ -412,12 +412,19 @@ static void action_install_url_file_name(const char* url, char* out, size_t size
     const char* slash = strrchr(start, '/');
     const char* name = slash != NULL && slash[1] != '\0' ? slash + 1 : start;
     size_t len = strcspn(name, "?#");
-    if(len >= size) {
-        len = size - 1;
+
+    size_t used = 0;
+    for(size_t i = 0; i < len && used < size - 1; i++) {
+        unsigned hex = 0;
+        if(name[i] == '%' && i + 2 < len && sscanf(name + i + 1, "%2x", &hex) == 1 && hex >= 0x20) {
+            out[used++] = (char) hex;
+            i += 2;
+        } else {
+            out[used++] = name[i] == '+' ? ' ' : name[i];
+        }
     }
 
-    memcpy(out, name, len);
-    out[len] = '\0';
+    out[used] = '\0';
 }
 
 // "192.168.1.143" from "http://192.168.1.143:8080/game.cia".
@@ -598,7 +605,8 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
         if(current) {
             icon = ICON_DOWNLOAD;
             iconColor = t->accent;
-            snprintf(status, sizeof(status), "%d %%", info->currTotal != 0 ? (int) (info->currProcessed * 100 / info->currTotal) : 0);
+            u32 hundredths = info->currTotal != 0 ? (u32) ((u64) info->currProcessed * 10000 / info->currTotal) : 0;
+            snprintf(status, sizeof(status), "%lu.%02lu %%", hundredths / 100, hundredths % 100);
         } else if(installData->states[i] == URL_INSTALLED || installData->states[i] == URL_SAVED) {
             icon = ICON_CHECK;
             iconColor = t->palette->success;
@@ -694,10 +702,39 @@ static void action_install_url_choose_update(ui_view* view, void* data, linked_l
         return;
     }
 
+    // The web page can answer too: the same choices, and Cancel last.
+    char webText[512];
+    int webLen = snprintf(webText, sizeof(webText), "%s", installData->confirm);
+    u32 shown = installData->installInfo.total < 5 ? installData->installInfo.total : 5;
+    for(u32 i = 0; i < shown && webLen > 0 && (size_t) webLen < sizeof(webText); i++) {
+        char name[FILE_NAME_MAX];
+        action_install_url_file_name(installData->urls[i], name, sizeof(name));
+        webLen += snprintf(webText + webLen, sizeof(webText) - webLen, "\n%s", name);
+    }
+
+    if(installData->installInfo.total > shown && webLen > 0 && (size_t) webLen < sizeof(webText)) {
+        snprintf(webText + webLen, sizeof(webText) - webLen, "\n");
+        webLen = (int) strlen(webText);
+        snprintf(webText + webLen, sizeof(webText) - webLen, _("and %lu more"), installData->installInfo.total - shown);
+    }
+
+    char webNames[INSTALL_URL_CHOICES + 1][PROMPT_OPTION_TEXT_MAX];
+    const char* webOptions[INSTALL_URL_CHOICES + 1];
+    for(u32 i = 0; i < INSTALL_URL_CHOICES; i++) {
+        string_copy(webNames[i], _(action_install_url_choice_names[i]), sizeof(webNames[i]));
+        webOptions[i] = webNames[i];
+    }
+
+    string_copy(webNames[INSTALL_URL_CHOICES], _("Cancel"), sizeof(webNames[INSTALL_URL_CHOICES]));
+    webOptions[INSTALL_URL_CHOICES] = webNames[INSTALL_URL_CHOICES];
+    int webChoice = prompt_web_offer(installData, _("Install from URL"), webText, webOptions, INSTALL_URL_CHOICES + 1, false);
+
     // X saves at once, as the confirmation did (and the tests press).
     u32 choice = UINT32_MAX;
     u32 down = hidKeysDown();
-    if(down & KEY_B) {
+    if(webChoice >= 0 && webChoice <= INSTALL_URL_CHOICE_CANCEL) {
+        choice = (u32) webChoice;
+    } else if(down & KEY_B) {
         choice = INSTALL_URL_CHOICE_CANCEL;
     } else if(down & KEY_X) {
         choice = INSTALL_URL_CHOICE_SAVE;
@@ -709,6 +746,7 @@ static void action_install_url_choose_update(ui_view* view, void* data, linked_l
         return;
     }
 
+    prompt_web_forget(installData);
     ui_pop();
     action_install_url_choose_clear(items);
     list_destroy(view);
@@ -729,13 +767,17 @@ static void action_install_url_choose_draw_top(ui_view* view, void* data, float 
     screen_draw_string_wrap(installData->confirm, x, y, 0.5f, 0.5f, COLOR_TEXT, false, x + width);
     y += h + 6;
 
+    // Each name whole, over as many lines as it needs; one address is shown whole too (decoded).
     u32 shown = installData->installInfo.total < 3 ? installData->installInfo.total : 3;
     for(u32 i = 0; i < shown; i++) {
         char name[FILE_NAME_MAX];
         action_install_url_file_name(installData->urls[i], name, sizeof(name));
         screen_draw_icon(ICON_PACKAGE, x, y + 1, 14, t->accent);
-        widget_text_fit(name, x + 20, y, 0.5f, t->palette->text, width - 20);
-        y += widget_text_height(0.5f) + 3;
+        float nameW = 0;
+        float nameH = 0;
+        screen_get_string_size_wrap(&nameW, &nameH, name, 0.5f, 0.5f, width - 20);
+        screen_draw_text_wrap(name, x + 20, y, 0.5f, t->palette->text, x + width);
+        y += nameH + 3;
     }
 
     if(installData->installInfo.total > shown) {
@@ -743,6 +785,17 @@ static void action_install_url_choose_draw_top(ui_view* view, void* data, float 
         snprintf(more, sizeof(more), _("and %lu more"), installData->installInfo.total - shown);
         widget_text_fit(more, x + 20, y, 0.5f, t->palette->textMuted, width - 20);
         y += widget_text_height(0.5f) + 3;
+    } else if(installData->installInfo.total == 1) {
+        char address[DOWNLOAD_URL_MAX];
+        string_url_decode(address, installData->urls[0], sizeof(address));
+        float addressW = 0;
+        float addressH = 0;
+        screen_get_string_size_wrap(&addressW, &addressH, address, 0.4f, 0.4f, width);
+        // Only while the card under it keeps room for its text.
+        if(y + addressH + 4 + 70 <= y2) {
+            screen_draw_text_wrap(address, x, y, 0.4f, t->palette->textMuted, x + width);
+            y += addressH + 4;
+        }
     }
 
     // What the chosen way does.
@@ -763,10 +816,11 @@ static void action_install_url_choose_draw_top(ui_view* view, void* data, float 
                             COLOR_TEXT, false, x + width - 4);
 }
 
-void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
-                        void (*finishedURL)(void* data, u32 index),
-                        void (*finishedAll)(void* data),
-                        void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index)) {
+void action_install_url_choice(const char* confirmMessage, const char* urls, const char* paths, void* userData,
+                               void (*finishedURL)(void* data, u32 index),
+                               void (*finishedAll)(void* data),
+                               void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index),
+                               int choice) {
     install_url_data* data = (install_url_data*) calloc(1, sizeof(install_url_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate URL install data.");
@@ -861,6 +915,12 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
 
     data->installInfo.finished = true;
 
+    // A choice made by the caller (a plain download, say): no question.
+    if(choice >= 0) {
+        action_install_url_confirm_onresponse(NULL, data, (u32) choice);
+        return;
+    }
+
     // No message: the caller already asked (the updater shows its own prompt).
     if(confirmMessage == NULL) {
         action_install_url_confirm_onresponse(NULL, data, INSTALL_URL_CHOICE_INSTALL);
@@ -877,4 +937,16 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
     }
 
     view->id = "Confirmation";
+}
+
+void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
+                        void (*finishedURL)(void* data, u32 index),
+                        void (*finishedAll)(void* data),
+                        void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index)) {
+    action_install_url_choice(confirmMessage, urls, paths, userData, finishedURL, finishedAll, drawTop, -1);
+}
+
+// Only downloads the file(s) to INSTALL_URL_SAVE_DIR, to install later from Files: no question first.
+void action_save_url(const char* urls, void* userData, void (*finishedURL)(void* data, u32 index), void (*finishedAll)(void* data)) {
+    action_install_url_choice(NULL, urls, NULL, userData, finishedURL, finishedAll, NULL, INSTALL_URL_CHOICE_SAVE);
 }

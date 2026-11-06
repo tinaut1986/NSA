@@ -1,5 +1,7 @@
 #include <sys/iosupport.h>
 #include <malloc.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 #include <3ds.h>
 
@@ -150,6 +152,84 @@ static void main_speedlog_context(char* out, size_t size) {
     snprintf(out, size, "music %d%s%s", music.playing || music.generating ? 1 : 0, cpu[0] != '\0' ? " " : "", cpu);
 }
 
+// The system turns the Wi-Fi off when the console sleeps or HOME is pressed. A server still holding its sockets keeps
+// the network from coming back (no Wi-Fi after waking) and can stall HOME or the exit, so both servers are closed
+// before the app sleeps or is suspended and brought back (as after the local wireless) once it is awake again.
+// The hook runs on the main thread, inside aptMainLoop.
+static aptHookCookie net_sleep_cookie;
+static bool net_sleep_paused = false;
+
+// DEBUG builds: sdmc:/nsa/sleep-log.txt, one flushed line per event, to see where sleep, HOME or the exit stop.
+static void sleeplog(const char* format, ...) {
+    if(!NSA_DEBUG) {
+        return;
+    }
+
+    char text[200];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(text, sizeof(text), format, args);
+    va_end(args);
+
+    u32 wifi = 99;
+    Result wifiRes = ACU_GetWifiStatus(&wifi);
+    if(R_FAILED(wifiRes)) {
+        wifi = 98;
+    }
+
+    FILE* f = fopen("sdmc:/nsa/sleep-log.txt", "a");
+    if(f != NULL && ftell(f) > 64 * 1024) {
+        fclose(f);
+        f = fopen("sdmc:/nsa/sleep-log.txt", "w");
+    }
+
+    if(f != NULL) {
+        fprintf(f, "%llu wifi=%lu ftp=%d web=%d %s\n", (unsigned long long) osGetTime(), (unsigned long) wifi,
+                ftpserver_running() ? 1 : 0, webserver_running() ? 1 : 0, text);
+        fflush(f);
+        fclose(f);
+    }
+}
+
+static void net_sleep_hook(APT_HookType hook, void* param) {
+    (void) param;
+
+    static const char* const names[] = {"ONSUSPEND", "ONRESTORE", "ONSLEEP", "ONWAKEUP", "ONEXIT"};
+    sleeplog("hook %s", (u32) hook < 5 ? names[hook] : "?");
+
+    switch(hook) {
+        case APTHOOK_ONSLEEP:
+        case APTHOOK_ONSUSPEND:
+            if(!net_sleep_paused && !udslink_active()) {
+                sleeplog("pausing servers");
+                ftpserver_pause();
+                webserver_pause();
+                net_sleep_paused = true;
+                sleeplog("servers paused");
+            }
+            break;
+        case APTHOOK_ONWAKEUP:
+        case APTHOOK_ONRESTORE:
+            // The app's session with the network manager does not survive the sleep (ACU_GetWifiStatus fails
+            // from then on): open it again, or the app sees no Wi-Fi and the servers never come back.
+            acExit();
+            sleeplog("acInit -> %08lX", (unsigned long) acInit());
+            if(net_sleep_paused) {
+                net_sleep_paused = false;
+                if(!udslink_active()) {
+                    ftpserver_resume_later();
+                    webserver_resume_later();
+                    sleeplog("servers will resume");
+                }
+            }
+            break;
+        default:
+            break;
+    }
+
+    sleeplog("hook done");
+}
+
 void init() {
     gfxInitDefault();
 
@@ -196,18 +276,28 @@ void init() {
     }
     speedlog_set_context(main_speedlog_context);
     task_init();
+    aptHook(&net_sleep_cookie, net_sleep_hook, NULL);
 }
 
 void cleanup() {
+    sleeplog("cleanup: start");
+    aptUnhook(&net_sleep_cookie);
     clipboard_clear();
 
     task_exit();
+    sleeplog("cleanup: task_exit done");
     http_shutdown();
+    sleeplog("cleanup: http_shutdown done");
     thumbs_exit();
+    sleeplog("cleanup: thumbs_exit done");
     bgmusic_exit();
+    sleeplog("cleanup: bgmusic_exit done");
     sound_exit();
+    sleeplog("cleanup: sound_exit done");
     ui_exit();
+    sleeplog("cleanup: ui_exit done");
     screen_exit();
+    sleeplog("cleanup: screen_exit done");
 
     if(old_time_limit != UINT32_MAX) {
         APT_SetAppCpuTimeLimit(old_time_limit);
@@ -216,10 +306,12 @@ void cleanup() {
     osSetSpeedupEnable(false);
 
     cleanup_services();
+    sleeplog("cleanup: services done");
 
     romfsExit();
 
     gfxExit();
+    sleeplog("cleanup: done");
 }
 
 // The bottom screen's toast: a restart countdown wins over an FTP transfer.
@@ -246,7 +338,17 @@ int main(int argc, const char* argv[]) {
     mainmenu_open();
     startup_run();
 
-    while(aptMainLoop() && ui_update()) {
+    sleeplog("main loop start");
+    u64 beat = osGetTime();
+    bool aptAlive = true;
+    bool uiAlive = true;
+    while((aptAlive = aptMainLoop()) && (uiAlive = ui_update())) {
+        // Each beat opens a file on the SD card and asks the network manager: seconds of a frozen screen at times, so rarely.
+        if(osGetTime() - beat >= 60000) {
+            beat = osGetTime();
+            sleeplog("beat");
+        }
+
         update_poll();
         ftpserver_poll_main();
         webserver_poll_main();
@@ -264,8 +366,12 @@ int main(int argc, const char* argv[]) {
         }
     }
 
+    sleeplog("main loop left: aptMainLoop=%d ui_update=%d", aptAlive ? 1 : 0, uiAlive ? 1 : 0);
+
     ftpserver_stop();
+    sleeplog("ftpserver_stop done");
     webserver_stop();
+    sleeplog("webserver_stop done");
 
     cleanup();
 

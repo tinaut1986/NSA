@@ -125,6 +125,35 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Editable menus and sliding focus** (2026-11-05, `feat/store`; tried on the New 3DS XL by the owner)
+- [x] Main menu: three big tiles, the rest as one row of icons; the focused icon shows its name in a tooltip that slides in. Advanced is red as an icon and as a tile.
+- [x] SELECT or a long press edits the menu: entries jiggle; A picks one up and the D-Pad moves it; X hides, Y puts it back as it came; hidden ones wait in a tray at the bottom (tap one to bring it back). By touch an entry is dragged and the layout follows the finger live: the others make way, and it is a tile over the tiles and an icon over the icons. System and Settings can not be hidden. Kept in `settings.json` (`menu`: ids shown, `|`, ids hidden).
+- [x] Remote install: the four tiles can be reordered the same way (the history row stays below); `remote_menu` in `settings.json`.
+- [x] A finger sliding over the buttons of the main menu, Remote install, a list with nothing to scroll or an action sheet moves the focus to what is under it; letting go there opens nothing.
+- Only Spanish has the new strings.
+
+**Store** (2026-11-05, branch `feat/store`, `source/fbi/store.c`; builds, not run in Azahar or on a console)
+- [ ] Main menu -> Store downloads Universal-DB's UniStore (`https://db.universal-team.net/unistore/universal-db.unistore`, ~0.9 MB, kept as `sdmc:/nsa/store.unistore` and used when there is no connection) and lists the 3DS apps that publish a CIA or a .3dsx with a plain "downloadFile" first step (about 320 of 447 on 2026-11-05: 260 CIA, 280 .3dsx). Zips and multi-step scripts are left out. The top screen shows the selected app (author, version, description, sizes, category); R or the tool searches.
+- [ ] A opens it: a CIA only -> asks and installs through the Remote install screens (`action_install_url`); a .3dsx only -> downloads to `/3ds/<name>/<name>.3dsx`; both -> a sheet to choose.
+- [ ] Memory: parsing ~1 MB of JSON on an Old 3DS / 2DS; leaving the screen while it loads (B).
+- Not done: icons and screenshots (the UniStore keeps them in .t3x sprite sheets), "installed / update available", zip extraction, DS apps.
+
+**Transfer cards and readable URLs** (2026-11-04, `feat/transfer-info`; DEBUG on both consoles; seen on a real 40 MB send New 3DS XL -> 2DS, except the first three):
+- [x] Receiving: the top card shows the file, "From <console> (size)" and "Saving in <folder>" (or "Installing it on this console" / "Importing it into the title"); sending shows the file, "To <console>" and the size. Seen on the consoles.
+- [x] The question to a QR / typed / received URL shows the file name whole (over several lines) and, for one link, the whole address, with %XX turned into characters. Seen on the New 3DS XL with a link made of %20.
+- [x] History: names and links on its rows and on the top card are decoded and the top card shows each link whole, over several lines (the stored address keeps its escapes, so "install again" asks for the real one); the summary on Remote install keeps its lines inside the card. Seen on the New 3DS XL; the 2DS still has the build before this.
+- [x] Wrapped text: a word that fills a whole line (an address with no spaces) is cut where the line ends; before it left an empty first line, so a link with no spaces started one line lower than one with spaces (`screen_wrap_string`, used by every wrapped text). Seen on the New 3DS XL in History; other wrapped texts were not compared.
+- [ ] The install progress screen shows the decoded name.
+- [ ] `tools/console_tests.py`: its rules answer "Incoming file" / "Existing files" as prompts; they are list sheets now (named after the screen under them), so the rules need updating before the next run.
+- [ ] Not done: a preview of the icon of an incoming CIA / .3dsx. A CIA keeps its icon at the end and a .3dsx near it, so the sender has to send it: a protocol 9 (hello + icon) that both consoles must run.
+- [ ] A 15 s "io: nothing for 15 s" stall killed one send while two screenshots were fetched over FTP mid-transfer; it did not come back in the reruns. Watch for it.
+
+**Receive menus as lists** (2026-11-04, `feat/receive-list`; DEBUG 0.7.0 installed on the New 3DS XL only, the 2DS was off the network; the screen itself was not seen: `fake_peer.py send` got its connection reset before NSA logged anything):
+- [ ] An incoming file / CIA / folder / save from another console shows a list sheet ("Install now", "Save", "Reject", "Import now", "Save in a folder", "Original path") with a detail line per row, the file name and size as its title, and the transfer card on the top screen; A or a tap chooses.
+- [ ] B or a tap above the list rejects: the sender sees "declined" and NSA goes back to waiting.
+- [ ] "Existing files" (Original path with files already there) is a list too: Overwrite, Skip existing (folders), Cancel (= reject).
+- [ ] Only Spanish has the new strings (the other ten languages show the English ones until translated).
+
 **Web System tab** (2026-11-04, `feat/web-system`; DEBUG build on the New 3DS XL, page opened in the browser: the four cards showed the console's real data):
 - [ ] The page has a **System** tab (Tools): Console (model, user, region, country, language, serial, device ID, screens, system version, kernel, MCU, Luma3DS, CIA/3DSX, uptime), Network (SSID, IP, netmask, gateway, DNS, signal, MAC, DHCP lease, FTP and web ports), Storage (SD card made/speed/writable/cluster and the space of SD, CTR NAND, TWL NAND, TWL Photo) and Battery (percent, voltage, temperature, charger, rate, time left, level, history graph). It refreshes every 10 s and keeps its scroll. The cards are all the same size, in two columns at most (one when the window is too narrow for two), with at most four columns of data inside each and can be dragged by their header to change the order (kept in this browser; the refresh waits while dragging). Same data as the console's System screens: `GET /api/system`, read on the main thread (`systeminfo_json`). The battery rate and graph need a couple of minutes of the page open (the history grows only while someone asks). Texts such as "High speed" come in the console's language.
 
@@ -135,7 +164,8 @@ What `release` holds, in the order it was built:
 - [ ] While the console transfers (FTP, a download, another 3DS), the page shows a toast at the bottom with the kind, name, percentage and KB/s and a progress bar, in place of the old text at the top right; it goes away when the transfer ends.
 - [ ] Titles: start loading, switch to another tab and back: the names and icons still missing keep loading (they used to stay frozen).
 - [ ] Titles: the filter menu has "Group updates and DLC" (Yes by default, remembered), as on the console: an update or DLC whose game is listed hides behind it (while Games or All is shown), the game shows a small round badge with how many hang from it, on the icon's corner like the console, and opening it lists the game and its updates and DLC as cards (icon, name, publisher, description, a medal for Game / Update / DLC, version and size), each opening its own sheet. `/api/title` now also returns `description`.
-- [ ] Titles: names, publisher and icons are kept in the browser per console and title version (localStorage + IndexedDB), so the list fills at once on the next visit. Titles screen menu -> Reload forgets them. The title's data kinds (save, extra, boss) are not kept: the sheet asks for them (`/api/title/data`) the first time it opens in a session, and the list only asks `/api/title?data=0`.
+- [ ] Titles: names, publisher and icons are kept in the browser per console and title version (localStorage + IndexedDB), so the list fills at once on the next visit. Titles screen menu -> Reload forgets them.
+ The title's data kinds (save, extra, boss) are not kept: the sheet asks for them (`/api/title/data`) the first time it opens in a session, and the list only asks `/api/title?data=0`.
 
 **Languages** (2026-11-04, `feat/languages`; DEBUG 0.6.5 build installed on the New 3DS XL and driven over FTP: the list, Japanese, Russian and German looked right in the Cards theme with the console's own font; the console was put back on System afterwards. The rest is for the owner's hands)
 - [ ] Settings -> Language opens a list (System, English, Español, Català, Français, Deutsch, Italiano, Português, Русский, 日本語, 简体中文, 繁體中文); the highlighted one shows its name and a few words in it on the top screen; A or a tap picks it, everything changes at once and it is still set after a restart; B goes back without changing.
@@ -146,6 +176,15 @@ What `release` holds, in the order it was built:
 - [ ] System follows the console's language (Settings of the console in French, German, Italian, Portuguese, Russian or Japanese); a console in Korean or Dutch shows English (Catalan is never picked by System: the 3DS has no Catalan).
 - [ ] Advanced -> Dump NAND (only on `advanced`): its texts in every language (21 strings: sizes, time left, "Fits, with ... left over", "Saved as", the hints); built, not looked at on a console.
 - [ ] The web page's Language drop-down lists all twelve and changes the console; the page itself is still English or Spanish.
+
+**PKSM backups** (2026-11-05, branch `feat/pksm-import`, builds; not tried on a console)
+- [ ] A title's Save data list and the import list show PKSM's backups (`sdmc:/3ds/PKSM/backups/0x<unique ID, 5 digits>/<date>/main`, or `sav.dat` for a Game Boy title) with PKSM's icon badge (its SMDH, shrunk to 20x20) and the file's modification time as the name (the date folder's name changed between PKSM versions: `2019112821573`, `2026-11-5_9-7-3`). Restoring one asks the red question; the file lands in the save archive as `main`. Source read from FlagBrew/PKSM (`loader.cpp`: `backupSave`, `idToSaveName`, `load`, `saveToTitle`); the owner's console has such folders (0x01B50/<date>/main, 445440 bytes = 0x6CC00, an Ultra Sun/Moon save).
+- Not covered: GBA Virtual Console saves (`00000001.sav`, with their own CMAC), DS cartridge saves (`POKEMON X.sav`), PKSM's banks (below).
+- **PKSM banks** (the boxes), researched, not built: `sdmc:/3ds/PKSM/banks/<name>.bnk` (a raw header then 30 entries per box, each a generation byte and the Pokemon's bytes, 0xFF for an empty slot) and `<name>.json` (the box names), plus the index `sdmc:/3ds/PKSM/banks.json` (name -> number of boxes). PKSM lists banks only from that index: copying the two files to another console is not enough, the bank must also be added to its `banks.json`. No whole-bank export in PKSM's UI; individual Pokemon go to `.pkx` in `/3ds/PKSM/dumps` (Storage screen, DUMP). Magic and header size not verified (they live in PKSM-Core). Nothing in the container ties it to a console.
+
+**JKSM backups** (2026-11-04, branch `feat/jksm-import`, builds; not tried in Azahar or on a console)
+- [ ] With a JKSM backup (`sdmc:/JKSM/User Saves|Extra Data|BOSS Extra Data/<game name>/<backup>/` with the tree inside, made by JKSM for 3DS), the title's Save data / Extra data list and the import list show it with the violet "J" badge and only the name. Restoring it asks the red question like Checkpoint's. The game's folder is found by its SMDH short description in any language (with `. , / \ < > : " | ? *` turned into spaces, `?` into `_`, as JKSM does), or by the 16 digit ID. Source read from J-D-K/JKSM (`FS.cpp`, `BackupMenuState.cpp`, `StringUtil.cpp`), never run. Also looks in the older folders `Saves`, `ExtData`, `Boss`.
+- Not done: JKSM's `.zip` backups; the `._secure_value` file JKSM can write in a backup would be copied into the archive; two games with the same name share a folder; the badge is JKSM's own icon (SMDH of the installed CIA) shrunk to 20x20. Delete from the web page / sheet warns "JKSM will not see it any more".
 
 **Badges of the backups** (2026-11-03; seen in Azahar and on the web page with fake NSA and Checkpoint backups)
 - [ ] A title's Save data / Extra data list and the import list show NSA's backups with NSA's badge (the blue window with an N) and only the date, and Checkpoint's with its flag badge (pale flag on navy) and only the name, no "[NSA]" / "[Checkpoint]"; readable selected and not, in day and night themes.
@@ -861,6 +900,11 @@ current, this list is the summary. What only the owner can test (local wireless)
 
 ## Decisions
 
+- **Sleep and HOME** (`net_sleep_hook` in `main.c`): the app's `ac` session does not survive the console's sleep
+  (`ACU_GetWifiStatus` fails afterwards, so NSA saw no Wi-Fi and the servers never came back, and HOME froze the console).
+  On sleep/suspend the FTP and web servers are paused; on wake/restore `acExit(); acInit()` runs and they resume. DEBUG
+  builds write `sdmc:/nsa/sleep-log.txt` (hooks, Wi-Fi status, heartbeat, exit steps). If it ever fails again, SOC is the next
+  suspect (reinit it on wake).
 - Own app (`0xFB1A0`), own data folder (`sdmc:/nsa/`, import from `/fbi/` offered
   once), own versions from `v0.1.0`. Upstream is noted as "based on FBI 2.6.1".
 - Updates: Stable/Beta channels from GitHub releases; the changelog joins every

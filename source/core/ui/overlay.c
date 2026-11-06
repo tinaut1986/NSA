@@ -66,6 +66,10 @@ typedef struct {
 } popover_data;
 
 static float popover_chip_width(popover_group* group, u32 o) {
+    if(group->iconOnly) {
+        return 36;
+    }
+
     return widget_text_width(group->options[o], WIDGET_SMALL_SCALE) + (group->icons[o] >= 0 ? 14 : 0) + 20;
 }
 
@@ -81,7 +85,7 @@ static void popover_layout(popover_data* p) {
         p->labelY[g] = y;
         y += labelH;
 
-        if(group->multiple) {
+        if(group->multiple || group->iconOnly) {
             float x = 0;
             for(u32 o = 0; o < group->count; o++) {
                 float w = popover_chip_width(group, o);
@@ -303,7 +307,8 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
         float baseX = cardX + POPOVER_PAD;
         screen_draw_text(group->label, baseX, contentTop + p->labelY[g], WIDGET_SMALL_SCALE, t->palette->textMuted);
 
-        if(!group->multiple) {
+        bool chips = group->multiple || group->iconOnly;
+        if(!chips) {
             // A segmented control: one frame around all the options.
             float width = p->optionX[g][group->count - 1] + p->optionW[g][group->count - 1];
             screen_frame_round_rect(baseX, contentTop + p->optionY[g][0], width, POPOVER_OPTION_HEIGHT, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
@@ -313,7 +318,7 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
             float x = baseX + p->optionX[g][o];
             float y = contentTop + p->optionY[g][o];
             float w = p->optionW[g][o];
-            float radius = group->multiple ? POPOVER_OPTION_HEIGHT / 2 : t->def->radiusSmall;
+            float radius = chips ? POPOVER_OPTION_HEIGHT / 2 : t->def->radiusSmall;
             bool on = p->def.isOn(p->data, g, o);
             bool focused = g == p->group && o == p->option;
             u32 ink = on ? t->onAccent : t->palette->text;
@@ -326,8 +331,14 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
 
             if(on) {
                 screen_fill_round_rect(x, y, w, POPOVER_OPTION_HEIGHT, radius, t->accent);
-            } else if(group->multiple && !focused) {
+            } else if(chips && !focused) {
                 screen_frame_round_rect(x, y, w, POPOVER_OPTION_HEIGHT, radius, t->def->border, t->palette->border, t->palette->surface);
+            }
+
+            if(group->iconOnly) {
+                screen_draw_icon((u32) group->icons[o], x + (float) (int) ((w - 16) / 2), y + (float) (int) ((POPOVER_OPTION_HEIGHT - 16) / 2), 16, ink);
+                widget_press_draw(&p->press, (int) (g * POPOVER_OPTIONS_MAX + o), x, y, w, POPOVER_OPTION_HEIGHT, radius, ink, false);
+                continue;
             }
 
             float textW = widget_text_width(group->options[o], WIDGET_SMALL_SCALE);
@@ -341,6 +352,42 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
             widget_text_fit(group->options[o], cx + iconW, ty, WIDGET_SMALL_SCALE, ink, w - iconW - 8);
             widget_press_draw(&p->press, (int) (g * POPOVER_OPTIONS_MAX + o), x, y, w, POPOVER_OPTION_HEIGHT, radius, ink, false);
         }
+    }
+
+    // The label of the icon with the focus (or the chosen one), above it.
+    int tipGroup = -1;
+    u32 tipOption = 0;
+    if(p->def.groups[p->group].iconOnly) {
+        tipGroup = (int) p->group;
+        tipOption = p->option;
+    } else {
+        for(u32 g = 0; g < p->def.groupCount && tipGroup < 0; g++) {
+            for(u32 o = 0; o < p->def.groups[g].count && p->def.groups[g].iconOnly; o++) {
+                if(p->def.isOn(p->data, g, o)) {
+                    tipGroup = (int) g;
+                    tipOption = o;
+                    break;
+                }
+            }
+        }
+    }
+
+    if(tipGroup >= 0) {
+        const char* label = p->def.groups[tipGroup].options[tipOption];
+        float width = widget_text_width(label, WIDGET_SMALL_SCALE) + 16;
+        float cx = cardX + POPOVER_PAD + p->optionX[tipGroup][tipOption] + p->optionW[tipGroup][tipOption] / 2;
+        float tx = cx - width / 2;
+        if(tx < cardX + 4) {
+            tx = cardX + 4;
+        } else if(tx + width > cardX + POPOVER_WIDTH - 4) {
+            tx = cardX + POPOVER_WIDTH - 4 - width;
+        }
+
+        float ty = contentTop + p->optionY[tipGroup][tipOption] - POPOVER_OPTION_HEIGHT + 2;
+        float height = widget_text_height(WIDGET_SMALL_SCALE) + 6;
+        screen_fill_round_rect(cx - 4, ty + height - 3, 8, 8, 2, t->palette->text);
+        screen_fill_round_rect(tx, ty, width, height, t->def->radiusSmall, t->palette->text);
+        screen_draw_text(label, tx + 8, ty + 3, WIDGET_SMALL_SCALE, t->palette->background);
     }
 
     screen_clear_clip();
@@ -399,6 +446,7 @@ typedef struct {
     widget_press press;   // Touched action, run on release over it.
     bool dragged;         // The touch turned into a scroll (list).
     bool barDrag;         // A finger holds the scrollbar (list).
+    u16 touchStartX;
     u16 touchStartY;
     u16 lastTouchY;
     u64 opened;           // For the slide up.
@@ -408,6 +456,11 @@ typedef struct {
     // anything was confirmed since (see sheet_confirmed), else it is shown again.
     bool waiting;
     u32 confirmsAtRun;
+    // A question (sheet_display_choice).
+    bool choice;
+    void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2);
+    void (*cancel)(void* data);
+    bool detailed;   // Some row has a detail line: the rows are taller.
 } sheet_data;
 
 // Answers that went ahead (Yes, OK...) since NSA started.
@@ -430,7 +483,7 @@ static float sheet_room(sheet_data* s) {
 // title bar; list rows keep their height and scroll instead.
 static float sheet_button_height(sheet_data* s) {
     if(s->list) {
-        return WIDGET_ROW_HEIGHT;
+        return s->detailed ? WIDGET_ROW_HEIGHT + 12 : WIDGET_ROW_HEIGHT;
     }
 
     u32 rows = (s->count + SHEET_COLUMNS - 1) / SHEET_COLUMNS;
@@ -492,9 +545,29 @@ static void sheet_close(ui_view* view, sheet_data* s) {
     ui_destroy(view);
 }
 
+// Backed out of a question: it is answered with the caller's "no".
+static void sheet_dismiss(ui_view* view, sheet_data* s) {
+    void (*cancel)(void*) = s->choice ? s->cancel : NULL;
+    void* data = s->data;
+    sheet_close(view, s);
+    if(cancel != NULL) {
+        cancel(data);
+    }
+}
+
 static void sheet_run(ui_view* view, sheet_data* s, u32 index) {
     void (*run)(void*) = s->actions[index].run;
     void* data = s->data;
+    if(s->choice) {
+        // The answer goes ahead from the screen underneath, with the sheet gone.
+        sheet_close(view, s);
+        if(run != NULL) {
+            run(data);
+        }
+
+        return;
+    }
+
     if(s->actions[index].stay) {
         if(run != NULL) {
             run(data);
@@ -530,7 +603,7 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
     u32 down = hidKeysDown();
 
     if(down & KEY_B) {
-        sheet_close(view, s);
+        sheet_dismiss(view, s);
         return;
     }
 
@@ -581,7 +654,7 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
         s->dragged = false;
         s->lastTouchY = pos.py;
         if(pos.py < top) {
-            sheet_close(view, s);
+            sheet_dismiss(view, s);
             return;
         }
 
@@ -595,6 +668,7 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
             }
         }
 
+        s->touchStartX = pos.px;
         s->touchStartY = pos.py;
         if(s->barDrag) {
             s->scroll = widget_scrollbar_offset(listTop, sheet_visible_height(s), sheet_visible_height(s), sheet_content_height(s), pos.py);
@@ -611,6 +685,24 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
             float max = sheet_content_height(s) - sheet_visible_height(s);
             if(s->scroll > max) s->scroll = max;
             if(s->scroll < 0) s->scroll = 0;
+        }
+
+        // Nothing to scroll: a finger sliding over the actions moves the focus to the one under it, and letting go there
+        // runs nothing.
+        int moved = abs((int) pos.px - (int) s->touchStartX) + abs((int) pos.py - (int) s->touchStartY);
+        if(!(s->list && sheet_content_height(s) > sheet_room(s)) && moved > 8 && pos.py >= listTop) {
+            for(u32 i = 0; i < s->count; i++) {
+                float x, y, w;
+                sheet_button_rect(s, i, bx1, bx2, top, &x, &y, &w);
+                if(widget_touched(&pos, x, y, w, sheet_button_height(s))) {
+                    if(i != s->selected) {
+                        s->selected = i;
+                        s->press.cancelled = true;
+                    }
+
+                    break;
+                }
+            }
         }
 
         if(s->press.index >= 0) {
@@ -639,7 +731,13 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
 }
 
 static void sheet_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
-    overlay_draw_parent_top(((sheet_data*) data)->parent, x1, y1, x2, y2);
+    sheet_data* s = (sheet_data*) data;
+    if(s->drawTop != NULL) {
+        s->drawTop(view, s->data, x1, y1, x2, y2);
+        return;
+    }
+
+    overlay_draw_parent_top(s->parent, x1, y1, x2, y2);
 }
 
 static void sheet_draw_title(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -701,7 +799,16 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
             u32 edge = focused ? fill : a->danger ? t->palette->danger : t->palette->border;
             screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
             screen_draw_icon(a->icon, x + 9, y + (h - 16) / 2, 16, ink);
-            widget_text_fit(a->label, x + 31, y + (h - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, ink, w - 40);
+            if(a->detail != NULL && a->detail[0] != '\0') {
+                float labelH = widget_text_height(WIDGET_TEXT_SCALE);
+                float detailH = widget_text_height(WIDGET_SMALL_SCALE);
+                float ty = y + (h - labelH - 1 - detailH) / 2;
+                widget_text_fit(a->label, x + 31, ty, WIDGET_TEXT_SCALE, ink, w - 40);
+                widget_text_fit(a->detail, x + 31, ty + labelH + 1, WIDGET_SMALL_SCALE, focused ? ink : t->palette->textMuted, w - 40);
+            } else {
+                widget_text_fit(a->label, x + 31, y + (h - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, ink, w - 40);
+            }
+
             widget_press_draw(&s->press, (int) i, x, y, w, h, t->def->radiusSmall, ink, false);
             continue;
         }
@@ -756,15 +863,15 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
     screen_set_offset(0, 0);
 }
 
-static void sheet_open(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data, bool list) {
+static ui_view* sheet_open(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data, bool list) {
     if(count == 0) {
-        return;
+        return NULL;
     }
 
     sheet_data* s = (sheet_data*) calloc(1, sizeof(sheet_data));
     if(s == NULL) {
         error_display(NULL, NULL, "Failed to allocate actions.");
-        return;
+        return NULL;
     }
 
     s->parent = ui_top();
@@ -776,6 +883,11 @@ static void sheet_open(const char* title, u32 texture, const sheet_action* actio
     s->press.index = -1;
     s->opened = osGetTime();
     s->list = list;
+    for(u32 i = 0; i < s->count; i++) {
+        if(list && s->actions[i].detail != NULL) {
+            s->detailed = true;
+        }
+    }
 
     ui_view* view = ui_create();
     view->name = s->parent != NULL ? s->parent->name : "";
@@ -786,6 +898,7 @@ static void sheet_open(const char* title, u32 texture, const sheet_action* actio
     view->drawBottom = sheet_draw_bottom;
     view->drawTitleBar = sheet_draw_title;
     ui_push(view);
+    return view;
 }
 
 void sheet_display(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data) {
@@ -794,4 +907,24 @@ void sheet_display(const char* title, u32 texture, const sheet_action* actions, 
 
 void sheet_display_list(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data) {
     sheet_open(title, texture, actions, count, data, true);
+}
+
+void sheet_display_choice(const char* title, const sheet_action* actions, u32 count, void* data,
+                          void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2),
+                          void (*cancel)(void* data)) {
+    ui_view* view = sheet_open(title, 0, actions, count, data, true);
+    if(view == NULL) {
+        // Nothing to choose from: it is answered as backed out of.
+        if(cancel != NULL) {
+            cancel(data);
+        }
+
+        return;
+    }
+
+    sheet_data* s = (sheet_data*) view->data;
+    s->choice = true;
+    s->drawTop = drawTop;
+    s->cancel = cancel;
+    view->info = _(" select    reject");
 }

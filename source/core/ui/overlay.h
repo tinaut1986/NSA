@@ -15,6 +15,9 @@ typedef struct {
     u32 count;
     const char* options[POPOVER_OPTIONS_MAX];
     int icons[POPOVER_OPTIONS_MAX];   // -1 for none.
+    // Only the icons show (a small chip each), and the one with the focus (or, with none, the one chosen) shows its
+    // label in a tooltip above it. Every option needs an icon.
+    bool iconOnly;
 } popover_group;
 
 typedef struct {
@@ -36,6 +39,7 @@ typedef struct {
     bool danger;            // Drawn in red; the action must still confirm.
     void (*run)(void* data);
     bool stay;              // Runs with the sheet still open: B in what it opens comes back to it.
+    const char* detail;     // List only: a second, smaller line under the label (translated by the caller), or NULL.
 } sheet_action;
 
 // An action leaves the sheet under what it opens: backing out of that (B, No)
@@ -48,3 +52,10 @@ void sheet_confirmed();
 void sheet_display(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data);
 // The same as a list: one row per action with its whole label; scrolls.
 void sheet_display_list(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data);
+
+// A question answered from a list: the rows are the answers, each with its detail line.
+// The sheet closes before the chosen action runs. B and a touch above the list call `cancel` instead (the caller's "no"), so nothing is left unanswered.
+// `drawTop` draws the top screen (NULL: the screen underneath).
+void sheet_display_choice(const char* title, const sheet_action* actions, u32 count, void* data,
+                          void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2),
+                          void (*cancel)(void* data));

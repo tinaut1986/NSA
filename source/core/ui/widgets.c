@@ -148,6 +148,72 @@ void widget_button_centered(float x, float y, float width, float height, const c
     widget_text_centered(label, x, x + width, y + (height - widget_text_height(scale)) / 2, scale, ink);
 }
 
+// JKSM: the app's own icon (from its SMDH, 48x48) shrunk to 20x20 and reduced to a few colours.
+static const u32 jksm_palette[] = {THEME_RGB(0xFFFFFF), THEME_RGB(0xFFFDFF), THEME_RGB(0xEBE9EB), THEME_RGB(0xE4E4E4), THEME_RGB(0xE2E0E2), THEME_RGB(0xDEDEDE), THEME_RGB(0xD7D5D7), THEME_RGB(0xA7A399), THEME_RGB(0x746942), THEME_RGB(0x5A595A), THEME_RGB(0x3A382D), THEME_RGB(0x181818)};
+static const char* const jksm_art[20] = {
+    "65555555555555555556",
+    "52111111111111111335",
+    "52000000000000001235",
+    "53333333333333333335",
+    "57999999999999999567",
+    "57999999999999999569",
+    "57999999999999999569",
+    "57999999999999999569",
+    "57999999999999999569",
+    "57999999999999999569",
+    "5799999999999A88888A",
+    "5799999999999888888A",
+    "5799999999999A88888A",
+    "5799999999999BBBBBBA",
+    "579999999999ABBBBBBA",
+    "5799999999999BBBBBBA",
+    "5433333333337BBBBBBA",
+    "5321000000007BBBBBBA",
+    "5332222222227BBBBBBA",
+    "7555555555557BBBBBBA"};
+
+// PKSM: the app's own icon (from its SMDH, 48x48) shrunk to 20x20 and reduced to a few colours.
+static const u32 pksm_palette[] = {THEME_RGB(0xF0F99A), THEME_RGB(0xEBF899), THEME_RGB(0xEEF69C), THEME_RGB(0xEEF698), THEME_RGB(0xECF699), THEME_RGB(0xB5C489), THEME_RGB(0x738980), THEME_RGB(0x41688B), THEME_RGB(0x235FA9), THEME_RGB(0x11427A), THEME_RGB(0x002853), THEME_RGB(0x012351)};
+static const char* const pksm_art[20] = {
+    "AAAAAB96544569BAAAAA",
+    "AAAB650144444056BAAA",
+    "AAB61322222222316BAA",
+    "AB5422224444222246BA",
+    "A612222400004222216A",
+    "B53222157BB75122235B",
+    "9011116BAAAAB6111109",
+    "766666BA9999AB666667",
+    "B888898989888998A98A",
+    "A899898899888988888A",
+    "A8999A88899888989B8A",
+    "B8BABA8988888898BB8A",
+    "766666BA9999AB666667",
+    "9011116BAAAAB6111109",
+    "B53222157BB75222235B",
+    "A612222400004222216A",
+    "AB6122224444222246BA",
+    "AAB51322222222316BAA",
+    "AAAB650144444056BAAA",
+    "AAAAAB96544569BAAAAA"
+};
+
+// A badge drawn from a 20x20 picture of up to 16 colours (one digit or letter each), in runs of one colour.
+static void widget_draw_art_badge(float bx, float by, const u32* palette, const char* const* art) {
+    for(int row = 0; row < 20; row++) {
+        int col = 0;
+        while(col < 20) {
+            int end = col;
+            while(end < 20 && art[row][end] == art[row][col]) {
+                end++;
+            }
+
+            char c = art[row][col];
+            screen_fill_rect(bx + col, by + row, (float) (end - col), 1, palette[c <= '9' ? c - '0' : c - 'A' + 10]);
+            col = end;
+        }
+    }
+}
+
 // A row whose box is `frameHeight` tall and whose selector line is `height` tall at its top.
 static void widget_row_draw(float x, float y, float width, float frameHeight, float height, int icon, const char* label, u32 labelColor, const char* value, bool selected) {
     const theme_current* t = theme();
@@ -167,6 +233,16 @@ static void widget_row_draw(float x, float y, float width, float frameHeight, fl
         screen_fill_round_rect(tx - 2, iy - 2, size + 4, size + 4, 4, THEME_RGB(0x0E1936));
         screen_draw_icon((u32) icon, tx, iy, size, THEME_RGB(0xA8E2F0));
         tx += size + 8;
+    } else if(icon == WIDGET_ICON_JKSM || icon == WIDGET_ICON_PKSM) {
+        float bx = tx - 2;
+        float by = (float) (int) (y + (height - 16) / 2) - 2;
+        if(icon == WIDGET_ICON_JKSM) {
+            widget_draw_art_badge(bx, by, jksm_palette, jksm_art);
+        } else {
+            widget_draw_art_badge(bx, by, pksm_palette, pksm_art);
+        }
+
+        tx += 16 + 8;
     } else if(icon == WIDGET_ICON_NSA) {
         // NSA's icon made small: the blue window with its title bar, and the N of its "NSA", pixel by pixel.
         static const char* n[] = {"##....##", "###...##", "####..##", "##.##.##", "##..####", "##...###", "##....##"};

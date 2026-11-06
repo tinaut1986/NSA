@@ -261,7 +261,7 @@ static void extsavedata_filter_open(ui_view* view, void* data) {
             .groupCount = 2,
             .groups = {
                     {_("Show"), true, 2, {"SD", "NAND"}, {ICON_DEVICE_SD_CARD, ICON_CPU}},
-                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {-1, -1}}
+                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true}
             },
             .isOn = extsavedata_popover_is_on,
             .select = extsavedata_popover_select
@@ -282,7 +282,7 @@ static void extsavedata_search_done(ui_view* kbdView, void* data, SwkbdButton bu
 }
 
 static void extsavedata_search_open(ui_view* view, void* data) {
-    kbd_display(_("Search data"), list_get_search(view), SWKBD_TYPE_NORMAL, 0, SWKBD_ANYTHING, 63, data, extsavedata_search_done);
+    osk_display(_("Search data"), list_get_search(view), 64, 0, data, extsavedata_search_done);
 }
 
 // ---- the list ----

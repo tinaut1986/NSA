@@ -210,12 +210,14 @@ static void ui_draw_top_bar() {
 }
 
 // Pixels each eye moves per unit of depth with the 3D slider all the way up.
-#define UI_STEREO_SHIFT 1.6f
+#define UI_STEREO_SHIFT 1.2f
 
-// The top screen's layers in 3D: the background on the screen's plane, the
-// bar a little in front and the view's content (cards) in front of it.
-#define UI_DEPTH_BAR 1.0f
-#define UI_DEPTH_CONTENT 2.0f
+// The top screen's layers in 3D: the background and the bar on the screen's plane
+// (the bar touches the screen's edges, so in front of the plane the frame would cut
+// it: a window violation) and the view's content (cards) a little in front.
+// Cards put their icon one unit further. At full depth: cards 2 px, icons 4 px.
+#define UI_DEPTH_BAR 0.0f
+#define UI_DEPTH_CONTENT 1.0f
 
 static void ui_draw_top_eye(ui_view* ui, gfx3dSide_t side, float shift) {
     screen_select_eye(GFX_TOP, side, shift);

@@ -36,6 +36,84 @@ typedef struct {
     bool danger;          // A warning: the card, icon and first button in a soft red.
 } prompt_data;
 
+// What the web page sees of the prompt on top: copied while it is updated, so it is gone a moment after the prompt is.
+#define PROMPT_WEB_FRESH_MS 1500
+static LightLock prompt_web_lock;
+static prompt_web_info prompt_web_current;
+static u64 prompt_web_seen = 0;
+static int prompt_web_answer_option = -1;
+static u32 prompt_web_counter = 0;
+static const void* prompt_web_owner = NULL;
+
+__attribute__((constructor)) static void prompt_web_init() {
+    LightLock_Init(&prompt_web_lock);
+}
+
+bool prompt_web_get(prompt_web_info* out) {
+    bool found = false;
+    LightLock_Lock(&prompt_web_lock);
+    if(prompt_web_seen != 0 && osGetTime() - prompt_web_seen < PROMPT_WEB_FRESH_MS) {
+        *out = prompt_web_current;
+        found = true;
+    }
+
+    LightLock_Unlock(&prompt_web_lock);
+    return found;
+}
+
+bool prompt_web_answer(u32 id, u32 option) {
+    bool accepted = false;
+    LightLock_Lock(&prompt_web_lock);
+    if(prompt_web_seen != 0 && osGetTime() - prompt_web_seen < PROMPT_WEB_FRESH_MS && prompt_web_current.id == id && option < prompt_web_current.numOptions) {
+        prompt_web_answer_option = (int) option;
+        accepted = true;
+    }
+
+    LightLock_Unlock(&prompt_web_lock);
+    if(accepted) {
+        ui_wake();
+    }
+
+    return accepted;
+}
+
+// Called by the question on top every frame: keeps its copy fresh and takes an answer from the web page, -1 with none.
+int prompt_web_offer(const void* owner, const char* title, const char* text, const char* const* options, u32 numOptions, bool danger) {
+    int answer = -1;
+    LightLock_Lock(&prompt_web_lock);
+    if(prompt_web_owner != owner || prompt_web_seen == 0) {
+        memset(&prompt_web_current, 0, sizeof(prompt_web_current));
+        prompt_web_owner = owner;
+        prompt_web_current.id = ++prompt_web_counter;
+        string_copy(prompt_web_current.title, title, sizeof(prompt_web_current.title));
+        string_copy(prompt_web_current.text, text, sizeof(prompt_web_current.text));
+        for(u32 i = 0; i < numOptions && i < PROMPT_WEB_OPTIONS_MAX; i++) {
+            string_copy(prompt_web_current.options[i], options[i], sizeof(prompt_web_current.options[i]));
+        }
+
+        prompt_web_current.numOptions = numOptions < PROMPT_WEB_OPTIONS_MAX ? numOptions : PROMPT_WEB_OPTIONS_MAX;
+        prompt_web_current.danger = danger;
+        prompt_web_answer_option = -1;
+    }
+
+    prompt_web_seen = osGetTime();
+    answer = prompt_web_answer_option;
+    prompt_web_answer_option = -1;
+    LightLock_Unlock(&prompt_web_lock);
+    return answer;
+}
+
+// A question that is answered or closed is not offered any more.
+void prompt_web_forget(const void* owner) {
+    LightLock_Lock(&prompt_web_lock);
+    if(prompt_web_owner == owner) {
+        prompt_web_seen = 0;
+        prompt_web_answer_option = -1;
+    }
+
+    LightLock_Unlock(&prompt_web_lock);
+}
+
 // Set by prompt_display_warning for the prompt it is about to create.
 static bool prompt_next_danger = false;
 
@@ -71,6 +149,7 @@ static void prompt_button_rect(prompt_data* promptData, u32 i, float cardX, floa
 }
 
 static void prompt_notify_response(ui_view* view, prompt_data* promptData, u32 response) {
+    prompt_web_forget(promptData);
     ui_pop();
 
     // The last of two or more answers backs out (No, Cancel); any other goes ahead.
@@ -88,6 +167,18 @@ static void prompt_notify_response(ui_view* view, prompt_data* promptData, u32 r
 
 static void prompt_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     prompt_data* promptData = (prompt_data*) data;
+
+    const char* webOptions[PROMPT_OPTIONS_MAX];
+    u32 webCount = promptData->numOptions < PROMPT_OPTIONS_MAX ? promptData->numOptions : PROMPT_OPTIONS_MAX;
+    for(u32 i = 0; i < webCount; i++) {
+        webOptions[i] = promptData->options[i];
+    }
+
+    int webAnswer = prompt_web_offer(promptData, promptData->title, promptData->text, webOptions, webCount, promptData->danger);
+    if(webAnswer >= 0 && (u32) webAnswer < promptData->numOptions) {
+        prompt_notify_response(view, promptData, (u32) webAnswer);
+        return;
+    }
 
     u32 down = hidKeysDown();
     for(u32 i = 0; i < promptData->numOptions; i++) {

@@ -52,6 +52,7 @@ typedef struct {
 
     bool touching;
     bool dragged;
+    u16 touchStartX;
     u16 touchStartY;
     u16 lastTouchY;
 
@@ -502,6 +503,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
         } else {
             listData->touching = true;
             listData->dragged = false;
+            listData->touchStartX = pos.px;
             listData->touchStartY = listData->lastTouchY = pos.py;
             listData->scrollVelocity = 0;
             listData->scrollGliding = false;
@@ -533,6 +535,32 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
     } else if(listData->barTouching && (hidKeysUp() & KEY_TOUCH)) {
         listData->barTouching = false;
         list_title_bar_release(view, listData);
+    } else if(listData->touching && (hidKeysHeld() & KEY_TOUCH) && list_total_height(listData, &l) <= l.y2 - l.y1) {
+        // Nothing to scroll: a finger sliding over the items moves the focus to the one under it, and letting go there
+        // opens nothing (a tap that only drifts a little still opens).
+        int moved = abs((int) pos.px - (int) listData->touchStartX) + abs((int) pos.py - (int) listData->touchStartY);
+        if(moved > 8 && pos.py >= l.y1 && pos.py < l.y2) {
+            for(u32 i = 0; i < count; i++) {
+                float x, y;
+                list_item_position(listData, &l, i, &x, &y);
+                if(widget_touched(&pos, x, y, l.itemW, l.itemH)) {
+                    if(i != listData->selectedIndex) {
+                        listData->selectedIndex = i;
+                        listData->selectedItem = listData->visible[i];
+                        listData->press.cancelled = true;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        listData->lastTouchY = pos.py;
+
+        if(listData->longPress != NULL && listData->press.touch && widget_press_long_due(&listData->press)
+           && (u32) listData->press.index < count) {
+            longPressed = listData->visible[listData->press.index];
+        }
     } else if(listData->touching && (hidKeysHeld() & KEY_TOUCH)) {
         if(!listData->dragged && abs((int) pos.py - (int) listData->touchStartY) > 6) {
             listData->dragged = true;
@@ -710,6 +738,18 @@ void list_destroy(ui_view* view) {
 
 void list_set_style(ui_view* view, const list_style* style) {
     ((list_data*) view->data)->style = *style;
+}
+
+float list_tile_size_of(u32 level) {
+    static const float sizes[LIST_TILE_LEVELS] = {38, 50, 64, 80};
+    return sizes[level < LIST_TILE_LEVELS ? level : LIST_TILE_LEVELS - 1];
+}
+
+void list_set_tile_size(ui_view* view, float size) {
+    list_data* listData = (list_data*) view->data;
+    listData->style.tileSize = size;
+    listData->scrollPos = listData->scrollTarget = listData->scrollVelocity = 0;
+    listData->scrollGliding = false;
 }
 
 void list_set_mode(ui_view* view, list_mode mode) {

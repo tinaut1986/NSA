@@ -526,7 +526,7 @@ static void titles_data_draw_row(void* data, list_item* item, float x, float y, 
         widget_row(x, y, width, height, (int) icons[row], item->name, row == DATA_ROW_DELETE ? t->palette->danger : t->palette->text, NULL, selected);
     } else {
         save_backup* b = (save_backup*) item->data;
-        widget_row(x, y, width, height, b->checkpoint ? ICON_CHECKPOINT : WIDGET_ICON_NSA, item->name, t->palette->text, NULL, selected);
+        widget_row(x, y, width, height, b->pksm ? WIDGET_ICON_PKSM : b->jksm ? WIDGET_ICON_JKSM : b->checkpoint ? ICON_CHECKPOINT : WIDGET_ICON_NSA, item->name, t->palette->text, NULL, selected);
     }
 }
 
@@ -602,7 +602,7 @@ static void titles_data_delete(void* data) {
     titles_data_manager* mgr = (titles_data_manager*) data;
     char text[FILE_PATH_MAX + 160];
     snprintf(text, sizeof(text), "%s\n%s%s", _("Delete this backup? It cannot be undone."), mgr->chosen.label,
-             mgr->chosen.checkpoint ? _("\n(Checkpoint's: it will not see it any more.)") : "");
+             mgr->chosen.pksm ? _("\n(PKSM's: it will not see it any more.)") : mgr->chosen.jksm ? _("\n(JKSM's: it will not see it any more.)") : mgr->chosen.checkpoint ? _("\n(Checkpoint's: it will not see it any more.)") : "");
     prompt_display_warning("Confirmation", text, COLOR_TEXT, mgr, titles_data_prompt_top, titles_data_delete_answer);
 }
 
@@ -757,6 +757,27 @@ static bool titles_is_grid(ui_view* view, void* data) {
 
 static void titles_store(titles_data* data);
 
+// The tiles of the grid in the next size (and the grid itself, when the rows were showing).
+static void titles_next_tile_size(ui_view* view) {
+    titles_settings* saved = &settings_get()->titles;
+    saved->tile = (saved->tile + 1) % LIST_TILE_LEVELS;
+    if(list_get_mode(view) != LIST_MODE_GRID) {
+        list_set_mode(view, LIST_MODE_GRID);
+        saved->grid = true;
+    }
+
+    list_set_tile_size(view, list_tile_size_of(saved->tile));
+    settings_save();
+}
+
+static bool titles_tile_active(ui_view* view, void* data) {
+    return false;
+}
+
+static void titles_tile_press(ui_view* view, void* data) {
+    titles_next_tile_size(view);
+}
+
 static void titles_show_rows(ui_view* view, void* data) {
     list_set_mode(view, LIST_MODE_ROWS);
     titles_store((titles_data*) data);
@@ -872,7 +893,7 @@ static void titles_filter_open(ui_view* view, void* data) {
                     {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {-1, -1, -1, -1, -1, -1}},
                     {_("Region"), true, 5, {_("Region free"), _("Europe"), _("America"), _("Japan"), _("Other")}, {-1, -1, -1, -1, -1}},
                     {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {-1, -1}},
-                    {_("Sort by"), false, 3, {_("Name"), "ID", _("Size")}, {-1, -1, -1}}
+                    {_("Sort by"), false, 3, {_("Name"), "ID", _("Size")}, {ICON_ABC, ICON_KEY, ICON_DATABASE}, true}
             },
             .isOn = titles_popover_is_on,
             .select = titles_popover_select
@@ -893,7 +914,7 @@ static void titles_search_done(ui_view* kbdView, void* data, SwkbdButton button,
 }
 
 static void titles_search_open(ui_view* view, void* data) {
-    kbd_display(_("Search titles"), list_get_search(view), SWKBD_TYPE_NORMAL, 0, SWKBD_ANYTHING, 63, data, titles_search_done);
+    osk_display(_("Search titles"), list_get_search(view), 64, 0, data, titles_search_done);
 }
 
 // ---- a game's chain: the game, its update and its DLC ----
@@ -1066,6 +1087,10 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         return;
     }
 
+    if(hidKeysDown() & KEY_SELECT) {
+        titles_next_tile_size(view);
+    }
+
     if(hidKeysDown() & KEY_Y) {
         list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
         titles_store(listData);
@@ -1227,7 +1252,7 @@ void titles_open() {
     list_style style = {
             .rowHeight = ROW_HEIGHT,
             .drawRow = titles_draw_row,
-            .tileSize = TILE_SIZE,
+            .tileSize = list_tile_size_of(settings_get()->titles.tile),
             .drawTile = titles_draw_tile
     };
     list_set_style(view, &style);
@@ -1237,6 +1262,7 @@ void titles_open() {
     // Right to left.
     list_add_tool(view, ICON_SEARCH, titles_search_active, titles_search_open);
     list_add_tool(view, ICON_FILTER, titles_filter_active, titles_filter_open);
+    list_add_tool(view, ICON_ZOOM_IN, titles_tile_active, titles_tile_press);
     list_add_tool(view, ICON_LAYOUT_GRID, titles_is_grid, titles_show_grid);
     list_add_tool(view, ICON_LIST, titles_is_rows, titles_show_rows);
 }

@@ -101,5 +101,7 @@ typedef enum {
     ICON_ABC,
     ICON_USER,
     ICON_STAR,
+    ICON_PLUS,
+    ICON_BUILDING_STORE,
     ICON_COUNT
 } icon_id;

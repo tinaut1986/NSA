@@ -15,6 +15,9 @@ void remoteinstall_open();
 // Adds URLs to the history of Remote Install (the web page installs through the same screens).
 void remoteinstall_note_urls(const char* urls);
 void store_open();
+// The camera reads QR codes until one comes out: `found` gets its text (the scanner already closed). `title` and `hint`
+// (what to point it at; NULL: links to CIAs) are English, translated when drawn.
+void qr_scan(const char* title, const char* hint, void* data, void (*found)(void* data, const char* text));
 // NSA is leaving (a restart after an install, or the exit) with the Store maybe open: stops its threads first, so none
 // is left running on memory that is going away.
 void store_exit();

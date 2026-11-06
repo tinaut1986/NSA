@@ -17,6 +17,7 @@
 #include "../libs/lzma/LzmaDec.h"
 
 #define UNARCHIVE_CHUNK (64 * 1024)
+#define UNARCHIVE_WRITE_BUFFER (256 * 1024)
 #define UNARCHIVE_PATH_MAX 512
 
 // ---- shared ----
@@ -125,6 +126,9 @@ static Result unarchive_zip_entry(FILE* fd, u32 localOffset, u16 method, u32 pac
     if(out == NULL) {
         return R_APP_IO_ERROR;
     }
+
+    // Every write to the SD card costs a lot on its own: big ones (as the FTP server does).
+    setvbuf(out, NULL, _IOFBF, UNARCHIVE_WRITE_BUFFER);
 
     u8* in = (u8*) malloc(UNARCHIVE_CHUNK);
     u8* buf = method == 8 ? (u8*) malloc(UNARCHIVE_CHUNK) : NULL;
@@ -545,6 +549,8 @@ static Result unarchive_7z_open(unarchive_7z_writer* w) {
         if(w->out == NULL) {
             return R_APP_IO_ERROR;
         }
+
+        setvbuf(w->out, NULL, _IOFBF, UNARCHIVE_WRITE_BUFFER);
     }
 
     return 0;
@@ -890,6 +896,8 @@ static Result unarchive_7z(const char* archive, const char* pattern, const char*
                 break;
             }
 
+            setvbuf(out, NULL, _IOFBF, UNARCHIVE_WRITE_BUFFER);
+
             fclose(out);
             unarchive_finished_file(progress, targets[i], count);
         }
@@ -941,6 +949,8 @@ static Result unarchive_7z(const char* archive, const char* pattern, const char*
                 res = R_APP_IO_ERROR;
                 break;
             }
+
+            setvbuf(out, NULL, _IOFBF, UNARCHIVE_WRITE_BUFFER);
 
             size_t done = 0;
             while(done < processed) {

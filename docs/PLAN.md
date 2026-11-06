@@ -166,7 +166,11 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Main menu -> Store downloads Universal-DB's UniStore (`https://db.universal-team.net/unistore/universal-db.unistore`, ~0.9 MB, kept as `sdmc:/nsa/store.unistore` and used when there is no connection) and lists the 3DS apps that publish a CIA or a .3dsx with a plain "downloadFile" first step (about 320 of 447 on 2026-11-05: 260 CIA, 280 .3dsx). Zips and multi-step scripts are left out. The top screen shows the selected app (author, version, description, sizes, category); R or the tool searches.
 - [ ] A opens it: a CIA only -> asks and installs through the Remote install screens (`action_install_url`); a .3dsx only -> downloads to `/3ds/<name>/<name>.3dsx`; both -> a sheet to choose.
 - [ ] Memory: parsing ~1 MB of JSON on an Old 3DS / 2DS; leaving the screen while it loads (B).
-- Not done: icons and screenshots (the UniStore keeps them in .t3x sprite sheets), "installed / update available", zip extraction, DS apps.
+- Not done: zip extraction, DS apps.
+- [ ] What is on the console is marked (a check on the row, the grid and the top card; "On this console: CIA, 3DSX"), with no
+  version and **no "update available"** (removed 2026-11-06 at the owner's request): the console does not keep Universal-DB's version
+  number, so the Store could only compare with what it installed itself (`sdmc:/nsa/store-installed.json`), which an app installed another way
+  or updated by its own updater leaves behind. That file now only tells whether an app with no unique ID was installed by the Store.
 
 **Transfer cards and readable URLs** (2026-11-04, `feat/transfer-info`; DEBUG on both consoles; seen on a real 40 MB send New 3DS XL -> 2DS, except the first three):
 - [x] Receiving: the top card shows the file, "From <console> (size)" and "Saving in <folder>" (or "Installing it on this console" / "Importing it into the title"); sending shows the file, "To <console>" and the size. Seen on the consoles.

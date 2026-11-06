@@ -12,7 +12,7 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 
 <p align="center">
   <img src="docs/images/main-menu.png" width="360" alt="Main menu">
-  <img src="docs/images/titles-grid.png" width="360" alt="Titles as a grid of icons">
+  <img src="docs/images/store.png" width="360" alt="The Store">
 </p>
 
 ## What it does
@@ -33,10 +33,23 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
   <img src="docs/images/receive-3ds.png" width="360" alt="Receiving from another 3DS">
 </p>
 
+### Store
+
+- Browse the homebrew of [Universal-DB](https://db.universal-team.net/) with its icons: rows or a
+  grid, search with NSA's own keyboard, filters by type and category, and sorting.
+- Install an app's CIA or download its `.3dsx` to `/3ds/`. A mark shows what is already
+  on the console.
+
+<p align="center">
+  <img src="docs/images/store-actions.png" width="360" alt="An app of the Store and its actions">
+  <img src="docs/images/keyboard.png" width="360" alt="Searching with NSA's own keyboard">
+</p>
+
 ### Titles, tickets and data
 
 <p align="center">
   <img src="docs/images/titles.png" width="360" alt="The list of titles">
+  <img src="docs/images/titles-grid.png" width="360" alt="Titles as a grid of icons">
   <img src="docs/images/titles-filter.png" width="360" alt="Filters: memory, kind and region">
   <img src="docs/images/title-actions.png" width="360" alt="A title's actions">
 </p>
@@ -93,6 +106,12 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
 
 ### Look and feel
 
+- **Your own main menu**: three big tiles and a row of icons. Hold an entry, or press SELECT, to
+  reorder them by dragging, or hide the ones you do not use.
+- **A guide** that shows how NSA works in short tours on the real screens: a bubble points at each
+  button and you do each step yourself. After an update it offers only what is new; Settings →
+  Guide plays any chapter again.
+- **NSA's own keyboard** for searches, names, URLs and the text editor.
 - **Three themes**: *Cards*, *Pixel* (a pixel font, square corners and bars in blocks) and *HOME*
   (big icon tiles and dialogs as a sheet from the bottom), in day and night colours with eight
   accent colours and a yellow one. Settings → Theme.
@@ -106,6 +125,9 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
 - A **System** page with the console's model, versions, network, battery and storage.
 
 <p align="center">
+  <img src="docs/images/menu-edit.png" width="360" alt="Editing the main menu">
+  <img src="docs/images/guide-tour.png" width="360" alt="A tour of the guide on the main menu">
+  <img src="docs/images/guide.png" width="360" alt="The guide's chapters">
   <img src="docs/images/theme-pixel.png" width="360" alt="The Pixel theme">
   <img src="docs/images/theme-home.png" width="360" alt="The HOME theme">
   <img src="docs/images/settings.png" width="360" alt="Settings">
@@ -121,7 +143,7 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
   [CLAUDE.md](CLAUDE.md).
 - Plans, decisions and what is still to test on a console are in [docs/PLAN.md](docs/PLAN.md).
 
-> The pictures are from a New 3DS XL. Some of the newer features have so far run only in an
+> The pictures are from a New 3DS XL and a 2DS. Some of the newer features have so far run only in an
 > emulator, not on every console; the "Pending tests" list in `docs/PLAN.md` says which. Report
 > what does not work as an [issue](https://github.com/tinaut1986/NSA/issues).
 

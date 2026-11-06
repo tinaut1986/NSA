@@ -50,6 +50,7 @@ typedef struct {
     char confirm[256];
     content_type contentType;
     u64 currTitleId;
+    cia_seed_watch seedWatch;
     volatile bool n3dsContinue;
     ticket_info ticketInfo;
     char currPath[FILE_PATH_MAX];
@@ -299,6 +300,7 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
 
             if(R_SUCCEEDED(res = AM_StartCiaInstall(dest, handle))) {
                 installData->currTitleId = titleId;
+                cia_seed_watch_start(&installData->seedWatch, (u8*) initialReadBlock, installData->installInfo.bufferSize);
             }
         }
     } else if(*(u16*) initialReadBlock == 0x0100) {
@@ -359,7 +361,9 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
     if(succeeded) {
         if(installData->contentType == CONTENT_CIA) {
             if(R_SUCCEEDED(res = AM_FinishCiaInstall(handle))) {
-                http_download_seed(installData->currTitleId);
+                if(cia_seed_watch_needed(&installData->seedWatch)) {
+                    http_download_seed(installData->currTitleId);
+                }
 
                 if(installData->currTitleId == 0x0004013800000002 || installData->currTitleId == 0x0004013820000002) {
                     res = AM_InstallFirm(installData->currTitleId);
@@ -409,6 +413,11 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
 }
 
 static Result action_install_url_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {
+    install_url_data* installData = (install_url_data*) data;
+    if(installData->contentType == CONTENT_CIA && !installData->saveOnly) {
+        cia_seed_watch_feed(&installData->seedWatch, buffer, offset, size);
+    }
+
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 

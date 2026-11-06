@@ -136,6 +136,14 @@ on the app's core, as the fetches do, and the update check too. Measured on the 
 - [ ] On the New 3DS XL: an update from Settings and an install from a URL start as before (no slower).
 - [ ] An install from a URL on the 2DS starts within a few seconds too (the same probe).
 
+**No seed lookup for titles without one, no probe for small downloads** (2026-11-06, `fix/seed-probe`): after installing a CIA,
+NSA asked Nintendo's server for its seed whatever it was (as FBI did: a 404 for anything not from the eShop, 2.4 s on the 2DS);
+now it asks only when the first content's NCCH header says the title uses one, or when the header could not be read (an
+encrypted content). A download into a small buffer (under 4 MB: the releases, the Store's info, a seed) skips the first request
+that looks for several connections. Measured with DEBUG builds offered v0.8.4: the update check 4.7 s -> 3.0 s on the 2DS (0.7 s
+on the New 3DS XL), and no seed request after the install on either.
+- [ ] A game from the eShop that uses a seed (installed from a CIA with readable contents) still gets its seed and starts.
+
 **Guide and scrolling dialogs** (2026-11-06, `feat/guide`; DEBUG 0.7.3 tried in Azahar, in Spanish, Cards theme: the offer at
 start, Getting around, Your main menu, Store, SD card and From your computer played through, a chapter started from Settings -> Guide,
 START on the main menu, and a long message scrolled with the D-Pad and a finger)

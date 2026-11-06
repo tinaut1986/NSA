@@ -17,6 +17,38 @@ static void action_delete_title_draw_top(ui_view* view, void* data, float x1, fl
     task_draw_title_info(view, ((delete_title_data*) data)->selected->data, x1, y1, x2, y2);
 }
 
+// The game had mods in /luma/titles (LayeredFS): they are of no use without it, but the user may want them for a
+// reinstall or for the game card.
+static void action_delete_title_mods_answer(ui_view* view, void* data, u32 response) {
+    u64* titleId = (u64*) data;
+    if(response == PROMPT_YES) {
+        Result res = task_mods_delete(*titleId);
+        if(R_FAILED(res)) {
+            error_display_res(NULL, NULL, res, "Failed to delete the mods.");
+        } else {
+            prompt_display_notify("Success", "Title and mods deleted.", COLOR_TEXT, NULL, NULL, NULL);
+        }
+    }
+
+    free(titleId);
+}
+
+static bool action_delete_title_ask_mods(u64 titleId) {
+    title_kind kind = title_kind_of(titleId);
+    if((kind != TITLE_KIND_GAME && kind != TITLE_KIND_DEMO) || !task_mods_exist(titleId)) {
+        return false;
+    }
+
+    u64* data = (u64*) malloc(sizeof(u64));
+    if(data == NULL) {
+        return false;
+    }
+
+    *data = titleId;
+    prompt_display_yes_no("Title deleted", "This game had mods in /luma/titles (LayeredFS). Delete them too?", COLOR_TEXT, data, NULL, action_delete_title_mods_answer);
+    return true;
+}
+
 static void action_delete_title_update(ui_view* view, void* data, float* progress, char* text) {
     delete_title_data* deleteData = (delete_title_data*) data;
 
@@ -34,10 +66,13 @@ static void action_delete_title_update(ui_view* view, void* data, float* progres
     if(R_FAILED(res)) {
         error_display_res(info, task_draw_title_info, res, "Failed to delete title.");
     } else {
+        u64 titleId = info->titleId;
         linked_list_remove(deleteData->items, deleteData->selected);
         task_free_title(deleteData->selected);
 
-        prompt_display_notify("Success", "Title deleted.", COLOR_TEXT, NULL, NULL, NULL);
+        if(!action_delete_title_ask_mods(titleId)) {
+            prompt_display_notify("Success", "Title deleted.", COLOR_TEXT, NULL, NULL, NULL);
+        }
     }
 
     free(data);

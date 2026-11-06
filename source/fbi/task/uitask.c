@@ -509,6 +509,61 @@ void task_draw_ticket_info(ui_view* view, void* data, float x1, float y1, float 
     screen_draw_text_wrap(note, x + 2, bottom + 10, WIDGET_SMALL_SCALE + 0.04f, t->palette->textMuted, x + w - 2);
 }
 
+static const char* task_mod_state_name(mod_state state) {
+    switch(state) {
+        case MOD_STATE_INSTALLED: return _("Installed");
+        case MOD_STATE_CARD: return _("Game card");
+        case MOD_STATE_RELATED: return _("Update only");
+        default: return _("Not installed");
+    }
+}
+
+void task_draw_mod_info(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    mod_info* info = (mod_info*) data;
+    const theme_current* t = theme();
+    float x = x1 + 10;
+    float w = x2 - x1 - 20;
+
+    char id[32];
+    snprintf(id, sizeof(id), "%016llX", info->titleId);
+    if(info->hasMeta) {
+        task_draw_meta_card(&info->meta, x, y1 + 10, w);
+    } else {
+        task_draw_card(x, y1 + 10, w, 0, ICON_FOLDER, task_kind_name(info->titleId), id, task_mod_state_name(info->state));
+    }
+
+    char size[32];
+    task_size_text(size, sizeof(size), info->size);
+    char contents[96];
+    task_mod_contents_text(contents, sizeof(contents), info->contents);
+
+    task_cell cells[6];
+    u32 count = 0;
+    task_set(&cells[count], _("Title ID"), "%s", id);
+    task_wide(&cells[count++]);
+    task_set(&cells[count++], _("Game"), "%s", task_mod_state_name(info->state));
+    task_set(&cells[count++], _("Size"), "%s", size);
+    task_set(&cells[count++], _("Files"), "%lu", info->files);
+    task_set(&cells[count], _("Contents"), "%s", contents);
+    task_wide(&cells[count++]);
+
+    float bottom = task_draw_cells(x, y1 + 10 + CARD_HEIGHT + 8, w, cells, count);
+
+    // What the state means, in a sentence.
+    const char* note = NULL;
+    switch(info->state) {
+        case MOD_STATE_INSTALLED: note = _("Luma3DS loads these files into the game when it starts."); break;
+        case MOD_STATE_CARD: note = _("The game is the card in the slot: Luma3DS loads these files into it."); break;
+        case MOD_STATE_RELATED: note = _("The game is not installed but its update or DLC is: it is most likely played from a game card."); break;
+        default:
+            note = title_kind_of(info->titleId) == TITLE_KIND_SYSTEM ? _("A system title that is not installed. Luma3DS patches some of them: delete only what you know.")
+                                                                      : _("No installed game uses these mods. A game card's show here too while the card is out of the slot.");
+            break;
+    }
+
+    screen_draw_text_wrap(note, x + 2, bottom + 10, WIDGET_SMALL_SCALE + 0.04f, t->palette->textMuted, x + w - 2);
+}
+
 void task_draw_title_info(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     title_info* info = (title_info*) data;
     float x = x1 + 10;

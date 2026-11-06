@@ -53,6 +53,12 @@ typedef struct {
 } pending_settings;
 
 typedef struct {
+    u32 states;      // Bits: 1 the game is on the console (installed, its card or its update), 2 it is not.
+    u32 sort;        // 0 name, 1 size, 2 ID.
+    bool grid;
+} mods_settings;
+
+typedef struct {
     u32 kinds;        // Bits: 1 CIA, 2 3DSX.
     bool others;      // What is neither (files for other consoles, mods, skins...) shows too.
     u32 categories;   // One bit per category the Store knows (the last one is "other").
@@ -103,6 +109,7 @@ typedef struct {
     files_settings files;
     extsave_settings extsave;
     pending_settings pending;
+    mods_settings mods;
     store_settings store;
 } settings_data;
 

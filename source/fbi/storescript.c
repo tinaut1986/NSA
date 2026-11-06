@@ -493,8 +493,20 @@ static void script_downloads_done(void* data) {
         return;
     }
 
-    if(info_display(_("Store"), _("Press B to cancel."), true, run, script_progress_update, NULL) == NULL
-       || threadCreate(script_thread, run, 0x8000, 0x30, -2, true) == NULL) {
+    // Decoding never waits: below the UI's priority, so the screen keeps moving, and on a New 3DS on its third core.
+    bool isNew = false;
+    Thread thread = NULL;
+    if(info_display(_("Store"), _("Press B to cancel."), true, run, script_progress_update, NULL) != NULL) {
+        if(R_SUCCEEDED(APT_CheckNew3DS(&isNew)) && isNew) {
+            thread = threadCreate(script_thread, run, 0x8000, 0x38, 2, true);
+        }
+
+        if(thread == NULL) {
+            thread = threadCreate(script_thread, run, 0x8000, 0x38, -2, true);
+        }
+    }
+
+    if(thread == NULL) {
         error_display_res(NULL, NULL, R_APP_THREAD_CREATE_FAILED, _("Failed to take the files out of the archive."));
         for(u32 i = 0; i < run->downloads; i++) {
             script_delete(run, run->steps[i].b);

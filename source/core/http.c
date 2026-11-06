@@ -853,6 +853,41 @@ static size_t http_probe_write(char* ptr, size_t size, size_t nmemb, void* userd
     return len;
 }
 
+typedef struct {
+    CURL* curl;
+    CURLcode ret;
+} http_perform_job;
+
+static void http_perform_job_thread(void* arg) {
+    http_perform_job* job = (http_perform_job*) arg;
+    job->ret = http_perform(job->curl);
+}
+
+// curl_easy_perform on a thread of the app's core (core 2 on a New 3DS), as the downloads' own fetches run, and waits for
+// it. The callers (an install's task, the update check) run on the system core, where an Old 3DS gives the app 30% of the
+// time, and only 5% while a transfer turn is held (XFERTURN_CPU_LIMIT): there a connection and its TLS handshake took
+// about 36 s on a 2DS before an update's download began.
+static CURLcode http_perform_on_app_core(CURL* curl) {
+    http_perform_job job = {curl, CURLE_FAILED_INIT};
+    Thread thread = NULL;
+    bool isNew = false;
+    if(R_SUCCEEDED(APT_CheckNew3DS(&isNew)) && isNew) {
+        thread = threadCreate(http_perform_job_thread, &job, HTTP_FETCH_STACK, HTTP_FETCH_PRIORITY, 2, false);
+    }
+
+    if(thread == NULL) {
+        thread = threadCreate(http_perform_job_thread, &job, HTTP_FETCH_STACK, HTTP_FETCH_PRIORITY, -2, false);
+    }
+
+    if(thread == NULL) {
+        return http_perform(curl);
+    }
+
+    threadJoin(thread, U64_MAX);
+    threadFree(thread);
+    return job.ret;
+}
+
 // Asks for the first byte only: where the file is after redirects, how big,
 // and whether ranges are served (a 206 with the total). Not HEAD and
 // Accept-Ranges, as before: some servers (catbox.moe) answer HEAD with no size
@@ -883,7 +918,13 @@ static bool http_probe(const char* url, char* effective, size_t effectiveSize, u
     bool ok = false;
     long code = 0;
     char* where = NULL;
-    if(http_perform(curl) == CURLE_OK
+    u64 started = osGetTime();
+    CURLcode ret = http_perform_on_app_core(curl);
+    if(http_log != NULL) {
+        http_log("http: probe %s: %llu ms, curl %d\n", url, osGetTime() - started, ret);
+    }
+
+    if(ret == CURLE_OK
        && curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code) == CURLE_OK && code == 206 && state.total > 0
        && curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &where) == CURLE_OK && where != NULL
        && strlen(where) < effectiveSize) {

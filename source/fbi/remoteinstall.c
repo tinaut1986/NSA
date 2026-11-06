@@ -1527,6 +1527,11 @@ static void remoteinstall_draw_bottom(ui_view* view, void* data, float x1, float
             }
 
             widget_press_draw(&menu->press, (int) i, x, y, w, h, i < ENTRY_COUNT ? t->def->radius : t->def->radiusSmall, selected ? t->onAccent : t->palette->text, !editing);
+
+            // Where a guided tour finds it (coach.h): "remote.qr"..., "remote.history".
+            char anchor[32];
+            snprintf(anchor, sizeof(anchor), "remote.%s", i < ENTRY_COUNT ? entry_ids[order[i]] : "history");
+            coach_anchor(anchor, slot[0], slot[1], slot[2], slot[3], selected);
         }
     }
 

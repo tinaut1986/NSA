@@ -29,6 +29,11 @@
 #define BUBBLE_ARROW 7
 #define HOLE_MARGIN 3
 
+// Depth on the top screen in 3D (ui.c draws cards 1 unit in front of the screen and their icons 2): the dimming at the
+// cards' depth, so the hole frames what it points at, and the bubble in front of everything.
+#define COACH_DEPTH_DIM 1.0f
+#define COACH_DEPTH_BUBBLE 3.0f
+
 typedef struct {
     char id[COACH_ID_MAX];
     float x, y, w, h;
@@ -406,8 +411,9 @@ static void coach_bubble_measure(const coach_step* step, gfxScreen_t screen, coa
 }
 
 // arrow: 0 none, 1 out of the top edge (pointing up), 2 out of the bottom edge (pointing down), at arrowX.
-static void coach_bubble_draw(const coach_step* step, const coach_bubble* b, float bx, float by, int arrow, float arrowX) {
+static void coach_bubble_draw(gfxScreen_t screen, const coach_step* step, const coach_bubble* b, float bx, float by, int arrow, float arrowX) {
     const theme_current* t = theme();
+    screen_set_depth(screen == GFX_TOP ? COACH_DEPTH_BUBBLE : 0);
     screen_fill_round_rect(bx + 1, by + 3, b->bw, b->bh, t->def->radius, THEME_ALPHA(0x00000000, 0x40));
     screen_frame_round_rect(bx, by, b->bw, b->bh, t->def->radius, 2, t->accent, t->palette->surface);
     if(arrow != 0) {
@@ -469,6 +475,7 @@ void coach_draw(gfxScreen_t screen) {
         u32 dim = THEME_ALPHA(0x00000000, 0x8C);
         screen_set_offset(0, 0);
         screen_clear_clip();
+        screen_set_depth(screen == GFX_TOP ? COACH_DEPTH_DIM : 0);
 
         // The anchor: as drawn now on this screen, else as last drawn (the top screen is drawn before the bottom one).
         const coach_anchor_rec* now = coach_find_in(cur, curCount, step->anchor);
@@ -511,7 +518,7 @@ void coach_draw(gfxScreen_t screen) {
                     float bx = a->x + a->w / 2 - b.bw / 2;
                     if(bx < 6) bx = 6;
                     if(bx + b.bw > screenW - 6) bx = screenW - 6 - b.bw;
-                    coach_bubble_draw(step, &b, bx, by, below ? 1 : 2, a->x + a->w / 2);
+                    coach_bubble_draw(screen, step, &b, bx, by, below ? 1 : 2, a->x + a->w / 2);
                 }
             } else if(screen != a->screen) {
                 coach_bubble_measure(step, screen, &b);
@@ -520,16 +527,18 @@ void coach_draw(gfxScreen_t screen) {
                 bool pointDown = screen == GFX_TOP;
                 float y = pointDown ? screenH - b.bh - BUBBLE_ARROW - 2 : BUBBLE_ARROW + 2;
                 float ax = (a->x + a->w / 2) * screenW / coach_screen_width(a->screen);
-                coach_bubble_draw(step, &b, bx, y, pointDown ? 2 : 1, ax);
+                coach_bubble_draw(screen, step, &b, bx, y, pointDown ? 2 : 1, ax);
             }
         } else if(screen == GFX_BOTTOM) {
             coach_bubble_measure(step, screen, &b);
             float bx = (screenW - b.bw) / 2;
             // What a step waits for may not be on the screen yet: out of the way at the top (going down, the focus is at the bottom).
             float by = coach_wait_step(step) ? 30 : (screenH - b.bh) / 2;
-            coach_bubble_draw(step, &b, bx, by, 0, 0);
+            coach_bubble_draw(screen, step, &b, bx, by, 0, 0);
         }
     }
+
+    screen_set_depth(0);
 
     if(lastScreen) {
         memcpy(last, cur, curCount * sizeof(coach_anchor_rec));

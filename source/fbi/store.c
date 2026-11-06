@@ -1967,6 +1967,9 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
         }
     }
 
+    // Until the first catalogue is here (the copy on the SD card, or the server's when there is none), a wheel turns.
+    list_set_busy(view, store->haveCatalogue || store->done ? NULL : "Loading the catalogue...");
+
     if(hidKeysDown() & KEY_B) {
         if(list_get_search(view)[0] != '\0') {
             list_set_search(view, "");

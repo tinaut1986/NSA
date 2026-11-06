@@ -899,6 +899,7 @@ const i18n_entry i18n_es[] = {
         {" get    search    back", " obtener    buscar    volver"},
         {"Store", "Tienda"},
         {"Homebrew from Universal-DB: browse the catalogue and install or download apps.", "Homebrew de Universal-DB: explora el catálogo e instala o descarga aplicaciones."},
+        {"Loading the catalogue...", "Cargando el catálogo..."},
         {"Downloading the catalogue...", "Descargando el catálogo..."},
         {"Nothing to show.", "No hay nada que mostrar."},
         {"Download and install %s?", "¿Descargar e instalar %s?"},

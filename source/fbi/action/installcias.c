@@ -21,6 +21,7 @@ typedef struct {
     char* queue;   // CIAs to install after this one (action_install_cia_paths_now), one path a line.
 
     volatile bool n3dsContinue;
+    cia_seed_watch seedWatch;
 
     data_op_data installInfo;
 } install_cias_data;
@@ -114,6 +115,7 @@ static Result action_install_cias_open_dst(void* data, u32 index, void* initialR
     install_cias_data* installData = (install_cias_data*) data;
 
     installData->n3dsContinue = false;
+    cia_seed_watch_start(&installData->seedWatch, (u8*) initialReadBlock, installData->installInfo.bufferSize);
 
     file_info* info = (file_info*) ((list_item*) linked_list_get(&installData->contents, index))->data;
 
@@ -155,7 +157,9 @@ static Result action_install_cias_close_dst(void* data, u32 index, bool succeede
 
         Result res = 0;
         if(R_SUCCEEDED(res = AM_FinishCiaInstall(handle))) {
-            http_download_seed(info->ciaInfo.titleId);
+            if(cia_seed_watch_needed(&installData->seedWatch)) {
+                http_download_seed(info->ciaInfo.titleId);
+            }
 
             if((info->ciaInfo.titleId & 0xFFFFFFF) == 0x0000002) {
                 res = AM_InstallFirm(info->ciaInfo.titleId);
@@ -169,6 +173,7 @@ static Result action_install_cias_close_dst(void* data, u32 index, bool succeede
 }
 
 static Result action_install_cias_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {
+    cia_seed_watch_feed(&((install_cias_data*) data)->seedWatch, buffer, offset, size);
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 

@@ -46,6 +46,9 @@ SendUserFile; installing it on a console still waits for them to ask (they usual
 
 ## Branches in use
 
+- **`staging`** (since 2026-11-07): what is finished but **not yet tried on a console**. While it exists, topic branches are
+  cut from `staging` and merged (`--no-ff`) into `staging`, not `release`; push both. Once the owner confirms the items of
+  "Pending tests on the console", `staging` is merged into `release` (then `release` into `advanced`).
 - `release`: the working line; `master`: stable (only moves by merging `release`).
 - `advanced`: the risky tools (Dump NAND, Pending titles, System save data, Advanced's red look). Merge `release`
   into it after changing `release` (`git merge release`), and the owner's call decides when it goes into `release`.

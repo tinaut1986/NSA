@@ -12,6 +12,7 @@ start. Merged topic branches are kept on the remote and can be deleted.
 
 | Branch / tag | State |
 |---|---|
+| `staging` | **Untested work** (since 2026-11-07): topic branches merge here until the owner tries them on a console, then `staging` goes into `release`. Holds `release` plus what is under "Pending tests" from that date. |
 | `release` | The working line. Holds everything below, but "Advanced". |
 | `advanced` | **The risky tools**: Dump NAND as its own screen (space, progress, SHA-256 and a `.sha256`), Pending titles and System save data on the Titles pattern, Advanced's red look. Cut from `release` on 2026-10-31; the owner wants what is about the console's own data merged there first. Keep `release` merged into it (`git merge release`). |
 | `master` | Stable. Moves only by merging `release`. |
@@ -136,7 +137,7 @@ locale.txt, other). Each says whether its game is still there: *Installed* (SD o
 console / not installed), sort (name, size, ID), grid, search, remembered in `settings.json` (`mods`). Sheet: *Delete mods*
 (that folder) and, once the list is loaded, *Delete mods of games not installed* (never a system title's: Luma patches some, and
 a card that is out looks uninstalled, which the question says). Deleting a game or demo from Titles (also from the web page)
-that has a folder there asks whether to delete its mods too. Guide chapter `mods` (since 0.9). Translated into the 10 languages
+that has a folder there asks whether to delete its mods too. Guide chapter `mods` (since 0.8: a console already on 0.8 is not offered it at start, it is in Settings -> Guide). Translated into the 10 languages
 (zh only with characters already in `hanfont.png`).
 - [ ] The list on a console with mods: names and icons, sizes, the states (install a game, delete it, take a card out).
 - [ ] *Delete mods* and *Delete mods of games not installed* delete only those folders; the list updates.

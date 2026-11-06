@@ -128,6 +128,14 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Updates start sooner** (2026-11-06, `fix/update-start`): the first request of a download (`http_probe`: where the file is,
+how big) ran on the caller's thread, on the system core, which an Old 3DS shares at 5% while a transfer turn is held; it now runs
+on the app's core, as the fetches do, and the update check too. Measured on the 2DS (DEBUG built as 0.8.3-beta, offered v0.8.4):
+"Yes" to the CIA downloaded 44 s -> 10 s (the probe 36 s -> 2.5 s); the check 6.3 s -> 4.7 s (reading the releases 1.1 s ->
+0.36 s). `transfer-log.txt` now says how long each probe took and the update check's times.
+- [ ] On the New 3DS XL: an update from Settings and an install from a URL start as before (no slower).
+- [ ] An install from a URL on the 2DS starts within a few seconds too (the same probe).
+
 **Guide and scrolling dialogs** (2026-11-06, `feat/guide`; DEBUG 0.7.3 tried in Azahar, in Spanish, Cards theme: the offer at
 start, Getting around, Your main menu, Store, SD card and From your computer played through, a chapter started from Settings -> Guide,
 START on the main menu, and a long message scrolled with the D-Pad and a finger)

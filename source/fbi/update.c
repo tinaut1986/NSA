@@ -11,6 +11,7 @@
 #include "relaunch.h"
 #include "settings.h"
 #include "update.h"
+#include "udslink.h"
 #include "update_manifest.h"
 #include "action/action.h"
 #include "../core/core.h"
@@ -35,6 +36,7 @@ typedef struct {
     update_release release;
 
     ui_view* waitView;
+    u64 started;   // When it was asked for, for the transfer log's timings.
 } update_check;
 
 // One check at a time; update_poll() hands its result to the UI.
@@ -47,7 +49,9 @@ static void update_check_thread(void* arg) {
     char* response = (char*) malloc(UPDATE_RESPONSE_MAX);
     if(response != NULL) {
         u32 size = 0;
+        udslink_log("update: check thread running after %llu ms\n", osGetTime() - check->started);
         if(R_SUCCEEDED(check->res = http_download_buffer(UPDATE_RELEASES_URL, &size, response, UPDATE_RESPONSE_MAX))) {
+            u64 parseStart = osGetTime();
             // A full buffer means the response was cut short.
             if(size >= UPDATE_RESPONSE_MAX) {
                 check->res = R_APP_OUT_OF_RANGE;
@@ -57,6 +61,9 @@ static void update_check_thread(void* arg) {
                 if(check->found < 0) {
                     check->res = R_APP_PARSE_FAILED;
                 }
+
+                udslink_log("update: %lu bytes of releases read in %llu ms (%llu ms after asking)\n", size, osGetTime() - parseStart,
+                            osGetTime() - check->started);
             }
         }
 
@@ -106,6 +113,7 @@ static void update_offer_onresponse(ui_view* view, void* data, u32 response) {
     update_offer* offer = (update_offer*) data;
 
     if(response == PROMPT_YES) {
+        udslink_log("update: yes, downloading %s\n", offer->url);
         update_installed = false;
         action_install_url(NULL, offer->url, fs_get_3dsx_path(), NULL, update_install_finished_url, update_install_finished_all, NULL);
     }
@@ -186,10 +194,22 @@ static void update_start(check_mode mode) {
     }
 
     check->mode = mode;
+    check->started = osGetTime();
     check->betas = settings_get()->channel == UPDATE_CHANNEL_BETA;
     check->homebrew = fs_get_3dsx_path() != NULL;
 
-    currentThread = threadCreate(update_check_thread, check, 0x10000, 0x18, 1, false);
+    // On the app's core (core 2 on a New 3DS), below the UI: on the system core an Old 3DS gives the app only 30% of the
+    // time, and reading the releases (200 KB of JSON) took seconds there.
+    bool isNew = false;
+    currentThread = NULL;
+    if(R_SUCCEEDED(APT_CheckNew3DS(&isNew)) && isNew) {
+        currentThread = threadCreate(update_check_thread, check, 0x10000, 0x31, 2, false);
+    }
+
+    if(currentThread == NULL) {
+        currentThread = threadCreate(update_check_thread, check, 0x10000, 0x31, -2, false);
+    }
+
     if(currentThread == NULL) {
         if(mode != CHECK_UPDATE_SILENT) {
             error_display_res(NULL, NULL, R_APP_THREAD_CREATE_FAILED, _("Failed to check for updates."));
@@ -241,6 +261,8 @@ void update_poll() {
         info_destroy(check->waitView);
     }
 
+    u64 shown = osGetTime();
     update_check_finish(check);
+    udslink_log("update: answer shown %llu ms after asking (%llu ms to show it)\n", osGetTime() - check->started, osGetTime() - shown);
     free(check);
 }

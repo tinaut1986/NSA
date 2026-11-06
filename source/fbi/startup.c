@@ -10,6 +10,7 @@
 #include "resources.h"
 #include "section.h"
 #include "ftpserver.h"
+#include "guide.h"
 #include "webserver.h"
 #include "settings.h"
 #include "update.h"
@@ -162,13 +163,19 @@ static void startup_check_updates() {
     }
 }
 
+// The guide's question (only when it has chapters this console was not offered), then the update check: after the
+// guide closes, so its question does not land in the middle of it.
+static void startup_guide_then_updates() {
+    guide_startup(startup_check_updates);
+}
+
 static void startup_music_onresponse(ui_view* view, void* data, u32 response) {
     if(response == PROMPT_YES) {
         settings_get()->ftpPausesMusic = false;
     }
 
     settings_save();
-    startup_check_updates();
+    startup_guide_then_updates();
 }
 
 // An Old 3DS that kept "Pause music for FTP" on, its old default, is asked once whether to let the music play: with only
@@ -195,7 +202,7 @@ static void startup_next() {
         settings_save();
     }
 
-    startup_check_updates();
+    startup_guide_then_updates();
 }
 
 static void startup_import_update(ui_view* view, void* data, float* progress, char* text) {

@@ -6,6 +6,7 @@
 #include <3ds.h>
 
 #include "ftpserver.h"
+#include "guide.h"
 #include "webserver.h"
 #include "section.h"
 #include "settings.h"
@@ -30,6 +31,7 @@ typedef enum {
     OPTION_AUTO_UPDATE,
     OPTION_CHECK_UPDATES,
     OPTION_CHANGELOG,
+    OPTION_GUIDE,
     OPTION_COUNT
 } settings_option;
 
@@ -81,7 +83,7 @@ typedef struct {
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
             ICON_PALETTE, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
-            ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS
+            ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
     };
 
     return icons[option];
@@ -102,6 +104,7 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_WEB: return _("Web server");
         case OPTION_CHECK_UPDATES: return _("Check for updates");
         case OPTION_CHANGELOG: return _("Changelog");
+        case OPTION_GUIDE: return _("Guide");
         default: return "";
     }
 }
@@ -205,6 +208,11 @@ static void settingsmenu_change(settings_option option, int direction) {
         case OPTION_CHANGELOG:
             if(direction == 0) {
                 update_show_history();
+            }
+            return;
+        case OPTION_GUIDE:
+            if(direction == 0) {
+                guide_open();
             }
             return;
         default:
@@ -438,6 +446,7 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_WEB: return _("A page to manage the console from a computer's browser: files, installing CIAs. It asks for the PIN shown here, which changes each time the server starts. Plain HTTP, only on your Wi-Fi.");
         case OPTION_CHECK_UPDATES: return _("Look for a newer release in your channel now.");
         case OPTION_CHANGELOG: return _("Every release of your channel, newest first.");
+        case OPTION_GUIDE: return _("How NSA works, in short chapters. When an update adds something, NSA offers only the new chapters.");
         default: return "";
     }
 }
@@ -518,6 +527,10 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
                                                                                                    : _("Now: playing"));
     } else if(option == OPTION_NIGHT) {
         snprintf(line, sizeof(line), "%s %s", _("Now:"), t->night ? _("night") : _("day"));
+    } else if(option == OPTION_GUIDE) {
+        u32 seen, total;
+        guide_progress(&seen, &total);
+        snprintf(line, sizeof(line), _("%lu of %lu chapters seen"), seen, total);
     } else if(option == OPTION_CHANNEL || option == OPTION_AUTO_UPDATE || option == OPTION_CHECK_UPDATES || option == OPTION_CHANGELOG) {
         snprintf(line, sizeof(line), "%s %s", _("Installed:"), VERSION_STRING);
     } else {
@@ -588,8 +601,9 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
         } else {
             // Language opens a list: its name and a chevron, not the arrows of a value that steps.
             bool opens = option == OPTION_LANGUAGE;
+            bool chevron = opens || option == OPTION_CHANGELOG || option == OPTION_GUIDE;
             widget_row(rowX, y, rowW, WIDGET_ROW_HEIGHT, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, opens ? NULL : settingsmenu_value(option), i == menu->selected);
-            if(option == OPTION_CHANGELOG || opens) {
+            if(chevron) {
                 float right = widget_row_chevron(rowX + rowW - 8, y, WIDGET_ROW_HEIGHT, i == menu->selected);
                 if(opens) {
                     const char* name = settingsmenu_value(option);

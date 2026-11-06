@@ -90,6 +90,11 @@ typedef struct {
     // Remote install's four tiles in order, by id ("3ds,pc,qr,url"); "" for the default.
     char remoteMenu[32];
 
+    // The guide (guide.h): the ids of the chapters seen ("basics,titles"), and the newest chapter version this
+    // console was offered (0 on a first start; consoles that ran NSA before the guide start at v0.7).
+    char guideSeen[256];
+    u32 guideKnown;
+
     titles_settings titles;
     tickets_settings tickets;
     files_settings files;

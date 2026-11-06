@@ -126,6 +126,15 @@ void settings_load() {
         string_copy(settings.remoteMenu, json_string_value(remoteMenu), sizeof(settings.remoteMenu));
     }
 
+    json_t* guideSeen = json_object_get(json, "guide_seen");
+    if(json_is_string(guideSeen)) {
+        string_copy(settings.guideSeen, json_string_value(guideSeen), sizeof(settings.guideSeen));
+    }
+
+    // A console that ran NSA before the guide existed already knows what came before v0.8 (v0.7 is 0x0007 in
+    // guide.c's GUIDE_VERSION); with no settings.json at all it stays 0: a first start.
+    settings.guideKnown = settings_get_uint(json, "guide_known", 0x0007, 0xFFFF);
+
     json_t* language = json_object_get(json, "language");
     if(json_is_string(language)) {
         settings.language = i18n_language_from_code(json_string_value(language));
@@ -263,6 +272,8 @@ Result settings_save() {
     json_object_set_new(json_object_get(json, "titles"), "tile", json_integer(settings.titles.tile));
     json_object_set_new(json, "menu", json_string(settings.menu));
     json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));
+    json_object_set_new(json, "guide_seen", json_string(settings.guideSeen));
+    json_object_set_new(json, "guide_known", json_integer(settings.guideKnown));
 
     if(json_dump_file(json, SETTINGS_PATH, JSON_INDENT(2)) != 0) {
         res = R_APP_IO_ERROR;

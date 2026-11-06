@@ -122,8 +122,27 @@ What `release` holds, in the order it was built:
 21. **Settings**: a volume slider under Sounds and Background music (one box each), draggable scrollbars in lists, Settings,
     action sheets and popovers, "Open as text" only on files with no known extension.
 22. **README with pictures** taken on a real console (`docs/images/`), v0.4.0 and v0.4.1 published.
+23. **Guide** (`feat/guide`, `source/fbi/guide.c`): how NSA works in short chapters of 2-5 pages, offered at start and kept in
+    Settings -> Guide. See Decisions, "The guide's chapters", before adding one for a new feature.
 
 ## Pending tests on the console (2026-10-31)
+
+**Guide and scrolling dialogs** (2026-11-06, `feat/guide`; DEBUG 0.7.3 tried in Azahar, in Spanish, Cards theme: the three ways in
+below, the viewer with several chapters and with one, Settings -> Guide, and a long message scrolled with the D-Pad and a finger)
+- [ ] A console that ran NSA before (settings.json without `guide_known`) is asked once at start "New in this version": Your
+  main menu and Store, with Getting around chained before them while not seen; the top screen lists what it will play with the pages
+  of each, and X "Everything" adds every other chapter not seen. Any answer, Later too, is not asked again.
+- [ ] A first start (no settings.json) is welcomed with the five essential chapters (Getting around, Your main menu, Titles, SD card,
+  Remote install).
+- [ ] The viewer: the page on top (chapter, "Chapter 2 of 5", icon, title, text, dots), the chapters of the run (or the pages of a
+  lone chapter) ticked on the bottom screen, A / Right / R next, Left / L back, X skips a chapter, B closes; Previous and Next by touch.
+  A chapter counts as seen at its last page. The update check runs after the guide closes.
+- [ ] Settings -> Guide: "Everything not seen yet (N)", every chapter with New or a tick, "Start again" (asks); the top screen shows the
+  summary, pages and the version it came with. The Settings row shows "N of 12 chapters seen".
+- [ ] Every dialog whose message is taller than its card scrolls it above the buttons (D-Pad / Circle Pad up and down, a finger
+  dragging the text, or its scrollbar); short ones look as before. Check a sheet (HOME theme) and the Pixel theme.
+- [ ] The texts of the chapters fit their card on the console's own font, in English and Spanish (only Spanish has the new strings).
+- [ ] `tools/console_tests.py` on a fresh `sdmc:/nsa/`: the guide's question comes up at start; answer it once before the run.
 
 **Editable menus and sliding focus** (2026-11-05, `feat/store`; tried on the New 3DS XL by the owner)
 - [x] Main menu: three big tiles, the rest as one row of icons; the focused icon shows its name in a tooltip that slides in. Advanced is red as an icon and as a tile.
@@ -900,6 +919,16 @@ current, this list is the summary. What only the owner can test (local wireless)
 
 ## Decisions
 
+- **The guide's chapters** (`source/fbi/guide.c`, the owner asked 2026-11-06 for a tutorial where an update plays only the new
+  feature, chains the earlier ones not seen, and does not overwhelm): each chapter has a stable `id`, the version it came with
+  (`since`, `GUIDE_VERSION(0, 8)`), `essential` (offered on a first start) and `needs` (a chapter shown first while unseen).
+  `settings.json` keeps `guide_seen` (ids) and `guide_known` (the newest `since` offered; missing = a console from before the guide,
+  taken as v0.7; 0 = a first start). At start, after the other questions and before the update check, NSA asks once about the
+  chapters with `since` > `guide_known`; any answer moves `guide_known` on. **For a new feature**: append a chapter (2-3 pages of
+  at most ~45 words each, so they fit the card) with the release's version as `since` and the chapter it builds on as `needs`, add its
+  Spanish to `i18n_es.c`, and never rename an id. Pages are text only, with the button glyphs; no pictures.
+- **Dialogs scroll** (`prompt.c`): a message taller than the card scrolls between the header and the buttons, so a long question
+  never hides behind them; no dialog needs its text cut for that any more.
 - **Sleep and HOME** (`net_sleep_hook` in `main.c`): the app's `ac` session does not survive the console's sleep
   (`ACU_GetWifiStatus` fails afterwards, so NSA saw no Wi-Fi and the servers never came back, and HOME froze the console).
   On sleep/suspend the FTP and web servers are paused; on wake/restore `acExit(); acInit()` runs and they resume. DEBUG

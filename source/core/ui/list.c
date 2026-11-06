@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <malloc.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -77,6 +78,8 @@ typedef struct {
     // While items load: how many are ready of how many (0 total: the count).
     u32 progressDone;
     u32 progressTotal;
+    // While the list is empty and this is set: a turning wheel in the middle, with this text (English) under it.
+    const char* busy;
     bool (*visibleFilter)(void* data, list_item* item);
 
     void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched);
@@ -668,6 +671,26 @@ static void list_draw_top(ui_view* view, void* data, float x1, float y1, float x
     }
 }
 
+// Something is loading: a ring of dots turning in the middle (the brightest leads, the others fade behind it), and `text`
+// under it.
+static void list_draw_busy(const char* text, float x1, float y1, float x2, float y2) {
+    const theme_current* t = theme();
+    const u32 dots = 8;
+    const float radius = 16;
+    float cx = (x1 + x2) / 2;
+    float cy = y1 + (y2 - y1) / 2 - 12;
+    u32 lead = (u32) (osGetTime() / 90) % dots;
+    for(u32 i = 0; i < dots; i++) {
+        float angle = (float) i * 2 * (float) M_PI / dots - (float) M_PI / 2;
+        u32 behind = (lead + dots - i) % dots;
+        u8 alpha = (u8) (0xFF - behind * 0xFF / (dots + 1));
+        float size = 4.5f - behind * 0.3f;
+        screen_fill_circle(cx + cosf(angle) * radius, cy + sinf(angle) * radius, size, THEME_ALPHA(t->accent, alpha));
+    }
+
+    widget_text_centered(i18n_translate_text(text), x1, x2, cy + radius + 12, WIDGET_TEXT_SCALE, t->palette->textMuted);
+}
+
 static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     list_data* listData = (list_data*) data;
     const theme_current* t = theme();
@@ -679,6 +702,8 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
     if(listData->visibleCount == 0) {
         if(listData->search[0] != '\0') {
             widget_text_centered(_("Nothing matches the search."), x1, x2, y1 + (y2 - y1) / 2 - 8, WIDGET_TEXT_SCALE, t->palette->textMuted);
+        } else if(listData->busy != NULL) {
+            list_draw_busy(listData->busy, x1, y1, x2, y2);
         }
 
         return;
@@ -835,6 +860,11 @@ void list_set_progress(ui_view* view, u32 done, u32 total) {
     list_data* listData = (list_data*) view->data;
     listData->progressDone = done;
     listData->progressTotal = total;
+}
+
+void list_set_busy(ui_view* view, const char* text) {
+    list_data* listData = (list_data*) view->data;
+    listData->busy = text;
 }
 
 bool list_describe(ui_view* view, ui_description* out) {

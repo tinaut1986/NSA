@@ -261,7 +261,7 @@ static void extsavedata_filter_open(ui_view* view, void* data) {
             .groupCount = 2,
             .groups = {
                     {_("Show"), true, 2, {"SD", "NAND"}, {ICON_DEVICE_SD_CARD, ICON_CPU}},
-                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {-1, -1}}
+                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true}
             },
             .isOn = extsavedata_popover_is_on,
             .select = extsavedata_popover_select

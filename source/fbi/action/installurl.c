@@ -816,10 +816,11 @@ static void action_install_url_choose_draw_top(ui_view* view, void* data, float 
                             COLOR_TEXT, false, x + width - 4);
 }
 
-void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
-                        void (*finishedURL)(void* data, u32 index),
-                        void (*finishedAll)(void* data),
-                        void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index)) {
+void action_install_url_choice(const char* confirmMessage, const char* urls, const char* paths, void* userData,
+                               void (*finishedURL)(void* data, u32 index),
+                               void (*finishedAll)(void* data),
+                               void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index),
+                               int choice) {
     install_url_data* data = (install_url_data*) calloc(1, sizeof(install_url_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate URL install data.");
@@ -914,6 +915,12 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
 
     data->installInfo.finished = true;
 
+    // A choice made by the caller (a plain download, say): no question.
+    if(choice >= 0) {
+        action_install_url_confirm_onresponse(NULL, data, (u32) choice);
+        return;
+    }
+
     // No message: the caller already asked (the updater shows its own prompt).
     if(confirmMessage == NULL) {
         action_install_url_confirm_onresponse(NULL, data, INSTALL_URL_CHOICE_INSTALL);
@@ -930,4 +937,16 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
     }
 
     view->id = "Confirmation";
+}
+
+void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
+                        void (*finishedURL)(void* data, u32 index),
+                        void (*finishedAll)(void* data),
+                        void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index)) {
+    action_install_url_choice(confirmMessage, urls, paths, userData, finishedURL, finishedAll, drawTop, -1);
+}
+
+// Only downloads the file(s) to INSTALL_URL_SAVE_DIR, to install later from Files: no question first.
+void action_save_url(const char* urls, void* userData, void (*finishedURL)(void* data, u32 index), void (*finishedAll)(void* data)) {
+    action_install_url_choice(NULL, urls, NULL, userData, finishedURL, finishedAll, NULL, INSTALL_URL_CHOICE_SAVE);
 }

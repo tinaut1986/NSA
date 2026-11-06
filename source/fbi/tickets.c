@@ -403,7 +403,7 @@ static void tickets_filter_open(ui_view* view, void* data) {
                     {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {-1, -1, -1, -1, -1, -1}},
                     {_("Memory"), true, 2, {"SD", "NAND"}, {ICON_DEVICE_SD_CARD, ICON_CPU}},
                     {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {-1, -1}},
-                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {-1, -1}}
+                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true}
             },
             .isOn = tickets_popover_is_on,
             .select = tickets_popover_select

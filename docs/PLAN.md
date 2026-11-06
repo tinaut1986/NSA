@@ -125,6 +125,19 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Editable menus and sliding focus** (2026-11-05, `feat/store`; tried on the New 3DS XL by the owner)
+- [x] Main menu: three big tiles, the rest as one row of icons; the focused icon shows its name in a tooltip that slides in. Advanced is red as an icon and as a tile.
+- [x] SELECT or a long press edits the menu: entries jiggle; A picks one up and the D-Pad moves it; X hides, Y puts it back as it came; hidden ones wait in a tray at the bottom (tap one to bring it back). By touch an entry is dragged and the layout follows the finger live: the others make way, and it is a tile over the tiles and an icon over the icons. System and Settings can not be hidden. Kept in `settings.json` (`menu`: ids shown, `|`, ids hidden).
+- [x] Remote install: the four tiles can be reordered the same way (the history row stays below); `remote_menu` in `settings.json`.
+- [x] A finger sliding over the buttons of the main menu, Remote install, a list with nothing to scroll or an action sheet moves the focus to what is under it; letting go there opens nothing.
+- Only Spanish has the new strings.
+
+**Store** (2026-11-05, branch `feat/store`, `source/fbi/store.c`; builds, not run in Azahar or on a console)
+- [ ] Main menu -> Store downloads Universal-DB's UniStore (`https://db.universal-team.net/unistore/universal-db.unistore`, ~0.9 MB, kept as `sdmc:/nsa/store.unistore` and used when there is no connection) and lists the 3DS apps that publish a CIA or a .3dsx with a plain "downloadFile" first step (about 320 of 447 on 2026-11-05: 260 CIA, 280 .3dsx). Zips and multi-step scripts are left out. The top screen shows the selected app (author, version, description, sizes, category); R or the tool searches.
+- [ ] A opens it: a CIA only -> asks and installs through the Remote install screens (`action_install_url`); a .3dsx only -> downloads to `/3ds/<name>/<name>.3dsx`; both -> a sheet to choose.
+- [ ] Memory: parsing ~1 MB of JSON on an Old 3DS / 2DS; leaving the screen while it loads (B).
+- Not done: icons and screenshots (the UniStore keeps them in .t3x sprite sheets), "installed / update available", zip extraction, DS apps.
+
 **Transfer cards and readable URLs** (2026-11-04, `feat/transfer-info`; DEBUG on both consoles; seen on a real 40 MB send New 3DS XL -> 2DS, except the first three):
 - [x] Receiving: the top card shows the file, "From <console> (size)" and "Saving in <folder>" (or "Installing it on this console" / "Importing it into the title"); sending shows the file, "To <console>" and the size. Seen on the consoles.
 - [x] The question to a QR / typed / received URL shows the file name whole (over several lines) and, for one link, the whole address, with %XX turned into characters. Seen on the New 3DS XL with a link made of %20.
@@ -151,7 +164,8 @@ What `release` holds, in the order it was built:
 - [ ] While the console transfers (FTP, a download, another 3DS), the page shows a toast at the bottom with the kind, name, percentage and KB/s and a progress bar, in place of the old text at the top right; it goes away when the transfer ends.
 - [ ] Titles: start loading, switch to another tab and back: the names and icons still missing keep loading (they used to stay frozen).
 - [ ] Titles: the filter menu has "Group updates and DLC" (Yes by default, remembered), as on the console: an update or DLC whose game is listed hides behind it (while Games or All is shown), the game shows a small round badge with how many hang from it, on the icon's corner like the console, and opening it lists the game and its updates and DLC as cards (icon, name, publisher, description, a medal for Game / Update / DLC, version and size), each opening its own sheet. `/api/title` now also returns `description`.
-- [ ] Titles: names, publisher and icons are kept in the browser per console and title version (localStorage + IndexedDB), so the list fills at once on the next visit. Titles screen menu -> Reload forgets them. The title's data kinds (save, extra, boss) are not kept: the sheet asks for them (`/api/title/data`) the first time it opens in a session, and the list only asks `/api/title?data=0`.
+- [ ] Titles: names, publisher and icons are kept in the browser per console and title version (localStorage + IndexedDB), so the list fills at once on the next visit. Titles screen menu -> Reload forgets them.
+ The title's data kinds (save, extra, boss) are not kept: the sheet asks for them (`/api/title/data`) the first time it opens in a session, and the list only asks `/api/title?data=0`.
 
 **Languages** (2026-11-04, `feat/languages`; DEBUG 0.6.5 build installed on the New 3DS XL and driven over FTP: the list, Japanese, Russian and German looked right in the Cards theme with the console's own font; the console was put back on System afterwards. The rest is for the owner's hands)
 - [ ] Settings -> Language opens a list (System, English, Español, Català, Français, Deutsch, Italiano, Português, Русский, 日本語, 简体中文, 繁體中文); the highlighted one shows its name and a few words in it on the top screen; A or a tap picks it, everything changes at once and it is still set after a restart; B goes back without changing.

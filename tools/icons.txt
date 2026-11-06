@@ -92,3 +92,6 @@ square
 external-link
 arrow-right
 checkpoint
+abc
+user
+star

@@ -45,8 +45,8 @@ static bool thumbs_started = false;
 static Thread thumbs_thread = NULL;
 static volatile bool thumbs_quit = false;
 
-// RGBA of the picture's centre, THUMB_SIZE square, in the byte order the GPU wants; NULL if it cannot.
-static u8* thumbs_decode(FS_Archive archive, const char* path) {
+// RGBA of the picture's centre, `side_out` pixels square, in the byte order the GPU wants; NULL if it cannot.
+u8* thumbs_decode_square(FS_Archive archive, const char* path, int side_out) {
     u8* file = NULL;
     u32 size = 0;
     u64 full = 0;
@@ -69,7 +69,7 @@ static u8* thumbs_decode(FS_Archive archive, const char* path) {
         return NULL;
     }
 
-    u8* out = (u8*) malloc(THUMB_SIZE * THUMB_SIZE * 4);
+    u8* out = (u8*) malloc(side_out * side_out * 4);
     if(out == NULL) {
         free(src);
         return NULL;
@@ -78,13 +78,13 @@ static u8* thumbs_decode(FS_Archive archive, const char* path) {
     int side = w < h ? w : h;
     int left = (w - side) / 2;
     int top = (h - side) / 2;
-    for(int dy = 0; dy < THUMB_SIZE; dy++) {
-        int y0 = top + (int) ((long long) dy * side / THUMB_SIZE);
-        int y1 = top + (int) ((long long) (dy + 1) * side / THUMB_SIZE);
+    for(int dy = 0; dy < side_out; dy++) {
+        int y0 = top + (int) ((long long) dy * side / side_out);
+        int y1 = top + (int) ((long long) (dy + 1) * side / side_out);
         y1 = y1 <= y0 ? y0 + 1 : y1;
-        for(int dx = 0; dx < THUMB_SIZE; dx++) {
-            int x0 = left + (int) ((long long) dx * side / THUMB_SIZE);
-            int x1 = left + (int) ((long long) (dx + 1) * side / THUMB_SIZE);
+        for(int dx = 0; dx < side_out; dx++) {
+            int x0 = left + (int) ((long long) dx * side / side_out);
+            int x1 = left + (int) ((long long) (dx + 1) * side / side_out);
             x1 = x1 <= x0 ? x0 + 1 : x1;
 
             u32 sum[4] = {0, 0, 0, 0};
@@ -99,7 +99,7 @@ static u8* thumbs_decode(FS_Archive archive, const char* path) {
             }
 
             u32 n = (u32) ((y1 - y0) * (x1 - x0));
-            u8* dst = out + ((size_t) dy * THUMB_SIZE + dx) * 4;
+            u8* dst = out + ((size_t) dy * side_out + dx) * 4;
             // A, B, G, R.
             dst[0] = (u8) (sum[3] / n);
             dst[1] = (u8) (sum[2] / n);
@@ -110,6 +110,10 @@ static u8* thumbs_decode(FS_Archive archive, const char* path) {
 
     free(src);
     return out;
+}
+
+static u8* thumbs_decode(FS_Archive archive, const char* path) {
+    return thumbs_decode_square(archive, path, THUMB_SIZE);
 }
 
 // The icon, name and author inside a .3dsx: its header says where the SMDH is (usually at the end).

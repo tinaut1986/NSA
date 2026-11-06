@@ -28,6 +28,7 @@ static settings_data settings = {
         .files = {.directories = true, .files = true, .cias = true, .tickets = true, .hidden = false, .sort = 0},
         .extsave = {.sd = true, .nand = true, .byId = false, .grid = false},
         .pending = {.sd = true, .nand = true},
+        .mods = {.states = 3, .sort = 0, .grid = false},
         .store = {.kinds = 3, .others = true, .categories = 0xFF, .sort = 0, .grid = false, .tile = 2, .shown = 0}
 };
 
@@ -198,6 +199,13 @@ void settings_load() {
         settings.pending.nand = settings_get_bool(pending, "nand", settings.pending.nand);
     }
 
+    json_t* mods = json_object_get(json, "mods");
+    if(json_is_object(mods)) {
+        settings.mods.states = settings_get_uint(mods, "states", settings.mods.states, 3);
+        settings.mods.sort = settings_get_uint(mods, "sort", settings.mods.sort, 2);
+        settings.mods.grid = settings_get_bool(mods, "grid", settings.mods.grid);
+    }
+
     json_decref(json);
 }
 
@@ -274,6 +282,7 @@ Result settings_save() {
                                                   "tile", (int) settings.store.tile, "shown", (int) settings.store.shown,
                                                   "updated", (int) settings.store.updated, "sortReverse", settings.store.sortReverse));
     json_object_set_new(json_object_get(json, "titles"), "tile", json_integer(settings.titles.tile));
+    json_object_set_new(json, "mods", json_pack("{s:i,s:i,s:b}", "states", (int) settings.mods.states, "sort", (int) settings.mods.sort, "grid", settings.mods.grid));
     json_object_set_new(json, "menu", json_string(settings.menu));
     json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));
     json_object_set_new(json, "guide_seen", json_string(settings.guideSeen));

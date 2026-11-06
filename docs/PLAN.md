@@ -128,6 +128,21 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Game mods** (2026-11-07, `feat/layeredfs-cleanup`; asked on r/3dshomebrew: "I always forget to delete LayeredFS stuff when I
+uninstall games"): Cleanup -> *Game mods* (`source/fbi/mods.c`, `task/listmods.c`) lists the folders of `sdmc:/luma/titles/`
+named by a 16-digit title ID, with the game's icon and name, size, files and contents (romfs, code.ips/bps/bin, exheader.bin,
+locale.txt, other). Each says whether its game is still there: *Installed* (SD or NAND), *Game card* (the CTR card in the slot),
+*Update only* (not installed but its update or DLC is: most likely a card that is out) or *Not installed*. Filter (game on the
+console / not installed), sort (name, size, ID), grid, search, remembered in `settings.json` (`mods`). Sheet: *Delete mods*
+(that folder) and, once the list is loaded, *Delete mods of games not installed* (never a system title's: Luma patches some, and
+a card that is out looks uninstalled, which the question says). Deleting a game or demo from Titles (also from the web page)
+that has a folder there asks whether to delete its mods too. Guide chapter `mods` (since 0.9). Translated into the 10 languages
+(zh only with characters already in `hanfont.png`).
+- [ ] The list on a console with mods: names and icons, sizes, the states (install a game, delete it, take a card out).
+- [ ] *Delete mods* and *Delete mods of games not installed* delete only those folders; the list updates.
+- [ ] Deleting a game with mods from Titles asks, and Yes deletes `/luma/titles/<ID>/`; a game without mods asks nothing.
+- [ ] No `/luma/titles` (or empty): the screen says "No mods in /luma/titles." and nothing breaks.
+
 **Updates start sooner** (2026-11-06, `fix/update-start`): the first request of a download (`http_probe`: where the file is,
 how big) ran on the caller's thread, on the system core, which an Old 3DS shares at 5% while a transfer turn is held; it now runs
 on the app's core, as the fetches do, and the update check too. Measured on the 2DS (DEBUG built as 0.8.3-beta, offered v0.8.4):

@@ -10,6 +10,8 @@ void files_open_ctr_nand();
 void files_open_twl_nand();
 void files_open_twl_photo();
 void files_open_twl_sound();
+// The folders of /luma/titles (mods.c).
+void mods_open();
 void pendingtitles_open();
 void remoteinstall_open();
 // Adds URLs to the history of Remote Install (the web page installs through the same screens).

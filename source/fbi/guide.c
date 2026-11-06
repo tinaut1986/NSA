@@ -155,6 +155,11 @@ static const coach_step cleanup_steps[] = {
         INFO("menu.advanced", "The console's own memories. NSA asks before going in: a wrong change there can stop the console from starting."),
 };
 
+static const coach_step mods_steps[] = {
+        INFO("menu.cleanup", "Game mods, in Cleanup: the mods in /luma/titles, and which games are no longer installed."),
+        INFO("menu.cleanup", "Deleting a game that has mods asks whether to delete them too."),
+};
+
 static const coach_step updates_steps[] = {
         OPEN("menu.settings", "Open Settings.", "v:Settings"),
         REACH("settings.channel", "Go down to Update channel."),
@@ -178,6 +183,7 @@ static const guide_chapter chapters[] = {
         {"look", GUIDE_VERSION(0, 4), false, "basics", ICON_PALETTE, "Look and sound", "Themes, colours, music and language", look_steps, COUNT_OF(look_steps)},
         {"cleanup", GUIDE_VERSION(0, 2), false, "basics", ICON_STACK_2, "Cleanup and System", "Tickets, extra data, System and Advanced", cleanup_steps, COUNT_OF(cleanup_steps)},
         {"updates", GUIDE_VERSION(0, 3), false, "basics", ICON_REFRESH, "Updates and this guide", "New versions, and what each brings", updates_steps, COUNT_OF(updates_steps)},
+        {"mods", GUIDE_VERSION(0, 9), false, "basics", ICON_FOLDER, "Game mods", "LayeredFS mods of games you deleted", mods_steps, COUNT_OF(mods_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)

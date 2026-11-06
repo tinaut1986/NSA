@@ -196,6 +196,18 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
   number, so the Store could only compare with what it installed itself (`sdmc:/nsa/store-installed.json`), which an app installed another way
   or updated by its own updater leaves behind. That file now only tells whether an app with no unique ID was installed by the Store.
 
+- [x] **Dates, sort both ways, category icons** (2026-11-06, v0.8.4, `feat/store-date`; a Reddit user asked to find apps by date,
+  and "Newest" was there but no date showed): the top card says "Updated YYYY-MM-DD" and the rows put the date first while sorted
+  by date or filtered by it; the filter has *Updated*: All / 1 month / 6 months / 1 year (`store.updated` in `settings.json`, the
+  first day let through worked out from the console's clock); choosing the chosen sort again turns it round (a chevron beside its
+  icon, `popover_group.directional` + `isReversed`; `store.sortReverse`); the categories are icons with their name in a tooltip
+  (a multiple-choice icon group never shows the "chosen" tooltip). Tried by Claude on the Old 2DS (DEBUG): 35 apps in the last month,
+  oldest first turned round, the tooltips. Simplified Chinese's atlas: 589 characters (月 and 年 added).
+- [x] **Leaving with the Store open** (2026-11-06, v0.8.4): NSA restarting after an install (`SITE INSTALL`, the updater) or exiting
+  while the Store was on screen left its threads running on freed memory: a data abort reading `store->cancelled` in the icon thread
+  (Luma dump on the Old 2DS, v0.8.3 at 0x13ee08). `store_exit()` now cancels them and waits (at most 3 s) before the cleanup; tried on
+  the Old 2DS: a `SITE INSTALL` from inside the Store restarted cleanly (61 ms waited).
+
 **Transfer cards and readable URLs** (2026-11-04, `feat/transfer-info`; DEBUG on both consoles; seen on a real 40 MB send New 3DS XL -> 2DS, except the first three):
 - [x] Receiving: the top card shows the file, "From <console> (size)" and "Saving in <folder>" (or "Installing it on this console" / "Importing it into the title"); sending shows the file, "To <console>" and the size. Seen on the consoles.
 - [x] The question to a QR / typed / received URL shows the file name whole (over several lines) and, for one link, the whole address, with %XX turned into characters. Seen on the New 3DS XL with a link made of %20.

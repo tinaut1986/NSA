@@ -1024,6 +1024,10 @@ const i18n_entry i18n_ca[] = {
         {"Its homebrew. The top screen shows the one with the focus, and a mark says what is already on the console.", "El seu homebrew. La pantalla superior mostra el que té el focus, i una marca indica el que ja és a la consola."},
         {"\uE001 goes back to your stores.", "\uE001 torna a les teves botigues."},
         {"\uE001 again goes back to the menu.", "\uE001 un altre cop torna al menú."},
+        {"Get \"%s\"?", "Vols obtenir «%s»?"},
+        {"Looking for the latest release...", "S'està cercant l'última versió..."},
+        {"Failed to find the release's file.", "No s'ha trobat el fitxer de la versió."},
+        {"Delete this folder and everything in it?\n\n%s", "Vols esborrar aquesta carpeta i tot el que conté?\n\n%s"},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

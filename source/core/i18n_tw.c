@@ -1017,6 +1017,10 @@ const i18n_entry i18n_tw[] = {
         {"Its homebrew. The top screen shows the one with the focus, and a mark says what is already on the console.", "它的自製軟體。上螢幕顯示選取的那個，標記表示主機上已有的內容。"},
         {"\uE001 goes back to your stores.", "按\uE001返回你的商店。"},
         {"\uE001 again goes back to the menu.", "再按\uE001返回選單。"},
+        {"Get \"%s\"?", "取得「%s」嗎？"},
+        {"Looking for the latest release...", "正在尋找最新版本..."},
+        {"Failed to find the release's file.", "找不到該版本的檔案。"},
+        {"Delete this folder and everything in it?\n\n%s", "刪除此資料夾及其中的所有內容嗎？\n\n%s"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

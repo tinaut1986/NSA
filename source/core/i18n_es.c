@@ -1046,6 +1046,10 @@ const i18n_entry i18n_es[] = {
         {"Its homebrew. The top screen shows the one with the focus, and a mark says what is already on the console.", "Su homebrew. La pantalla superior muestra el que tiene el foco, y una marca indica lo que ya está en la consola."},
         {"\uE001 goes back to your stores.", "\uE001 vuelve a tus tiendas."},
         {"\uE001 again goes back to the menu.", "\uE001 otra vez vuelve al menú."},
+        {"Get \"%s\"?", "¿Obtener «%s»?"},
+        {"Looking for the latest release...", "Buscando la última versión..."},
+        {"Failed to find the release's file.", "No se ha encontrado el archivo de la versión."},
+        {"Delete this folder and everything in it?\n\n%s", "¿Borrar esta carpeta y todo lo que contiene?\n\n%s"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

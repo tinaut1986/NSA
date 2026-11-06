@@ -54,6 +54,7 @@ typedef struct {
 
 typedef struct {
     u32 kinds;        // Bits: 1 CIA, 2 3DSX.
+    bool others;      // What is neither (files for other consoles, mods, skins...) shows too.
     u32 categories;   // One bit per category the Store knows (the last one is "other").
     u32 sort;
     bool sortReverse; // The sort turned round (choosing the same sort again).

@@ -198,6 +198,18 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
   Quick Reboot's .3dsx out of a .zip. Still to try: an app whose CIA and data both come out of one zip, Cancel during
   "Extracting...", and an archive that does not hold what the script names (Cirrus's 3DSX zip: it must say it failed and delete
   the download).
+- [ ] **Stores of your own** (2026-11-07, `feat/unistores`): the Store opens on a list of stores (Universal-DB, with its credit to
+  Universal-Team, and the user's, in `sdmc:/nsa/stores.json`, files in `sdmc:/nsa/stores/<key>/`); add by QR code or link,
+  change the link, delete. Every entry of a store shows now, for any console, with each download it offers (a third type in the
+  filter, "Other"), and scripts run step by step: promptMessage (No skips `count` steps or stops), skip, mkdir, rmdir (asks
+  first; only a folder below the card's root, and of /luma only /luma/titles/<id>/...), downloadRelease (the latest GitHub
+  release's file, found by its pattern through the API). Scripts may now write in /luma/titles/ (game mods), nowhere else in
+  /luma, and no *.firm. Tried on the New 3DS XL (DEBUG): the list and Universal-DB's card, a store checked and deleted, the QR
+  scanner opens, LinuxCat's Store (icons from its one sheet, a .gba into /roms/gba/, a zip extracted and cleaned up),
+  opentitus-3ds's 3DSX answering No to its question (the release found and downloaded, extracted, moved). A zip now extracts
+  60 times faster (writes gathered in 256 KB: 5.4 MB in 110 s -> 1.8 s), .7z files too. Still to try: scanning a real QR
+  code, a mod store (Minecraft or Paper Mario: rmdir's question, /luma/titles), a store's CIA through a script (RetroArch
+  Cores), TWiLight Menu++ Skins (517 entries) on the 2DS for memory, and the guide's Store chapter.
 - [ ] **Big .7z** (2026-11-06, v0.8.3): a block packed with LZMA, LZMA2 or stored is decoded a piece at a time and each file written
   as it comes out (its CRC checked), so only the dictionary is in memory (no bigger than the block; on the heap, else the linear
   heap): HoriHD-Gallery (36 MB .7z, a 43 MB block, 16 MB dictionary) ran out of memory before on the New 3DS XL and now works on

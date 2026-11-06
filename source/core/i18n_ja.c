@@ -1029,6 +1029,10 @@ const i18n_entry i18n_ja[] = {
         {"Its homebrew. The top screen shows the one with the focus, and a mark says what is already on the console.", "その自作ソフトです。上画面にはフォーカス中のものが表示され、本体にすでにあるものには印が付きます。"},
         {"\uE001 goes back to your stores.", "\uE001でストアの一覧に戻ります。"},
         {"\uE001 again goes back to the menu.", "もう一度\uE001でメニューに戻ります。"},
+        {"Get \"%s\"?", "「%s」を入手しますか？"},
+        {"Looking for the latest release...", "最新のリリースを探しています..."},
+        {"Failed to find the release's file.", "リリースのファイルが見つかりませんでした。"},
+        {"Delete this folder and everything in it?\n\n%s", "このフォルダと中身をすべて削除しますか？\n\n%s"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

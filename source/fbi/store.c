@@ -48,7 +48,7 @@
 #define STORE_ICON_SIDE 48   // The icons are kept as textures this many pixels square, for as long as the Store is open.
 #define STORE_PREFETCH_PAUSE 4000   // ms between the icons fetched in the background, when no row is waiting for one.
 #define STORE_RECORDS_MAX 512
-#define STORE_CACHE_FORMAT 5   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
+#define STORE_CACHE_FORMAT 7   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
 
 typedef enum {
     ICON_NONE,      // Not asked for yet.
@@ -56,6 +56,15 @@ typedef enum {
     ICON_READY,     // On the SD card: `thumbs.c` makes the texture.
     ICON_FAILED     // No icon (no link, too big, unreachable): the generic one.
 } icon_state;
+
+// A download that is neither the app's CIA nor its .3dsx: files for another console, a mod, a skin, data...
+#define STORE_OTHERS_MAX 12
+
+typedef struct {
+    char name[64];     // As the store names it ("Download Celeste Classic GBA", "skin.7z").
+    char size[16];
+    char* script;      // Its steps (storescript.h), as JSON text.
+} store_other;
 
 typedef struct {
     char title[80];
@@ -74,6 +83,9 @@ typedef struct {
     char dsxName[64];   // The .3dsx it leaves, without the extension, to look for it in /3ds/.
     char* iconUrl;      // Where the icon is: "sheet:index" in the catalogue's sprite sheets.
     char* preMessage;   // What the author asks to be read before installing (NULL: nothing).
+    char console[16];   // The first console it is for, as the store says ("3DS", "NDS", "GBA"...).
+    store_other* others;
+    u32 otherCount;
     u32 stars;
     u32 uniqueId;       // The title's unique ID (a CIA's), or 0 when the catalogue has none.
     char updated[12];   // "2026-03-19".
@@ -269,6 +281,11 @@ static void store_free_apps(store_app* apps, u32 count) {
         free(apps[i].dsxScript);
         free(apps[i].iconUrl);
         free(apps[i].preMessage);
+        for(u32 j = 0; j < apps[i].otherCount; j++) {
+            free(apps[i].others[j].script);
+        }
+
+        free(apps[i].others);
     }
 
     free(apps);
@@ -327,10 +344,6 @@ static bool store_has_ext(const char* name, const char* ext) {
 static const char* store_str(json_t* object, const char* key) {
     json_t* value = json_object_get(object, key);
     return json_is_string(value) ? json_string_value(value) : "";
-}
-
-static bool store_https(const char* url) {
-    return strncmp(url, "https://", 8) == 0 && strlen(url) < DOWNLOAD_URL_MAX;
 }
 
 static int store_compare(const void* a, const void* b) {
@@ -440,58 +453,65 @@ static int store_parse_full(const char* text, size_t size, const char* baseUrl, 
             continue;
         }
 
-        bool for3ds = false;
-        size_t index;
-        json_t* value;
-        json_array_foreach(json_object_get(info, "console"), index, value) {
-            if(json_is_string(value) && strcasecmp(json_string_value(value), "3DS") == 0) {
-                for3ds = true;
-            }
-        }
-
-        if(!for3ds) {
-            continue;
-        }
-
         store_app* app = &apps[count];
+        // The console: one name, or a list (the first).
+        json_t* consoles = json_object_get(info, "console");
+        json_t* console = json_is_array(consoles) ? json_array_get(consoles, 0) : consoles;
+        string_copy(app->console, json_is_string(console) ? json_string_value(console) : "", sizeof(app->console));
+
         const char* key;
         json_t* file;
         json_object_foreach(entry, key, file) {
-            if(strcmp(key, "info") == 0 || !json_is_object(file)) {
+            // The steps come straight, or in "script" next to the file's size.
+            json_t* script = json_is_array(file) ? file : json_is_object(file) ? json_object_get(file, "script") : NULL;
+            if(strcmp(key, "info") == 0 || script == NULL) {
                 continue;
             }
 
-            // Only the steps NSA can follow (storescript.h): downloads, .zip and .7z, CIAs, moves and deletes.
-            json_t* script = json_object_get(file, "script");
+            // Only the steps NSA can follow (storescript.h).
             if(!storescript_supported(script)) {
                 continue;
             }
 
+            // A file found in a GitHub release has no link until it is fetched.
             const char* url = storescript_first_url(script);
-            if(!store_https(url)) {
-                continue;
-            }
-
+            const char* size = json_is_object(file) ? store_str(file, "size") : "";
             if(store_has_ext(key, ".cia") && app->ciaUrl == NULL) {
                 app->ciaUrl = strdup(url);
-                string_copy(app->ciaSize, store_str(file, "size"), sizeof(app->ciaSize));
+                string_copy(app->ciaSize, size, sizeof(app->ciaSize));
                 if(!storescript_plain_cia(script)) {
                     app->ciaScript = json_dumps(script, JSON_COMPACT);
                 }
             } else if(store_has_ext(key, ".3dsx") && app->dsxUrl == NULL) {
                 app->dsxUrl = strdup(url);
-                string_copy(app->dsxSize, store_str(file, "size"), sizeof(app->dsxSize));
+                string_copy(app->dsxSize, size, sizeof(app->dsxSize));
                 app->dsxScript = json_dumps(script, JSON_COMPACT);
                 storescript_dsx_name(script, app->dsxName, sizeof(app->dsxName));
+            } else if(app->otherCount < STORE_OTHERS_MAX) {
+                if(app->others == NULL && (app->others = (store_other*) calloc(STORE_OTHERS_MAX, sizeof(store_other))) == NULL) {
+                    continue;
+                }
+
+                store_other* other = &app->others[app->otherCount];
+                string_copy(other->name, key, sizeof(other->name));
+                string_copy(other->size, size, sizeof(other->size));
+                if((other->script = json_dumps(script, JSON_COMPACT)) != NULL) {
+                    app->otherCount++;
+                }
             }
         }
 
         string_copy(app->title, store_str(info, "title"), sizeof(app->title));
-        if((app->ciaUrl == NULL && app->dsxUrl == NULL) || app->title[0] == '\0') {
+        if((app->ciaUrl == NULL && app->dsxUrl == NULL && app->otherCount == 0) || app->title[0] == '\0') {
             free(app->ciaUrl);
             free(app->dsxUrl);
             free(app->ciaScript);
             free(app->dsxScript);
+            for(u32 j = 0; j < app->otherCount; j++) {
+                free(app->others[j].script);
+            }
+
+            free(app->others);
             memset(app, 0, sizeof(*app));
             continue;
         }
@@ -518,9 +538,11 @@ static int store_parse_full(const char* text, size_t size, const char* baseUrl, 
 
         json_t* sheet = json_object_get(info, "sheet_index");
         json_t* position = json_object_get(info, "icon_index");
-        if(json_is_integer(sheet) && json_is_integer(position) && json_integer_value(sheet) >= 0 && json_integer_value(position) >= 0) {
+        // A store with one sheet may leave its number out.
+        int sheetIndex = json_is_integer(sheet) ? (int) json_integer_value(sheet) : 0;
+        if(json_is_integer(position) && sheetIndex >= 0 && json_integer_value(position) >= 0) {
             char where[24];
-            snprintf(where, sizeof(where), "%d:%d", (int) json_integer_value(sheet), (int) json_integer_value(position));
+            snprintf(where, sizeof(where), "%d:%d", sheetIndex, (int) json_integer_value(position));
             app->iconUrl = strdup(where);
         }
 
@@ -574,6 +596,16 @@ static json_t* store_app_to_json(const store_app* app) {
 
     if(app->preMessage != NULL) {
         json_object_set_new(object, "pm", json_string(app->preMessage));
+    }
+
+    json_object_set_new(object, "co", json_string(app->console));
+    if(app->otherCount > 0) {
+        json_t* others = json_array();
+        for(u32 i = 0; i < app->otherCount; i++) {
+            json_array_append_new(others, json_pack("[s,s,s]", app->others[i].name, app->others[i].size, app->others[i].script));
+        }
+
+        json_object_set_new(object, "o", others);
     }
 
     return object;
@@ -668,6 +700,26 @@ static int store_read_cache(const store_data* store, store_app** out, store_meta
 
         if(store_str(entry, "pm")[0] != '\0') {
             app->preMessage = strdup(store_str(entry, "pm"));
+        }
+
+        string_copy(app->console, store_str(entry, "co"), sizeof(app->console));
+        json_t* others = json_object_get(entry, "o");
+        if(json_is_array(others) && json_array_size(others) > 0) {
+            app->others = (store_other*) calloc(STORE_OTHERS_MAX, sizeof(store_other));
+            size_t index;
+            json_t* other;
+            json_array_foreach(others, index, other) {
+                if(app->others == NULL || app->otherCount >= STORE_OTHERS_MAX || !json_is_string(json_array_get(other, 2))) {
+                    continue;
+                }
+
+                store_other* o = &app->others[app->otherCount];
+                string_copy(o->name, json_is_string(json_array_get(other, 0)) ? json_string_value(json_array_get(other, 0)) : "", sizeof(o->name));
+                string_copy(o->size, json_is_string(json_array_get(other, 1)) ? json_string_value(json_array_get(other, 1)) : "", sizeof(o->size));
+                if((o->script = strdup(json_string_value(json_array_get(other, 2)))) != NULL) {
+                    app->otherCount++;
+                }
+            }
         }
 
         count++;
@@ -1524,7 +1576,8 @@ static void store_draw_app_icon(store_data* store, store_app* app, float x, floa
 
     u32 back = selected ? THEME_ALPHA(t->onAccent, 0x30) : t->accentSoft;
     screen_fill_round_rect(x, y, size, size, size / 6, back);
-    screen_draw_icon(app->ciaUrl != NULL ? ICON_PACKAGE : ICON_APPS, x + size * 0.2f, y + size * 0.2f, size * 0.6f, selected ? t->onAccent : t->accent);
+    int generic = app->ciaUrl != NULL ? ICON_PACKAGE : app->dsxUrl != NULL ? ICON_APPS : ICON_FILE_ZIP;
+    screen_draw_icon(generic, x + size * 0.2f, y + size * 0.2f, size * 0.6f, selected ? t->onAccent : t->accent);
 }
 
 static void store_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
@@ -1544,8 +1597,16 @@ static void store_draw_row(void* data, list_item* item, float x, float y, float 
     float tx = x + 6 + icon + 8;
     float right = x + width - 9;
 
-    // What it comes as, from the right: a plain label for a kind that is not on the console, a pill for one that is.
+    // What it comes as, from the right: a plain label for a kind that is not on the console, a pill for one that is; for
+    // the rest, the console it is for.
     u8 status = store_status(store, app);
+    if(app->ciaUrl == NULL && app->dsxUrl == NULL) {
+        const char* label = app->console[0] != '\0' ? app->console : _("Other");
+        float labelW = widget_text_width(label, WIDGET_SMALL_SCALE);
+        screen_draw_text(label, right - labelW, y + (height - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, muted);
+        right -= labelW + 8;
+    }
+
     for(int kind = 1; kind >= 0; kind--) {
         bool offered = kind == 1 ? app->dsxUrl != NULL : app->ciaUrl != NULL;
         if(!offered) {
@@ -1664,6 +1725,12 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
         bx = store_draw_kind_badge(bx, by, text, (status & STATUS_DSX) != 0);
     }
 
+    // The console, when it is not the 3DS.
+    if(app->console[0] != '\0' && strcasecmp(app->console, "3DS") != 0) {
+        widget_badge(bx, by, app->console, t->palette->border, t->palette->text);
+        bx += widget_text_width(app->console, WIDGET_SMALL_SCALE) + 18;
+    }
+
     if(app->categoryId[0] != '\0') {
         widget_badge(bx, by, app->categoryId, t->palette->border, t->palette->text);
     }
@@ -1677,6 +1744,7 @@ typedef struct {
     char slug[64];
     char version[24];
     bool cia;
+    bool other;   // Neither the CIA nor the .3dsx: nothing to note or look for on the console.
     bool ok;
 } store_install_ctx;
 
@@ -1688,7 +1756,7 @@ static void store_install_finished_url(void* data, u32 index) {
 static void store_install_finished_all(void* data) {
     store_install_ctx* ctx = (store_install_ctx*) data;
     store_data* store = ctx->store;
-    if(ctx->ok) {
+    if(ctx->ok && !ctx->other) {
         store_record* record = store_record_find(store, ctx->slug);
         if(record == NULL && store->recordCount < STORE_RECORDS_MAX) {
             record = &store->records[store->recordCount++];
@@ -1757,9 +1825,9 @@ static void store_start(store_data* store, store_app* app, bool cia, const char*
     storescript_run(script, what, ctx, store_script_done);
 }
 
-// The question, followed by what the author asks to be read first (if anything).
-static void store_ask_text(char* out, size_t size, const store_app* app, const char* question) {
-    snprintf(out, size, question, app->title);
+// The question (about `name`), followed by what the author asks to be read first (if anything).
+static void store_ask_text(char* out, size_t size, const store_app* app, const char* question, const char* name) {
+    snprintf(out, size, question, name);
     if(app->preMessage != NULL) {
         size_t used = strlen(out);
         snprintf(out + used, size - used, "\n\n%.300s%s", app->preMessage, strlen(app->preMessage) > 300 ? "..." : "");
@@ -1776,34 +1844,79 @@ static void store_ask_text(char* out, size_t size, const store_app* app, const c
 
 static void store_install_cia(void* data) {
     char message[700];
-    store_ask_text(message, sizeof(message), store_sheet_app, _("Download and install %s?"));
+    store_ask_text(message, sizeof(message), store_sheet_app, _("Download and install %s?"), store_sheet_app->title);
     store_start(store_sheet_store, store_sheet_app, true, message);
 }
 
 static void store_download_dsx(void* data) {
     char message[700];
-    store_ask_text(message, sizeof(message), store_sheet_app, _("Download %s into /3ds/?"));
+    store_ask_text(message, sizeof(message), store_sheet_app, _("Download %s into /3ds/?"), store_sheet_app->title);
     store_start(store_sheet_store, store_sheet_app, false, message);
 }
+
+// One of the other downloads: its steps, as the store wrote them.
+static void store_get_other(u32 index) {
+    store_app* app = store_sheet_app;
+    if(index >= app->otherCount) {
+        return;
+    }
+
+    store_install_ctx* ctx = (store_install_ctx*) calloc(1, sizeof(store_install_ctx));
+    if(ctx == NULL) {
+        error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("Failed to open the Store."));
+        return;
+    }
+
+    ctx->store = store_sheet_store;
+    ctx->other = true;
+    string_copy(ctx->slug, app->slug, sizeof(ctx->slug));
+    char message[700];
+    store_ask_text(message, sizeof(message), app, _("Get \"%s\"?"), app->others[index].name);
+    storescript_run(app->others[index].script, message, ctx, store_script_done);
+}
+
+// A sheet's action knows only its data: one function for each place in the list.
+#define STORE_OTHER_RUN(n) static void store_get_other_##n(void* data) { store_get_other(n); }
+STORE_OTHER_RUN(0) STORE_OTHER_RUN(1) STORE_OTHER_RUN(2) STORE_OTHER_RUN(3) STORE_OTHER_RUN(4) STORE_OTHER_RUN(5)
+STORE_OTHER_RUN(6) STORE_OTHER_RUN(7) STORE_OTHER_RUN(8) STORE_OTHER_RUN(9) STORE_OTHER_RUN(10) STORE_OTHER_RUN(11)
+static void (* const store_other_runs[STORE_OTHERS_MAX])(void* data) = {
+        store_get_other_0, store_get_other_1, store_get_other_2, store_get_other_3, store_get_other_4, store_get_other_5,
+        store_get_other_6, store_get_other_7, store_get_other_8, store_get_other_9, store_get_other_10, store_get_other_11
+};
 
 static void store_open_app(store_data* store, store_app* app) {
     store_sheet_store = store;
     store_sheet_app = app;
 
-    // Only a .3dsx: nothing to choose.
-    if(app->ciaUrl == NULL) {
-        store_download_dsx(app);
+    // Only one thing to get: nothing to choose.
+    u32 total = (app->ciaUrl != NULL ? 1 : 0) + (app->dsxUrl != NULL ? 1 : 0) + app->otherCount;
+    if(total == 1) {
+        if(app->ciaUrl != NULL) {
+            store_install_cia(app);
+        } else if(app->dsxUrl != NULL) {
+            store_download_dsx(app);
+        } else {
+            store_get_other(0);
+        }
+
         return;
     }
 
     u8 status = store_status(store, app);
-    const char* installLabel = (status & STATUS_CIA) ? _("Reinstall the CIA") : _("Install the CIA");
-    sheet_action actions[2];
+    sheet_action actions[2 + STORE_OTHERS_MAX];
     u32 count = 0;
-    actions[count++] = (sheet_action) {ICON_DOWNLOAD, installLabel, false, store_install_cia, false, _("Installs it as a title on the console.")};
+    if(app->ciaUrl != NULL) {
+        const char* installLabel = (status & STATUS_CIA) ? _("Reinstall the CIA") : _("Install the CIA");
+        actions[count++] = (sheet_action) {ICON_DOWNLOAD, installLabel, false, store_install_cia, false, _("Installs it as a title on the console.")};
+    }
+
     if(app->dsxUrl != NULL) {
         const char* dsxLabel = (status & STATUS_DSX) ? _("Download the 3DSX again") : _("Download the 3DSX");
         actions[count++] = (sheet_action) {ICON_WORLD_DOWNLOAD, dsxLabel, false, store_download_dsx, false, _("Saves it in /3ds/ to run from the Homebrew Launcher.")};
+    }
+
+    for(u32 i = 0; i < app->otherCount; i++) {
+        actions[count++] = (sheet_action) {ICON_FILE_ZIP, app->others[i].name, false, store_other_runs[i], false, app->others[i].size[0] != '\0' ? app->others[i].size : NULL};
     }
 
     sheet_display_list(app->title, 0, actions, count, app);
@@ -1813,7 +1926,8 @@ static void store_open_app(store_data* store, store_app* app) {
 
 static void store_save(store_data* store) {
     store_settings* saved = &settings_get()->store;
-    saved->kinds = store->kinds;
+    saved->kinds = store->kinds & 3;
+    saved->others = (store->kinds & 4) != 0;
     saved->categories = store->categories;
     saved->shown = store->shown;
     saved->updated = store->updated;
@@ -1865,7 +1979,8 @@ static void store_show_grid(ui_view* view, void* data) {
 static bool store_visible(void* data, list_item* item) {
     store_data* store = (store_data*) data;
     store_app* app = store_of(item);
-    bool kind = ((store->kinds & 1) != 0 && app->ciaUrl != NULL) || ((store->kinds & 2) != 0 && app->dsxUrl != NULL);
+    bool kind = ((store->kinds & 1) != 0 && app->ciaUrl != NULL) || ((store->kinds & 2) != 0 && app->dsxUrl != NULL)
+                || ((store->kinds & 4) != 0 && app->otherCount > 0);
     if(!kind || ((store->categories >> app->category) & 1) == 0) {
         return false;
     }
@@ -1906,7 +2021,7 @@ static void store_set_since(store_data* store) {
 
 static bool store_filter_active(ui_view* view, void* data) {
     store_data* store = (store_data*) data;
-    return store->shown != 0 || store->updated != 0 || store->kinds != 3 || store->categories != (1u << STORE_CATEGORY_COUNT) - 1;
+    return store->shown != 0 || store->updated != 0 || store->kinds != 7 || store->categories != (1u << STORE_CATEGORY_COUNT) - 1;
 }
 
 // Popover groups: type, category, show, updated, sort.
@@ -1951,7 +2066,7 @@ static void store_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 5,
             .groups = {
-                    {_("Type"), true, 2, {"CIA", "3DSX"}, {-1, -1}},
+                    {_("Type"), true, 3, {"CIA", "3DSX", _("Other")}, {-1, -1, -1}},
                     // Icons with the name in a tooltip, as Show and Sort by: eight names take three lines.
                     {_("Category"), true, STORE_CATEGORY_COUNT, {_("Games"), _("Apps"), _("Utilities"), _("Emulators"), _("Media"), _("Save tools"), _("Plugins"), _("Other")},
                      {ICON_DEVICE_GAMEPAD_2, ICON_APPS, ICON_SETTINGS, ICON_DEVICE_NINTENDO, ICON_MOVIE, ICON_DEVICE_FLOPPY, ICON_FILE_CODE, ICON_DOTS}, true},
@@ -2317,7 +2432,7 @@ void store_open_source(const store_source* source) {
     store->opened = osGetTime();
     store_active = store;
 
-    store->kinds = settings_get()->store.kinds;
+    store->kinds = (settings_get()->store.kinds & 3) | (settings_get()->store.others ? 4 : 0);
     store->categories = settings_get()->store.categories;
     store->shown = settings_get()->store.shown;
     store->updated = settings_get()->store.updated;

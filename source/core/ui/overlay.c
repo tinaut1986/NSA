@@ -7,6 +7,7 @@
 
 #include "error.h"
 #include "overlay.h"
+#include "coach.h"
 #include "ui.h"
 #include "../i18n.h"
 #include "../icons.h"
@@ -298,6 +299,7 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
 
     screen_fill_round_rect(cardX + 1, cardY + 3, POPOVER_WIDTH, cardH, t->def->radius, THEME_ALPHA(0, 0x30));
     screen_frame_round_rect(cardX, cardY, POPOVER_WIDTH, cardH, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
+    coach_anchor("popover", cardX, cardY, POPOVER_WIDTH, cardH, true);
 
     float contentTop = cardY + POPOVER_PAD - p->scroll;
     screen_set_clip(cardX, cardY + 3, POPOVER_WIDTH, cardH - 6);
@@ -810,10 +812,12 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
             }
 
             widget_press_draw(&s->press, (int) i, x, y, w, h, t->def->radiusSmall, ink, false);
+            coach_anchor(a->label, x, y, w, h, focused);
             continue;
         }
 
         bool focused = i == s->selected;
+        coach_anchor(a->label, x, y, w, h, focused);
         u32 ink = a->danger ? t->palette->danger : t->palette->text;
         u32 fill = a->danger ? theme_mix(t->palette->surface, t->palette->danger, 0x26) : t->palette->surface;
         u32 edge = focused ? t->accent : a->danger ? t->palette->danger : t->palette->border;
@@ -861,6 +865,7 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
     }
 
     screen_set_offset(0, 0);
+    coach_anchor("sheet", x1, top, x2 - x1, y2 - top, true);
 }
 
 static ui_view* sheet_open(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data, bool list) {

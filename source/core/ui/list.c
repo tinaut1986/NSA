@@ -9,6 +9,7 @@
 
 #include "error.h"
 #include "list.h"
+#include "coach.h"
 #include "ui.h"
 #include "../i18n.h"
 #include "../icons.h"
@@ -310,6 +311,21 @@ static float list_tool_x(u32 index) {
     return BOTTOM_SCREEN_WIDTH - 6 - (index + 1) * (LIST_TOOL_SIZE + 3) + 3;
 }
 
+// The name a guided tour knows a tool by (coach.h).
+static const char* list_tool_anchor(u32 icon) {
+    switch(icon) {
+        case ICON_SEARCH: return "tool.search";
+        case ICON_FILTER: return "tool.filter";
+        case ICON_LAYOUT_GRID: return "tool.grid";
+        case ICON_LIST: return "tool.rows";
+        case ICON_ZOOM_IN: return "tool.size";
+        case ICON_DOTS: return "tool.more";
+        case ICON_CLIPBOARD: return "tool.clipboard";
+        case ICON_WIFI_OFF: return "tool.nearby";
+        default: return NULL;
+    }
+}
+
 static void list_draw_title_bar(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     list_data* listData = (list_data*) data;
     const theme_current* t = theme();
@@ -320,6 +336,7 @@ static void list_draw_title_bar(ui_view* view, void* data, float x1, float y1, f
     }
 
     screen_draw_icon(ICON_ARROW_LEFT, x1 + 6, cy + 3, 16, t->palette->text);
+    coach_anchor("back", x1 + 3, cy, LIST_TOOL_SIZE, LIST_TOOL_SIZE, true);
 
     float textY = y1 + (y2 - y1 - widget_text_height(WIDGET_TEXT_SCALE)) / 2;
     float titleX = x1 + 28;
@@ -351,6 +368,7 @@ static void list_draw_title_bar(ui_view* view, void* data, float x1, float y1, f
         }
 
         screen_draw_icon(tool->icon, tx + 3, cy + 3, 16, active ? t->accent : t->palette->textMuted);
+        coach_anchor(list_tool_anchor(tool->icon), tx, cy, LIST_TOOL_SIZE, LIST_TOOL_SIZE, true);
     }
 }
 
@@ -656,6 +674,7 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
     list_layout l = list_get_layout(listData, x1, y1, x2, y2);
 
     list_validate(listData, &l, false);
+    coach_anchor("list", x1, y1, x2 - x1, y2 - y1, false);
 
     if(listData->visibleCount == 0) {
         if(listData->search[0] != '\0') {
@@ -688,6 +707,9 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
 
         widget_press_draw(&listData->press, (int) i, x, y, l.itemW, l.itemH, list_grid(listData) ? t->def->radius : t->def->radiusSmall,
                           selected ? t->onAccent : t->palette->text, listData->longPress != NULL);
+        if(selected && y >= y1 && y + l.itemH <= y2) {
+            coach_anchor("list.selected", x, y, l.itemW, l.itemH, true);
+        }
     }
 
     screen_clear_clip();

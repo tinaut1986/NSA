@@ -44,13 +44,20 @@ typedef struct {
 #define OPEN(a_, t_, u_) {.anchor = (a_), .text = (t_), .keys = KEY_A, .tap = true, .pass = COACH_PASS_DPAD, .until = (u_)}
 #define BACK_TO_MENU(t_) {.anchor = NULL, .text = (t_), .keys = KEY_B, .until = "v:Main menu"}
 
+// A game with updates or DLC opens their list first (titles.c draws "titles.chain" there): these steps run only then.
+#define CHAIN_OPEN_GAME {.anchor = "list.selected", .text = "This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", \
+                         .keys = KEY_A, .tap = true, .pass = COACH_PASS_DPAD, .until = "sheet", .only = "titles.chain"}
+#define CHAIN_BACK {.anchor = "back", .text = "\uE001 goes back to the list of titles.", .keys = KEY_B, .tap = true, .until = "!titles.chain", .only = "titles.chain"}
+
 static const coach_step basics_steps[] = {
         INFO("top", "The top screen tells you about what has the focus on the bottom one."),
         INFO("hints", "This bar lists the buttons that work on each screen."),
         OPEN("menu.titles", "Open Titles: tap it, or bring the focus to it with the D-Pad and press \uE000.", "v:Titles"),
-        INFO("list", "Every game and app installed. The top screen shows the one with the focus; slide a finger to scroll."),
-        DO("list.selected", "Press \uE000, or tap the one with the focus: its actions open.", KEY_A, true, "sheet"),
+        INFO("list", "Every game and app installed. The top screen shows the one with the focus."),
+        DO("list.selected", "Press \uE000, or tap the one with the focus: its actions open.", KEY_A, true, "sheet|titles.chain"),
+        CHAIN_OPEN_GAME,
         DO("sheet", "Its actions. Whatever deletes asks first, in red. Close them with \uE001.", KEY_B, false, "!sheet"),
+        CHAIN_BACK,
         DO("back", "\uE001, or this arrow, goes back.", KEY_B, true, "v:Main menu"),
         INFO(NULL, "That is all it takes. START leaves the guide at any time, and Settings, Guide keeps every chapter."),
 };
@@ -95,9 +102,11 @@ static const coach_step remote_steps[] = {
 
 static const coach_step saves_steps[] = {
         OPEN("menu.titles", "Open Titles.", "v:Titles"),
-        DO("list.selected", "Open the actions of a game.", KEY_A, true, "sheet"),
+        DO("list.selected", "Open the actions of a game.", KEY_A, true, "sheet|titles.chain"),
+        CHAIN_OPEN_GAME,
         INFO("Save data", "Save data, Extra data and SpotPass data each open a list: back it up, restore any backup (NSA's, Checkpoint's, JKSM's, PKSM's) or send it to another 3DS."),
         DO("sheet", "Close the actions with \uE001.", KEY_B, false, "!sheet"),
+        CHAIN_BACK,
         DO("back", "\uE001 goes back to the menu.", KEY_B, true, "v:Main menu"),
 };
 

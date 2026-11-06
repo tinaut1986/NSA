@@ -61,6 +61,9 @@ static bool acted = false;          // The user did what the step asks.
 static u64 actedTime = 0;
 static u32 missingFrames = 0;
 static bool touchInside = false;    // The finger on the screen went down on the anchor.
+static bool onlyChecked = false;    // The step's `only` was looked at.
+static float bubbleRect[4];         // The bubble on the bottom screen in the last frame (x, y, w, h), for a tap on it.
+static bool bubbleOnBottom = false;
 static u32 swallowKeys = 0;         // Held when the tour ended: kept from the views until let go (START would exit NSA).
 static u32 freshKeys = 0;           // Pressed since the step began (a press that ended the last one does not count).
 
@@ -149,6 +152,7 @@ static void coach_begin_step() {
     missingFrames = 0;
     touchInside = false;
     freshKeys = 0;
+    onlyChecked = false;
     phaseStart = osGetTime();
     phase = steps[stepIndex].home && ui_depth() > 1 ? COACH_REWIND : COACH_STEP;
     rewindFrames = 0;
@@ -207,12 +211,8 @@ bool coach_active() {
     return phase != COACH_OFF;
 }
 
-// "v:<view>", "<anchor>" or "!<anchor>".
-static bool coach_until_met(const char* until) {
-    if(until == NULL) {
-        return true;
-    }
-
+// "v:<view>", "<anchor>", "!<anchor>" or "@<anchor>".
+static bool coach_until_one(const char* until) {
     if(strncmp(until, "v:", 2) == 0) {
         ui_view* top = ui_top();
         const char* want = until + 2;
@@ -229,6 +229,36 @@ static bool coach_until_met(const char* until) {
     }
 
     return coach_find_in(last, lastCount, until) != NULL;
+}
+
+// Any of the conditions separated by "|".
+static bool coach_until_met(const char* until) {
+    if(until == NULL) {
+        return true;
+    }
+
+    char buf[128];
+    string_copy(buf, until, sizeof(buf));
+    char* rest = buf;
+    while(rest != NULL) {
+        char* bar = strchr(rest, '|');
+        if(bar != NULL) {
+            *bar = '\0';
+        }
+
+        if(coach_until_one(rest)) {
+            return true;
+        }
+
+        rest = bar != NULL ? bar + 1 : NULL;
+    }
+
+    return false;
+}
+
+static bool coach_tap_on_bubble() {
+    return (rawDown & KEY_TOUCH) && bubbleOnBottom && rawTouch.px >= bubbleRect[0] && rawTouch.px < bubbleRect[0] + bubbleRect[2]
+           && rawTouch.py >= bubbleRect[1] && rawTouch.py < bubbleRect[1] + bubbleRect[3];
 }
 
 // What the step lets through now (before the touch is looked at).
@@ -312,13 +342,22 @@ void coach_update() {
         return;
     }
 
+    // A step for a branch not taken is skipped.
+    if(!onlyChecked) {
+        onlyChecked = true;
+        if(step->only != NULL && coach_find_in(last, lastCount, step->only) == NULL) {
+            coach_next();
+            return;
+        }
+    }
+
     const coach_anchor_rec* a = coach_find_in(last, lastCount, step->anchor);
     // A row to reach may be off the screen until the D-Pad brings it: that is not missing.
     missingFrames = step->anchor != NULL && a == NULL && !acted ? missingFrames + 1 : 0;
     bool stuck = missingFrames > COACH_MISSING_FRAMES || (acted && !coach_wait_step(step) && osGetTime() - actedTime > COACH_WAIT_LIMIT);
 
     if(coach_info_step(step) || stuck) {
-        if(rawDown & (KEY_A | KEY_TOUCH)) {
+        if((rawDown & KEY_A) || coach_tap_on_bubble()) {
             coach_next();
         }
 
@@ -358,6 +397,7 @@ void coach_update() {
 
 void coach_frame_begin() {
     curCount = 0;
+    bubbleOnBottom = false;
 }
 
 void coach_screen_begin(gfxScreen_t screen, bool record) {
@@ -414,6 +454,13 @@ static void coach_bubble_measure(const coach_step* step, gfxScreen_t screen, coa
 static void coach_bubble_draw(gfxScreen_t screen, const coach_step* step, const coach_bubble* b, float bx, float by, int arrow, float arrowX) {
     const theme_current* t = theme();
     screen_set_depth(screen == GFX_TOP ? COACH_DEPTH_BUBBLE : 0);
+    if(screen == GFX_BOTTOM) {
+        bubbleRect[0] = bx;
+        bubbleRect[1] = by;
+        bubbleRect[2] = b->bw;
+        bubbleRect[3] = b->bh;
+        bubbleOnBottom = true;
+    }
     screen_fill_round_rect(bx + 1, by + 3, b->bw, b->bh, t->def->radius, THEME_ALPHA(0x00000000, 0x40));
     screen_frame_round_rect(bx, by, b->bw, b->bh, t->def->radius, 2, t->accent, t->palette->surface);
     if(arrow != 0) {

@@ -762,8 +762,16 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
 (core 2, or core 0 on an Old 3DS) in 1 MB blocks, four of them in flight, with `osSetSpeedupEnable`. On the New 3DS XL,
 1.98 GB: 0.8.5 without a hash 647 s, 0.9.1 hashing on the copy thread 1105 s, this 557 s (3.4 MB/s); the dump's
 SHA-256 checked with `sha256sum -c`, and it differs from the earlier dumps only in a few CTRNAND sectors. The SD write
-is the limit now (slower while the NAND is read at the same time).
-- [ ] On an Old 3DS or 2DS (hash on core 0): time and the hash; cancelling and the full SD again on this build.
+is the limit now (slower while the NAND is read at the same time). The dump used to turn the clock and L2 off when it
+ended (`fix/dumpnand-speedup`: FTP fell from 1.3 MB/s to 0.46 after a dump).
+- [x] On the 2DS (2026-11-08, hash on core 0): 1.98 GB in 558 s against 1153 s on 0.8.5.
+- [ ] Cancelling and the full SD again on this build.
+
+**Dump NAND up to the last partition** (2026-11-08, `feat/dumpnand-trim`): the system says 1.84 GiB for the raw NAND on
+every model, but after the last NCSD partition only zeros come; the dump stops there, as GodMode9's SysNAND backups do
+(943 MiB on the 2DS, 1.21 GiB on the New 3DS XL). Tested on both: 2DS 254 s (from 558), New 3DS XL 366 s (from 557);
+`.sha256` passes, same size as the owner's GodMode9 backups of 2026-09-27, which differ only in CTRNAND and TWL sectors
+the system wrote since (header and FIRMs equal).
 
 **Pixel theme** (Settings -> Theme, `tools/make_pixelfont.py`)
 - [ ] On a console: the pixel font (Pixelify Sans 10/12/16 px, `romfs/pixelfont.png`) is readable on

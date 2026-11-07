@@ -82,7 +82,10 @@ void widget_button_row_rect(int i, int count, float* x, float* y, float* width, 
 void widget_row_button(int i, int count, u32 icon, const char* label, bool pressed, bool disabled, bool primary);
 // The button of the row a finger is on, or -1.
 int widget_button_row_hit(const touchPosition* pos, int count);
-// While a finger is held: the button it went down on stays pressed only while the finger is on it (else *pressed = -1).
+// A finger that went down on the row and is now off every button: nothing is pressed.
+#define WIDGET_BUTTON_ROW_OFF (-2)
+// While a finger that went down on the row is held: the button under it is pressed (*pressed), or none
+// (WIDGET_BUTTON_ROW_OFF); a finger that went down elsewhere (*pressed == -1) presses nothing.
 void widget_button_row_hold(int* pressed, const touchPosition* pos, int count);
 
 // ---- items of a list ----

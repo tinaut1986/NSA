@@ -980,8 +980,83 @@ static u64* store_load_installed(u32* count) {
     return ids;
 }
 
-// `installed` is the sorted list of titles (NULL: ask AM about this one title).
-static u8 store_compute_status(const store_scan_entry* entry, const u64* installed, u32 installedCount) {
+// The names in /3ds/ (folders and files), sorted without case, read once for a whole scan. Asking the card about each app
+// instead (two stat() calls each, ~185 ms apiece on the owner's New 3DS: 574 calls, 107 s) kept the SD card busy for
+// everything else meanwhile: an install from the Store took 40 s instead of 6.
+typedef struct {
+    char** names;
+    u32 count;
+} store_dsx_dir;
+
+static int store_compare_names(const void* a, const void* b) {
+    return strcasecmp(*(char* const*) a, *(char* const*) b);
+}
+
+static void store_dsx_dir_free(store_dsx_dir* dir) {
+    if(dir == NULL) {
+        return;
+    }
+
+    for(u32 i = 0; i < dir->count; i++) {
+        free(dir->names[i]);
+    }
+
+    free(dir->names);
+    free(dir);
+}
+
+// NULL when /3ds/ could not be read: each app is then looked for on the card.
+static store_dsx_dir* store_dsx_dir_load() {
+    DIR* d = opendir("sdmc:/3ds/");
+    if(d == NULL) {
+        return NULL;
+    }
+
+    store_dsx_dir* dir = (store_dsx_dir*) calloc(1, sizeof(store_dsx_dir));
+    u32 capacity = 0;
+    bool ok = dir != NULL;
+    struct dirent* e;
+    while(ok && (e = readdir(d)) != NULL) {
+        if(dir->count == capacity) {
+            u32 more = capacity > 0 ? capacity * 2 : 64;
+            char** names = (char**) realloc(dir->names, more * sizeof(char*));
+            if(names == NULL) {
+                ok = false;
+                break;
+            }
+
+            dir->names = names;
+            capacity = more;
+        }
+
+        char* name = strdup(e->d_name);
+        if(name == NULL) {
+            ok = false;
+            break;
+        }
+
+        dir->names[dir->count++] = name;
+    }
+
+    closedir(d);
+    if(!ok) {
+        store_dsx_dir_free(dir);
+        return NULL;
+    }
+
+    if(dir->count > 0) {
+        qsort(dir->names, dir->count, sizeof(char*), store_compare_names);
+    }
+
+    return dir;
+}
+
+static bool store_dsx_dir_has(const store_dsx_dir* dir, const char* name) {
+    return dir->count > 0 && bsearch(&name, dir->names, dir->count, sizeof(char*), store_compare_names) != NULL;
+}
+
+// `installed` is the sorted list of titles (NULL: ask AM about this one title); `dir` what /3ds/ holds (NULL: ask the card).
+static u8 store_compute_status(const store_scan_entry* entry, const u64* installed, u32 installedCount, const store_dsx_dir* dir) {
     u8 bits = 0;
     if(entry->hasCia) {
         // Without a unique ID, what the Store installed is all there is to go by.
@@ -996,11 +1071,22 @@ static u8 store_compute_status(const store_scan_entry* entry, const u64* install
 
     if(entry->hasDsx && entry->dsxName[0] != '\0') {
         char path[FILE_PATH_MAX];
-        snprintf(path, sizeof(path), "sdmc:/3ds/%s/%s.3dsx", entry->dsxName, entry->dsxName);
-        bool present = store_file_exists(path);
-        if(!present) {
-            snprintf(path, sizeof(path), "sdmc:/3ds/%s.3dsx", entry->dsxName);
+        bool present = false;
+        if(dir != NULL) {
+            // Only an app whose folder is there costs a call to the card.
+            snprintf(path, sizeof(path), "%s.3dsx", entry->dsxName);
+            present = store_dsx_dir_has(dir, path);
+            if(!present && store_dsx_dir_has(dir, entry->dsxName)) {
+                snprintf(path, sizeof(path), "sdmc:/3ds/%s/%s.3dsx", entry->dsxName, entry->dsxName);
+                present = store_file_exists(path);
+            }
+        } else {
+            snprintf(path, sizeof(path), "sdmc:/3ds/%s/%s.3dsx", entry->dsxName, entry->dsxName);
             present = store_file_exists(path);
+            if(!present) {
+                snprintf(path, sizeof(path), "sdmc:/3ds/%s.3dsx", entry->dsxName);
+                present = store_file_exists(path);
+            }
         }
 
         if(present) {
@@ -1012,7 +1098,7 @@ static u8 store_compute_status(const store_scan_entry* entry, const u64* install
 }
 
 // A few apps' status, for the background thread to call now and then (`installed` is its list of titles).
-static void store_scan_step(store_data* store, const u64* installed, u32 installedCount) {
+static void store_scan_step(store_data* store, const u64* installed, u32 installedCount, const store_dsx_dir* dir) {
     for(int n = 0; n < 16; n++) {
         store_scan_entry entry;
         u32 index = 0;
@@ -1030,7 +1116,7 @@ static void store_scan_step(store_data* store, const u64* installed, u32 install
             return;
         }
 
-        u8 bits = store_compute_status(&entry, installed, installedCount);
+        u8 bits = store_compute_status(&entry, installed, installedCount, dir);
         LightLock_Lock(&store->lock);
         if(generation == store->generation && store->status != NULL && index < store->scanCount) {
             store->status[index] = bits | 0x80;
@@ -1362,6 +1448,7 @@ static void store_background_thread(void* arg) {
     u64 nextFlush = osGetTime() + 500;
     u64* installed = NULL;
     u32 installedCount = 0;
+    store_dsx_dir* dsxDir = NULL;
     u32 listGeneration = 0xFFFFFFFF;
     u32 loggedGeneration = 0xFFFFFFFF;
     u64 scanStart = 0;
@@ -1377,13 +1464,17 @@ static void store_background_thread(void* arg) {
             u64 t = osGetTime();
             free(installed);
             installed = store_load_installed(&installedCount);
+            u64 dirStart = osGetTime();
+            store_dsx_dir_free(dsxDir);
+            dsxDir = store_dsx_dir_load();
             listGeneration = generation;
             scanStart = t;
-            store_logf(store, "installed titles: %u read in %u ms", installedCount, (u32) (osGetTime() - t));
+            store_logf(store, "installed titles: %u read in %u ms; /3ds/: %d entries read in %u ms", installedCount,
+                       (u32) (dirStart - t), dsxDir != NULL ? (int) dsxDir->count : -1, (u32) (osGetTime() - dirStart));
         }
 
         if(scanning) {
-            store_scan_step(store, installed, installedCount);
+            store_scan_step(store, installed, installedCount, dsxDir);
         } else {
             if(listGeneration == generation && loggedGeneration != generation) {
                 loggedGeneration = generation;
@@ -1401,6 +1492,7 @@ static void store_background_thread(void* arg) {
 
     store_log_flush(store);
     free(installed);
+    store_dsx_dir_free(dsxDir);
     store_release(store);
 }
 
@@ -1785,7 +1877,7 @@ static void store_install_finished_all(void* data) {
                 store_scan_entry entry = store->scan != NULL && i < store->scanCount ? store->scan[i] : (store_scan_entry) {{0}};
                 LightLock_Unlock(&store->lock);
 
-                u8 bits = store_compute_status(&entry, NULL, 0);
+                u8 bits = store_compute_status(&entry, NULL, 0, NULL);
                 LightLock_Lock(&store->lock);
                 if(store->status != NULL && i < store->scanCount) {
                     store->status[i] = bits | 0x80;
@@ -1822,7 +1914,7 @@ static void store_recheck_step(store_data* store) {
         return;
     }
 
-    u8 bits = store_compute_status(&entry, NULL, 0);
+    u8 bits = store_compute_status(&entry, NULL, 0, NULL);
     LightLock_Lock(&store->lock);
     if(store->status != NULL && i < store->scanCount) {
         store->status[i] = bits | 0x80;

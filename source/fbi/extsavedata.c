@@ -43,7 +43,6 @@ typedef struct {
 } extsavedata_data;
 
 #define ROW_HEIGHT 40
-#define TILE_SIZE 50
 
 // What the screen shows is kept in the settings, for the next time.
 static void extsavedata_store(extsavedata_data* data) {
@@ -307,6 +306,10 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
         return;
     }
 
+    if(hidKeysDown() & KEY_SELECT) {
+        list_next_tile_size(view);
+    }
+
     if(hidKeysDown() & KEY_Y) {
         list_toggle_mode(view);
     }
@@ -399,7 +402,7 @@ void extsavedata_open() {
     list_style style = {
             .rowHeight = ROW_HEIGHT,
             .drawRow = extsavedata_draw_row,
-            .tileSize = TILE_SIZE,
+            .tileSize = list_tile_size_of(settings_get()->extsave.tile),
             .drawTile = extsavedata_draw_tile
     };
     list_set_style(view, &style);
@@ -409,5 +412,6 @@ void extsavedata_open() {
     // Right to left.
     list_add_search_tool(view, _("Search data"));
     list_add_tool(view, ICON_FILTER, extsavedata_filter_active, extsavedata_filter_open);
+    list_add_tile_tool(view, &settings_get()->extsave.tile);
     list_add_view_tools(view, extsavedata_view_changed);
 }

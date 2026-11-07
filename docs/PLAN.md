@@ -237,7 +237,17 @@ D-Pads in sheets are good (ticked above). Changed after them:
 - speed-log.txt now has a line per second of each copy/install of a data operation (`copy`) and the time of each Store
   extraction (`extract`): the Store install of 3D Pinball (a .7z with a 963 KB CIA) was slow and the cause is not known.
 - [ ] Install 3D Pinball (or another .7z CIA) from the Store again: is it still slow? Then fetch /nsa/speed-log.txt.
-- [ ] Tickets: the zoom icon and SELECT change the tile size, kept when the screen opens again.
+- [x] Big folders read and delete fast now (the owner, 2026-11-07).
+- [ ] The zoom icon and SELECT change the tile size in every grid: Titles, Tickets, Ext Save Data, Game mods, Store
+  (`feat/tile-tool-all`); kept when the screen opens again; the mods summary tile at the smallest size.
+- The Store's 3D Pinball install (New 3DS XL, 15:31-15:34): download 1.7 s, extraction 5.4 s, then 66 s before the
+  install started (reading the CIA's info, AM) and 59.6 s to install 963 KB (AM_StartCiaInstall 4.9 s, the first write
+  23.9 s, AM_FinishCiaInstall 26.5 s), with the UI at ~10 frames a second. The same Files install of a 570 KB CIA right
+  after: 1.6 s (2.0 s reinstalling), 60 fps. So not AM or the install code: something loaded the console then; the web
+  page had been used just before (music, an 8 MB upload). To try: the same Store install with the web page closed.
+- The 2DS's screen going off and on, Wi-Fi gone for a moment: sleep-log.txt has 26 sleeps since it started, 12 of them
+  under 3 s (sleep, wake 1.2 s later). The system sends them (NSA never asks to sleep): on a 2DS that is the sleep
+  switch. Wi-Fi is down for a moment after any wake, then NSA reconnects (acInit). Likely a worn or bumped switch.
 - [ ] Delete the contents of the big Monkey Island port's debug folder: how long the reading and the deleting take.
 - [ ] An install or a copy while the console goes to sleep or HOME (suspend and resume) goes on afterwards.
 

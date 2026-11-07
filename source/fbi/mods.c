@@ -46,7 +46,6 @@ typedef struct {
 } mods_data;
 
 #define ROW_HEIGHT 40
-#define TILE_SIZE 50
 
 static bool mods_present(const mod_info* info) {
     return info->state != MOD_STATE_NOT_INSTALLED;
@@ -225,7 +224,9 @@ static void mods_draw_tile(void* data, list_item* item, float x, float y, float 
 
     if(info->summary) {
         mods_data* listData = (mods_data*) data;
-        screen_draw_icon(ICON_FOLDER_OFF, x + (size - 32) / 2, y + 5, 32, t->palette->textMuted);
+        // 32 px, or 16 in the smallest tiles, where the count would cover it.
+        float icon = size >= 50 ? 32 : 16;
+        screen_draw_icon(ICON_FOLDER_OFF, x + (size - icon) / 2, y + 5, icon, t->palette->textMuted);
         char count[16];
         snprintf(count, sizeof(count), "%lu", listData->emptyCount);
         widget_text_centered(count, x, x + size, y + size - 4 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, t->palette->textMuted);
@@ -631,6 +632,10 @@ static void mods_update(ui_view* view, void* data, linked_list* items, list_item
         return;
     }
 
+    if(hidKeysDown() & KEY_SELECT) {
+        list_next_tile_size(view);
+    }
+
     if(hidKeysDown() & KEY_Y) {
         list_toggle_mode(view);
     }
@@ -706,7 +711,7 @@ void mods_open() {
     list_style style = {
             .rowHeight = ROW_HEIGHT,
             .drawRow = mods_draw_row,
-            .tileSize = TILE_SIZE,
+            .tileSize = list_tile_size_of(settings_get()->mods.tile),
             .drawTile = mods_draw_tile
     };
     list_set_style(view, &style);
@@ -715,5 +720,6 @@ void mods_open() {
     // Right to left.
     list_add_search_tool(view, _("Search mods"));
     list_add_tool(view, ICON_FILTER, mods_filter_active, mods_filter_open);
+    list_add_tile_tool(view, &settings_get()->mods.tile);
     list_add_view_tools(view, mods_view_changed);
 }

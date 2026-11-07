@@ -1058,7 +1058,7 @@ const i18n_entry i18n_ru[] = {
         {"Failed to initiate mods list population.", "Не удалось начать список модов."},
         {"Failed to populate mods list.", "Не удалось получить список модов."},
         {"Title deleted", "Программа удалена"},
-        {"This game had mods in /luma/titles (LayeredFS). Delete them too?", "У этой игры были моды в /luma/titles (LayeredFS). Удалить и их?"},
+        {"This game has mods in /luma/titles (LayeredFS). Delete them too?", "У этой игры есть моды в /luma/titles (LayeredFS). Удалить и их?"},
         {"Title and mods deleted.", "Программа и моды удалены."},
         {"Game mods, in Cleanup: the mods in /luma/titles, and which games are no longer installed.", "Моды игр, в Очистке: моды из /luma/titles и какие игры уже не установлены."},
         {"Deleting a game that has mods asks whether to delete them too.", "При удалении игры с модами NSA спрашивает, удалить ли и их."},

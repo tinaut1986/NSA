@@ -1050,7 +1050,7 @@ const i18n_entry i18n_tw[] = {
         {"Failed to initiate mods list population.", "無法開始列出模組。"},
         {"Failed to populate mods list.", "無法列出模組。"},
         {"Title deleted", "軟體已刪除"},
-        {"This game had mods in /luma/titles (LayeredFS). Delete them too?", "此遊戲在 /luma/titles 中有模組（LayeredFS）。也要刪除嗎？"},
+        {"This game has mods in /luma/titles (LayeredFS). Delete them too?", "此遊戲在 /luma/titles 中有模組（LayeredFS）。也要刪除嗎？"},
         {"Title and mods deleted.", "軟體與模組已刪除。"},
         {"Game mods, in Cleanup: the mods in /luma/titles, and which games are no longer installed.", "「清理」中的遊戲模組：/luma/titles 中的模組，以及哪些遊戲已不再安裝。"},
         {"Deleting a game that has mods asks whether to delete them too.", "刪除有模組的遊戲時，會詢問是否一併刪除模組。"},

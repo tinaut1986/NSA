@@ -1062,7 +1062,7 @@ const i18n_entry i18n_ja[] = {
         {"Failed to initiate mods list population.", "MODの一覧を開始できませんでした。"},
         {"Failed to populate mods list.", "MODの一覧を取得できませんでした。"},
         {"Title deleted", "タイトルを削除しました"},
-        {"This game had mods in /luma/titles (LayeredFS). Delete them too?", "このゲームには /luma/titles にMOD（LayeredFS）がありました。それも削除しますか？"},
+        {"This game has mods in /luma/titles (LayeredFS). Delete them too?", "このゲームには /luma/titles にMOD（LayeredFS）があります。それも削除しますか？"},
         {"Title and mods deleted.", "タイトルとMODを削除しました。"},
         {"Game mods, in Cleanup: the mods in /luma/titles, and which games are no longer installed.", "「整理」のゲームのMOD：/luma/titles のMODと、もうインストールされていないゲーム。"},
         {"Deleting a game that has mods asks whether to delete them too.", "MODのあるゲームを削除すると、MODも削除するか確認します。"},

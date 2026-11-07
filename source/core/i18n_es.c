@@ -1079,7 +1079,7 @@ const i18n_entry i18n_es[] = {
         {"Failed to initiate mods list population.", "No se ha podido empezar a listar los mods."},
         {"Failed to populate mods list.", "No se han podido listar los mods."},
         {"Title deleted", "Título borrado"},
-        {"This game had mods in /luma/titles (LayeredFS). Delete them too?", "Este juego tenía mods en /luma/titles (LayeredFS). ¿Borrarlos también?"},
+        {"This game has mods in /luma/titles (LayeredFS). Delete them too?", "Este juego tiene mods en /luma/titles (LayeredFS). ¿Borrarlos también?"},
         {"Title and mods deleted.", "Título y mods borrados."},
         {"Game mods, in Cleanup: the mods in /luma/titles, and which games are no longer installed.", "Mods de juegos, en Limpieza: los mods de /luma/titles y qué juegos ya no están instalados."},
         {"Deleting a game that has mods asks whether to delete them too.", "Al borrar un juego con mods, NSA pregunta si borrarlos también."},

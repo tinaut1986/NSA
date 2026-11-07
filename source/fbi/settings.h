@@ -101,6 +101,8 @@ typedef struct {
     // Background music: a bgmusic_style and a volume in percent.
     u32 music;
     u32 musicVolume;
+    // The audio player at the end of a track: 0 the next one (the last stops), 1 the list again, 2 the same track.
+    u32 playerRepeat;
 
     // The main menu's layout: the ids of the entries shown in order, then "|" and the hidden ones; "" for the default.
     char menu[128];

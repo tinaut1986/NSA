@@ -9,6 +9,7 @@
 #include <3ds.h>
 #include <tremor/ivorbisfile.h>
 
+#include "settings.h"
 #include "viewers.h"
 #include "../core/core.h"
 #include "../libs/dr_libs/dr_flac.h"
@@ -293,6 +294,75 @@ static bool audio_dec_seek(audio_dec* d, u64 frame) {
     return false;
 }
 
+// ---- an MP3's seek table, made on a thread of its own ----
+
+// dr_mp3 finds a place in an MP3 by reading it from the start: 4-5 s into a long track on a console, with the screen
+// frozen meanwhile on an Old 3DS (its player thread shares the app core). A second decoder reads the whole file once at
+// the lowest priority and notes where the frames start; once the player binds that table a seek is immediate.
+typedef struct {
+    FS_Archive archive;
+    char path[FILE_PATH_MAX];
+    audio_file file;
+    drmp3 mp3;
+    volatile bool cancel;   // Reading stops (the reads return nothing) and the thread ends soon.
+    volatile bool done;     // `points` and `count` are ready.
+    drmp3_seek_point* points;
+    drmp3_uint32 count;
+} audio_seek_job;
+
+static size_t audio_seek_job_read(void* user, void* out, size_t n) {
+    audio_seek_job* job = (audio_seek_job*) user;
+    return job->cancel ? 0 : audio_file_read(&job->file, out, (u32) n);
+}
+
+static drmp3_bool32 audio_seek_job_seek(void* user, int offset, drmp3_seek_origin origin) {
+    return audio_file_seek(&((audio_seek_job*) user)->file, offset, (int) origin);
+}
+
+static drmp3_bool32 audio_seek_job_tell(void* user, drmp3_int64* cursor) {
+    *cursor = (drmp3_int64) ((audio_seek_job*) user)->file.pos;
+    return 1;
+}
+
+static void audio_seek_thread(void* arg) {
+    audio_seek_job* job = (audio_seek_job*) arg;
+
+    FS_Path* fsPath = fs_make_path_utf8(job->path);
+    if(fsPath == NULL) {
+        return;
+    }
+
+    Result res = FSUSER_OpenFile(&job->file.handle, job->archive, *fsPath, FS_OPEN_READ, 0);
+    fs_free_path_utf8(fsPath);
+    if(R_FAILED(res)) {
+        return;
+    }
+
+    job->file.buf = (u8*) malloc(AUDIO_FILE_BUFFER);
+    if(job->file.buf != NULL && R_SUCCEEDED(FSFILE_GetSize(job->file.handle, &job->file.size))
+       && drmp3_init(&job->mp3, audio_seek_job_read, audio_seek_job_seek, audio_seek_job_tell, NULL, job, NULL)) {
+        // About one point a second (dr_mp3 keeps fewer when the file has fewer frames).
+        u64 total = job->mp3.totalPCMFrameCount != DRMP3_UINT64_MAX ? job->mp3.totalPCMFrameCount : 0;
+        u32 rate = job->mp3.sampleRate > 0 ? job->mp3.sampleRate : 44100;
+        u64 wanted = total > 0 ? total / rate + 1 : 1024;
+        drmp3_uint32 count = (drmp3_uint32) (wanted < 16 ? 16 : wanted > 4096 ? 4096 : wanted);
+        drmp3_seek_point* points = (drmp3_seek_point*) malloc(count * sizeof(drmp3_seek_point));
+        if(points != NULL && drmp3_calculate_seek_points(&job->mp3, &count, points) && !job->cancel && count > 0) {
+            job->points = points;
+            job->count = count;
+            job->done = true;
+        } else {
+            free(points);
+        }
+
+        drmp3_uninit(&job->mp3);
+    }
+
+    FSFILE_Close(job->file.handle);
+    free(job->file.buf);
+    job->file.buf = NULL;
+}
+
 // ---- the player: a thread that keeps the DSP's buffers full ----
 
 typedef struct {
@@ -303,6 +373,9 @@ typedef struct {
     bool pending[AUDIO_BUFFERS];   // Queued and not counted as played yet.
 
     Thread thread;
+    audio_seek_job* seekJob;       // An MP3's seek table being made (NULL for the other kinds).
+    Thread seekThread;
+    bool seekBound;                // The table is in the decoder.
     volatile bool quit;
     volatile bool eof;
     volatile bool ended;
@@ -315,6 +388,11 @@ static void audio_player_thread(void* arg) {
     audio_dec* d = p->dec;
 
     while(!p->quit) {
+        if(p->seekJob != NULL && !p->seekBound && p->seekJob->done) {
+            drmp3_bind_seek_table(&d->mp3, p->seekJob->count, p->seekJob->points);
+            p->seekBound = true;
+        }
+
         if(p->seekTo >= 0) {
             u64 target = (u64) p->seekTo;
             ndspChnWaveBufClear(AUDIO_CHANNEL);
@@ -409,6 +487,12 @@ static void audio_player_stop(audio_player* p) {
         threadFree(p->thread);
     }
 
+    if(p->seekThread != NULL) {
+        p->seekJob->cancel = true;
+        threadJoin(p->seekThread, U64_MAX);
+        threadFree(p->seekThread);
+    }
+
     ndspChnWaveBufClear(AUDIO_CHANNEL);
     ndspChnReset(AUDIO_CHANNEL);
     for(u32 i = 0; i < AUDIO_BUFFERS; i++) {
@@ -419,6 +503,12 @@ static void audio_player_stop(audio_player* p) {
 
     if(p->dec != NULL) {
         audio_dec_close(p->dec);
+    }
+
+    // After the decoder: it held on to the table.
+    if(p->seekJob != NULL) {
+        free(p->seekJob->points);
+        free(p->seekJob);
     }
 
     free(p);
@@ -467,6 +557,18 @@ static audio_player* audio_player_start(FS_Archive archive, const char* path, bo
         return NULL;
     }
 
+    // An MP3's seek table, at the lowest priority (without it each seek reads the track from its start).
+    if(dec->kind == AUDIO_MP3) {
+        p->seekJob = (audio_seek_job*) calloc(1, sizeof(audio_seek_job));
+        if(p->seekJob != NULL) {
+            p->seekJob->archive = archive;
+            string_copy(p->seekJob->path, path, sizeof(p->seekJob->path));
+            bool isNew = false;
+            APT_CheckNew3DS(&isNew);
+            p->seekThread = threadCreate(audio_seek_thread, p->seekJob, AUDIO_STACK, 0x3F, isNew ? 2 : -2, false);
+        }
+    }
+
     return p;
 }
 
@@ -486,6 +588,7 @@ typedef struct {
     bool paused;
     bool finished;      // The last track ended.
     float volume;
+    u32 repeat;         // settings' playerRepeat: 0 off, 1 the list, 2 the track.
 
     int pressed;
     int dragging;       // 1 the seek bar, 2 the volume bar.
@@ -550,11 +653,15 @@ static void audio_close(ui_view* view, audio_data* data, bool stop) {
     audio_free(data);
 }
 
-// A track that ends goes on to the next; the last one stops.
+// A track that ends goes on to the next; the last one stops, unless the list or the track repeats.
 static void audio_advance(audio_data* data) {
     if(data->player != NULL && data->player->ended && !data->finished) {
-        if(data->index + 1 < data->count) {
+        if(data->repeat == 2) {
+            audio_play_index(data, data->index);
+        } else if(data->index + 1 < data->count) {
             audio_play_index(data, data->index + 1);
+        } else if(data->repeat == 1) {
+            audio_play_index(data, 0);
         } else {
             data->finished = true;
             data->paused = true;
@@ -613,6 +720,13 @@ static void audio_toggle(audio_data* data) {
 
     data->paused = !data->paused;
     ndspChnSetPaused(AUDIO_CHANNEL, data->paused);
+}
+
+// Off, the list, the track: kept in settings.json for the next time.
+static void audio_cycle_repeat(audio_data* data) {
+    data->repeat = (data->repeat + 1) % 3;
+    settings_get()->playerRepeat = data->repeat;
+    settings_save();
 }
 
 static void audio_press(audio_data* data, int button) {
@@ -709,12 +823,20 @@ static void audio_draw_top(ui_view* view, void* v, float x1, float y1, float x2,
     }
 }
 
-// The seek bar's touch area, then the volume bar's.
+// The seek bar's touch area, then the volume bar's (it leaves room for the repeat button at its right).
 static void audio_bar_rect(int which, float* x, float* y, float* w, float* h) {
     *x = 16;
-    *w = BOTTOM_SCREEN_WIDTH - 32;
+    *w = BOTTOM_SCREEN_WIDTH - 32 - (which == 1 ? 36 : 0);
     *h = 24;
     *y = which == 1 ? 128 : 98;
+}
+
+// The repeat button, at the right of the volume bar.
+static void audio_repeat_rect(float* x, float* y, float* w, float* h) {
+    *w = 28;
+    *h = 24;
+    *x = BOTTOM_SCREEN_WIDTH - 16 - *w;
+    *y = 128;
 }
 
 static void audio_draw_bottom(ui_view* view, void* v, float x1, float y1, float x2, float y2) {
@@ -744,6 +866,11 @@ static void audio_draw_bottom(ui_view* view, void* v, float x1, float y1, float 
     screen_draw_icon(ICON_VOLUME, x, y + 4, 16, t->palette->textMuted);
     widget_progress(x + 24, y + 8, w - 24, 8, data->volume);
 
+    // Repeat: off (muted), the list, the track.
+    audio_repeat_rect(&x, &y, &w, &h);
+    u32 repeatIcon = data->repeat == 1 ? ICON_REPEAT : data->repeat == 2 ? ICON_REPEAT_ONCE : ICON_REPEAT_OFF;
+    screen_draw_icon(repeatIcon, x + (w - 16) / 2, y + (h - 16) / 2, 16, data->repeat != 0 ? t->accent : t->palette->textMuted);
+
     for(int i = 0; i < AUDIO_BUTTONS; i++) {
         u32 icon = i == 0 ? ICON_PLAYER_TRACK_PREV : i == 1 ? ICON_REWIND_BACKWARD_10 : i == 2 ? (data->paused || data->finished || data->player == NULL ? ICON_PLAYER_PLAY : ICON_PLAYER_PAUSE) : i == 3 ? ICON_REWIND_FORWARD_10 : ICON_PLAYER_TRACK_NEXT;
         widget_row_button(i, AUDIO_BUTTONS, icon, NULL, data->pressed == i, (i == 0 || i == 4) && data->count < 2, i == 2);
@@ -754,7 +881,7 @@ static void audio_update(ui_view* view, void* v, float bx1, float by1, float bx2
     audio_data* data = (audio_data*) v;
 
     view->name = data->name;
-    view->info = _("\uE000 pause   \uE004 \uE005 track   \uE002 stop   \uE001 back");
+    view->info = _("\uE000 pause   \uE004 \uE005 track   \uE003 repeat   \uE002 stop   \uE001 back");
 
     if(hidKeysDown() & (KEY_B | KEY_X)) {
         audio_close(view, data, (hidKeysDown() & KEY_X) != 0);
@@ -764,6 +891,7 @@ static void audio_update(ui_view* view, void* v, float bx1, float by1, float bx2
     audio_advance(data);
 
     if(hidKeysDown() & KEY_A) audio_toggle(data);
+    if(hidKeysDown() & KEY_Y) audio_cycle_repeat(data);
     if(hidKeysDown() & KEY_L) audio_press(data, 0);
     if(hidKeysDown() & KEY_R) audio_press(data, 4);
     if(hidKeysDown() & KEY_LEFT) audio_seek_by(data, -AUDIO_SEEK_STEP);
@@ -778,7 +906,15 @@ static void audio_update(ui_view* view, void* v, float bx1, float by1, float bx2
         data->dragging = 0;
         data->pressed = widget_button_row_hit(&pos, AUDIO_BUTTONS);
 
-        for(int bar = 0; bar < 2 && data->pressed < 0; bar++) {
+        float rx, ry, rw, rh;
+        audio_repeat_rect(&rx, &ry, &rw, &rh);
+        if(data->pressed < 0 && widget_touched(&pos, rx, ry, rw, rh)) {
+            audio_cycle_repeat(data);
+            data->pressed = -1;
+            data->dragging = 3;   // Nothing more for this touch.
+        }
+
+        for(int bar = 0; bar < 2 && data->pressed < 0 && data->dragging == 0; bar++) {
             float x, y, w, h;
             audio_bar_rect(bar, &x, &y, &w, &h);
             if(widget_touched(&pos, x, y, w, h)) {
@@ -863,6 +999,13 @@ void audioview_open(FS_Archive archive, const char* const* paths, u32 count, u32
         return;
     }
 
+    // The track playing in the background chosen again: its player as it is, not that track from its start.
+    audio_data* playing = audio_background;
+    if(playing != NULL && playing->archive == archive && strcmp(playing->paths[playing->index], paths[index]) == 0) {
+        audioview_resume();
+        return;
+    }
+
     // Another list replaces what plays in the background.
     audioview_exit();
 
@@ -895,6 +1038,7 @@ void audioview_open(FS_Archive archive, const char* const* paths, u32 count, u32
     data->count = count;
     data->volume = 1.0f;
     data->pressed = -1;
+    data->repeat = settings_get()->playerRepeat <= 2 ? settings_get()->playerRepeat : 0;
 
     // The DSP needs its firmware (sdmc:/3ds/dspfirm.cdc) dumped from the console.
     data->dspReady = sound_dsp_start();

@@ -120,5 +120,8 @@ typedef enum {
     ICON_FLAG_EU,
     ICON_FLAG_US,
     ICON_FLAG_JP,
+    ICON_REPEAT,
+    ICON_REPEAT_ONCE,
+    ICON_REPEAT_OFF,
     ICON_COUNT
 } icon_id;

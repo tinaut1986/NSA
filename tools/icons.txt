@@ -114,3 +114,6 @@ device-mobile
 flag-eu
 flag-us
 flag-jp
+repeat
+repeat-once
+repeat-off

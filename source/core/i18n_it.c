@@ -1094,7 +1094,7 @@ const i18n_entry i18n_it[] = {
         {"FTP, sending", "FTP, invio"},
         {"Web, receiving", "Web, ricezione"},
         {"Web, sending", "Web, invio"},
-        {"\uE000 pause   \uE004 \uE005 track   \uE002 stop   \uE001 back", "\uE000 pausa   \uE004 \uE005 brano   \uE002 stop   \uE001 indietro"},
+        {"\uE000 pause   \uE004 \uE005 track   \uE003 repeat   \uE002 stop   \uE001 back", "\uE000 pausa   \uE004 \uE005 brano   \uE003 ripeti   \uE002 stop   \uE001 indietro"},
         {"Back to the player", "Torna al lettore"},
         {"Music you play from the SD card goes on when you leave the player with \uE001; \uE002 in the player stops it.", "La musica avviata dalla scheda SD continua quando esci dal lettore con \uE001; \uE002 nel lettore la ferma."},
         {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "Mentre suona, nella barra in alto appare un'icona di riproduzione, e \uE002 in qualsiasi cartella della scheda SD offre Torna al lettore."},

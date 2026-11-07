@@ -14,8 +14,7 @@ Start here in a new session. `staging` is pushed (`b41f2f6`) and holds all of it
   the Store install of 3D Pinball with the web page closed, "Shared UI pieces" (keyboards, viewers' buttons, deleting one
   ext save data, install/paste/export with B), "Sort both ways", "Shorter filters", "Selecting several files", "Music in
   the background", "Transfer toast".
-- **Open questions**: why the Store's Pinball install was slow (see "The owner's tests of 2026-11-07, afternoon": the
-  console was loaded, UI at ~10 fps; a Files install right after was fast); the 2DS's short sleeps look like its sleep
+- **Open questions**: the 2DS's short sleeps look like its sleep
   switch (hardware), to confirm in HOME / other apps.
 - **Left on the New 3DS XL by the tests**: the title "NSA Test" (000400000FB1AE00, our dummy CIA) is installed again;
   the owner can delete it. Nothing else of the tests is on either SD card.
@@ -259,6 +258,7 @@ D-Pads in sheets are good (ticked above). Changed after them:
 - speed-log.txt now has a line per second of each copy/install of a data operation (`copy`) and the time of each Store
   extraction (`extract`): the Store install of 3D Pinball (a .7z with a 963 KB CIA) was slow and the cause is not known.
 - [ ] Install 3D Pinball (or another .7z CIA) from the Store again: is it still slow? Then fetch /nsa/speed-log.txt.
+  (Slow while the Store's status scan ran; fixed below.)
 - [x] Big folders read and delete fast now (the owner, 2026-11-07).
 - [ ] The zoom icon and SELECT change the tile size in every grid: Titles, Tickets, Ext Save Data, Game mods, Store
   (`feat/tile-tool-all`); kept when the screen opens again; the mods summary tile at the smallest size.
@@ -267,6 +267,16 @@ D-Pads in sheets are good (ticked above). Changed after them:
   23.9 s, AM_FinishCiaInstall 26.5 s), with the UI at ~10 frames a second. The same Files install of a 570 KB CIA right
   after: 1.6 s (2.0 s reinstalling), 60 fps. So not AM or the install code: something loaded the console then; the web
   page had been used just before (music, an 8 MB upload). To try: the same Store install with the web page closed.
+- **Why it was slow, found** (2026-11-07, `fix/store-scan-sd`): the Store's background scan of which apps are on the console
+  called `stat()` twice for each app with a .3dsx (`/3ds/<name>/<name>.3dsx`, `/3ds/<name>.3dsx`): 574 calls of ~185 ms
+  each on the New 3DS XL, 107 s after opening the Store. All that time the SD card answered everything else slowly (a
+  6-byte FTP read 323 ms instead of 5). Pinball installed during the scan: extraction 5.2 s, 24 s before the install
+  began, install 17.5 s (~40 s in all); after the scan: 0.6 s, 2 s, 2.2 s (~6 s). The scan now reads `/3ds/` once (30
+  entries, 98 ms) and only calls `stat()` for an app whose folder is there: 1.07 s for 411 apps, and Pinball installed
+  right after opening the Store took 6.7 s. Tried on the New 3DS XL (DEBUG); the "on this console" filter still shows
+  the same 8 apps.
+- [ ] The Store on the 2DS: the scan's time in `store-log.txt` ("status of N apps found in ... ms") and an install soon
+  after opening it.
 - The 2DS's screen going off and on, Wi-Fi gone for a moment: sleep-log.txt has 26 sleeps since it started, 12 of them
   under 3 s (sleep, wake 1.2 s later). The system sends them (NSA never asks to sleep): on a 2DS that is the sleep
   switch. Wi-Fi is down for a moment after any wake, then NSA reconnects (acInit). Likely a worn or bumped switch.

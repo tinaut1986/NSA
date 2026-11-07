@@ -254,16 +254,14 @@ static Result action_paste_contents_delete_source() {
 }
 
 static Result action_paste_contents_delete_path(const char* path) {
-    Result res = 0;
+    if(fs_is_dir(clipboard_get_archive(), path)) {
+        return fs_delete_dir_recursively(clipboard_get_archive(), path);
+    }
 
+    Result res = 0;
     FS_Path* fsPath = fs_make_path_utf8(path);
     if(fsPath != NULL) {
-        if(fs_is_dir(clipboard_get_archive(), path)) {
-            res = FSUSER_DeleteDirectoryRecursively(clipboard_get_archive(), *fsPath);
-        } else {
-            res = FSUSER_DeleteFile(clipboard_get_archive(), *fsPath);
-        }
-
+        res = FSUSER_DeleteFile(clipboard_get_archive(), *fsPath);
         fs_free_path_utf8(fsPath);
     } else {
         res = R_APP_OUT_OF_MEMORY;

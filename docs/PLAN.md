@@ -196,6 +196,14 @@ from Titles no longer asks about an empty folder. The owner decides whether hidd
 - [ ] The New 3DS XL: the list shows only the summary row (or the real mods); A on it: show them, delete them all.
 - [ ] Filter -> Empty folders on and off; the setting is kept when the screen opens again.
 
+**Deleting a folder that holds folders** (2026-11-07, `fix/delete-dir-trailing-slash`; the owner, deleting the mods of a
+game not installed: "Failed to delete the mods", C8804478 not found): the console's FS refuses
+`FSUSER_DeleteDirectoryRecursively` on a path that ends in `/` once the folder holds another (an empty one or one with only
+files goes; tried on the New 3DS XL through the web API). `fs_delete_dir_recursively` drops the slash; the mods, a folder
+cut and pasted onto another medium, the web page's delete and a store script's `rmdir` use it.
+- [ ] Mods: delete the test mods of 0004000000FFFF00 (romfs/ and code.ips), alone and with *Delete mods of games not installed*.
+- [ ] Files: cut a folder with folders in it and paste it onto another medium (the NAND, a save): the source goes.
+
 **Shorter filters, clearer sheets, D-Pad held** (2026-11-07, `feat/compact-overlays`; the owner: the filter card grew too long
 on the small screen, the folder's and the item's sheets looked alike, and a held D-Pad did not run through the actions):
 - Every filter option is an icon now (`popover_display` makes a group icon-only when all its options have one; new icons for

@@ -708,14 +708,9 @@ static void script_rmdir_answered(ui_view* view, void* data, u32 response) {
     script_run* run = (script_run*) data;
     if(response == PROMPT_YES) {
         FS_Archive sd = 0;
-        FS_Path* path = fs_make_path_utf8(run->steps[run->pc].b);
-        if(path != NULL && R_SUCCEEDED(fs_open_archive(&sd, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-            FSUSER_DeleteDirectoryRecursively(sd, *path);
+        if(R_SUCCEEDED(fs_open_archive(&sd, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
+            fs_delete_dir_recursively(sd, run->steps[run->pc].b);
             fs_close_archive(sd);
-        }
-
-        if(path != NULL) {
-            fs_free_path_utf8(path);
         }
     }
 

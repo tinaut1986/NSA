@@ -58,5 +58,8 @@ int keys_hit(const key_rect* keys, u32 count, const touchPosition* pos);
 // A key held by a finger (`pressed`, -1 for none) repeats: true when it is due again (after *repeatAt, which the press
 // set, 0 for a key that does not repeat) and the finger is still on it; *repeatAt then moves 60 ms on.
 bool keys_touch_repeat(const key_rect* keys, int pressed, u64* repeatAt, const touchPosition* pos);
+// Whether the caret shows now: lit while it moves (its blink starts again each time `cursor` changes), then on and off
+// every 500 ms. `lastCursor` and `movedAt` are the keyboard's own.
+bool keys_caret_visible(u32 cursor, u32* lastCursor, u64* movedAt);
 // A button held on a keyboard: true on the press, then every 60 ms after 400 ms. `holdAt` is the button's own.
 bool keys_hold_repeat(u64* holdAt, u32 mask);

@@ -46,6 +46,8 @@ typedef struct {
     u32 changes;
 
     u32 cursor;
+    u32 caretCursor;   // keys_caret_visible's.
+    u64 caretMovedAt;
     float desiredX;
 
     u32* lines;
@@ -72,7 +74,7 @@ typedef struct {
     int lastY;
     u64 repeatAt;
 
-    u64 holdAt[5];
+    u64 holdAt[6];   // The D-Pad, X, Y.
 
     char message[64];
     u64 messageAt;
@@ -636,7 +638,7 @@ static void tv_draw_top(ui_view* view, void* v, float x1, float y1, float x2, fl
 
         if(d->editing && d->cursor >= start && (d->cursor < end || (k + 1 == d->lineCount && d->cursor == end))
            && !(d->cursor == end && k + 1 < d->lineCount && d->buf[end - 1] != '\n')) {
-            if((osGetTime() / 500) % 2 == 0) {
+            if(keys_caret_visible(d->cursor, &d->caretCursor, &d->caretMovedAt)) {
                 float cx = x1 + TV_PAD + tv_width_between(d, start, d->cursor);
                 screen_fill_rect(cx, y, 1.5f, lineH - 1, t->accent);
             }
@@ -818,7 +820,7 @@ static void tv_update(ui_view* view, void* v, float bx1, float by1, float bx2, f
         if(keys_hold_repeat(&d->holdAt[2], KEY_DUP)) tv_move_vertical(d, -1);
         if(keys_hold_repeat(&d->holdAt[3], KEY_DDOWN)) tv_move_vertical(d, 1);
         if(keys_hold_repeat(&d->holdAt[4], KEY_X)) tv_backspace(d);
-        if(hidKeysDown() & KEY_Y) tv_insert(d, " ", 1);
+        if(keys_hold_repeat(&d->holdAt[5], KEY_Y)) tv_insert(d, " ", 1);
         if(hidKeysDown() & KEY_A) tv_insert(d, "\n", 1);
         if(hidKeysDown() & KEY_SELECT) d->shift = (d->shift + 1) % 3;
 

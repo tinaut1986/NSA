@@ -21,6 +21,8 @@ typedef struct {
     char* text;
     u32 len;
     u32 cursor;
+    u32 caretCursor;   // keys_caret_visible's.
+    u64 caretMovedAt;
     u32 maxSize;   // With the final NUL.
     u32 flags;
 
@@ -30,7 +32,7 @@ typedef struct {
     u32 keyCount;
     int pressedKey;
     u64 repeatAt;
-    u64 holdAt[2];
+    u64 holdAt[4];   // D-Pad left and right, X, Y.
 
     void* data;
     void (*onResponse)(ui_view* view, void* data, SwkbdButton button, const char* response);
@@ -185,7 +187,7 @@ static void osk_draw_top(ui_view* view, void* v, float x1, float y1, float x2, f
         widget_text_fit(shown, boxX + 10, textY, WIDGET_TEXT_SCALE, t->palette->text, room);
     }
 
-    if((osGetTime() / 500) % 2 == 0) {
+    if(keys_caret_visible(d->cursor, &d->caretCursor, &d->caretMovedAt)) {
         char saved = d->text[d->cursor];
         d->text[d->cursor] = '\0';
         float cx = boxX + 10 + widget_text_width(d->text + start, WIDGET_TEXT_SCALE);
@@ -259,8 +261,8 @@ static void osk_update(ui_view* view, void* v, float bx1, float by1, float bx2, 
 
     if(keys_hold_repeat(&d->holdAt[0], KEY_DLEFT)) d->cursor = osk_prev_char(d, d->cursor);
     if(keys_hold_repeat(&d->holdAt[1], KEY_DRIGHT)) d->cursor = osk_next_char(d, d->cursor);
-    if(hidKeysDown() & KEY_X) osk_backspace(d);
-    if(hidKeysDown() & KEY_Y) osk_insert(d, " ");
+    if(keys_hold_repeat(&d->holdAt[2], KEY_X)) osk_backspace(d);
+    if(keys_hold_repeat(&d->holdAt[3], KEY_Y)) osk_insert(d, " ");
     if(hidKeysDown() & KEY_SELECT) d->shift = (d->shift + 1) % 3;
 
     touchPosition pos;

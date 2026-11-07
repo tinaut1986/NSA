@@ -58,16 +58,19 @@ void keys_draw(const key_rect* k, bool pressed, u32 shift) {
     const theme_current* t = theme();
     bool special = k->def->action != K_CHAR;
     bool ok = k->def->action == K_OK;
-    u32 fill = pressed ? t->accent : ok ? t->accentSoft : special ? t->palette->background : t->palette->surface;
-    u32 edge = pressed ? t->accent : t->palette->border;
-    u32 ink = pressed ? t->onAccent : ok ? t->accent : t->palette->text;
+    // Shift for the next letter is soft; caps lock is filled, as a key held down.
+    bool locked = k->def->action == K_SHIFT && shift == 2;
+    bool once = k->def->action == K_SHIFT && shift == 1;
+    u32 fill = pressed || locked ? t->accent : ok || once ? t->accentSoft : special ? t->palette->background : t->palette->surface;
+    u32 edge = pressed || locked || once ? t->accent : t->palette->border;
+    u32 ink = pressed || locked ? t->onAccent : ok || once ? t->accent : t->palette->text;
     screen_frame_round_rect(k->x, k->y, k->w, k->h, t->def->radiusSmall, t->def->border, edge, fill);
 
     int icon = -1;
     const char* label = NULL;
     switch(k->def->action) {
         case K_CHAR: label = shift != 0 ? k->def->upper : k->def->lower; break;
-        case K_SHIFT: icon = ICON_CHEVRON_UP; if(shift == 2) { ink = pressed ? t->onAccent : t->accent; } break;
+        case K_SHIFT: icon = ICON_CHEVRON_UP; break;
         case K_BACK: icon = ICON_ARROW_LEFT; break;
         case K_PAGE_LETTERS: label = "abc"; break;
         case K_PAGE_SYMBOLS: label = "123"; break;
@@ -121,6 +124,16 @@ bool keys_touch_repeat(const key_rect* keys, int pressed, u64* repeatAt, const t
 
     *repeatAt = osGetTime() + 60;
     return true;
+}
+
+bool keys_caret_visible(u32 cursor, u32* lastCursor, u64* movedAt) {
+    u64 now = osGetTime();
+    if(cursor != *lastCursor) {
+        *lastCursor = cursor;
+        *movedAt = now;
+    }
+
+    return ((now - *movedAt) / 500) % 2 == 0;
 }
 
 bool keys_hold_repeat(u64* holdAt, u32 mask) {

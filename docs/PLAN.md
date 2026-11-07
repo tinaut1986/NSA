@@ -187,6 +187,15 @@ that has a folder there asks whether to delete its mods too. Guide chapter `mods
 - [ ] Deleting a game with mods from Titles asks, and Yes deletes `/luma/titles/<ID>/`; a game without mods asks nothing.
 - [ ] No `/luma/titles` (or empty): the screen says "No mods in /luma/titles." and nothing breaks.
 
+**Empty mods folders** (2026-11-07, `feat/mods-empty-folders`; the owner's New 3DS XL has 22 folders in `/luma/titles`, all
+empty, so every game seemed to have mods): a folder with no files is no mods. They are hidden by default and one row at the top
+stands for them all ("22 empty folders", folder-off icon; its sheet: *Show empty folders*, *Delete empty folders*). Filter ->
+Show has a third chip, *Empty folders* (settings `mods.states` bit 4). Shown, they carry the tag *Empty* and the sheet of any
+row has *Hide* / *Delete empty folders*. *Delete mods of games not installed* leaves the empty ones out, and deleting a game
+from Titles no longer asks about an empty folder. The owner decides whether hidden or shown reads better.
+- [ ] The New 3DS XL: the list shows only the summary row (or the real mods); A on it: show them, delete them all.
+- [ ] Filter -> Empty folders on and off; the setting is kept when the screen opens again.
+
 **Updates start sooner** (2026-11-06, `fix/update-start`): the first request of a download (`http_probe`: where the file is,
 how big) ran on the caller's thread, on the system core, which an Old 3DS shares at 5% while a transfer turn is held; it now runs
 on the app's core, as the fetches do, and the update check too. Measured on the 2DS (DEBUG built as 0.8.3-beta, offered v0.8.4):

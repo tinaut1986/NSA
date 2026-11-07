@@ -1095,6 +1095,16 @@ const i18n_entry i18n_ca[] = {
         {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "Mentre sona, es veu una icona de reproduir a la barra superior, i \uE002 a qualsevol carpeta de la targeta SD té Tornar al reproductor."},
         {"Music in the background", "Música en segon pla"},
         {"Keep listening while you browse", "Continua escoltant mentre navegues"},
+        {"%lu empty folder", "%lu carpeta buida"},
+        {"%lu empty folders", "%lu carpetes buides"},
+        {"Hidden: they hold no mods", "Amagades: no tenen mods"},
+        {"Folders in /luma/titles with no files in them: they hold no mods and Luma3DS finds nothing in them. Some programs make one for every game. They are hidden;  shows them or deletes them all.", "Carpetes de /luma/titles sense cap fitxer: no tenen mods i Luma3DS no hi troba res. Alguns programes en creen una per a cada joc. Estan amagades;  les mostra o les esborra totes."},
+        {"Show empty folders", "Mostrar carpetes buides"},
+        {"Hide empty folders", "Amagar carpetes buides"},
+        {"Delete empty folders", "Esborrar carpetes buides"},
+        {"Delete %lu empty folders in /luma/titles? There is nothing in them.", "Esborrar %lu carpetes buides de /luma/titles? No hi ha res a dins."},
+        {"Empty folders", "Carpetes buides"},
+        {"This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.", "Aquesta carpeta és buida: no té mods i Luma3DS no hi troba res. Esborrar-la no canvia res."},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

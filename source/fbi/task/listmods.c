@@ -39,7 +39,7 @@ static void task_mods_path(char* out, size_t size, u64 titleId) {
 }
 
 bool task_mod_unused(const mod_info* info) {
-    return info->ready && info->state == MOD_STATE_NOT_INSTALLED && title_kind_of(info->titleId) != TITLE_KIND_SYSTEM;
+    return info->ready && !info->summary && !MOD_EMPTY(info) && info->state == MOD_STATE_NOT_INSTALLED && title_kind_of(info->titleId) != TITLE_KIND_SYSTEM;
 }
 
 void task_mod_contents_text(char* out, size_t size, u32 contents) {
@@ -78,9 +78,12 @@ bool task_mods_exist(u64 titleId) {
     if(R_SUCCEEDED(fs_open_archive(&sd, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
         FS_Path* fsPath = fs_make_path_utf8(path);
         if(fsPath != NULL) {
+            // An empty folder is no mods: nothing to ask about.
             Handle dir = 0;
             if(R_SUCCEEDED(FSUSER_OpenDirectory(&dir, sd, *fsPath))) {
-                exists = true;
+                FS_DirectoryEntry entry;
+                u32 read = 0;
+                exists = R_SUCCEEDED(FSDIR_Read(dir, &read, 1, &entry)) && read > 0;
                 FSDIR_Close(dir);
             }
 

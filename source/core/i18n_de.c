@@ -1100,6 +1100,16 @@ const i18n_entry i18n_de[] = {
         {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "Während sie spielt, zeigt die obere Leiste ein Wiedergabe-Symbol, und \uE002 in jedem Ordner der SD-Karte bietet Zurück zum Player."},
         {"Music in the background", "Musik im Hintergrund"},
         {"Keep listening while you browse", "Weiterhören beim Stöbern"},
+        {"%lu empty folder", "%lu leerer Ordner"},
+        {"%lu empty folders", "%lu leere Ordner"},
+        {"Hidden: they hold no mods", "Ausgeblendet: keine Mods darin"},
+        {"Folders in /luma/titles with no files in them: they hold no mods and Luma3DS finds nothing in them. Some programs make one for every game. They are hidden;  shows them or deletes them all.", "Ordner in /luma/titles ohne Dateien: Sie enthalten keine Mods und Luma3DS findet darin nichts. Manche Programme legen für jedes Spiel einen an. Sie sind ausgeblendet;  zeigt sie an oder löscht sie alle."},
+        {"Show empty folders", "Leere Ordner anzeigen"},
+        {"Hide empty folders", "Leere Ordner ausblenden"},
+        {"Delete empty folders", "Leere Ordner löschen"},
+        {"Delete %lu empty folders in /luma/titles? There is nothing in them.", "%lu leere Ordner in /luma/titles löschen? Es ist nichts darin."},
+        {"Empty folders", "Leere Ordner"},
+        {"This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.", "Dieser Ordner ist leer: Er enthält keine Mods und Luma3DS findet darin nichts. Ihn zu löschen ändert nichts."},
 };
 
 const u32 i18n_de_count = sizeof(i18n_de) / sizeof(*i18n_de);

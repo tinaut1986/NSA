@@ -1100,6 +1100,16 @@ const i18n_entry i18n_pt[] = {
         {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "Enquanto toca, aparece um ícone de reprodução na barra de cima, e \uE002 em qualquer pasta do cartão SD tem Voltar ao player."},
         {"Music in the background", "Música em segundo plano"},
         {"Keep listening while you browse", "Continue ouvindo enquanto navega"},
+        {"%lu empty folder", "%lu pasta vazia"},
+        {"%lu empty folders", "%lu pastas vazias"},
+        {"Hidden: they hold no mods", "Ocultas: não têm mods"},
+        {"Folders in /luma/titles with no files in them: they hold no mods and Luma3DS finds nothing in them. Some programs make one for every game. They are hidden;  shows them or deletes them all.", "Pastas de /luma/titles sem nenhum arquivo: não têm mods e o Luma3DS não encontra nada nelas. Alguns programas criam uma para cada jogo. Estão ocultas;  as mostra ou apaga todas."},
+        {"Show empty folders", "Mostrar pastas vazias"},
+        {"Hide empty folders", "Ocultar pastas vazias"},
+        {"Delete empty folders", "Apagar pastas vazias"},
+        {"Delete %lu empty folders in /luma/titles? There is nothing in them.", "Apagar %lu pastas vazias de /luma/titles? Não há nada nelas."},
+        {"Empty folders", "Pastas vazias"},
+        {"This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.", "Esta pasta está vazia: não tem mods e o Luma3DS não encontra nada nela. Apagá-la não muda nada."},
 };
 
 const u32 i18n_pt_count = sizeof(i18n_pt) / sizeof(*i18n_pt);

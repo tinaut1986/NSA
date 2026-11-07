@@ -1087,6 +1087,16 @@ const i18n_entry i18n_zh[] = {
         {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "播放时上方栏会显示播放图标，在 SD 卡的任何文件夹中按 \uE002 都有“返回播放器”。"},
         {"Music in the background", "后台播放音乐"},
         {"Keep listening while you browse", "浏览时继续播放"},
+        {"%lu empty folder", "%lu 个空文件夹"},
+        {"%lu empty folders", "%lu 个空文件夹"},
+        {"Hidden: they hold no mods", "已隐藏：其中没有 MOD"},
+        {"Folders in /luma/titles with no files in them: they hold no mods and Luma3DS finds nothing in them. Some programs make one for every game. They are hidden;  shows them or deletes them all.", "/luma/titles 中没有任何文件的文件夹：其中没有 MOD，Luma3DS 也找不到任何内容。有些程序会为每个游戏创建一个。它们已隐藏； 可显示或全部删除。"},
+        {"Show empty folders", "显示空文件夹"},
+        {"Hide empty folders", "隐藏空文件夹"},
+        {"Delete empty folders", "删除空文件夹"},
+        {"Delete %lu empty folders in /luma/titles? There is nothing in them.", "要删除 /luma/titles 中的 %lu 个空文件夹吗？其中没有任何内容。"},
+        {"Empty folders", "空文件夹"},
+        {"This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.", "此文件夹是空的：其中没有 MOD，Luma3DS 也找不到任何内容。可以放心删除。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

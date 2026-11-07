@@ -125,13 +125,14 @@ int widget_button_row_hit(const touchPosition* pos, int count) {
 }
 
 void widget_button_row_hold(int* pressed, const touchPosition* pos, int count) {
-    if(*pressed >= 0) {
-        float x, y, w, h;
-        widget_button_row_rect(*pressed, count, &x, &y, &w, &h);
-        if(!widget_touched(pos, x, y, w, h)) {
-            *pressed = -1;
-        }
+    // A finger that went down elsewhere (panning, a bar) lights nothing on its way.
+    if(*pressed == -1) {
+        return;
     }
+
+    // Like the menus, the button under the finger is the one lit (and pressed on release); between buttons, none.
+    int hit = widget_button_row_hit(pos, count);
+    *pressed = hit >= 0 ? hit : WIDGET_BUTTON_ROW_OFF;
 }
 
 void widget_item_frame(float x, float y, float width, float height, bool selected, u32* ink, u32* muted) {

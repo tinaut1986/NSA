@@ -853,6 +853,41 @@ static size_t http_probe_write(char* ptr, size_t size, size_t nmemb, void* userd
     return len;
 }
 
+typedef struct {
+    CURL* curl;
+    CURLcode ret;
+} http_perform_job;
+
+static void http_perform_job_thread(void* arg) {
+    http_perform_job* job = (http_perform_job*) arg;
+    job->ret = http_perform(job->curl);
+}
+
+// curl_easy_perform on a thread of the app's core (core 2 on a New 3DS), as the downloads' own fetches run, and waits for
+// it. The callers (an install's task, the update check) run on the system core, where an Old 3DS gives the app 30% of the
+// time, and only 5% while a transfer turn is held (XFERTURN_CPU_LIMIT): there a connection and its TLS handshake took
+// about 36 s on a 2DS before an update's download began.
+static CURLcode http_perform_on_app_core(CURL* curl) {
+    http_perform_job job = {curl, CURLE_FAILED_INIT};
+    Thread thread = NULL;
+    bool isNew = false;
+    if(R_SUCCEEDED(APT_CheckNew3DS(&isNew)) && isNew) {
+        thread = threadCreate(http_perform_job_thread, &job, HTTP_FETCH_STACK, HTTP_FETCH_PRIORITY, 2, false);
+    }
+
+    if(thread == NULL) {
+        thread = threadCreate(http_perform_job_thread, &job, HTTP_FETCH_STACK, HTTP_FETCH_PRIORITY, -2, false);
+    }
+
+    if(thread == NULL) {
+        return http_perform(curl);
+    }
+
+    threadJoin(thread, U64_MAX);
+    threadFree(thread);
+    return job.ret;
+}
+
 // Asks for the first byte only: where the file is after redirects, how big,
 // and whether ranges are served (a 206 with the total). Not HEAD and
 // Accept-Ranges, as before: some servers (catbox.moe) answer HEAD with no size
@@ -883,7 +918,13 @@ static bool http_probe(const char* url, char* effective, size_t effectiveSize, u
     bool ok = false;
     long code = 0;
     char* where = NULL;
-    if(http_perform(curl) == CURLE_OK
+    u64 started = osGetTime();
+    CURLcode ret = http_perform_on_app_core(curl);
+    if(http_log != NULL) {
+        http_log("http: probe %s: %llu ms, curl %d\n", url, osGetTime() - started, ret);
+    }
+
+    if(ret == CURLE_OK
        && curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code) == CURLE_OK && code == 206 && state.total > 0
        && curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &where) == CURLE_OK && where != NULL
        && strlen(where) < effectiveSize) {
@@ -1293,9 +1334,12 @@ static const char* http_direct_url(const char* url, char* buffer, size_t size) {
     return buffer;
 }
 
-Result http_download_callback(const char* givenUrl, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
-                                                                               Result (*checkRunning)(void* userData),
-                                                                               Result (*progress)(void* userData, u64 total, u64 curr, u32 connections)) {
+// `probe`: ask first where the file is and how big, to fetch a big one over several connections. A download that can not be
+// big (into a small buffer) skips it: on an Old 3DS that first request is a whole connection and TLS handshake, 1-3 s.
+static Result http_download_callback_probe(const char* givenUrl, u32 bufferSize, void* userData,
+                                           Result (*callback)(void* userData, void* buffer, size_t size),
+                                           Result (*checkRunning)(void* userData),
+                                           Result (*progress)(void* userData, u64 total, u64 curr, u32 connections), bool probe) {
     char direct[256];
     const char* url = http_direct_url(givenUrl, direct, sizeof(direct));
     http_disposition[0] = '\0';
@@ -1308,7 +1352,7 @@ Result http_download_callback(const char* givenUrl, u32 bufferSize, void* userDa
     http_shared_open(shared);
 
     // A big file from a server that serves ranges: several connections.
-    char* effective = (char*) malloc(1024);
+    char* effective = probe ? (char*) malloc(1024) : NULL;
     u64 size = 0;
     if(effective != NULL && http_probe(url, effective, 1024, &size, NULL, NULL, shared) && size >= HTTP_PARALLEL_MIN) {
         u64 handed = 0;
@@ -1923,6 +1967,12 @@ Result http_download_file(const char* givenUrl, u32 firstSize, void* userData, R
     return res;
 }
 
+Result http_download_callback(const char* givenUrl, u32 bufferSize, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
+                                                                               Result (*checkRunning)(void* userData),
+                                                                               Result (*progress)(void* userData, u64 total, u64 curr, u32 connections)) {
+    return http_download_callback_probe(givenUrl, bufferSize, userData, callback, checkRunning, progress, true);
+}
+
 typedef struct {
     void* buf;
     size_t size;
@@ -1950,7 +2000,7 @@ static Result http_download_buffer_callback(void* userData, void* buffer, size_t
 
 Result http_download_buffer(const char* url, u32* downloadedSize, void* buf, size_t size) {
     http_buffer_data data = {buf, size, 0};
-    Result res = http_download_callback(url, size, &data, http_download_buffer_callback, NULL, NULL);
+    Result res = http_download_callback_probe(url, size, &data, http_download_buffer_callback, NULL, NULL, size >= HTTP_PARALLEL_MIN);
 
     if(R_SUCCEEDED(res)) {
         *downloadedSize = data.pos;

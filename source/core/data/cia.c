@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <3ds.h>
 
 #include "cia.h"
@@ -52,4 +54,43 @@ Result cia_file_get_smdh(SMDH* smdh, Handle handle) {
     }
 
     return res;
+}
+
+void cia_seed_watch_start(cia_seed_watch* watch, const u8* cia, size_t size) {
+    memset(watch, 0, sizeof(*watch));
+    if(cia != NULL && size >= 0x20) {
+        u64 headerSize = ((*(u32*) &cia[0x00]) + 0x3F) & ~0x3F;
+        u64 certSize = ((*(u32*) &cia[0x08]) + 0x3F) & ~0x3F;
+        u64 ticketSize = ((*(u32*) &cia[0x0C]) + 0x3F) & ~0x3F;
+        u64 tmdSize = ((*(u32*) &cia[0x10]) + 0x3F) & ~0x3F;
+        watch->content = headerSize + certSize + ticketSize + tmdSize;
+    }
+}
+
+void cia_seed_watch_feed(cia_seed_watch* watch, const void* buffer, u64 offset, u32 size) {
+    if(watch->content == 0 || buffer == NULL) {
+        return;
+    }
+
+    const u8* bytes = (const u8*) buffer;
+    for(u32 i = 0; i < 5; i++) {
+        u64 at = watch->content + (i < 4 ? 0x100 + i : 0x18F);
+        if(at >= offset && at < offset + size) {
+            if(i < 4) {
+                watch->magic[i] = bytes[at - offset];
+            } else {
+                watch->flags7 = bytes[at - offset];
+            }
+
+            watch->seen |= 1 << i;
+        }
+    }
+}
+
+bool cia_seed_watch_needed(const cia_seed_watch* watch) {
+    if(watch->seen != 0x1F || memcmp(watch->magic, "NCCH", 4) != 0) {
+        return true;
+    }
+
+    return (watch->flags7 & 0x20) != 0;
 }

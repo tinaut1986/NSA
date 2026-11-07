@@ -34,10 +34,10 @@
 #define FTP_SEND_CHUNK (64 * 1024)
 // The most one send() offers, in bytes (SITE SENDCHUNK <KB>, DEBUG, to compare).
 static u32 ftp_send_chunk = FTP_SEND_CHUNK;
-#define FTP_GIVE_WAY_MS 30000
-// A transfer stalled this long gives up when another client is waiting to connect: the 3DS does not
-// always see a client's reset, and the server serves one session at a time.
-#define FTP_STALL_MS 10000
+// Clients at once, each on a thread of its own (FileZilla keeps one connection to browse and opens another for each
+// transfer). Data still moves for one transfer at a time (xferturn.h); listings and SITE commands answer meanwhile.
+#define FTP_MAX_SESSIONS 3
+#define FTP_SESSION_STACK 0x10000
 #define FTP_DATA_ACCEPT_MS 15000
 #define FTP_IDLE_MS (10 * 60 * 1000)
 #define FTP_PASV_FIRST (FTP_SERVER_PORT + 1)
@@ -60,23 +60,37 @@ static bool ftp_retry = false;
 static u64 ftp_retry_next = 0;
 static u64 ftp_retry_end = 0;
 static int ftp_listen = -1;
-static volatile int ftp_ctrl = -1;
-static volatile int ftp_data = -1;
-static volatile u64 ftp_data_since = 0;   // When the data connection opened.
+// The data connection of the transfer that holds the turn: it waits inside poll() (ftp_wait_fd).
+static volatile int ftp_owner_data = -1;
+static volatile u32 ftp_data_open = 0;    // Data connections open, all sessions.
+static volatile u64 ftp_data_since = 0;   // When the last one opened.
 static volatile u64 ftp_data_ended = 0;   // When the last one closed,
 static volatile bool ftp_data_long = false;   // and whether it lasted a second or more.
 static u32 ftp_ip = 0;
 static char ftp_status[48] = "Off";
-static char* ftp_io = NULL;
 static unsigned ftp_next_pasv = 0;
+
+// The sessions' list, the data counters and the PASV ports; installs (SITE INSTALL, the web page) one at a time; the
+// main thread's errands (SITE SCREENSHOT, SITE TEST) one at a time.
+static LightLock ftp_lock;
+static LightLock ftp_install_lock;
+static LightLock ftp_errand_lock;
+static bool ftp_locks_ready = false;
+
+// Before the first start, and before an install from the web page (which may come with the server off).
+static void ftp_init_locks() {
+    if(!ftp_locks_ready) {
+        LightLock_Init(&ftp_lock);
+        LightLock_Init(&ftp_install_lock);
+        LightLock_Init(&ftp_errand_lock);
+        ftp_locks_ready = true;
+    }
+}
 
 static volatile ftp_phase ftp_current_phase = PHASE_NONE;
 static char ftp_phase_file[64];
-static volatile u64 ftp_allo = 0;
 static volatile u64 ftp_done = 0;
 static volatile u64 ftp_total = 0;
-// The transfer turn (xferturn.h) held by the RETR or STOR under way, 0 when none.
-static u32 ftp_turn = 0;
 
 // A screenshot asked for by SITE SCREENSHOT, taken by the main thread.
 static volatile bool shot_requested = false;
@@ -93,12 +107,17 @@ static char test_reply[FTP_LINE_MAX];
 typedef struct {
     int ctrl;
     int pasv;  // Listening data socket after PASV/EPSV, -1 when none.
+    volatile int data;   // The data connection under way, -1 when none.
+    u32 turn;  // The transfer turn (xferturn.h) its RETR or STOR holds, 0 when none.
+    u64 allo;  // ALLO: the size of the next STOR.
+    char* io;  // Its transfers' buffer (FTP_IO_SIZE).
     char cwd[FTP_PATH_MAX];
     char rnfr[FTP_PATH_MAX];
     char in[FTP_LINE_MAX * 2];
     unsigned inUsed;
-    bool broken;   // The last transfer failed: the client may have gone, so a new connection is let in at once.
 } ftp_session;
+
+static ftp_session* ftp_sessions[FTP_MAX_SESSIONS];
 
 // ---- sockets ----
 
@@ -121,7 +140,7 @@ static void ftp_close_socket(int* fd) {
 // data meanwhile. The sockets still never block, so a client that went away costs those ms, not
 // minutes (see netpoll.h).
 static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
-    bool owner = ftp_turn != 0 && fd == ftp_data;
+    bool owner = fd >= 0 && fd == ftp_owner_data;
     int waited = 0;
     while(ftp_run) {
         struct pollfd p = {.fd = fd, .events = events, .revents = 0};
@@ -153,21 +172,9 @@ static bool ftp_wait_fd(int fd, short events, int timeoutMs) {
     return false;
 }
 
-// A data connection's wait, up to `timeoutMs`; after FTP_STALL_MS with nothing, it gives up if another
-// client is waiting to connect (see FTP_STALL_MS).
+// A data connection's wait, up to `timeoutMs`. Other clients connect on their own threads meanwhile.
 static bool ftp_wait_data(int fd, short events, int timeoutMs) {
-    for(int waited = 0; waited < timeoutMs; waited += FTP_STALL_MS) {
-        if(ftp_wait_fd(fd, events, FTP_STALL_MS)) {
-            return true;
-        }
-
-        struct pollfd p = {.fd = ftp_listen, .events = POLLIN, .revents = 0};
-        if(!ftp_run || (poll(&p, 1, 0) > 0 && (p.revents & POLLIN) != 0)) {
-            return false;
-        }
-    }
-
-    return false;
+    return ftp_wait_fd(fd, events, timeoutMs);
 }
 
 // `log` (may be NULL) gets the time spent waiting for room and inside send().
@@ -227,20 +234,15 @@ static bool ftp_reply(ftp_session* s, const char* fmt, ...) {
     return ftp_send_all(s->ctrl, line, (size_t) n);
 }
 
-// Waits for the client's next command. One session at a time: a client that
-// vanished without closing (a dropped Wi-Fi) would keep everyone else out for
-// FTP_IDLE_MS, so a session silent for FTP_GIVE_WAY_MS gives way to a new one.
+// Waits for the client's next command. Each session has its thread, so a silent one keeps no one else out; one
+// silent for FTP_IDLE_MS (a client that vanished with the Wi-Fi) is closed, which frees its place.
 static bool ftp_wait_command(ftp_session* s) {
     u32 waited = 0;
     while(ftp_run) {
-        struct pollfd p[2] = {{.fd = s->ctrl, .events = POLLIN, .revents = 0}, {.fd = ftp_listen, .events = POLLIN, .revents = 0}};
-        int r = poll(p, 2, 0);
-        if(r < 0 || (p[0].revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
+        struct pollfd p = {.fd = s->ctrl, .events = POLLIN, .revents = 0};
+        int r = poll(&p, 1, 0);
+        if(r < 0 || (p.revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
             return r >= 0;
-        }
-
-        if((p[1].revents & POLLIN) != 0 && (s->broken || waited >= FTP_GIVE_WAY_MS)) {
-            return false;
         }
 
         u32 nap = net_nap_ms(waited);
@@ -358,7 +360,9 @@ static int ftp_open_pasv(ftp_session* s) {
     ftp_close_pasv(s);
 
     for(unsigned attempt = 0; attempt < FTP_PASV_COUNT; attempt++) {
+        LightLock_Lock(&ftp_lock);
         unsigned port = FTP_PASV_FIRST + (ftp_next_pasv++ % FTP_PASV_COUNT);
+        LightLock_Unlock(&ftp_lock);
 
         int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if(fd < 0) {
@@ -407,16 +411,40 @@ static int ftp_accept_data(ftp_session* s) {
     }
 
     ftp_close_pasv(s);
-    ftp_data_since = osGetTime();
-    ftp_data = fd;
+    if(fd >= 0) {
+        LightLock_Lock(&ftp_lock);
+        ftp_data_open++;
+        ftp_data_since = osGetTime();
+        s->data = fd;
+        if(s->turn != 0) {
+            ftp_owner_data = fd;
+        }
+
+        LightLock_Unlock(&ftp_lock);
+    }
+
     return fd;
 }
 
-static void ftp_close_data(int* fd) {
+static void ftp_close_data(ftp_session* s, int* fd) {
+    if(*fd < 0) {
+        return;
+    }
+
+    LightLock_Lock(&ftp_lock);
     u64 now = osGetTime();
     ftp_data_long = now - ftp_data_since >= 1000;
     ftp_data_ended = now;
-    ftp_data = -1;
+    if(ftp_data_open > 0) {
+        ftp_data_open--;
+    }
+
+    if(ftp_owner_data == *fd) {
+        ftp_owner_data = -1;
+    }
+
+    s->data = -1;
+    LightLock_Unlock(&ftp_lock);
     net_close_gently(*fd);
     *fd = -1;
 }
@@ -432,7 +460,25 @@ static void ftp_set_phase(ftp_phase phase, const char* vpath) {
 
 // ---- SITE INSTALL ----
 
+static bool ftp_install_cia_locked(const char* vpath, char* io, char* error, size_t errorSize);
+
+// One install at a time (SITE INSTALL from any session, the web page's), with a buffer of its own.
 static bool ftp_install_cia(const char* vpath, char* error, size_t errorSize) {
+    char* io = (char*) malloc(FTP_IO_SIZE);
+    if(io == NULL) {
+        snprintf(error, errorSize, "out of memory");
+        return false;
+    }
+
+    ftp_init_locks();
+    LightLock_Lock(&ftp_install_lock);
+    bool ok = ftp_install_cia_locked(vpath, io, error, errorSize);
+    LightLock_Unlock(&ftp_install_lock);
+    free(io);
+    return ok;
+}
+
+static bool ftp_install_cia_locked(const char* vpath, char* io, char* error, size_t errorSize) {
     Handle input = 0;
     Handle output = 0;
     bool started = false;
@@ -479,7 +525,7 @@ static bool ftp_install_cia(const char* vpath, char* error, size_t errorSize) {
         u32 want = size - offset > FTP_IO_SIZE ? FTP_IO_SIZE : (u32) (size - offset);
         u32 bytesRead = 0;
         u32 bytesWritten = 0;
-        if(R_FAILED(res = FSFILE_Read(input, &bytesRead, offset, ftp_io, want)) || bytesRead != want) {
+        if(R_FAILED(res = FSFILE_Read(input, &bytesRead, offset, io, want)) || bytesRead != want) {
             snprintf(error, errorSize, "SD read failed (%08lX)", res);
             goto done;
         }
@@ -487,7 +533,7 @@ static bool ftp_install_cia(const char* vpath, char* error, size_t errorSize) {
         // AM refuses a lower version than the installed one at the first
         // write. Unlike the ports, NSA does not delete the installed title to
         // force it: that would also delete the game's save data.
-        if(R_FAILED(res = FSFILE_Write(output, &bytesWritten, offset, ftp_io, bytesRead, 0)) || bytesWritten != bytesRead) {
+        if(R_FAILED(res = FSFILE_Write(output, &bytesWritten, offset, io, bytesRead, 0)) || bytesWritten != bytesRead) {
             snprintf(error, errorSize, "install write failed (%08lX)%s", res, offset == 0 ? "; an older version than the installed one?" : "");
             goto done;
         }
@@ -604,7 +650,7 @@ static void ftp_cmd_list(ftp_session* s, const char* arg, list_kind kind) {
     }
 
     closedir(dir);
-    ftp_close_data(&data);
+    ftp_close_data(s, &data);
     ftp_reply(s, ok ? "226 Done." : "426 Transfer aborted.");
 }
 
@@ -613,9 +659,10 @@ static void ftp_cmd_list(ftp_session* s, const char* arg, list_kind kind) {
 #define FTP_TURN_MIN_RETR (1024 * 1024)
 
 // Takes the turn for `vpath`, or says who has it (450) and gives the PASV socket up.
-static bool ftp_take_turn(ftp_session* s, const char* vpath, u64 total) {
-    ftp_turn = xferturn_take(XFER_FTP, vpath, total);
-    if(ftp_turn != 0) {
+static bool ftp_take_turn(ftp_session* s, const char* vpath, u64 total, bool incoming) {
+    s->turn = xferturn_take(XFER_FTP, vpath, total);
+    if(s->turn != 0) {
+        xferturn_incoming(s->turn, incoming);
         return true;
     }
 
@@ -629,9 +676,9 @@ static bool ftp_take_turn(ftp_session* s, const char* vpath, u64 total) {
     return false;
 }
 
-static void ftp_release_turn() {
-    xferturn_release(ftp_turn);
-    ftp_turn = 0;
+static void ftp_release_turn(ftp_session* s) {
+    xferturn_release(s->turn);
+    s->turn = 0;
 }
 
 // Test files for tools/speed_tests.py, to tell the network from the card: RETR /dev/zero/<MB> sends
@@ -666,7 +713,7 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
 
     // NSA's own speed traces are read while something transfers (tools/speed_tests.py): never the turn for them.
     bool traces = strcmp(vpath, APP_DATA_DIR "speed-log.txt") == 0;
-    if(!traces && (zero || size >= FTP_TURN_MIN_RETR) && !ftp_take_turn(s, vpath, size)) {
+    if(!traces && (zero || size >= FTP_TURN_MIN_RETR) && !ftp_take_turn(s, vpath, size, false)) {
         if(f != NULL) {
             fclose(f);
         }
@@ -681,7 +728,7 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
             fclose(f);
         }
 
-        ftp_release_turn();
+        ftp_release_turn(s);
         ftp_reply(s, "425 No data connection.");
         return;
     }
@@ -689,7 +736,7 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
     // Not the trace of fetching the traces (tools/speed_tests.py reads them while a download runs).
     speedlog* log = traces ? NULL : speedlog_begin(zero ? "ftp-zero" : "ftp-down", vpath, size);
     if(zero) {
-        memset(ftp_io, 0, FTP_IO_SIZE);
+        memset(s->io, 0, FTP_IO_SIZE);
     }
 
     bool ok = true;
@@ -702,7 +749,7 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
             left -= n;
         } else {
             u64 start = speedlog_ticks();
-            n = fread(ftp_io, 1, FTP_IO_SIZE, f);
+            n = fread(s->io, 1, FTP_IO_SIZE, f);
             speedlog_disk(log, n, speedlog_ticks() - start);
         }
 
@@ -710,19 +757,18 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
             break;
         }
 
-        ok = ftp_send_logged(data, ftp_io, n, log);
+        ok = ftp_send_logged(data, s->io, n, log);
         sent += n;
-        xferturn_progress(ftp_turn, sent);
+        xferturn_progress(s->turn, sent);
     }
 
     if(f != NULL) {
         fclose(f);
     }
 
-    ftp_close_data(&data);
-    ftp_release_turn();
+    ftp_close_data(s, &data);
+    ftp_release_turn(s);
     speedlog_end(log, ok);
-    s->broken = !ok;
     ftp_reply(s, ok ? "226 Done." : "426 Transfer aborted.");
 }
 
@@ -735,14 +781,14 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
     bool null = strncmp(vpath, FTP_DEV_NULL, strlen(FTP_DEV_NULL)) == 0 && (vpath[strlen(FTP_DEV_NULL)] == '\0' || vpath[strlen(FTP_DEV_NULL)] == '/');
 
     // Before opening: "wb" would empty a file that is not going to be written.
-    if(!ftp_take_turn(s, vpath, ftp_allo)) {
-        ftp_allo = 0;
+    if(!ftp_take_turn(s, vpath, s->allo, true)) {
+        s->allo = 0;
         return;
     }
 
     FILE* f = null ? NULL : fopen(rpath, append ? "ab" : "wb");
     if(!null && f == NULL) {
-        ftp_release_turn();
+        ftp_release_turn(s);
         ftp_close_pasv(s);
         ftp_reply(s, "553 Cannot create the file.");
         return;
@@ -759,12 +805,12 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
     bool cia = len > 4 && strcasecmp(vpath + len - 4, ".cia") == 0;
     if(cia) {
         ftp_done = 0;
-        ftp_total = ftp_allo;
+        ftp_total = s->allo;
         ftp_set_phase(PHASE_RECEIVING, vpath);
     }
 
-    u64 allo = ftp_allo;
-    ftp_allo = 0;
+    u64 allo = s->allo;
+    s->allo = 0;
 
     ftp_reply(s, "150 Receiving.");
     int data = ftp_accept_data(s);
@@ -776,7 +822,7 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
             ftp_set_phase(PHASE_NONE, NULL);
         }
 
-        ftp_release_turn();
+        ftp_release_turn(s);
         ftp_reply(s, "425 No data connection.");
         return;
     }
@@ -795,7 +841,7 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
 
         start = speedlog_ticks();
         // The socket said it is readable: nothing within a second means a client that reset (see the web server's).
-        ssize_t r = net_recv(data, ftp_io, FTP_IO_SIZE, 1000);
+        ssize_t r = net_recv(data, s->io, FTP_IO_SIZE, 1000);
         speedlog_net(log, r > 0 ? (u64) r : 0, speedlog_ticks() - start);
         if(r == 0) {
             break;
@@ -808,7 +854,7 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
 
         if(f != NULL) {
             start = speedlog_ticks();
-            bool written = fwrite(ftp_io, 1, (size_t) r, f) == (size_t) r;
+            bool written = fwrite(s->io, 1, (size_t) r, f) == (size_t) r;
             speedlog_disk(log, (u64) r, speedlog_ticks() - start);
             if(!written) {
                 ok = false;
@@ -818,7 +864,7 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
 
         ftp_done += (u64) r;
         received += (u64) r;
-        xferturn_progress(ftp_turn, received);
+        xferturn_progress(s->turn, received);
     }
 
     u64 start = speedlog_ticks();
@@ -827,14 +873,13 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
     }
 
     speedlog_disk(log, 0, speedlog_ticks() - start);
-    ftp_close_data(&data);
-    ftp_release_turn();
+    ftp_close_data(s, &data);
+    ftp_release_turn(s);
     speedlog_end(log, ok);
     if(cia) {
         ftp_set_phase(PHASE_NONE, NULL);
     }
 
-    s->broken = !ok;
     ftp_reply(s, ok ? "226 Done." : "451 Transfer failed.");
 }
 
@@ -863,7 +908,7 @@ static bool ftp_remote_allowed() {
 // speed traces have each second ("sd-write", "sd-read"). Without the network, to tell the two apart.
 #define FTP_SDBENCH_FILE "sdmc:" APP_DATA_DIR "sdbench.tmp"
 
-static void ftp_sdbench(u32 mb, u32 bufferKb, bool preallocate, char* out, size_t size) {
+static void ftp_sdbench(char* ftp_io, u32 mb, u32 bufferKb, bool preallocate, char* out, size_t size) {
     u64 total = (u64) mb * 1024 * 1024;
     for(u32 i = 0; i < FTP_IO_SIZE; i++) {
         ftp_io[i] = (char) (i * 7 + 3);
@@ -953,6 +998,7 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
     }
 
     if(strcmp(sub, "SCREENSHOT") == 0) {
+        LightLock_Lock(&ftp_errand_lock);
         shot_done = false;
         shot_requested = true;
         // Writing two BMPs to a real SD card takes a few seconds.
@@ -961,6 +1007,7 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         }
 
         shot_requested = false;
+        LightLock_Unlock(&ftp_errand_lock);
         if(shot_done && shot_ok) {
             ftp_reply(s, "200 " APP_DATA_DIR "screenshots/top.bmp " APP_DATA_DIR "screenshots/bottom.bmp (%lu ms)", shot_ms);
         } else {
@@ -970,6 +1017,7 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
     }
 
     if(NSA_DEBUG && strcmp(sub, "TEST") == 0) {
+        LightLock_Lock(&ftp_errand_lock);
         string_copy(test_command, path != NULL ? path : "", sizeof(test_command));
         test_done = false;
         test_requested = true;
@@ -978,6 +1026,7 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         }
 
         test_requested = false;
+        LightLock_Unlock(&ftp_errand_lock);
         if(test_done) {
             ftp_reply(s, "%s", test_reply);
         } else {
@@ -1198,7 +1247,7 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         }
 
         char reply[200];
-        ftp_sdbench(mb, bufferKb, strcasecmp(flag, "PRE") == 0, reply, sizeof(reply));
+        ftp_sdbench(s->io, mb, bufferKb, strcasecmp(flag, "PRE") == 0, reply, sizeof(reply));
         ftp_reply(s, "%s", reply);
         return;
     }
@@ -1309,16 +1358,7 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
     }
 }
 
-static void ftp_handle_session(int ctrl) {
-    ftp_session* s = (ftp_session*) calloc(1, sizeof(ftp_session));
-    if(s == NULL) {
-        return;
-    }
-
-    s->ctrl = ctrl;
-    s->pasv = -1;
-    snprintf(s->cwd, sizeof(s->cwd), "/");
-
+static void ftp_handle_session(ftp_session* s) {
     ftp_reply(s, "220 " APP_NAME " FTP. SD card root; " APP_NAME "'s files are in " APP_DATA_DIR);
 
     char line[FTP_LINE_MAX];
@@ -1352,7 +1392,7 @@ static void ftp_handle_session(int ctrl) {
             ftp_reply(s, "200 OK.");
         } else if(strcmp(line, "ALLO") == 0) {
             // The size of the next STOR: the progress bar's total.
-            ftp_allo = strtoull(arg, NULL, 10);
+            s->allo = strtoull(arg, NULL, 10);
             ftp_reply(s, "200 OK.");
         } else if(strcmp(line, "PWD") == 0 || strcmp(line, "XPWD") == 0) {
             ftp_reply(s, "257 \"%s\"", s->cwd);
@@ -1446,7 +1486,86 @@ static void ftp_handle_session(int ctrl) {
     }
 
     ftp_close_pasv(s);
+}
+
+static void ftp_session_free(ftp_session* s) {
+    free(s->io);
     free(s);
+}
+
+// A session's thread: it serves its client, then takes itself off the list (ftp_shutdown waits for that).
+static void ftp_session_thread(void* arg) {
+    ftp_session* s = (ftp_session*) arg;
+    ftp_handle_session(s);
+    net_close_gently(s->ctrl);
+
+    LightLock_Lock(&ftp_lock);
+    for(u32 i = 0; i < FTP_MAX_SESSIONS; i++) {
+        if(ftp_sessions[i] == s) {
+            ftp_sessions[i] = NULL;
+        }
+    }
+
+    LightLock_Unlock(&ftp_lock);
+    ftp_session_free(s);
+}
+
+// Same core and priority as the server's thread (net_server_thread); detached: it frees itself when done.
+static bool ftp_start_session_thread(ftp_session* s) {
+    bool isNew = false;
+    Thread thread = NULL;
+    if(R_SUCCEEDED(APT_CheckNew3DS(&isNew)) && isNew) {
+        thread = threadCreate(ftp_session_thread, s, FTP_SESSION_STACK, 0x31, 2, true);
+    }
+
+    if(thread == NULL) {
+        thread = threadCreate(ftp_session_thread, s, FTP_SESSION_STACK, 0x31, -2, true);
+    }
+
+    return thread != NULL;
+}
+
+// A new client: a session and its thread, or "421" when all places are taken (never left waiting for the greeting).
+static void ftp_accept_session(int fd) {
+    ftp_session* s = (ftp_session*) calloc(1, sizeof(ftp_session));
+    if(s != NULL) {
+        s->ctrl = fd;
+        s->pasv = -1;
+        s->data = -1;
+        snprintf(s->cwd, sizeof(s->cwd), "/");
+        s->io = (char*) malloc(FTP_IO_SIZE);
+    }
+
+    int slot = -1;
+    if(s != NULL && s->io != NULL) {
+        LightLock_Lock(&ftp_lock);
+        for(int i = 0; i < FTP_MAX_SESSIONS && slot < 0; i++) {
+            if(ftp_sessions[i] == NULL) {
+                slot = i;
+                ftp_sessions[i] = s;
+            }
+        }
+
+        LightLock_Unlock(&ftp_lock);
+    }
+
+    if(slot >= 0 && ftp_start_session_thread(s)) {
+        return;
+    }
+
+    if(slot >= 0) {
+        LightLock_Lock(&ftp_lock);
+        ftp_sessions[slot] = NULL;
+        LightLock_Unlock(&ftp_lock);
+    }
+
+    const char* busy = slot < 0 && s != NULL && s->io != NULL ? "421 Too many connections: " APP_NAME " serves 3 at a time.\r\n"
+                                                                : "421 Out of memory.\r\n";
+    send(fd, busy, strlen(busy), 0);
+    net_close_gently(fd);
+    if(s != NULL) {
+        ftp_session_free(s);
+    }
 }
 
 static void ftp_main(void* arg) {
@@ -1463,10 +1582,7 @@ static void ftp_main(void* arg) {
         }
 
         net_set_nonblocking(fd);
-        ftp_ctrl = fd;
-        ftp_handle_session(fd);
-        ftp_ctrl = -1;
-        net_close_gently(fd);
+        ftp_accept_session(fd);
     }
 }
 
@@ -1485,7 +1601,7 @@ bool ftpserver_start() {
         return false;
     }
 
-    ftp_io = (char*) malloc(FTP_IO_SIZE);
+    ftp_init_locks();
     ftp_listen = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
     if(ftp_listen >= 0) {
         // Restarting right after a stop must not find the port still held.
@@ -1498,11 +1614,9 @@ bool ftpserver_start() {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(FTP_SERVER_PORT);
     addr.sin_addr.s_addr = INADDR_ANY;
-    if(ftp_io == NULL || ftp_listen < 0 || bind(ftp_listen, (struct sockaddr*) &addr, sizeof(addr)) != 0 || listen(ftp_listen, 1) != 0) {
+    if(ftp_listen < 0 || bind(ftp_listen, (struct sockaddr*) &addr, sizeof(addr)) != 0 || listen(ftp_listen, FTP_MAX_SESSIONS + 1) != 0) {
         snprintf(ftp_status, sizeof(ftp_status), _("Port %d busy"), FTP_SERVER_PORT);
         ftp_close_socket(&ftp_listen);
-        free(ftp_io);
-        ftp_io = NULL;
         return false;
     }
 
@@ -1522,15 +1636,22 @@ bool ftpserver_start() {
 static void ftp_shutdown() {
     ftp_run = false;
 
-    // Wake anything blocked: the thread polls with short naps anyway.
-    int fd = ftp_data;
-    if(fd >= 0) {
-        shutdown(fd, SHUT_RDWR);
-    }
+    // Wake anything blocked: the threads poll with short naps anyway.
+    if(ftp_locks_ready) {
+        LightLock_Lock(&ftp_lock);
+        for(u32 i = 0; i < FTP_MAX_SESSIONS; i++) {
+            ftp_session* s = ftp_sessions[i];
+            if(s != NULL) {
+                int fd = s->data;
+                if(fd >= 0) {
+                    shutdown(fd, SHUT_RDWR);
+                }
 
-    fd = ftp_ctrl;
-    if(fd >= 0) {
-        shutdown(fd, SHUT_RDWR);
+                shutdown(s->ctrl, SHUT_RDWR);
+            }
+        }
+
+        LightLock_Unlock(&ftp_lock);
     }
 
     if(ftp_thread != NULL) {
@@ -1539,9 +1660,21 @@ static void ftp_shutdown() {
         ftp_thread = NULL;
     }
 
+    // The sessions' threads end on their own (ftp_run is false) and take themselves off the list.
+    for(bool any = ftp_locks_ready; any;) {
+        any = false;
+        LightLock_Lock(&ftp_lock);
+        for(u32 i = 0; i < FTP_MAX_SESSIONS; i++) {
+            any = any || ftp_sessions[i] != NULL;
+        }
+
+        LightLock_Unlock(&ftp_lock);
+        if(any) {
+            svcSleepThread(10 * 1000000LL);
+        }
+    }
+
     ftp_close_socket(&ftp_listen);
-    free(ftp_io);
-    ftp_io = NULL;
     ftp_set_phase(PHASE_NONE, NULL);
     snprintf(ftp_status, sizeof(ftp_status), "%s", _("Off"));
 }
@@ -1615,12 +1748,12 @@ void ftpserver_address(char* out, size_t size) {
 }
 
 bool ftpserver_transferring() {
-    return ftp_run && ftp_data >= 0;
+    return ftp_run && ftp_data_open > 0;
 }
 
 bool ftpserver_holding_music() {
     u64 now = osGetTime();
-    if(ftp_run && ftp_data >= 0 && now - ftp_data_since >= 1000) {
+    if(ftp_run && ftp_data_open > 0 && now - ftp_data_since >= 1000) {
         return true;
     }
 

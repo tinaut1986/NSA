@@ -175,14 +175,7 @@ static float prompt_max_scroll(float textH, float visibleH) {
 }
 
 static void prompt_clamp_scroll(prompt_data* promptData, float textH, float visibleH) {
-    float max = prompt_max_scroll(textH, visibleH);
-    if(promptData->scroll > max) {
-        promptData->scroll = max;
-    }
-
-    if(promptData->scroll < 0) {
-        promptData->scroll = 0;
-    }
+    promptData->scroll = widget_clamp_scroll(promptData->scroll, prompt_max_scroll(textH, visibleH));
 }
 
 #define PROMPT_SCROLL_STEP 3

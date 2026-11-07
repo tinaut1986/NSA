@@ -29,6 +29,7 @@ typedef struct {
     bool showSD;
     bool showNAND;
     extsavedata_sort sort;
+    bool sortReverse;   // The sort turned round (choosing the same sort again).
 
     bool populated;
     bool sorted;
@@ -42,7 +43,6 @@ typedef struct {
 } extsavedata_data;
 
 #define ROW_HEIGHT 40
-#define TILE_SIZE 50
 
 // What the screen shows is kept in the settings, for the next time.
 static void extsavedata_store(extsavedata_data* data) {
@@ -50,6 +50,7 @@ static void extsavedata_store(extsavedata_data* data) {
     saved->sd = data->showSD;
     saved->nand = data->showNAND;
     saved->byId = data->sort == SORT_ID;
+    saved->sortReverse = data->sortReverse;
     saved->grid = data->view != NULL && list_get_mode(data->view) == LIST_MODE_GRID;
     settings_save();
 }
@@ -62,30 +63,12 @@ static bool extsavedata_visible(void* data, list_item* item) {
 
 // ---- items ----
 
-// While one's name and icon are found: grey blocks where they will be.
-static void extsavedata_draw_skeleton(float x, float y, float w, float h, float icon, bool selected) {
-    const theme_current* t = theme();
-    u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;
-    screen_fill_round_rect(x, y, icon, icon, icon / 6, block);
-    if(w > icon + 30) {
-        float tx = x + icon + 8;
-        screen_fill_round_rect(tx, y + 4, (w - icon - 8) * 0.55f, 8, 4, block);
-        screen_fill_round_rect(tx, y + h - 12, (w - icon - 8) * 0.35f, 6, 3, block);
-    }
-}
-
-// The contents fade in once the name and icon have been found.
-static void extsavedata_fade_in(ext_save_data_info* info) {
-    screen_set_content_motion(0, 0, (u8) (widget_ease(info->readyTime, 250) * 0xFF));
-}
-
 static void extsavedata_draw_icon(ext_save_data_info* info, float x, float y, float size, bool selected) {
     const theme_current* t = theme();
     if(info->hasMeta && info->meta.texture != 0) {
         screen_draw_texture(info->meta.texture, x, y, size, size);
     } else {
-        screen_fill_round_rect(x, y, size, size, size / 6, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft);
-        screen_draw_icon(ICON_DATABASE, x + size / 4, y + size / 4, size / 2, selected ? t->onAccent : t->accent);
+        widget_icon_placeholder(x, y, size, ICON_DATABASE, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
     }
 }
 
@@ -93,19 +76,17 @@ static void extsavedata_draw_row(void* data, list_item* item, float x, float y, 
     const theme_current* t = theme();
     ext_save_data_info* info = (ext_save_data_info*) item->data;
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     float icon = height - 10;
     if(!info->ready) {
-        extsavedata_draw_skeleton(x + 5, y + 5, width - 18, height - 10, icon, selected);
+        widget_skeleton(x + 5, y + 5, width - 18, height - 10, icon, selected);
         return;
     }
 
-    extsavedata_fade_in(info);
+    widget_fade_in(info->readyTime);
     extsavedata_draw_icon(info, x + 5, y + 5, icon, selected);
 
     float tx = x + 5 + icon + 8;
@@ -113,8 +94,7 @@ static void extsavedata_draw_row(void* data, list_item* item, float x, float y, 
 
     // Where it is, as a tag.
     const char* tag = info->mediaType == MEDIATYPE_SD ? "SD" : "NAND";
-    float tagW = widget_text_width(tag, WIDGET_SMALL_SCALE) + 12;
-    widget_badge(right - tagW, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
+    float tagW = widget_badge_right(right, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
 
     widget_text_fit(item->name, tx, y + 4, WIDGET_TEXT_SCALE, ink, right - tagW - 6 - tx);
 
@@ -138,22 +118,16 @@ static void extsavedata_draw_row(void* data, list_item* item, float x, float y, 
 }
 
 static void extsavedata_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
-    const theme_current* t = theme();
     ext_save_data_info* info = (ext_save_data_info*) item->data;
 
-    if(selected) {
-        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
-        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
-    } else {
-        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
-    }
+    widget_tile_frame(x, y, size, selected);
 
     if(!info->ready) {
-        extsavedata_draw_skeleton(x + 4, y + 4, size - 8, size - 8, size - 8, selected);
+        widget_skeleton(x + 4, y + 4, size - 8, size - 8, size - 8, selected);
         return;
     }
 
-    extsavedata_fade_in(info);
+    widget_fade_in(info->readyTime);
     extsavedata_draw_icon(info, x + 4, y + 4, size - 8, false);
     screen_set_content_motion(0, 0, 0xFF);
 }
@@ -167,7 +141,7 @@ static void extsavedata_draw_top(ui_view* view, void* data, float x1, float y1, 
     if(!((ext_save_data_info*) selected->data)->ready) {
         const theme_current* t = theme();
         widget_card(x1 + 10, y1 + 10, x2 - x1 - 20, 76);
-        extsavedata_draw_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
+        widget_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
         widget_text_centered(_("Loading..."), x1, x2, y1 + 110, WIDGET_TEXT_SCALE, t->palette->textMuted);
         return;
     }
@@ -209,21 +183,8 @@ static void extsavedata_actions_open(extsavedata_data* data, linked_list* items,
 
 // ---- tools: view, filter and sort, search ----
 
-static bool extsavedata_is_rows(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_ROWS;
-}
-
-static bool extsavedata_is_grid(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_GRID;
-}
-
-static void extsavedata_show_rows(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_ROWS);
-    extsavedata_store((extsavedata_data*) data);
-}
-
-static void extsavedata_show_grid(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_GRID);
+// The grid / rows mode is kept in the settings.
+static void extsavedata_view_changed(void* data) {
     extsavedata_store((extsavedata_data*) data);
 }
 
@@ -248,6 +209,7 @@ static void extsavedata_popover_select(void* data, u32 group, u32 option) {
         bool* flag = option == 0 ? &listData->showSD : &listData->showNAND;
         *flag = !*flag;
     } else {
+        listData->sortReverse = listData->sort == (extsavedata_sort) option ? !listData->sortReverse : false;
         listData->sort = (extsavedata_sort) option;
         // Sorted again at the next frame.
         listData->sorted = false;
@@ -256,33 +218,24 @@ static void extsavedata_popover_select(void* data, u32 group, u32 option) {
     extsavedata_store(listData);
 }
 
+static bool extsavedata_popover_is_reversed(void* data, u32 group, u32 option) {
+    extsavedata_data* listData = (extsavedata_data*) data;
+    return group == 1 && listData->sort == (extsavedata_sort) option && listData->sortReverse;
+}
+
 static void extsavedata_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 2,
             .groups = {
                     {_("Show"), true, 2, {"SD", "NAND"}, {ICON_DEVICE_SD_CARD, ICON_CPU}},
-                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true}
+                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true, true}
             },
             .isOn = extsavedata_popover_is_on,
-            .select = extsavedata_popover_select
+            .select = extsavedata_popover_select,
+            .isReversed = extsavedata_popover_is_reversed
     };
 
     popover_display(&def, data);
-}
-
-static bool extsavedata_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void extsavedata_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    extsavedata_data* listData = (extsavedata_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
-}
-
-static void extsavedata_search_open(ui_view* view, void* data) {
-    osk_display(_("Search data"), list_get_search(view), 64, 0, data, extsavedata_search_done);
 }
 
 // ---- the list ----
@@ -308,14 +261,21 @@ static int extsavedata_compare(void* data, const void* p1, const void* p2) {
         return info1->hasMeta ? -1 : 1;
     }
 
+    int dir = listData->sortReverse ? -1 : 1;
     if(info1->ready && listData->sort == SORT_NAME && info1->hasMeta) {
         int byName = strncasecmp(item1->name, item2->name, sizeof(item1->name));
         if(byName != 0) {
-            return byName;
+            return dir * byName;
         }
     }
 
-    return info1->extSaveDataId > info2->extSaveDataId ? 1 : info1->extSaveDataId < info2->extSaveDataId ? -1 : 0;
+    int byId = info1->extSaveDataId > info2->extSaveDataId ? 1 : info1->extSaveDataId < info2->extSaveDataId ? -1 : 0;
+    return listData->sort == SORT_ID ? dir * byId : byId;
+}
+
+// Loaded, for the count of the title bar.
+static bool extsavedata_item_ready(list_item* item) {
+    return ((ext_save_data_info*) item->data)->ready;
 }
 
 static void extsavedata_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
@@ -325,31 +285,16 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
     view->info = _(" actions    view    filter    search    back");
 
     // How many have their name and icon, for the title bar.
-    u32 ready = 0;
-    u32 total = 0;
-    if(!listData->populateData.finished) {
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            total++;
-            ready += ((ext_save_data_info*) ((list_item*) linked_list_iter_next(&iter))->data)->ready ? 1 : 0;
-        }
-    }
-
-    list_set_progress(view, ready, total);
+    u32 ready = list_count_progress(view, items, !listData->populateData.finished, extsavedata_item_ready);
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         ui_pop();
@@ -361,9 +306,12 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
         return;
     }
 
+    if(hidKeysDown() & KEY_SELECT) {
+        list_next_tile_size(view);
+    }
+
     if(hidKeysDown() & KEY_Y) {
-        list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
-        extsavedata_store(listData);
+        list_toggle_mode(view);
     }
 
     if(hidKeysDown() & KEY_L) {
@@ -372,16 +320,13 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
     }
 
     if(hidKeysDown() & KEY_R) {
-        extsavedata_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
     if(!listData->populated || (hidKeysDown() & KEY_X)) {
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         listData->populateData.items = items;
@@ -441,6 +386,7 @@ void extsavedata_open() {
     data->showSD = saved->sd;
     data->showNAND = saved->nand;
     data->sort = saved->byId ? SORT_ID : SORT_NAME;
+    data->sortReverse = saved->sortReverse;
 
     ui_view* view = list_display(_("Ext Save Data"), "", data, extsavedata_update, extsavedata_draw_top);
     if(view == NULL) {
@@ -456,7 +402,7 @@ void extsavedata_open() {
     list_style style = {
             .rowHeight = ROW_HEIGHT,
             .drawRow = extsavedata_draw_row,
-            .tileSize = TILE_SIZE,
+            .tileSize = list_tile_size_of(settings_get()->extsave.tile),
             .drawTile = extsavedata_draw_tile
     };
     list_set_style(view, &style);
@@ -464,8 +410,8 @@ void extsavedata_open() {
     list_set_long_press(view, extsavedata_long_press);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, extsavedata_search_active, extsavedata_search_open);
+    list_add_search_tool(view, _("Search data"));
     list_add_tool(view, ICON_FILTER, extsavedata_filter_active, extsavedata_filter_open);
-    list_add_tool(view, ICON_LAYOUT_GRID, extsavedata_is_grid, extsavedata_show_grid);
-    list_add_tool(view, ICON_LIST, extsavedata_is_rows, extsavedata_show_rows);
+    list_add_tile_tool(view, &settings_get()->extsave.tile);
+    list_add_view_tools(view, extsavedata_view_changed);
 }

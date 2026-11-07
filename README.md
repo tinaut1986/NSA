@@ -39,6 +39,10 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
   grid, search with NSA's own keyboard, filters by type and category, and sorting.
 - Install an app's CIA or download its `.3dsx` to `/3ds/`. A mark shows what is already
   on the console.
+- Add other stores in the Universal-Updater format (a `.unistore`) by their QR code or link: skins for TWiLight Menu++,
+  mods for 3DS games (into `/luma/titles/`), games for other consoles, RetroArch cores... NSA follows each file's steps
+  as Universal-Updater does, asking before it deletes a folder. Universal-DB is made by
+  [Universal-Team](https://universal-team.net/): thank you.
 
 <p align="center">
   <img src="docs/images/store-actions.png" width="360" alt="An app of the Store and its actions">

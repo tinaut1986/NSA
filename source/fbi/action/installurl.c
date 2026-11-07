@@ -20,7 +20,6 @@ typedef enum content_type_e {
 // card's root is the owner's.
 #define INSTALL_URL_SAVE_DIR APP_DATA_DIR "received/"
 
-
 // What became of each URL, for the list on the install screen.
 typedef enum {
     URL_QUEUED,
@@ -50,6 +49,7 @@ typedef struct {
     char confirm[256];
     content_type contentType;
     u64 currTitleId;
+    cia_seed_watch seedWatch;
     volatile bool n3dsContinue;
     ticket_info ticketInfo;
     char currPath[FILE_PATH_MAX];
@@ -299,6 +299,7 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
 
             if(R_SUCCEEDED(res = AM_StartCiaInstall(dest, handle))) {
                 installData->currTitleId = titleId;
+                cia_seed_watch_start(&installData->seedWatch, (u8*) initialReadBlock, installData->installInfo.bufferSize);
             }
         }
     } else if(*(u16*) initialReadBlock == 0x0100) {
@@ -359,7 +360,9 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
     if(succeeded) {
         if(installData->contentType == CONTENT_CIA) {
             if(R_SUCCEEDED(res = AM_FinishCiaInstall(handle))) {
-                http_download_seed(installData->currTitleId);
+                if(cia_seed_watch_needed(&installData->seedWatch)) {
+                    http_download_seed(installData->currTitleId);
+                }
 
                 if(installData->currTitleId == 0x0004013800000002 || installData->currTitleId == 0x0004013820000002) {
                     res = AM_InstallFirm(installData->currTitleId);
@@ -409,15 +412,12 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
 }
 
 static Result action_install_url_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {
+    install_url_data* installData = (install_url_data*) data;
+    if(installData->contentType == CONTENT_CIA && !installData->saveOnly) {
+        cia_seed_watch_feed(&installData->seedWatch, buffer, offset, size);
+    }
+
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
-}
-
-static Result action_install_url_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_install_url_restore(void* data, u32 index) {
-    return 0;
 }
 
 static bool action_install_url_error(void* data, u32 index, Result res, ui_view** errorView) {
@@ -943,9 +943,6 @@ static void action_install_url_start(const char* confirmMessage, const char* url
     data->installInfo.openDst = action_install_url_open_dst;
     data->installInfo.closeDst = action_install_url_close_dst;
     data->installInfo.writeDst = action_install_url_write_dst;
-
-    data->installInfo.suspend = action_install_url_suspend;
-    data->installInfo.restore = action_install_url_restore;
 
     data->installInfo.error = action_install_url_error;
 

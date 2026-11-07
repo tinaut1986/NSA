@@ -24,11 +24,12 @@ static settings_data settings = {
         .musicVolume = 50,
         .language = LANGUAGE_SYSTEM,
         .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false, .tile = 1},
-        .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false},
+        .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false, .tile = 1},
         .files = {.directories = true, .files = true, .cias = true, .tickets = true, .hidden = false, .sort = 0},
-        .extsave = {.sd = true, .nand = true, .byId = false, .grid = false},
+        .extsave = {.sd = true, .nand = true, .byId = false, .grid = false, .tile = 1},
         .pending = {.sd = true, .nand = true},
-        .store = {.kinds = 3, .categories = 0xFF, .sort = 0, .grid = false, .tile = 2, .shown = 0}
+        .mods = {.states = 3, .sort = 0, .grid = false, .tile = 1},
+        .store = {.kinds = 3, .others = true, .categories = 0xFF, .sort = 0, .grid = false, .tile = 2, .shown = 0}
 };
 
 static const char* night_ids[] = {"off", "on", "auto"};
@@ -110,6 +111,7 @@ void settings_load() {
     settings.soundVolume = settings_get_uint(json, "sound_volume", settings.soundVolume, 100);
     settings.music = settings_get_uint(json, "music", settings.music, BGMUSIC_COUNT - 1);
     settings.musicVolume = settings_get_uint(json, "music_volume", settings.musicVolume, 100);
+    settings.playerRepeat = settings_get_uint(json, "player_repeat", settings.playerRepeat, 2);
 
     json_t* night = json_object_get(json, "night_mode");
     if(json_is_string(night)) {
@@ -148,6 +150,7 @@ void settings_load() {
         settings.titles.regions = settings_get_uint(titles, "regions", settings.titles.regions, 0x1F);
         settings.titles.group = settings_get_bool(titles, "group", settings.titles.group);
         settings.titles.sort = settings_get_uint(titles, "sort", settings.titles.sort, 2);
+        settings.titles.sortReverse = settings_get_bool(titles, "sortReverse", settings.titles.sortReverse);
         settings.titles.grid = settings_get_bool(titles, "grid", settings.titles.grid);
     }
 
@@ -158,6 +161,8 @@ void settings_load() {
         settings.tickets.media = settings_get_uint(tickets, "media", settings.tickets.media, 3);
         settings.tickets.group = settings_get_bool(tickets, "group", settings.tickets.group);
         settings.tickets.sort = settings_get_uint(tickets, "sort", settings.tickets.sort, 1);
+        settings.tickets.sortReverse = settings_get_bool(tickets, "sortReverse", settings.tickets.sortReverse);
+        settings.tickets.tile = settings_get_uint(tickets, "tile", settings.tickets.tile, 3);
         settings.tickets.grid = settings_get_bool(tickets, "grid", settings.tickets.grid);
     }
 
@@ -169,6 +174,7 @@ void settings_load() {
         settings.files.tickets = settings_get_bool(files, "tickets", settings.files.tickets);
         settings.files.hidden = settings_get_bool(files, "hidden", settings.files.hidden);
         settings.files.sort = settings_get_uint(files, "sort", settings.files.sort, 2);
+        settings.files.sortReverse = settings_get_bool(files, "sortReverse", settings.files.sortReverse);
     }
 
     json_t* extsave = json_object_get(json, "extsave");
@@ -176,6 +182,8 @@ void settings_load() {
         settings.extsave.sd = settings_get_bool(extsave, "sd", settings.extsave.sd);
         settings.extsave.nand = settings_get_bool(extsave, "nand", settings.extsave.nand);
         settings.extsave.byId = settings_get_bool(extsave, "by_id", settings.extsave.byId);
+        settings.extsave.sortReverse = settings_get_bool(extsave, "sortReverse", settings.extsave.sortReverse);
+        settings.extsave.tile = settings_get_uint(extsave, "tile", settings.extsave.tile, 3);
         settings.extsave.grid = settings_get_bool(extsave, "grid", settings.extsave.grid);
     }
 
@@ -189,12 +197,22 @@ void settings_load() {
         settings.store.shown = settings_get_uint(store, "shown", settings.store.shown, 2);
         settings.store.updated = settings_get_uint(store, "updated", settings.store.updated, 3);
         settings.store.sortReverse = settings_get_bool(store, "sortReverse", settings.store.sortReverse);
+        settings.store.others = settings_get_bool(store, "others", settings.store.others);
     }
 
     json_t* pending = json_object_get(json, "pending");
     if(json_is_object(pending)) {
         settings.pending.sd = settings_get_bool(pending, "sd", settings.pending.sd);
         settings.pending.nand = settings_get_bool(pending, "nand", settings.pending.nand);
+    }
+
+    json_t* mods = json_object_get(json, "mods");
+    if(json_is_object(mods)) {
+        settings.mods.states = settings_get_uint(mods, "states", settings.mods.states, 7);
+        settings.mods.sort = settings_get_uint(mods, "sort", settings.mods.sort, 2);
+        settings.mods.sortReverse = settings_get_bool(mods, "sortReverse", settings.mods.sortReverse);
+        settings.mods.tile = settings_get_uint(mods, "tile", settings.mods.tile, 3);
+        settings.mods.grid = settings_get_bool(mods, "grid", settings.mods.grid);
     }
 
     json_decref(json);
@@ -268,15 +286,24 @@ Result settings_save() {
         return R_APP_OUT_OF_MEMORY;
     }
 
-    json_object_set_new(json, "store", json_pack("{s:i,s:i,s:i,s:b,s:i,s:i,s:i,s:b}", "kinds", (int) settings.store.kinds, "categories", (int) settings.store.categories,
+    json_object_set_new(json, "store", json_pack("{s:i,s:b,s:i,s:i,s:b,s:i,s:i,s:i,s:b}", "kinds", (int) settings.store.kinds, "others", settings.store.others, "categories", (int) settings.store.categories,
                                                   "sort", (int) settings.store.sort, "grid", settings.store.grid,
                                                   "tile", (int) settings.store.tile, "shown", (int) settings.store.shown,
                                                   "updated", (int) settings.store.updated, "sortReverse", settings.store.sortReverse));
     json_object_set_new(json_object_get(json, "titles"), "tile", json_integer(settings.titles.tile));
+    json_object_set_new(json_object_get(json, "titles"), "sortReverse", json_boolean(settings.titles.sortReverse));
+    json_object_set_new(json_object_get(json, "tickets"), "sortReverse", json_boolean(settings.tickets.sortReverse));
+    json_object_set_new(json_object_get(json, "tickets"), "tile", json_integer(settings.tickets.tile));
+    json_object_set_new(json_object_get(json, "files"), "sortReverse", json_boolean(settings.files.sortReverse));
+    json_object_set_new(json_object_get(json, "extsave"), "sortReverse", json_boolean(settings.extsave.sortReverse));
+    json_object_set_new(json_object_get(json, "extsave"), "tile", json_integer(settings.extsave.tile));
+    json_object_set_new(json, "mods", json_pack("{s:i,s:i,s:b,s:b}", "states", (int) settings.mods.states, "sort", (int) settings.mods.sort, "sortReverse", settings.mods.sortReverse, "grid", settings.mods.grid));
+    json_object_set_new(json_object_get(json, "mods"), "tile", json_integer(settings.mods.tile));
     json_object_set_new(json, "menu", json_string(settings.menu));
     json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));
     json_object_set_new(json, "guide_seen", json_string(settings.guideSeen));
     json_object_set_new(json, "guide_known", json_integer(settings.guideKnown));
+    json_object_set_new(json, "player_repeat", json_integer(settings.playerRepeat));
 
     if(json_dump_file(json, SETTINGS_PATH, JSON_INDENT(2)) != 0) {
         res = R_APP_IO_ERROR;

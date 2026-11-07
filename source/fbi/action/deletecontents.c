@@ -18,6 +18,7 @@ typedef struct {
     linked_list contents;
 
     data_op_data deleteInfo;
+    bool wholeFolders;   // Listed to the top level: a folder is deleted with all it holds.
 } delete_data;
 
 static void action_delete_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -38,17 +39,22 @@ static Result action_delete_delete(void* data, u32 index) {
 
     file_info* info = (file_info*) ((list_item*) linked_list_get(&deleteData->contents, linked_list_size(&deleteData->contents) - index - 1))->data;
 
-    FS_Path* fsPath = fs_make_path_utf8(info->path);
-    if(fsPath != NULL) {
-        if(fs_is_dir(deleteData->target->archive, info->path)) {
-            res = FSUSER_DeleteDirectory(deleteData->target->archive, *fsPath);
-        } else {
-            res = FSUSER_DeleteFile(deleteData->target->archive, *fsPath);
-        }
-
-        fs_free_path_utf8(fsPath);
+    // The listing says what is a folder. Listed to the top level only, a folder goes with all it holds in one call.
+    if((info->attributes & FS_ATTRIBUTE_DIRECTORY) && deleteData->wholeFolders) {
+        res = fs_delete_dir_recursively(deleteData->target->archive, info->path);
     } else {
-        res = R_APP_OUT_OF_MEMORY;
+        FS_Path* fsPath = fs_make_path_utf8(info->path);
+        if(fsPath != NULL) {
+            if(info->attributes & FS_ATTRIBUTE_DIRECTORY) {
+                res = FSUSER_DeleteDirectory(deleteData->target->archive, *fsPath);
+            } else {
+                res = FSUSER_DeleteFile(deleteData->target->archive, *fsPath);
+            }
+
+            fs_free_path_utf8(fsPath);
+        } else {
+            res = R_APP_OUT_OF_MEMORY;
+        }
     }
 
     if(R_SUCCEEDED(res)) {
@@ -67,14 +73,6 @@ static Result action_delete_delete(void* data, u32 index) {
     }
 
     return res;
-}
-
-static Result action_delete_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_delete_restore(void* data, u32 index) {
-    return 0;
 }
 
 static bool action_delete_error(void* data, u32 index, Result res, ui_view** errorView) {
@@ -117,8 +115,7 @@ static void action_delete_update(ui_view* view, void* data, float* progress, cha
         svcSignalEvent(deleteData->deleteInfo.cancelEvent);
     }
 
-    *progress = deleteData->deleteInfo.total > 0 ? (float) deleteData->deleteInfo.processed / (float) deleteData->deleteInfo.total : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu"), deleteData->deleteInfo.processed, deleteData->deleteInfo.total);
+    data_op_progress_items(&deleteData->deleteInfo, progress, text);
 }
 
 static void action_delete_onresponse(ui_view* view, void* data, u32 response) {
@@ -153,11 +150,11 @@ static void action_delete_loading_draw_top(ui_view* view, void* data, float x1, 
 static void action_delete_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     delete_loading_data* loadingData = (delete_loading_data*) data;
 
-    if(loadingData->popData.finished) {
-        ui_pop();
-        info_destroy(view);
-
-        if(R_SUCCEEDED(loadingData->popData.result)) {
+    if(info_task_finished(view, &loadingData->popData.finished, loadingData->popData.cancelEvent)) {
+        if(loadingData->popData.cancelled) {
+            // B while reading: nothing to ask about, the list is not whole.
+            action_delete_free_data(loadingData->deleteData);
+        } else if(R_SUCCEEDED(loadingData->popData.result)) {
             loadingData->deleteData->deleteInfo.total = linked_list_size(&loadingData->deleteData->contents);
             loadingData->deleteData->deleteInfo.processed = loadingData->deleteData->deleteInfo.total;
 
@@ -172,14 +169,11 @@ static void action_delete_loading_update(ui_view* view, void* data, float* progr
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
-    }
-
     snprintf(text, PROGRESS_TEXT_MAX, _("Fetching content list..."));
 }
 
-static void action_delete_internal(linked_list* items, list_item* selected, const char* message, bool recursive, bool includeBase, bool ciasOnly, bool ticketsOnly) {
+static void action_delete_internal(linked_list* items, list_item* selected, const char* message, bool recursive, bool includeBase, bool ciasOnly, bool ticketsOnly,
+                                   bool (*topFilter)(void* data, const char* name, u32 attributes), void* topFilterData) {
     delete_data* data = (delete_data*) calloc(1, sizeof(delete_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate delete data.");
@@ -206,9 +200,6 @@ static void action_delete_internal(linked_list* items, list_item* selected, cons
 
     data->deleteInfo.delete = action_delete_delete;
 
-    data->deleteInfo.suspend = action_delete_suspend;
-    data->deleteInfo.restore = action_delete_restore;
-
     data->deleteInfo.error = action_delete_error;
 
     data->deleteInfo.finished = false;
@@ -229,11 +220,20 @@ static void action_delete_internal(linked_list* items, list_item* selected, cons
     loadingData->popData.items = &data->contents;
     loadingData->popData.archive = data->target->archive;
     string_copy(loadingData->popData.path, data->target->path, FILE_PATH_MAX);
-    loadingData->popData.recursive = recursive;
+    // Without a filter on CIAs or tickets, the top level is enough: each folder goes with all it holds.
+    data->wholeFolders = recursive && !ciasOnly && !ticketsOnly;
+    loadingData->popData.recursive = recursive && !data->wholeFolders;
     loadingData->popData.includeBase = includeBase;
     loadingData->popData.meta = false;
-    loadingData->popData.filter = ciasOnly ? fs_filter_cias : ticketsOnly ? fs_filter_tickets : NULL;
-    loadingData->popData.filterData = NULL;
+    if(topFilter != NULL) {
+        // Some of the folder's own items (a selection), folders with all they hold.
+        loadingData->popData.filter = topFilter;
+        loadingData->popData.filterData = topFilterData;
+        loadingData->popData.filterTopOnly = true;
+    } else {
+        loadingData->popData.filter = ciasOnly ? fs_filter_cias : ticketsOnly ? fs_filter_tickets : NULL;
+        loadingData->popData.filterData = NULL;
+    }
 
     Result listRes = task_populate_files(&loadingData->popData);
     if(R_FAILED(listRes)) {
@@ -248,21 +248,24 @@ static void action_delete_internal(linked_list* items, list_item* selected, cons
 }
 
 void action_delete_file(linked_list* items, list_item* selected) {
-    action_delete_internal(items, selected, "Delete the selected file?", false, true, false, false);
+    action_delete_internal(items, selected, "Delete the selected file?", false, true, false, false, NULL, NULL);
 }
 
 void action_delete_dir(linked_list* items, list_item* selected) {
-    action_delete_internal(items, selected, "Delete the current directory?", true, true, false, false);
+    action_delete_internal(items, selected, "Delete the current directory?", true, true, false, false, NULL, NULL);
 }
 
 void action_delete_dir_contents(linked_list* items, list_item* selected) {
-    action_delete_internal(items, selected, "Delete all contents of the current directory?", true, false, false, false);
+    action_delete_internal(items, selected, "Delete all contents of the current directory?", true, false, false, false, NULL, NULL);
 }
 
 void action_delete_dir_cias(linked_list* items, list_item* selected) {
-    action_delete_internal(items, selected, "Delete all CIAs in the current directory?", false, false, true, false);
+    action_delete_internal(items, selected, "Delete all CIAs in the current directory?", false, false, true, false, NULL, NULL);
 }
 
 void action_delete_dir_tickets(linked_list* items, list_item* selected) {
-    action_delete_internal(items, selected, "Delete all tickets in the current directory?", false, false, false, true);
+    action_delete_internal(items, selected, "Delete all tickets in the current directory?", false, false, false, true, NULL, NULL);
+}
+void action_delete_selected(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData) {
+    action_delete_internal(items, selected, "Delete the selected items? Folders are deleted with everything in them.", true, false, false, false, filter, filterData);
 }

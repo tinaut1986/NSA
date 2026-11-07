@@ -1655,7 +1655,10 @@ function sysDrag(card){
 }
 
 // ---- start ----
-const saved = sessionStorage.getItem('pin');
+// The console's QR code (Settings → Web server) carries the PIN as ?pin=: used once, then taken out of the address bar.
+const linked = new URLSearchParams(location.search).get('pin');
+if(linked) history.replaceState(null, '', location.pathname + location.hash);
+const saved = linked || sessionStorage.getItem('pin');
 if(saved) login(saved, true); else showLogin();
 </script>
 </body>

@@ -423,6 +423,11 @@ typedef struct {
 
     bool capturing;
     capture_cam_data captureInfo;
+
+    // qr_scan: the first code read goes to `found` (NULL: Remote install's own, which installs the links).
+    const char* hint;
+    void* userData;
+    void (*found)(void* data, const char* text);
 } remoteinstall_qr_data;
 
 static void remoteinstall_qr_stop_capture(remoteinstall_qr_data* data) {
@@ -565,6 +570,21 @@ static void remoteinstall_qr_update(ui_view* view, void* data, float* progress, 
         struct quirc_data qrData;
         quirc_decode_error_t err = quirc_decode(&qrCode, &qrData);
 
+        if(err == 0 && installData->found != NULL) {
+            static char text[QUIRC_MAX_PAYLOAD + 1];
+            size_t len = qrData.payload_len < QUIRC_MAX_PAYLOAD ? (size_t) qrData.payload_len : QUIRC_MAX_PAYLOAD;
+            memcpy(text, qrData.payload, len);
+            text[len] = '\0';
+
+            void* userData = installData->userData;
+            void (*found)(void* data, const char* text) = installData->found;
+            ui_pop();
+            info_destroy(view);
+            remoteinstall_qr_free_data(installData);
+            found(userData, text);
+            return;
+        }
+
         if(err == 0) {
             remoteinstall_qr_stop_capture(installData);
 
@@ -575,10 +595,10 @@ static void remoteinstall_qr_update(ui_view* view, void* data, float* progress, 
         }
     }
 
-    snprintf(text, PROGRESS_TEXT_MAX, "%s", _("Point the camera at the code.\nA QR code with one or more links to CIAs."));
+    snprintf(text, PROGRESS_TEXT_MAX, "%s", installData->hint != NULL ? i18n_translate_text(installData->hint) : _("Point the camera at the code.\nA QR code with one or more links to CIAs."));
 }
 
-static void remoteinstall_scan_qr_code() {
+void qr_scan(const char* title, const char* hint, void* userData, void (*found)(void* data, const char* text)) {
     remoteinstall_qr_data* data = (remoteinstall_qr_data*) calloc(1, sizeof(remoteinstall_qr_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate QR install data.");
@@ -587,6 +607,9 @@ static void remoteinstall_scan_qr_code() {
     }
 
     data->tex = 0;
+    data->hint = hint;
+    data->userData = userData;
+    data->found = found;
 
     data->capturing = false;
 
@@ -622,7 +645,11 @@ static void remoteinstall_scan_qr_code() {
 
     data->tex = screen_allocate_free_texture();
 
-    info_display("Scan QR code", "\uE002 switch camera   \uE001 back", false, data, remoteinstall_qr_update, remoteinstall_qr_draw_top);
+    info_display(title, "\uE002 switch camera   \uE001 back", false, data, remoteinstall_qr_update, remoteinstall_qr_draw_top);
+}
+
+static void remoteinstall_scan_qr_code() {
+    qr_scan("Scan QR code", NULL, NULL, NULL);
 }
 
 static void remoteinstall_manually_enter_urls_onresponse(ui_view* view, void* data, SwkbdButton button, const char* response) {

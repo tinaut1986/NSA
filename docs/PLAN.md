@@ -3,6 +3,27 @@
 Start every session here. It holds where things stand, what comes next and why
 things are the way they are. Keep it current in the same change that alters it.
 
+## Where the last session stopped (2026-11-07, evening)
+
+Start here in a new session. `staging` is pushed (`b41f2f6`) and holds all of it; nothing is uncommitted.
+
+- **Builds on the consoles**: the New 3DS XL (192.168.1.136) and the 2DS (192.168.1.140) run `staging` as of `9135288`
+  (before the zoom in every grid). The newest CIA (`b41f2f6`, zoom in Ext Save Data and Mods too) was built and sent but
+  **not installed**: ask before installing.
+- **The owner has to test** what is listed under "Pending tests on the console", newest first: the zoom in every grid,
+  the Store install of 3D Pinball with the web page closed, "Shared UI pieces" (keyboards, viewers' buttons, deleting one
+  ext save data, install/paste/export with B), "Sort both ways", "Shorter filters", "Selecting several files", "Music in
+  the background", "Transfer toast".
+- **Open questions**: the 2DS's short sleeps look like its sleep
+  switch (hardware), to confirm in HOME / other apps.
+- **Left on the New 3DS XL by the tests**: the title "NSA Test" (000400000FB1AE00, our dummy CIA) is installed again;
+  the owner can delete it. Nothing else of the tests is on either SD card.
+- **Refactor (UI structure)**: done in three rounds (`refactor/ui-structure`, `-2`, `-3`), see "Shared UI pieces". Not
+  unified on purpose: the "Loading..." phase of the actions (only per-action code is left) and each screen's settings
+  store/restore. `tools/ui_snapshots.py run/compare` checks that a change draws the same (49 steps in Azahar).
+- **Ideas for later**: issue #32 (named mods and a GameBanana mods store), the forwarder (Next, item 11).
+- After the owner's tests pass: `staging` -> `release` -> `advanced` (CLAUDE.md, "Branches in use").
+
 ## Status (2026-10-31)
 
 `release` holds everything below and is pushed. On 2026-10-31 the owner asked to merge the work
@@ -12,6 +33,7 @@ start. Merged topic branches are kept on the remote and can be deleted.
 
 | Branch / tag | State |
 |---|---|
+| `staging` | **Untested work** (since 2026-11-07): topic branches merge here until the owner tries them on a console, then `staging` goes into `release`. Holds `release` plus what is under "Pending tests" from that date. |
 | `release` | The working line. Holds everything below, but "Advanced". |
 | `advanced` | **The risky tools**: Dump NAND as its own screen (space, progress, SHA-256 and a `.sha256`), Pending titles and System save data on the Titles pattern, Advanced's red look. Cut from `release` on 2026-10-31; the owner wants what is about the console's own data merged there first. Keep `release` merged into it (`git merge release`). |
 | `master` | Stable. Moves only by merging `release`. |
@@ -128,6 +150,233 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**The owner's tests of 2026-11-07, evening** (the items ticked below, all on `staging` 6760a75). Changed after them, on
+`staging` and tried on the New 3DS XL (DEBUG) unless said:
+- Transfer toast (`feat/toast-two-lines`): two lines, "FTP, receiving: 3.2 / 12.0 MiB, 650 KiB/s" over the name (it was one line,
+  cut at the edge), and a piece of the bar moves when the size is not known: FileZilla says no size before an upload (no
+  ALLO), so there is no percentage then. Not seen on a console: the web page's screen view waits while a transfer runs.
+- Viewers' buttons (`fix/viewer-drag-focus`): a finger sliding along the row lights the button under it, as the menus do, and
+  that one is pressed on release; a finger that went down on the picture or a bar lights nothing. Not tried by hand.
+- Audio player (`feat/player-seek-repeat`): an MP3's seek table is made by a second decoder at the lowest priority, so the
+  seek bar answers at once (it read the track from the start: 4-5 s of silence on the New 3DS XL; 3:11 of a 4 min, 5.7 MB
+  MP3 now plays 0.6 s after the tap, and back to 0:24 too). Repeat with Y or the button right of the volume: off, the list,
+  the track (`player_repeat` in settings.json; both ends tried). The track that plays in the background chosen again in Files
+  opens its player where it is.
+- Test mods for the Game mods items, on the New 3DS XL: `/luma/titles/000400000FB1AE00/` (NSA Test: code.ips, an empty
+  patch, and romfs/nsa-test.txt), `0004000000030700/romfs/nsa-test-mod/` (Mario Kart 7: a 2.4 MB file and a text, files the
+  game never opens), `0004000000FFFF00/` (no such game: code.ips and romfs/) and the empty `0004000000FFFE00/`.
+- [ ] The toast during a FileZilla upload (two lines, the moving piece) and a download (the bar fills).
+- [ ] Slide a finger along a viewer's buttons: the one under it lights; let go on it and it acts.
+- [ ] The player: the seek bar on a long MP3 (right away and after a few seconds), repeat in its three states, and A on the
+  track that plays in the background.
+- FileZilla waited 20 s ("waiting for the welcome message", then a timeout) before each transfer: it browses on one
+  connection and opens another to transfer, and the FTP server served one session at a time, so the second was accepted
+  but not greeted until the first closed. Now (`feat/ftp-sessions`) up to 3 sessions, each on its own thread with its own
+  buffer, turn and ALLO; a fourth gets "421 Too many connections" at once. Data still moves one transfer at a time (450
+  Busy), listings and SITE answer meanwhile; installs (SITE INSTALL, the web page's) and the main thread's errands (SITE
+  SCREENSHOT, TEST) go one at a time. Tried on both consoles (`multi.py` in the session's scratchpad: 11 checks, three
+  greeted at once, the fourth refused, a listing during an upload, a second upload refused, a dropped client), a restart
+  by SITE INSTALL with an idle session open, and the web page's install. Speed, the two builds one after the other on the
+  New 3DS XL (32 MB, twice): up 871/971 before, 943/947 after; down 685/724 before, 773/771 after. 2DS after: 840 up,
+  640 down.
+- [ ] FileZilla with its default settings (2 connections): browse, upload and download several files; no wait before a
+  transfer.
+
+**Music in the background** (2026-11-07, `feat/player-background`; asked on Reddit): the audio player left with **B** while a
+track plays goes on behind the other screens; **X** stops it and closes (the hint says so). The main loop calls
+`audioview_tick` (the next track when one ends; at the end of the list it lets go). While it plays the top bar shows a play
+icon (`UI_STATUS_PLAYER`), and the SD card's folder sheet (X) starts with *Back to the player* (`audioview_resume` pushes the
+kept view again). Opening another track replaces it; NSA leaving stops it (`audioview_exit` in the cleanup). The background
+music already ducks while channel 0 plays (bgmusic.c). Guide chapter `player` (since 0.8). **Not tried anywhere**: Azahar has
+no DSP firmware (sdmc:/3ds/dspfirm.cdc comes from a console).
+- [x] Play a folder of MP3s, B: it goes on; the play icon shows; browse Files, Titles, the Store; the next track starts by itself.
+- [x] *Back to the player* in a folder's sheet opens it where it is; X there stops it and the icon goes.
+- [ ] On the **2DS / Old 3DS**: an FTP upload and a URL download with music in the background against without (`tools/speed_tests.py`,
+      back to back). If it costs much, pause the background player while a transfer holds the turn (`xferturn_get`) on an Old 3DS.
+
+**Transfer toast and the web page's QR code** (2026-11-07, `feat/transfer-toast`; asked on Reddit: a progress bar while files
+come in or go out, and an easier way than an FTP app to reach the console from a phone):
+- Any FTP or web page transfer that holds the turn (uploads, and downloads of 1 MB or more) shows a toast at the bottom:
+  "FTP, receiving, 650 KB/s: game.cia" with a bar when the size is known (else how much so far). `xferturn_incoming` says the
+  direction; `xferturn_notice` (core/xferturn.c) comes before the FTP server's own notice, which now only shows while it
+  installs. Tried in Azahar (a 160 MB upload through the web page: "Web, receiving, 3.7 MiB/s").
+- Settings -> Web server, while it runs, draws a QR code of `http://IP:8080/?pin=PIN` beside a shorter help text. The page
+  signs in with `?pin=` and takes it out of the address bar at once. The encoder is NSA's own (`core/qrencode.c`: byte mode,
+  level M, versions 1-10, mask by penalty); `tests/qrencode_test.c` reads back every length up to version 10 with quirc, and
+  the code drawn in Azahar was read back from a screenshot. Tried in Azahar: the page opened signed in from the link.
+- [ ] On the console: the toast during an FTP upload and download (FileZilla) and a web page upload; it goes away at the end.
+- [x] A phone's camera opens the page from the QR code, signed in; the address bar has no PIN afterwards (the owner, 2026-11-07:
+  the QR code and the web page are good).
+- [x] Night mode: the QR code keeps its white square (quiet zone) on the dark card.
+
+**Selecting several files** (2026-11-07, `feat/file-selection`; asked on Reddit by two users and in issue #31): Files has a
+selection mode: the check tool in the title bar, **Y**, or *Select several* in a file's or folder's sheet (that item ticked).
+Inside it A or a tap ticks or unticks (a folder does not open), Y ticks all or none, X (or a hold) opens the sheet for the
+ticked items (*Install the selected CIAs* / *and delete* when CIAs are ticked, *Copy*, *Cut (move)*, *Select all*,
+*Select none*, *Delete*), B leaves (after clearing a search). Ticked rows have a box and a soft accent; the top screen says how
+many are ticked, how many are folders and the size of the files. Going to another folder leaves the mode.
+How: `file_info.marked`; `populate_files_data.filterTopOnly` (the filter picks among the base folder's own entries, what a
+kept folder holds is all listed); the clipboard holds a folder plus names (`clipboard_set_names`, "contents only"): a paste
+copies only those (`clipboard_filter_names`), a cut on the same medium renames each, on another medium deletes only those after
+the copy. Copying a selection into the folder it came from is refused (the paste would delete each file before copying it onto
+itself). `action_delete_selected`, `action_install_cias_selected`. Guide chapter `select` (since 0.8).
+- [x] Y, the check tool and *Select several* enter the mode; A ticks, Y all/none, B leaves; the title says "N selected".
+- [x] Copy 3 files and a folder, paste in another folder: only those arrive, the folder with all it holds.
+- [x] Cut and paste on the SD (rename) and from the SD to the CTR NAND or back (copy then delete only those).
+- [x] Delete a selection with a folder in it; install 2 ticked CIAs (and "and delete").
+- [x] Pasting a copied selection into its own folder says so and changes nothing. (It says so as an error; the owner: fine.)
+
+**Game mods** (2026-11-07, `feat/layeredfs-cleanup`; asked on r/3dshomebrew: "I always forget to delete LayeredFS stuff when I
+uninstall games"): Cleanup -> *Game mods* (`source/fbi/mods.c`, `task/listmods.c`) lists the folders of `sdmc:/luma/titles/`
+named by a 16-digit title ID, with the game's icon and name, size, files and contents (romfs, code.ips/bps/bin, exheader.bin,
+locale.txt, other). Each says whether its game is still there: *Installed* (SD or NAND), *Game card* (the CTR card in the slot),
+*Update only* (not installed but its update or DLC is: most likely a card that is out) or *Not installed*. Filter (game on the
+console / not installed), sort (name, size, ID), grid, search, remembered in `settings.json` (`mods`). Sheet: *Delete mods*
+(that folder) and, once the list is loaded, *Delete mods of games not installed* (never a system title's: Luma patches some, and
+a card that is out looks uninstalled, which the question says). Deleting a game or demo from Titles (also from the web page)
+that has a folder there asks whether to delete its mods too. Guide chapter `mods` (since 0.8: a console already on 0.8 is not offered it at start, it is in Settings -> Guide). Translated into the 10 languages
+(zh only with characters already in `hanfont.png`).
+- [ ] The list on a console with mods: names and icons, sizes, the states (install a game, delete it, take a card out).
+- [ ] *Delete mods* and *Delete mods of games not installed* delete only those folders; the list updates.
+- [ ] Deleting a game with mods from Titles asks, and Yes deletes `/luma/titles/<ID>/`; a game without mods asks nothing.
+- [ ] No `/luma/titles` (or empty): the screen says "No mods in /luma/titles." and nothing breaks.
+
+**Empty mods folders** (2026-11-07, `feat/mods-empty-folders`; the owner's New 3DS XL has 22 folders in `/luma/titles`, all
+empty, so every game seemed to have mods): a folder with no files is no mods. They are hidden by default and one row at the top
+stands for them all ("22 empty folders", folder-off icon; its sheet: *Show empty folders*, *Delete empty folders*). Filter ->
+Show has a third chip, *Empty folders* (settings `mods.states` bit 4). Shown, they carry the tag *Empty* and the sheet of any
+row has *Hide* / *Delete empty folders*. *Delete mods of games not installed* leaves the empty ones out, and deleting a game
+from Titles no longer asks about an empty folder. The owner decides whether hidden or shown reads better.
+- [ ] The New 3DS XL: the list shows only the summary row (or the real mods); A on it: show them, delete them all.
+- [ ] Filter -> Empty folders on and off; the setting is kept when the screen opens again.
+
+**Deleting a folder that holds folders** (2026-11-07, `fix/delete-dir-trailing-slash`; the owner, deleting the mods of a
+game not installed: "Failed to delete the mods", C8804478 not found): the console's FS refuses
+`FSUSER_DeleteDirectoryRecursively` on a path that ends in `/` once the folder holds another (an empty one or one with only
+files goes; tried on the New 3DS XL through the web API). `fs_delete_dir_recursively` drops the slash; the mods, a folder
+cut and pasted onto another medium, the web page's delete and a store script's `rmdir` use it.
+- [ ] Mods: delete the test mods of 0004000000FFFF00 (romfs/ and code.ips), alone and with *Delete mods of games not installed*.
+- [ ] Files: cut a folder with folders in it and paste it onto another medium (the NAND, a save): the source goes.
+
+**Shared UI pieces** (2026-11-07, `refactor/ui-structure`; the owner: screens, dialogs and bars each re-implemented the
+same things): nothing should change on screen. What was copied now lives once: the items of a list (`widgets.c`: row and
+tile frames, loading skeleton, fade-in, count badge, right tag, label/value cells, the "Loading..." card), the title bar's
+search and grid/rows tools with R/B/Y (`list.c`), the "N of M" count, a list's loading task (`task/uitask.c`), the chain of
+a grouped game (`chain.c`), the keyboards' keys (`core/ui/keys.c`), key repeat in popovers and sheets, the viewers'
+buttons, and the progress views of data operations (`info_task_finished`, `data_op_progress_items/bytes`).
+`tools/ui_snapshots.py` gave the same 49 pictures in Azahar before and after (but for blinking carets), and a folder with
+subfolders was deleted from Files there (progress, "Deleted.").
+- [x] Titles and Tickets grouped: a game with an update or DLC opens its chain; A on each row; delete one from there.
+- [x] Install CIAs and tickets, paste a copied folder, delete a selection, export a CIA: the progress, B cancels, the end.
+- [x] The search keyboard and the text editor's (pages, shift, held D-Pad and X; a key held with a finger repeats).
+- Then (`refactor/ui-structure-2`): the viewers' buttons, their touches and card, the keyboards' touches, the icon of
+  an item without one, the scroll clamp of popovers and dialogs. Same 49 pictures in Azahar.
+- [x] The image, audio and text viewers: tap their buttons, slide off one before letting go (nothing happens).
+- Then (`refactor/ui-structure-3`): deleting one ext save data or system save data runs through `action_delete_one`
+  (`action/deleteone.c`); the 27 data operation suspend/restore callbacks that only returned 0 are gone (a NULL one is
+  skipped, the result is the same). Copy, paste and delete a folder tried in Azahar.
+- [ ] Delete one ext save data: Cleanup and data -> Extra save data, A on one you do not need (or a title's sheet ->
+  Extra data -> Delete): red question, "Deleting...", gone from the list, notice; No keeps it. System save data (Advanced)
+  is the same code: only *No* is worth trying there.
+
+**The owner's tests of 2026-11-07, afternoon** (`fix/owner-feedback-1107`): grouped views, deleting titles and held
+D-Pads in sheets are good (ticked above). Changed after them:
+- Tickets has the tile size tool (zoom icon, SELECT), now shared with Titles and the Store (`list_add_tile_tool`); SELECT
+  in Titles no longer opens the filter too.
+- The Store marks an app installed by a script (a CIA from a .7z) once the install has ended: it looked too early, while
+  the install still ran in its own screens.
+- Keyboards: caps lock fills the shift key; the caret does not blink while it moves; X and Y repeat while held.
+- Deleting a big folder or its contents: only the top level is read (each folder goes in one call), every entry of a
+  folder is read (it stopped at 1024), no extra card call per file; B while reading stops without asking.
+- speed-log.txt now has a line per second of each copy/install of a data operation (`copy`) and the time of each Store
+  extraction (`extract`): the Store install of 3D Pinball (a .7z with a 963 KB CIA) was slow and the cause is not known.
+- [x] Install 3D Pinball (or another .7z CIA) from the Store again: is it still slow? Then fetch /nsa/speed-log.txt.
+  (Slow while the Store's status scan ran; fixed below.)
+- [x] Big folders read and delete fast now (the owner, 2026-11-07).
+- [x] The zoom icon and SELECT change the tile size in every grid: Titles, Tickets, Ext Save Data, Game mods, Store
+  (`feat/tile-tool-all`); kept when the screen opens again; the mods summary tile at the smallest size.
+- The Store's 3D Pinball install (New 3DS XL, 15:31-15:34): download 1.7 s, extraction 5.4 s, then 66 s before the
+  install started (reading the CIA's info, AM) and 59.6 s to install 963 KB (AM_StartCiaInstall 4.9 s, the first write
+  23.9 s, AM_FinishCiaInstall 26.5 s), with the UI at ~10 frames a second. The same Files install of a 570 KB CIA right
+  after: 1.6 s (2.0 s reinstalling), 60 fps. So not AM or the install code: something loaded the console then; the web
+  page had been used just before (music, an 8 MB upload). To try: the same Store install with the web page closed.
+- **Why it was slow, found** (2026-11-07, `fix/store-scan-sd`): the Store's background scan of which apps are on the console
+  called `stat()` twice for each app with a .3dsx (`/3ds/<name>/<name>.3dsx`, `/3ds/<name>.3dsx`): 574 calls of ~185 ms
+  each on the New 3DS XL, 107 s after opening the Store. All that time the SD card answered everything else slowly (a
+  6-byte FTP read 323 ms instead of 5). Pinball installed during the scan: extraction 5.2 s, 24 s before the install
+  began, install 17.5 s (~40 s in all); after the scan: 0.6 s, 2 s, 2.2 s (~6 s). The scan now reads `/3ds/` once (30
+  entries, 98 ms) and only calls `stat()` for an app whose folder is there: 1.07 s for 411 apps, and Pinball installed
+  right after opening the Store took 6.7 s. Tried on the New 3DS XL (DEBUG); the "on this console" filter still shows
+  the same 8 apps.
+- [x] The Store on the 2DS: the scan's time in `store-log.txt` ("status of N apps found in ... ms") and an install soon
+  after opening it.
+- The 2DS's screen going off and on, Wi-Fi gone for a moment: sleep-log.txt has 26 sleeps since it started, 12 of them
+  under 3 s (sleep, wake 1.2 s later). The system sends them (NSA never asks to sleep): on a 2DS that is the sleep
+  switch. Wi-Fi is down for a moment after any wake, then NSA reconnects (acInit). Likely a worn or bumped switch.
+- [x] Delete the contents of the big Metroid Zero Mission port's debug folder: how long the reading and the deleting take
+  (the owner, 2026-11-07: good).
+- [x] An install or a copy while the console goes to sleep or HOME (suspend and resume) goes on afterwards.
+
+**Sort both ways, hold A, the clipboard, the picture viewer** (2026-11-07, `feat/sort-both-ways`; the owner asked; Files'
+hint, the reversed name sort and Left/Right in the viewer seen in Azahar):
+- Every *Sort by* (Titles, Tickets, Files, Ext Save Data, Game mods) turns round when its option is chosen again, as the
+  Store's did: a chevron on the chip says which way, `sortReverse` in each screen's settings. Only the sort's own key turns:
+  folders stay first, titles without a name last, the summary row of mods on top, and ties keep their order.
+- Files' hint reads *A open   hold A actions   X folder   B up* (L and R are the title bar's filter and search icons), and
+  the guide says it: hold A on a file, or a finger.
+- The guide says the clipboard stays after leaving the SD card (it was always so: it empties only after pasting a cut, or
+  when NSA closes), to paste on the CTR NAND for example.
+- The picture viewer: Left and Right go to the folder's other pictures when not zoomed in (zoomed, the D-Pad still moves it).
+- [x] Each screen's sort, both ways, kept when the screen opens again.
+- Titles listed every title again when the sort changed (the owner noticed the wait); it now sorts what is loaded in place,
+  as Tickets, Files, Ext Save Data, Game mods and the Store already did (`fix/titles-sort-in-place`; seen on the New 3DS XL:
+  196 titles by size at once, the selection kept).
+- [x] The hint fits in German and Russian; the viewer with Left/Right and the Circle Pad.
+
+**Delete a title's mods from Titles** (2026-11-07, `feat/title-delete-mods`; the owner asked for it): a title with something
+in `/luma/titles/<ID>/` has *Delete mods* in its sheet, right before *Delete* (a game card's too). To try it, a dummy CIA
+"NSA Test" (`000400000FB1AE00`, devkitPro's hello world) with a test mods folder.
+- [ ] Titles -> NSA Test -> *Delete mods*: asks, deletes, and the action is gone the next time.
+- [x] Deleting NSA Test with mods asks whether to delete them too (the owner, 2026-11-07).
+- [ ] Now asked *before* deleting, right after *Delete the selected title?*, in red (`feat/title-mods-ask-first`; the
+  owner was unsure which order reads better): Yes deletes the title and then the mods; No keeps the mods.
+
+**Shorter filters, clearer sheets, D-Pad held** (2026-11-07, `feat/compact-overlays`; the owner: the filter card grew too long
+on the small screen, the folder's and the item's sheets looked alike, and a held D-Pad did not run through the actions):
+- Every filter option is an icon now (`popover_display` makes a group icon-only when all its options have one; new icons for
+  Type, Region, Group, In use, Hidden, the Store's Type and Updated). The card is as wide as the screen (304 px); a group's name
+  and its icons share a line when they fit (Titles' five groups fit with no scroll). The focused icon's name is in a tooltip
+  above it (room is kept over the first line for it).
+- Files' sheets have a header that says what they act on: *This folder (where you are)* with the folder's name (or *Root of the
+  SD card*), *File* / *Folder* with the item's name and type icon, or *The ticked items* with the count
+  (`sheet_display_list_for`, a kicker in the accent colour over the name, and a rule under it).
+- In a sheet and in the filter card a held direction moves on and on (400 ms, then every 90 ms, as in the lists) and stops at
+  the ends; a fresh press still goes round.
+- Game mods: A opens the sheet (only a tap did), and its hint bar has the button glyphs again.
+- Region shows one-colour flags (NSA's own `tools/icons/flag-eu|us|jp.svg`: the ring of stars, the canton and stripes, the
+  red disc) instead of letters (`feat/region-flags`, the owner's idea).
+Tried in Azahar (Titles' and Mods' filters, the sheets of the root, a file and the empty folders, a held Down).
+- [x] The filter cards of Titles, Tickets, Files, Store, Ext Save Data, Pending titles: readable, the tooltips say the right names
+  (the owner, 2026-11-07).
+- [x] Files: the three sheets (X in a folder, an item's, the ticked items') tell themselves apart at a glance.
+- [x] Holding Up/Down/Left/Right in a long sheet and in a filter card.
+
+**Updates start sooner** (2026-11-06, `fix/update-start`): the first request of a download (`http_probe`: where the file is,
+how big) ran on the caller's thread, on the system core, which an Old 3DS shares at 5% while a transfer turn is held; it now runs
+on the app's core, as the fetches do, and the update check too. Measured on the 2DS (DEBUG built as 0.8.3-beta, offered v0.8.4):
+"Yes" to the CIA downloaded 44 s -> 10 s (the probe 36 s -> 2.5 s); the check 6.3 s -> 4.7 s (reading the releases 1.1 s ->
+0.36 s). `transfer-log.txt` now says how long each probe took and the update check's times.
+- [ ] On the New 3DS XL: an update from Settings and an install from a URL start as before (no slower).
+- [ ] An install from a URL on the 2DS starts within a few seconds too (the same probe).
+
+**No seed lookup for titles without one, no probe for small downloads** (2026-11-06, `fix/seed-probe`): after installing a CIA,
+NSA asked Nintendo's server for its seed whatever it was (as FBI did: a 404 for anything not from the eShop, 2.4 s on the 2DS);
+now it asks only when the first content's NCCH header says the title uses one, or when the header could not be read (an
+encrypted content). A download into a small buffer (under 4 MB: the releases, the Store's info, a seed) skips the first request
+that looks for several connections. Measured with DEBUG builds offered v0.8.4: the update check 4.7 s -> 3.0 s on the 2DS (0.7 s
+on the New 3DS XL), and no seed request after the install on either.
+- [ ] A game from the eShop that uses a seed (installed from a CIA with readable contents) still gets its seed and starts.
+
 **Guide and scrolling dialogs** (2026-11-06, `feat/guide`; DEBUG 0.7.3 tried in Azahar, in Spanish, Cards theme: the offer at
 start, Getting around, Your main menu, Store, SD card and From your computer played through, a chapter started from Settings -> Guide,
 START on the main menu, and a long message scrolled with the D-Pad and a finger)
@@ -182,6 +431,18 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
   Quick Reboot's .3dsx out of a .zip. Still to try: an app whose CIA and data both come out of one zip, Cancel during
   "Extracting...", and an archive that does not hold what the script names (Cirrus's 3DSX zip: it must say it failed and delete
   the download).
+- [ ] **Stores of your own** (2026-11-07, `feat/unistores`): the Store opens on a list of stores (Universal-DB, with its credit to
+  Universal-Team, and the user's, in `sdmc:/nsa/stores.json`, files in `sdmc:/nsa/stores/<key>/`); add by QR code or link,
+  change the link, delete. Every entry of a store shows now, for any console, with each download it offers (a third type in the
+  filter, "Other"), and scripts run step by step: promptMessage (No skips `count` steps or stops), skip, mkdir, rmdir (asks
+  first; only a folder below the card's root, and of /luma only /luma/titles/<id>/...), downloadRelease (the latest GitHub
+  release's file, found by its pattern through the API). Scripts may now write in /luma/titles/ (game mods), nowhere else in
+  /luma, and no *.firm. Tried on the New 3DS XL (DEBUG): the list and Universal-DB's card, a store checked and deleted, the QR
+  scanner opens, LinuxCat's Store (icons from its one sheet, a .gba into /roms/gba/, a zip extracted and cleaned up),
+  opentitus-3ds's 3DSX answering No to its question (the release found and downloaded, extracted, moved). A zip now extracts
+  60 times faster (writes gathered in 256 KB: 5.4 MB in 110 s -> 1.8 s), .7z files too. Still to try: scanning a real QR
+  code, a mod store (Minecraft or Paper Mario: rmdir's question, /luma/titles), a store's CIA through a script (RetroArch
+  Cores), TWiLight Menu++ Skins (517 entries) on the 2DS for memory, and the guide's Store chapter.
 - [ ] **Big .7z** (2026-11-06, v0.8.3): a block packed with LZMA, LZMA2 or stored is decoded a piece at a time and each file written
   as it comes out (its CRC checked), so only the dictionary is in memory (no bigger than the block; on the heap, else the linear
   heap): HoriHD-Gallery (36 MB .7z, a 43 MB block, 16 MB dictionary) ran out of memory before on the New 3DS XL and now works on
@@ -957,8 +1218,31 @@ current, this list is the summary. What only the owner can test (local wireless)
     - More sound: the held repeat of a list, text-editor keys, a tone per kind of action.
     - ~~Hide "Open as text" on programs, ROMs, archives~~ done; open `.3dsx` by tap instead of through the sheet.
     - The NSA icon and banner (item 6) show now in every 3DSX preview: still FBI's.
-    - A mini player that keeps the song playing while browsing (the audio view stops it on B).
+    - ~~A mini player that keeps the song playing while browsing~~ done on `staging` (`feat/player-background`).
     - Date of creation: not available (the 3DS only gives the last change); NSA could record its own.
+
+11. **A HOME Menu icon for a .3dsx: make a forwarder CIA** (asked on Reddit by rhinofinger in the first thread, 2026-10; the
+    owner answered it could be done; not started, no issue yet). A small CIA that only starts the .3dsx, which stays where it
+    is; its icon and name come from the .3dsx's SMDH, and the user may give a banner picture and a jingle. Plan (2026-11-07):
+    - **The stub**: a tiny app built with NSA (devkitARM + makerom on the PC, kept in `romfs:/forwarder.cxi`) that reads a path
+      patched into its own `.code` (a 512-byte buffer after a marker, so no RomFS and no hash tree), calls `hb:ldr` SetTarget /
+      SetArgv as `launch3dsx.c` does, and jumps to the Homebrew Launcher placeholder title (`APT_PrepareToDoApplicationJump`).
+      So it needs Luma3DS and that title, like "Run program" today (`launch3dsx_available` says what is missing). Open question:
+      whether Luma's loader can be pointed at the forwarder's own title instead, so no placeholder is needed.
+    - **On the console**: copy the template NCCH, set a new title ID (unique ID from a hash of the path, in the homebrew range
+      0xF0000-0xFFFFF, avoiding installed ones) in the NCCH header and the exheader, patch the path, put the .3dsx's SMDH as the
+      ExeFS `icon`, recompute the ExeFS file hashes, the ExeFS superblock hash and the exheader hash (signatures stay invalid:
+      Luma's signature patches, as for exported CIAs). Then wrap it with `exportcia.c`'s writer (certificates, ticket, TMD with
+      the content's SHA-256) and install it, or save it to `/nsa/cias/`.
+    - **Banner and jingle**: first a generic NSA banner (CBMD + BCWAV made at build time with bannertool). A custom one later:
+      a .bnr the user made elsewhere is easy (use it as is); a picture needs a CGFX built from a template with the picture as its
+      texture, and a .wav a BCWAV (PCM16 in a CWAV container, the easy part) — what bannertool does.
+    - Size: a few days of work; the risky part is the NCCH (test with `ctrtool` on the PC before any console install).
+
+- **Named mods and a GameBanana mods store** (issue #32, for later; the owner, 2026-11-07): Luma keeps one folder per game and
+  mods mix in it, so a mod's name and files exist only if NSA installs it. A library in `sdmc:/nsa/mods/<ID>/<name>/` with a
+  manifest (enable, disable, delete, conflicts), *Install as mod* from a .zip or folder in Files, a game's mods from Titles,
+  then a store over GameBanana's API (check its terms, mapping its games to title IDs, .7z/.rar archives).
 
 ## Decisions
 
@@ -1166,8 +1450,8 @@ current, this list is the summary. What only the owner can test (local wireless)
   send to a client that had gone waited inside the SOC session until TCP gave up, holding every socket call of NSA, the
   shutdown() meant to wake it too; the 2DS stopped answering FTP and web during a download test and froze when the FTP
   server was turned off (2026-11-02). Closing waits (up to 2 s) for the other side to close, as the SOC service drops
-  unsent data when a non-blocking socket closes. The FTP serves one session at a time: one silent for 30 s gives way to a
-  new connection. Second requests for a segment only for the one the install waits for (near the end, any), once it has
+  unsent data when a non-blocking socket closes. The FTP serves up to 3 sessions, each on its own thread (since
+  2026-11-07, `feat/ftp-sessions`; it served one at a time, one silent for 30 s gave way to a new connection). Second requests for a segment only for the one the install waits for (near the end, any), once it has
   taken three times the average: with a fixed 2 s the 2DS asked for 158 segments twice (~80 MB wasted); now 1, and the
   same download went from 401 to 514 KB/s. The 2DS's install lags the network there (the window stays full).
 - `SITE CPU` leaves counting threads at the lowest priority on every core until `SITE CPU OFF`: send it after measuring.

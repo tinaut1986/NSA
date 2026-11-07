@@ -827,10 +827,12 @@ static void titles_popover_select(void* data, u32 group, u32 option) {
         case 3:
             listData->group = option == 0;
             break;
+        // Sorting needs no new listing either: the titles already loaded are sorted again in place.
         default:
             listData->sortReverse = listData->sort == (titles_sort) option ? !listData->sortReverse : false;
             listData->sort = (titles_sort) option;
-            relist = true;
+            listData->sorted = false;
+            listData->sortedLoaded = (u32) -1;
             break;
     }
 

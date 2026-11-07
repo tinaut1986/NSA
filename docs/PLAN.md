@@ -173,7 +173,8 @@ come in or go out, and an easier way than an FTP app to reach the console from a
   level M, versions 1-10, mask by penalty); `tests/qrencode_test.c` reads back every length up to version 10 with quirc, and
   the code drawn in Azahar was read back from a screenshot. Tried in Azahar: the page opened signed in from the link.
 - [ ] On the console: the toast during an FTP upload and download (FileZilla) and a web page upload; it goes away at the end.
-- [ ] A phone's camera opens the page from the QR code, signed in; the address bar has no PIN afterwards.
+- [x] A phone's camera opens the page from the QR code, signed in; the address bar has no PIN afterwards (the owner, 2026-11-07:
+  the QR code and the web page are good).
 - [ ] Night mode: the QR code keeps its white square (quiet zone) on the dark card.
 
 **Selecting several files** (2026-11-07, `feat/file-selection`; asked on Reddit by two users and in issue #31): Files has a
@@ -280,7 +281,8 @@ D-Pads in sheets are good (ticked above). Changed after them:
 - The 2DS's screen going off and on, Wi-Fi gone for a moment: sleep-log.txt has 26 sleeps since it started, 12 of them
   under 3 s (sleep, wake 1.2 s later). The system sends them (NSA never asks to sleep): on a 2DS that is the sleep
   switch. Wi-Fi is down for a moment after any wake, then NSA reconnects (acInit). Likely a worn or bumped switch.
-- [ ] Delete the contents of the big Monkey Island port's debug folder: how long the reading and the deleting take.
+- [x] Delete the contents of the big Metroid Zero Mission port's debug folder: how long the reading and the deleting take
+  (the owner, 2026-11-07: good).
 - [ ] An install or a copy while the console goes to sleep or HOME (suspend and resume) goes on afterwards.
 
 **Sort both ways, hold A, the clipboard, the picture viewer** (2026-11-07, `feat/sort-both-ways`; the owner asked; Files'
@@ -294,6 +296,9 @@ hint, the reversed name sort and Left/Right in the viewer seen in Azahar):
   when NSA closes), to paste on the CTR NAND for example.
 - The picture viewer: Left and Right go to the folder's other pictures when not zoomed in (zoomed, the D-Pad still moves it).
 - [ ] Each screen's sort, both ways, kept when the screen opens again.
+- Titles listed every title again when the sort changed (the owner noticed the wait); it now sorts what is loaded in place,
+  as Tickets, Files, Ext Save Data, Game mods and the Store already did (`fix/titles-sort-in-place`; seen on the New 3DS XL:
+  196 titles by size at once, the selection kept).
 - [ ] The hint fits in German and Russian; the viewer with Left/Right and the Circle Pad.
 
 **Delete a title's mods from Titles** (2026-11-07, `feat/title-delete-mods`; the owner asked for it): a title with something
@@ -319,7 +324,8 @@ on the small screen, the folder's and the item's sheets looked alike, and a held
 - Region shows one-colour flags (NSA's own `tools/icons/flag-eu|us|jp.svg`: the ring of stars, the canton and stripes, the
   red disc) instead of letters (`feat/region-flags`, the owner's idea).
 Tried in Azahar (Titles' and Mods' filters, the sheets of the root, a file and the empty folders, a held Down).
-- [ ] The filter cards of Titles, Tickets, Files, Store, Ext Save Data, Pending titles: readable, the tooltips say the right names.
+- [x] The filter cards of Titles, Tickets, Files, Store, Ext Save Data, Pending titles: readable, the tooltips say the right names
+  (the owner, 2026-11-07).
 - [ ] Files: the three sheets (X in a folder, an item's, the ticked items') tell themselves apart at a glance.
 - [ ] Holding Up/Down/Left/Right in a long sheet and in a filter card.
 

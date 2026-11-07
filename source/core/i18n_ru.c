@@ -1065,7 +1065,6 @@ const i18n_entry i18n_ru[] = {
         {"LayeredFS mods of games you deleted", "Моды LayeredFS удалённых игр"},
         {"%lu items", "Элементов: %lu"},
         {"%lu selected", "Выбрано: %lu"},
-        {"Size of the files", "Размер файлов"},
         {"\uE000 ticks or unticks an item, \uE003 ticks all or none, \uE002 acts on the ticked ones and \uE001 leaves. A ticked folder counts with everything in it.", "\uE000 отмечает или снимает отметку, \uE003 отмечает все или ничего, \uE002 действует на отмеченные, \uE001 выход. Отмеченная папка считается со всем содержимым."},
         {"%lu items will be moved when you paste them.", "Элементов: %lu, они будут перемещены при вставке."},
         {"%lu items are in the clipboard.", "Элементов в буфере обмена: %lu."},
@@ -1086,6 +1085,11 @@ const i18n_entry i18n_ru[] = {
         {"Then \uE002 copies, moves, installs or deletes all the ticked ones together, and \uE001 leaves.", "Затем \uE002 копирует, перемещает, устанавливает или удаляет все отмеченные вместе, а \uE001 — выход."},
         {"Selecting several", "Выбрать несколько"},
         {"Copy, move or delete many at once", "Копировать, перемещать или удалять многое сразу"},
+        {"Open this address in a browser and type the PIN, or scan the code with a phone: the page opens already signed in.", "Откройте этот адрес в браузере и введите PIN или отсканируйте код телефоном: страница откроется уже с входом."},
+        {"FTP, receiving", "FTP, приём"},
+        {"FTP, sending", "FTP, отправка"},
+        {"Web, receiving", "Веб, приём"},
+        {"Web, sending", "Веб, отправка"},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

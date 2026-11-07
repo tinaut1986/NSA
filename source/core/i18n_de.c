@@ -1069,7 +1069,6 @@ const i18n_entry i18n_de[] = {
         {"LayeredFS mods of games you deleted", "LayeredFS-Mods gelöschter Spiele"},
         {"%lu items", "%lu Elemente"},
         {"%lu selected", "%lu ausgewählt"},
-        {"Size of the files", "Größe der Dateien"},
         {"\uE000 ticks or unticks an item, \uE003 ticks all or none, \uE002 acts on the ticked ones and \uE001 leaves. A ticked folder counts with everything in it.", "\uE000 hakt ein Element an oder ab, \uE003 hakt alle oder keins an, \uE002 handelt mit den angehakten und \uE001 beendet. Ein angehakter Ordner zählt mit seinem ganzen Inhalt."},
         {"%lu items will be moved when you paste them.", "%lu Elemente werden beim Einfügen verschoben."},
         {"%lu items are in the clipboard.", "%lu Elemente sind in der Zwischenablage."},
@@ -1090,6 +1089,11 @@ const i18n_entry i18n_de[] = {
         {"Then \uE002 copies, moves, installs or deletes all the ticked ones together, and \uE001 leaves.", "Dann kopiert, verschiebt, installiert oder löscht \uE002 alle angehakten zusammen, und \uE001 beendet."},
         {"Selecting several", "Mehrere auswählen"},
         {"Copy, move or delete many at once", "Viele auf einmal kopieren, verschieben oder löschen"},
+        {"Open this address in a browser and type the PIN, or scan the code with a phone: the page opens already signed in.", "Öffne diese Adresse im Browser und gib die PIN ein, oder scanne den Code mit dem Handy: Die Seite öffnet sich schon angemeldet."},
+        {"FTP, receiving", "FTP, Empfang"},
+        {"FTP, sending", "FTP, Senden"},
+        {"Web, receiving", "Web, Empfang"},
+        {"Web, sending", "Web, Senden"},
 };
 
 const u32 i18n_de_count = sizeof(i18n_de) / sizeof(*i18n_de);

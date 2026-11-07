@@ -266,12 +266,14 @@ static void web_send_busy(web_request* r) {
 // Files from this size up take the turn to go down; smaller ones (a text, a picture) do not.
 #define WEB_TURN_MIN_GET (1024 * 1024)
 
-static bool web_take_turn(web_request* r, const char* vpath, u64 total) {
+static bool web_take_turn(web_request* r, const char* vpath, u64 total, bool incoming) {
     web_turn = xferturn_take(XFER_WEB, vpath, total);
     if(web_turn == 0) {
         web_send_busy(r);
         return false;
     }
+
+    xferturn_incoming(web_turn, incoming);
 
     web_turn_fd = r->fd;
     return true;
@@ -547,7 +549,7 @@ static void web_api_get_file(web_request* r) {
     u64 from = r->hasRange && r->rangeFrom < size ? r->rangeFrom : 0;
     bool partial = r->hasRange && from > 0;
 
-    if(size - from >= WEB_TURN_MIN_GET && !web_take_turn(r, vpath, size - from)) {
+    if(size - from >= WEB_TURN_MIN_GET && !web_take_turn(r, vpath, size - from, false)) {
         fclose(f);
         return;
     }
@@ -595,7 +597,7 @@ static void web_api_put_file(web_request* r) {
         return;
     }
 
-    if(!web_take_turn(r, vpath, r->contentLength)) {
+    if(!web_take_turn(r, vpath, r->contentLength, true)) {
         return;
     }
 

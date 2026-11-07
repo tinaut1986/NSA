@@ -1094,7 +1094,7 @@ const i18n_entry i18n_ja[] = {
         {"FTP, sending", "FTP 送信中"},
         {"Web, receiving", "Web 受信中"},
         {"Web, sending", "Web 送信中"},
-        {"\uE000 pause   \uE004 \uE005 track   \uE002 stop   \uE001 back", "\uE000 一時停止   \uE004 \uE005 曲   \uE002 停止   \uE001 戻る"},
+        {"\uE000 pause   \uE004 \uE005 track   \uE003 repeat   \uE002 stop   \uE001 back", "\uE000 一時停止   \uE004 \uE005 曲   \uE003 リピート   \uE002 停止   \uE001 戻る"},
         {"Back to the player", "プレーヤーに戻る"},
         {"Music you play from the SD card goes on when you leave the player with \uE001; \uE002 in the player stops it.", "SDカードから再生した音楽は、\uE001 でプレーヤーを出ても流れ続けます。プレーヤーで \uE002 を押すと止まります。"},
         {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "再生中は上のバーに再生アイコンが表示され、SDカードのどのフォルダでも \uE002 から「プレーヤーに戻る」を選べます。"},

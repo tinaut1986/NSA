@@ -1081,7 +1081,7 @@ const i18n_entry i18n_zh[] = {
         {"FTP, sending", "FTP 发送中"},
         {"Web, receiving", "网页接收中"},
         {"Web, sending", "网页发送中"},
-        {"\uE000 pause   \uE004 \uE005 track   \uE002 stop   \uE001 back", "\uE000 暂停   \uE004 \uE005 曲目   \uE002 关闭   \uE001 返回"},
+        {"\uE000 pause   \uE004 \uE005 track   \uE003 repeat   \uE002 stop   \uE001 back", "\uE000 暂停   \uE004 \uE005 曲目   \uE003 循环   \uE002 关闭   \uE001 返回"},
         {"Back to the player", "返回播放器"},
         {"Music you play from the SD card goes on when you leave the player with \uE001; \uE002 in the player stops it.", "从 SD 卡播放的音乐，用 \uE001 退出播放器后会继续播放；在播放器中按 \uE002 关闭。"},
         {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "播放时上方栏会显示播放图标，在 SD 卡的任何文件夹中按 \uE002 都有“返回播放器”。"},

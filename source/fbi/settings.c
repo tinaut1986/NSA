@@ -111,6 +111,7 @@ void settings_load() {
     settings.soundVolume = settings_get_uint(json, "sound_volume", settings.soundVolume, 100);
     settings.music = settings_get_uint(json, "music", settings.music, BGMUSIC_COUNT - 1);
     settings.musicVolume = settings_get_uint(json, "music_volume", settings.musicVolume, 100);
+    settings.playerRepeat = settings_get_uint(json, "player_repeat", settings.playerRepeat, 2);
 
     json_t* night = json_object_get(json, "night_mode");
     if(json_is_string(night)) {
@@ -302,6 +303,7 @@ Result settings_save() {
     json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));
     json_object_set_new(json, "guide_seen", json_string(settings.guideSeen));
     json_object_set_new(json, "guide_known", json_integer(settings.guideKnown));
+    json_object_set_new(json, "player_repeat", json_integer(settings.playerRepeat));
 
     if(json_dump_file(json, SETTINGS_PATH, JSON_INDENT(2)) != 0) {
         res = R_APP_IO_ERROR;

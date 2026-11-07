@@ -104,14 +104,7 @@ Result task_mods_delete(u64 titleId) {
     Result res = 0;
     FS_Archive sd = 0;
     if(R_SUCCEEDED(res = fs_open_archive(&sd, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-        FS_Path* fsPath = fs_make_path_utf8(path);
-        if(fsPath != NULL) {
-            res = FSUSER_DeleteDirectoryRecursively(sd, *fsPath);
-            fs_free_path_utf8(fsPath);
-        } else {
-            res = R_APP_OUT_OF_MEMORY;
-        }
-
+        res = fs_delete_dir_recursively(sd, path);
         fs_close_archive(sd);
     }
 

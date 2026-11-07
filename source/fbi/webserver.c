@@ -710,7 +710,7 @@ static void web_api_delete_file(web_request* r) {
     }
 
     if(R_SUCCEEDED(res = fs_open_archive(&sd, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-        res = S_ISDIR(st.st_mode) ? FSUSER_DeleteDirectoryRecursively(sd, *fsPath) : FSUSER_DeleteFile(sd, *fsPath);
+        res = S_ISDIR(st.st_mode) ? fs_delete_dir_recursively(sd, vpath) : FSUSER_DeleteFile(sd, *fsPath);
         fs_close_archive(sd);
     }
 

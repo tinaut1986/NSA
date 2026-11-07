@@ -6,6 +6,7 @@
 
 #include "dataop.h"
 #include "../core.h"
+#include "../speedlog.h"
 #include "../xferturn.h"
 
 void data_op_progress_items(const data_op_data* op, float* progress, char* text) {
@@ -85,6 +86,12 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
                     if(buffer != NULL) {
                         u32 dstHandle = 0;
 
+                        // speed-log.txt: reading the source counts as "net", opening, writing and closing the
+                        // destination (an install's AM calls) as "disk".
+                        char traceName[32];
+                        snprintf(traceName, sizeof(traceName), "item %lu", index);
+                        speedlog* trace = speedlog_begin("copy", traceName, data->currTotal);
+
                         u64 ioStartTime = 0;
                         u64 lastBytesPerSecondUpdate = osGetTime();
                         u32 bytesSinceUpdate = 0;
@@ -96,22 +103,31 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
                             }
 
                             u32 bytesRead = 0;
+                            u64 ticks = speedlog_ticks();
                             if(R_FAILED(res = data->readSrc(data->data, srcHandle, &bytesRead, buffer, data->currProcessed, data->bufferSize))) {
                                 break;
                             }
 
+                            speedlog_net(trace, bytesRead, speedlog_ticks() - ticks);
+
                             if(firstRun) {
                                 firstRun = false;
 
+                                ticks = speedlog_ticks();
                                 if(R_FAILED(res = data->openDst(data->data, index, buffer, data->currTotal, &dstHandle))) {
                                     break;
                                 }
+
+                                speedlog_disk(trace, 0, speedlog_ticks() - ticks);
                             }
 
                             u32 bytesWritten = 0;
+                            ticks = speedlog_ticks();
                             if(R_FAILED(res = data->writeDst(data->data, dstHandle, &bytesWritten, buffer, data->currProcessed, bytesRead))) {
                                 break;
                             }
+
+                            speedlog_disk(trace, bytesWritten, speedlog_ticks() - ticks);
 
                             data->currProcessed += bytesWritten;
                             bytesSinceUpdate += bytesWritten;
@@ -137,12 +153,15 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
                         }
 
                         if(dstHandle != 0) {
+                            u64 ticks = speedlog_ticks();
                             Result closeDstRes = data->closeDst(data->data, index, res == 0, dstHandle);
+                            speedlog_disk(trace, 0, speedlog_ticks() - ticks);
                             if(R_SUCCEEDED(res)) {
                                 res = closeDstRes;
                             }
                         }
 
+                        speedlog_end(trace, R_SUCCEEDED(res));
                         free(buffer);
                     } else {
                         res = R_APP_OUT_OF_MEMORY;

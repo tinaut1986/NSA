@@ -84,10 +84,10 @@ static const coach_step titles_steps[] = {
 static const coach_step files_steps[] = {
         OPEN("menu.sd", "Open SD card.", "tool.clipboard"),
         INFO("top", "The top screen shows the file with the focus: a CIA with its icon and sizes."),
-        INFO("list.selected", "\uE000 opens a folder, and a picture, a text or a song in its viewer. Holding a file opens its actions: install, copy, cut, rename, delete, send."),
+        INFO("list.selected", "\uE000 opens a folder, and a picture, a text or a song in its viewer. Hold \uE000 on a file (or keep your finger on it) to open its actions: install, copy, cut, rename, delete, send."),
         DO("tool.more", "\uE002 has the actions of the folder itself, such as installing all its CIAs. Open them.", KEY_X, true, "sheet"),
         DO("sheet", "Close them with \uE001.", KEY_B, false, "!sheet"),
-        INFO("tool.clipboard", "What you copy or cut waits here until you paste it."),
+        INFO("tool.clipboard", "What you copy or cut waits here until you paste it, even if you leave the SD card: you can paste it somewhere else, such as the CTR NAND."),
         DO(NULL, "\uE001 goes up a folder, and from the top back to the menu.", KEY_B, false, "v:Main menu"),
 };
 

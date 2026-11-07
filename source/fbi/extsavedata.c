@@ -29,6 +29,7 @@ typedef struct {
     bool showSD;
     bool showNAND;
     extsavedata_sort sort;
+    bool sortReverse;   // The sort turned round (choosing the same sort again).
 
     bool populated;
     bool sorted;
@@ -50,6 +51,7 @@ static void extsavedata_store(extsavedata_data* data) {
     saved->sd = data->showSD;
     saved->nand = data->showNAND;
     saved->byId = data->sort == SORT_ID;
+    saved->sortReverse = data->sortReverse;
     saved->grid = data->view != NULL && list_get_mode(data->view) == LIST_MODE_GRID;
     settings_save();
 }
@@ -248,6 +250,7 @@ static void extsavedata_popover_select(void* data, u32 group, u32 option) {
         bool* flag = option == 0 ? &listData->showSD : &listData->showNAND;
         *flag = !*flag;
     } else {
+        listData->sortReverse = listData->sort == (extsavedata_sort) option ? !listData->sortReverse : false;
         listData->sort = (extsavedata_sort) option;
         // Sorted again at the next frame.
         listData->sorted = false;
@@ -256,15 +259,21 @@ static void extsavedata_popover_select(void* data, u32 group, u32 option) {
     extsavedata_store(listData);
 }
 
+static bool extsavedata_popover_is_reversed(void* data, u32 group, u32 option) {
+    extsavedata_data* listData = (extsavedata_data*) data;
+    return group == 1 && listData->sort == (extsavedata_sort) option && listData->sortReverse;
+}
+
 static void extsavedata_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 2,
             .groups = {
                     {_("Show"), true, 2, {"SD", "NAND"}, {ICON_DEVICE_SD_CARD, ICON_CPU}},
-                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true}
+                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true, true}
             },
             .isOn = extsavedata_popover_is_on,
-            .select = extsavedata_popover_select
+            .select = extsavedata_popover_select,
+            .isReversed = extsavedata_popover_is_reversed
     };
 
     popover_display(&def, data);
@@ -308,14 +317,16 @@ static int extsavedata_compare(void* data, const void* p1, const void* p2) {
         return info1->hasMeta ? -1 : 1;
     }
 
+    int dir = listData->sortReverse ? -1 : 1;
     if(info1->ready && listData->sort == SORT_NAME && info1->hasMeta) {
         int byName = strncasecmp(item1->name, item2->name, sizeof(item1->name));
         if(byName != 0) {
-            return byName;
+            return dir * byName;
         }
     }
 
-    return info1->extSaveDataId > info2->extSaveDataId ? 1 : info1->extSaveDataId < info2->extSaveDataId ? -1 : 0;
+    int byId = info1->extSaveDataId > info2->extSaveDataId ? 1 : info1->extSaveDataId < info2->extSaveDataId ? -1 : 0;
+    return listData->sort == SORT_ID ? dir * byId : byId;
 }
 
 static void extsavedata_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
@@ -441,6 +452,7 @@ void extsavedata_open() {
     data->showSD = saved->sd;
     data->showNAND = saved->nand;
     data->sort = saved->byId ? SORT_ID : SORT_NAME;
+    data->sortReverse = saved->sortReverse;
 
     ui_view* view = list_display(_("Ext Save Data"), "", data, extsavedata_update, extsavedata_draw_top);
     if(view == NULL) {

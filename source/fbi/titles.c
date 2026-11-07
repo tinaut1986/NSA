@@ -30,6 +30,7 @@ typedef struct {
     bool showSD;
     bool showNAND;
     titles_sort sort;
+    bool sortReverse;   // The sort turned round (choosing the same sort again).
     bool group;
 
     // Hidden in place (no new listing): by kind (title_kind) and by region.
@@ -864,6 +865,7 @@ static void titles_store(titles_data* data) {
 
     saved->group = data->group;
     saved->sort = (u32) data->sort;
+    saved->sortReverse = data->sortReverse;
     saved->grid = data->view != NULL && list_get_mode(data->view) == LIST_MODE_GRID;
     settings_save();
 }
@@ -883,6 +885,7 @@ static void titles_restore(titles_data* data) {
 
     data->group = saved->group;
     data->sort = saved->sort <= SORT_SIZE ? (titles_sort) saved->sort : SORT_NAME;
+    data->sortReverse = saved->sortReverse;
 }
 
 static void titles_popover_select(void* data, u32 group, u32 option) {
@@ -906,6 +909,7 @@ static void titles_popover_select(void* data, u32 group, u32 option) {
             listData->group = option == 0;
             break;
         default:
+            listData->sortReverse = listData->sort == (titles_sort) option ? !listData->sortReverse : false;
             listData->sort = (titles_sort) option;
             relist = true;
             break;
@@ -918,6 +922,11 @@ static void titles_popover_select(void* data, u32 group, u32 option) {
     titles_store(listData);
 }
 
+static bool titles_popover_is_reversed(void* data, u32 group, u32 option) {
+    titles_data* listData = (titles_data*) data;
+    return group == 4 && listData->sort == (titles_sort) option && listData->sortReverse;
+}
+
 static void titles_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 5,
@@ -927,10 +936,11 @@ static void titles_filter_open(ui_view* view, void* data) {
                     {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {ICON_DEVICE_GAMEPAD_2, ICON_REFRESH, ICON_PUZZLE, ICON_FLASK, ICON_DEVICE_MOBILE, ICON_SETTINGS}},
                     {_("Region"), true, 5, {_("Region free"), _("Europe"), _("America"), _("Japan"), _("Other")}, {ICON_WORLD, ICON_FLAG_EU, ICON_FLAG_US, ICON_FLAG_JP, ICON_DOTS}},
                     {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {ICON_CHECK, ICON_X}},
-                    {_("Sort by"), false, 3, {_("Name"), "ID", _("Size")}, {ICON_ABC, ICON_KEY, ICON_DATABASE}, true}
+                    {_("Sort by"), false, 3, {_("Name"), "ID", _("Size")}, {ICON_ABC, ICON_KEY, ICON_DATABASE}, true, true}
             },
             .isOn = titles_popover_is_on,
-            .select = titles_popover_select
+            .select = titles_popover_select,
+            .isReversed = titles_popover_is_reversed
     };
 
     popover_display(&def, data);
@@ -1213,6 +1223,7 @@ static bool titles_filter(void* data, u64 titleId, FS_MediaType mediaType) {
 
 static int titles_compare(void* data, const void* p1, const void* p2) {
     titles_data* listData = (titles_data*) data;
+    int dir = listData->sortReverse ? -1 : 1;
 
     list_item* info1 = (list_item*) p1;
     list_item* info2 = (list_item*) p2;
@@ -1239,12 +1250,12 @@ static int titles_compare(void* data, const void* p1, const void* p2) {
         u64 id1 = title1->titleId;
         u64 id2 = title2->titleId;
 
-        return id1 > id2 ? 1 : id1 < id2 ? -1 : 0;
+        return dir * (id1 > id2 ? 1 : id1 < id2 ? -1 : 0);
     } else if(listData->sort == SORT_SIZE) {
         u64 size1 = title1->installedSize;
         u64 size2 = title2->installedSize;
 
-        return size1 > size2 ? -1 : size1 < size2 ? 1 : 0;
+        return dir * (size1 > size2 ? -1 : size1 < size2 ? 1 : 0);
     } else {
         bool title1HasName = title1->hasMeta && !string_is_empty(title1->meta.shortDescription);
         bool title2HasName = title2->hasMeta && !string_is_empty(title2->meta.shortDescription);
@@ -1254,7 +1265,7 @@ static int titles_compare(void* data, const void* p1, const void* p2) {
         } else if(!title1HasName && title2HasName) {
             return 1;
         } else {
-            return strncasecmp(info1->name, info2->name, sizeof(info1->name));
+            return dir * strncasecmp(info1->name, info2->name, sizeof(info1->name));
         }
     }
 }

@@ -18,6 +18,7 @@ typedef struct {
     u32 regions;     // One bit per region.
     bool group;
     u32 sort;
+    bool sortReverse;   // The sort turned round.
     bool grid;
     u32 tile;        // Size of the tiles of the grid: a level of list_tile_size_of.
 } titles_settings;
@@ -28,6 +29,7 @@ typedef struct {
     u32 media;       // Bits: 1 SD, 2 NAND.
     bool group;
     u32 sort;
+    bool sortReverse;
     bool grid;
 } tickets_settings;
 
@@ -38,12 +40,14 @@ typedef struct {
     bool tickets;
     bool hidden;
     u32 sort;
+    bool sortReverse;
 } files_settings;
 
 typedef struct {
     bool sd;
     bool nand;
     bool byId;
+    bool sortReverse;
     bool grid;
 } extsave_settings;
 
@@ -55,6 +59,7 @@ typedef struct {
 typedef struct {
     u32 states;      // Bits: 1 the game is on the console (installed, its card or its update), 2 it is not, 4 empty folders.
     u32 sort;        // 0 name, 1 size, 2 ID.
+    bool sortReverse;
     bool grid;
 } mods_settings;
 

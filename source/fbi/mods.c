@@ -31,6 +31,7 @@ typedef struct {
     bool showMissing;
     bool showEmpty;
     mods_sort sort;
+    bool sortReverse;   // The sort turned round (choosing the same sort again).
 
     bool populated;
     bool sorted;
@@ -55,6 +56,7 @@ static void mods_store(mods_data* data) {
     mods_settings* saved = &settings_get()->mods;
     saved->states = (data->showPresent ? 1 : 0) | (data->showMissing ? 2 : 0) | (data->showEmpty ? 4 : 0);
     saved->sort = (u32) data->sort;
+    saved->sortReverse = data->sortReverse;
     saved->grid = data->view != NULL && list_get_mode(data->view) == LIST_MODE_GRID;
     settings_save();
 }
@@ -65,6 +67,7 @@ static void mods_restore(mods_data* data) {
     data->showMissing = (saved->states & 2) != 0;
     data->showEmpty = (saved->states & 4) != 0;
     data->sort = saved->sort <= SORT_ID ? (mods_sort) saved->sort : SORT_NAME;
+    data->sortReverse = saved->sortReverse;
 }
 
 static bool mods_visible(void* data, list_item* item) {
@@ -577,6 +580,7 @@ static void mods_popover_select(void* data, u32 group, u32 option) {
         bool* flag = option == 0 ? &listData->showPresent : option == 1 ? &listData->showMissing : &listData->showEmpty;
         *flag = !*flag;
     } else {
+        listData->sortReverse = listData->sort == (mods_sort) option ? !listData->sortReverse : false;
         listData->sort = (mods_sort) option;
         listData->sorted = false;
     }
@@ -584,15 +588,21 @@ static void mods_popover_select(void* data, u32 group, u32 option) {
     mods_store(listData);
 }
 
+static bool mods_popover_is_reversed(void* data, u32 group, u32 option) {
+    mods_data* listData = (mods_data*) data;
+    return group == 1 && listData->sort == (mods_sort) option && listData->sortReverse;
+}
+
 static void mods_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 2,
             .groups = {
                     {_("Show"), true, 3, {_("Game on the console"), _("Not installed"), _("Empty folders")}, {ICON_CIRCLE_CHECK, ICON_CIRCLE_X, ICON_FOLDER_OFF}},
-                    {_("Sort by"), false, 3, {_("Name"), _("Size"), "ID"}, {ICON_ABC, ICON_DATABASE, ICON_KEY}, true}
+                    {_("Sort by"), false, 3, {_("Name"), _("Size"), "ID"}, {ICON_ABC, ICON_DATABASE, ICON_KEY}, true, true}
             },
             .isOn = mods_popover_is_on,
-            .select = mods_popover_select
+            .select = mods_popover_select,
+            .isReversed = mods_popover_is_reversed
     };
 
     popover_display(&def, data);
@@ -628,6 +638,8 @@ static int mods_compare(void* data, const void* p1, const void* p2) {
         return mod1->summary ? -1 : 1;
     }
 
+    int dir = listData->sortReverse ? -1 : 1;
+
     if(mod1->ready != mod2->ready) {
         return mod1->ready ? -1 : 1;
     } else if(mod1->ready) {
@@ -638,16 +650,17 @@ static int mods_compare(void* data, const void* p1, const void* p2) {
         if(listData->sort == SORT_NAME && mod1->hasMeta) {
             int byName = strncasecmp(item1->name, item2->name, sizeof(item1->name));
             if(byName != 0) {
-                return byName;
+                return dir * byName;
             }
         }
 
         if(listData->sort == SORT_SIZE && mod1->size != mod2->size) {
-            return mod1->size > mod2->size ? -1 : 1;
+            return dir * (mod1->size > mod2->size ? -1 : 1);
         }
     }
 
-    return mod1->titleId > mod2->titleId ? 1 : mod1->titleId < mod2->titleId ? -1 : 0;
+    int byId = mod1->titleId > mod2->titleId ? 1 : mod1->titleId < mod2->titleId ? -1 : 0;
+    return listData->sort == SORT_ID ? dir * byId : byId;
 }
 
 static void mods_stop(mods_data* listData) {

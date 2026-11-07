@@ -43,6 +43,7 @@ typedef struct {
     bool showCias;
     bool showTickets;
     files_sort sort;
+    bool sortReverse;   // The sort turned round (choosing the same sort again).
 
     // When the list was last sorted (the populate task adds items as it goes).
     u32 sortedCount;
@@ -1220,6 +1221,7 @@ static void files_store(files_data* data) {
     saved->tickets = data->showTickets;
     saved->hidden = data->showHidden;
     saved->sort = (u32) data->sort;
+    saved->sortReverse = data->sortReverse;
     settings_save();
 }
 
@@ -1231,6 +1233,7 @@ static void files_popover_select(void* data, u32 group, u32 option) {
         listData->populated = false;
     } else {
         // Sorting needs no new listing.
+        listData->sortReverse = listData->sort == (files_sort) option ? !listData->sortReverse : false;
         listData->sort = (files_sort) option;
         listData->sortedCount = 0;
         listData->sortedFinished = false;
@@ -1239,15 +1242,21 @@ static void files_popover_select(void* data, u32 group, u32 option) {
     files_store(listData);
 }
 
+static bool files_popover_is_reversed(void* data, u32 group, u32 option) {
+    files_data* listData = (files_data*) data;
+    return group == 1 && listData->sort == (files_sort) option && listData->sortReverse;
+}
+
 static void files_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 2,
             .groups = {
                     {_("Show"), true, 5, {_("Folders"), _("Files"), "CIA", _("Tickets"), _("Hidden")}, {ICON_FOLDER, ICON_FILE, ICON_PACKAGE, ICON_TICKET, ICON_EYE_OFF}},
-                    {_("Sort by"), false, 3, {_("Name"), _("Size"), _("Type")}, {ICON_ABC, ICON_DATABASE, ICON_APPS}, true}
+                    {_("Sort by"), false, 3, {_("Name"), _("Size"), _("Type")}, {ICON_ABC, ICON_DATABASE, ICON_APPS}, true, true}
             },
             .isOn = files_popover_is_on,
-            .select = files_popover_select
+            .select = files_popover_select,
+            .isReversed = files_popover_is_reversed
     };
 
     popover_display(&def, data);
@@ -1294,15 +1303,18 @@ static int files_compare(void* data, const void* p1, const void* p2) {
         return k1 == KIND_DIR ? -1 : 1;
     }
 
+    // Folders stay first either way; only the chosen sort turns round, the name breaks ties A to Z.
+    int dir = listData->sortReverse ? -1 : 1;
     if(listData->sort == SORT_KIND && k1 != k2) {
-        return k1 < k2 ? -1 : 1;
+        return dir * (k1 < k2 ? -1 : 1);
     }
 
     if(listData->sort == SORT_SIZE && k1 != KIND_DIR && f1->size != f2->size) {
-        return f1->size > f2->size ? -1 : 1;
+        return dir * (f1->size > f2->size ? -1 : 1);
     }
 
-    return strncasecmp(f1->name, f2->name, FILE_NAME_MAX);
+    int byName = strncasecmp(f1->name, f2->name, FILE_NAME_MAX);
+    return listData->sort == SORT_NAME ? dir * byName : byName;
 }
 
 static void files_sort_items(files_data* data, linked_list* items) {
@@ -1420,7 +1432,7 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
         view->name = listData->selectTitle;
     }
 
-    view->info = _(" open    folder    filter    search    up");
+    view->info = _(" open   hold  actions    folder    up");
     if(listData->selecting) {
         view->info = _("\uE000 tick   \uE002 actions   \uE003 all   \uE001 done");
     }
@@ -1583,6 +1595,7 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
     data->showCias = saved->cias;
     data->showTickets = saved->tickets;
     data->sort = saved->sort <= SORT_KIND ? (files_sort) saved->sort : SORT_NAME;
+    data->sortReverse = saved->sortReverse;
 
     data->archiveId = archiveId;
     data->archivePath.type = archivePath.type;

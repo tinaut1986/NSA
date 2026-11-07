@@ -204,6 +204,19 @@ cut and pasted onto another medium, the web page's delete and a store script's `
 - [ ] Mods: delete the test mods of 0004000000FFFF00 (romfs/ and code.ips), alone and with *Delete mods of games not installed*.
 - [ ] Files: cut a folder with folders in it and paste it onto another medium (the NAND, a save): the source goes.
 
+**Sort both ways, hold A, the clipboard, the picture viewer** (2026-11-07, `feat/sort-both-ways`; the owner asked; Files'
+hint, the reversed name sort and Left/Right in the viewer seen in Azahar):
+- Every *Sort by* (Titles, Tickets, Files, Ext Save Data, Game mods) turns round when its option is chosen again, as the
+  Store's did: a chevron on the chip says which way, `sortReverse` in each screen's settings. Only the sort's own key turns:
+  folders stay first, titles without a name last, the summary row of mods on top, and ties keep their order.
+- Files' hint reads *A open   hold A actions   X folder   B up* (L and R are the title bar's filter and search icons), and
+  the guide says it: hold A on a file, or a finger.
+- The guide says the clipboard stays after leaving the SD card (it was always so: it empties only after pasting a cut, or
+  when NSA closes), to paste on the CTR NAND for example.
+- The picture viewer: Left and Right go to the folder's other pictures when not zoomed in (zoomed, the D-Pad still moves it).
+- [ ] Each screen's sort, both ways, kept when the screen opens again.
+- [ ] The hint fits in German and Russian; the viewer with Left/Right and the Circle Pad.
+
 **Delete a title's mods from Titles** (2026-11-07, `feat/title-delete-mods`; the owner asked for it): a title with something
 in `/luma/titles/<ID>/` has *Delete mods* in its sheet, right before *Delete* (a game card's too). To try it, a dummy CIA
 "NSA Test" (`000400000FB1AE00`, devkitPro's hello world) with a test mods folder.

@@ -5,6 +5,18 @@ things are the way they are. Keep it current in the same change that alters it.
 
 ## Where the last session stopped (2026-11-07, evening)
 
+**v0.9.0 is out as stable** (2026-11-07): `staging` merged into `release` (release notes `docs/release-notes/v0.9.0.md`),
+`master` and `advanced` (its Dump NAND screen kept; the empty suspend/restore callbacks dropped there too). DEBUG builds
+for the consoles now use `VERSION_MINOR=9 VERSION_MICRO=0`. `staging` goes on for what comes next.
+
+**The guide for 0.9** (`feat/guide-0.9`): the chapters new in 0.9.0 (Selecting several, Music in the background, Game mods)
+were marked 0.8, so someone updating from 0.8.4 (`guide_known` 0.8) was never offered them. Now `since` 0.9, and chapters
+have `updated`: a release that changes one (Store: your own stores; From your computer: the transfer toast and the web
+server's QR code) sets it, and the chapter is offered again also to whoever saw it. New steps: repeat and the playing
+song in Music in the background, the toast and the QR code in From your computer (all 11 languages). 0.9.0 keeps
+`guide_known` at 0.8 (its newest chapter said 0.8), so 0.9.1 offers the five. Tried in Azahar with `guide_known` 8 and
+Store and From your computer seen: "New in this version" listed the five, 27 steps.
+
 Start here in a new session. `staging` is pushed (`b41f2f6`) and holds all of it; nothing is uncommitted.
 
 - **Builds on the consoles**: the New 3DS XL (192.168.1.136) and the 2DS (192.168.1.140) run `staging` as of `9135288`
@@ -165,9 +177,9 @@ What `release` holds, in the order it was built:
 - Test mods for the Game mods items, on the New 3DS XL: `/luma/titles/000400000FB1AE00/` (NSA Test: code.ips, an empty
   patch, and romfs/nsa-test.txt), `0004000000030700/romfs/nsa-test-mod/` (Mario Kart 7: a 2.4 MB file and a text, files the
   game never opens), `0004000000FFFF00/` (no such game: code.ips and romfs/) and the empty `0004000000FFFE00/`.
-- [ ] The toast during a FileZilla upload (two lines, the moving piece) and a download (the bar fills).
-- [ ] Slide a finger along a viewer's buttons: the one under it lights; let go on it and it acts.
-- [ ] The player: the seek bar on a long MP3 (right away and after a few seconds), repeat in its three states, and A on the
+- [x] The toast during a FileZilla upload (two lines, the moving piece) and a download (the bar fills).
+- [x] Slide a finger along a viewer's buttons: the one under it lights; let go on it and it acts.
+- [x] The player: the seek bar on a long MP3 (right away and after a few seconds), repeat in its three states, and A on the
   track that plays in the background.
 - FileZilla waited 20 s ("waiting for the welcome message", then a timeout) before each transfer: it browses on one
   connection and opens another to transfer, and the FTP server served one session at a time, so the second was accepted
@@ -238,7 +250,7 @@ that has a folder there asks whether to delete its mods too. Guide chapter `mods
 (zh only with characters already in `hanfont.png`).
 - [ ] The list on a console with mods: names and icons, sizes, the states (install a game, delete it, take a card out).
 - [ ] *Delete mods* and *Delete mods of games not installed* delete only those folders; the list updates.
-- [ ] Deleting a game with mods from Titles asks, and Yes deletes `/luma/titles/<ID>/`; a game without mods asks nothing.
+- [x] Deleting a game with mods from Titles asks, and Yes deletes `/luma/titles/<ID>/`; a game without mods asks nothing.
 - [ ] No `/luma/titles` (or empty): the screen says "No mods in /luma/titles." and nothing breaks.
 
 **Empty mods folders** (2026-11-07, `feat/mods-empty-folders`; the owner's New 3DS XL has 22 folders in `/luma/titles`, all
@@ -338,7 +350,7 @@ in `/luma/titles/<ID>/` has *Delete mods* in its sheet, right before *Delete* (a
 "NSA Test" (`000400000FB1AE00`, devkitPro's hello world) with a test mods folder.
 - [ ] Titles -> NSA Test -> *Delete mods*: asks, deletes, and the action is gone the next time.
 - [x] Deleting NSA Test with mods asks whether to delete them too (the owner, 2026-11-07).
-- [ ] Now asked *before* deleting, right after *Delete the selected title?*, in red (`feat/title-mods-ask-first`; the
+- [x] Now asked *before* deleting, right after *Delete the selected title?*, in red (`feat/title-mods-ask-first`; the
   owner was unsure which order reads better): Yes deletes the title and then the mods; No keeps the mods.
 
 **Shorter filters, clearer sheets, D-Pad held** (2026-11-07, `feat/compact-overlays`; the owner: the filter card grew too long

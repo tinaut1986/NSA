@@ -157,6 +157,19 @@ void widget_tile_frame(float x, float y, float size, bool selected) {
     }
 }
 
+void widget_icon_placeholder(float x, float y, float size, u32 icon, u32 background, u32 foreground) {
+    screen_fill_round_rect(x, y, size, size, size / 6, background);
+    screen_draw_icon(icon, x + size / 4, y + size / 4, size / 2, foreground);
+}
+
+float widget_clamp_scroll(float scroll, float max) {
+    if(scroll > max) {
+        scroll = max;
+    }
+
+    return scroll < 0 ? 0 : scroll;
+}
+
 void widget_skeleton(float x, float y, float width, float height, float icon, bool selected) {
     const theme_current* t = theme();
     u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;

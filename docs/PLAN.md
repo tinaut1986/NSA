@@ -206,6 +206,14 @@ no DSP firmware (sdmc:/3ds/dspfirm.cdc comes from a console).
 - [ ] On the **2DS / Old 3DS**: an FTP upload and a URL download with music in the background against without (`tools/speed_tests.py`,
       back to back). If it costs much, pause the background player while a transfer holds the turn (`xferturn_get`) on an Old 3DS.
 
+**FTP: REST, and appends that start mid-block** (2026-11-08, `feat/ftp-rest`; tested on the New 3DS XL):
+- `REST <offset>` (in FEAT as `REST STREAM`): the next RETR starts there, the next STOR keeps the file and writes from
+  there (554 past the end, 501 for a bad offset). A cut download picks up with `curl -C -`, FileZilla resumes too; the
+  turn, toast and trace count what is left. Tested with ftplib: an 8 MB file sent and fetched in two parts, SHA-256 equal.
+- An APPE or a STOR after REST from an offset that is not a multiple of 64 KB first writes up to one, then flushes:
+  SD writes that start mid-block ran at 34 KB/s (APPE onto a 3,158,073-byte file), now 720-800 KB/s (930-1190 aligned).
+- [ ] FileZilla: a download and an upload cut and resumed.
+
 **Time left in the transfer toast** (2026-11-07, `feat/toast-eta`; built, not seen on a console):
 - The FTP and web page toast's second line starts with the time left when the size is known: "FTP, receiving: 3.2 / 12.0 MiB,
   650 KiB/s", then "00:00:14 left · game.cia" (from the average speed since the start, so it does not jump; none in the

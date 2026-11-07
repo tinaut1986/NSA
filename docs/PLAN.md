@@ -3,6 +3,28 @@
 Start every session here. It holds where things stand, what comes next and why
 things are the way they are. Keep it current in the same change that alters it.
 
+## Where the last session stopped (2026-11-07, evening)
+
+Start here in a new session. `staging` is pushed (`b41f2f6`) and holds all of it; nothing is uncommitted.
+
+- **Builds on the consoles**: the New 3DS XL (192.168.1.136) and the 2DS (192.168.1.140) run `staging` as of `9135288`
+  (before the zoom in every grid). The newest CIA (`b41f2f6`, zoom in Ext Save Data and Mods too) was built and sent but
+  **not installed**: ask before installing.
+- **The owner has to test** what is listed under "Pending tests on the console", newest first: the zoom in every grid,
+  the Store install of 3D Pinball with the web page closed, "Shared UI pieces" (keyboards, viewers' buttons, deleting one
+  ext save data, install/paste/export with B), "Sort both ways", "Shorter filters", "Selecting several files", "Music in
+  the background", "Transfer toast".
+- **Open questions**: why the Store's Pinball install was slow (see "The owner's tests of 2026-11-07, afternoon": the
+  console was loaded, UI at ~10 fps; a Files install right after was fast); the 2DS's short sleeps look like its sleep
+  switch (hardware), to confirm in HOME / other apps.
+- **Left on the New 3DS XL by the tests**: the title "NSA Test" (000400000FB1AE00, our dummy CIA) is installed again;
+  the owner can delete it. Nothing else of the tests is on either SD card.
+- **Refactor (UI structure)**: done in three rounds (`refactor/ui-structure`, `-2`, `-3`), see "Shared UI pieces". Not
+  unified on purpose: the "Loading..." phase of the actions (only per-action code is left) and each screen's settings
+  store/restore. `tools/ui_snapshots.py run/compare` checks that a change draws the same (49 steps in Azahar).
+- **Ideas for later**: issue #32 (named mods and a GameBanana mods store), the forwarder (Next, item 11).
+- After the owner's tests pass: `staging` -> `release` -> `advanced` (CLAUDE.md, "Branches in use").
+
 ## Status (2026-10-31)
 
 `release` holds everything below and is pushed. On 2026-10-31 the owner asked to merge the work

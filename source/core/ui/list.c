@@ -324,6 +324,7 @@ static const char* list_tool_anchor(u32 icon) {
         case ICON_DOTS: return "tool.more";
         case ICON_CLIPBOARD: return "tool.clipboard";
         case ICON_WIFI_OFF: return "tool.nearby";
+        case ICON_SQUARE_CHECK: return "tool.select";
         default: return NULL;
     }
 }

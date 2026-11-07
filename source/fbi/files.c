@@ -59,6 +59,14 @@ typedef struct {
     list_item* actionSelected;
     // The folder's actions are open: the top screen shows the folder.
     bool folderSheet;
+
+    // Selection mode (Y or the check tool): A or a tap ticks items (file_info.marked), X acts on all the ticked ones.
+    bool selecting;
+    char selectTitle[64];
+    // The names an action on the selection works on, taken when it starts (the action lists the folder on a thread
+    // of its own, after the marks are gone): `selectCount` strings one after another, each ended by '\0'.
+    char* selectNames;
+    u32 selectCount;
 } files_data;
 
 #define ROW_HEIGHT 34
@@ -134,6 +142,7 @@ static void files_update_title(files_data* data) {
 }
 
 static void files_navigate(files_data* listData, linked_list* items, const char* path);
+static void files_select_from_sheet(void* data);
 
 // ---- items ----
 
@@ -305,12 +314,25 @@ static void files_subtitle(char* out, size_t size, file_info* info) {
     }
 }
 
+// Selection mode's box at the end of a row: ticked (filled, with a check) or empty.
+static void files_draw_checkbox(float x, float y, float size, bool marked, bool selected) {
+    const theme_current* t = theme();
+    if(marked) {
+        screen_fill_round_rect(x, y, size, size, size / 4, selected ? t->onAccent : t->accent);
+        screen_draw_icon(ICON_CHECK, x + 2, y + 2, size - 4, selected ? t->accent : t->onAccent);
+    } else {
+        screen_frame_round_rect(x, y, size, size, size / 4, 1.5f, selected ? t->onAccent : t->palette->textMuted, selected ? t->accent : t->palette->surface);
+    }
+}
+
 static void files_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     const theme_current* t = theme();
     file_info* info = (file_info*) item->data;
+    bool selecting = data != NULL && ((files_data*) data)->selecting;
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
+    // A ticked row keeps a soft wash of the accent when the focus is elsewhere.
+    u32 fill = selected ? t->accent : selecting && info->marked ? t->accentSoft : t->palette->surface;
+    u32 edge = selected ? t->accent : selecting && info->marked ? t->accent : t->palette->border;
     u32 ink = selected ? t->onAccent : t->palette->text;
     u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
     screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
@@ -320,7 +342,10 @@ static void files_draw_row(void* data, list_item* item, float x, float y, float 
 
     float tx = x + 4 + icon + 8;
     float right = x + width - 8;
-    if(files_is_dir(info)) {
+    if(selecting) {
+        files_draw_checkbox(right - 16, y + (height - 16) / 2, 16, info->marked, selected);
+        right -= 22;
+    } else if(files_is_dir(info)) {
         screen_draw_icon(ICON_CHEVRON_RIGHT, right - 14, y + (height - 14) / 2, 14, muted);
         right -= 18;
     }
@@ -395,7 +420,11 @@ static void files_draw_folder(files_data* data, linked_list* items, list_item* b
     }
 
     char clipboard[FILE_NAME_MAX] = {'\0'};
-    if(clipboard_has_contents()) {
+    if(clipboard_has_contents() && clipboard_get_name_count() > 1) {
+        snprintf(clipboard, sizeof(clipboard), i18n_translate_text("%lu items"), clipboard_get_name_count());
+    } else if(clipboard_has_contents() && clipboard_get_name_count() == 1) {
+        string_copy(clipboard, clipboard_get_name(0), sizeof(clipboard));
+    } else if(clipboard_has_contents()) {
         string_get_path_file(clipboard, clipboard_get_path(), sizeof(clipboard));
     }
 
@@ -531,6 +560,77 @@ static void files_draw_storage(files_data* data, float x, float y, float w) {
     }
 }
 
+// How many items are ticked, how many of them are folders, and the size of the ticked files.
+static u32 files_marked_count(linked_list* items, u32* dirs, u64* bytes) {
+    u32 count = 0;
+    if(dirs != NULL) {
+        *dirs = 0;
+    }
+
+    if(bytes != NULL) {
+        *bytes = 0;
+    }
+
+    if(items == NULL) {
+        return 0;
+    }
+
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        file_info* info = (file_info*) item->data;
+        if(files_is_base(item) || info == NULL || !info->marked) {
+            continue;
+        }
+
+        count++;
+        if(files_is_dir(info)) {
+            if(dirs != NULL) {
+                (*dirs)++;
+            }
+        } else if(bytes != NULL) {
+            *bytes += info->size;
+        }
+    }
+
+    return count;
+}
+
+// Selection mode: what is ticked, instead of the item with the focus.
+static void files_draw_selection(files_data* data, float x, float y, float w) {
+    const theme_current* t = theme();
+    u32 dirs = 0;
+    u64 bytes = 0;
+    u32 count = files_marked_count(data->actionItems, &dirs, &bytes);
+
+    widget_card(x, y, w, 76);
+    float icon = 56;
+    screen_fill_round_rect(x + 10, y + 10, icon, icon, t->def->radius, t->accentSoft);
+    screen_draw_icon(ICON_SQUARE_CHECK, x + 24, y + 24, 28, t->accent);
+
+    char title[64];
+    snprintf(title, sizeof(title), i18n_translate_text("%lu selected"), count);
+    float tx = x + 10 + icon + 12;
+    widget_text_fit(title, tx, y + 10, WIDGET_TITLE_SCALE, t->palette->text, x + w - 10 - tx);
+    widget_text_fit(data->currDir, tx, y + 14 + widget_text_height(WIDGET_TITLE_SCALE), WIDGET_TEXT_SCALE, t->palette->textMuted, x + w - 10 - tx);
+
+    char values[3][32];
+    snprintf(values[0], sizeof(values[0]), "%lu", dirs);
+    snprintf(values[1], sizeof(values[1]), "%lu", count - dirs);
+    files_size_text(values[2], sizeof(values[2]), bytes);
+    const char* labels[3] = {_("Folders"), _("Files"), _("Size of the files")};
+
+    float gap = 6;
+    float cellW = (w - 2 * gap) / 3;
+    for(u32 i = 0; i < 3; i++) {
+        files_draw_cell(x + i * (cellW + gap), y + 76 + 8, cellW, labels[i], values[i]);
+    }
+
+    screen_draw_text_wrap(_(" ticks or unticks an item,  ticks all or none,  acts on the ticked ones and  leaves. A ticked folder counts with everything in it."),
+                          x + 2, y + 76 + 8 + 34 + 12, WIDGET_SMALL_SCALE + 0.04f, t->palette->textMuted, x + w - 2);
+}
+
 static void files_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     files_data* listData = (files_data*) data;
     files_draw_storage(listData, x1 + 12, y2 - 26, x2 - x1 - 24);
@@ -539,6 +639,11 @@ static void files_draw_top(ui_view* view, void* data, float x1, float y1, float 
     float y = y1 + 10;
     float w = x2 - x1 - 20;
     float h = y2 - y1 - 20;
+
+    if(listData->selecting) {
+        files_draw_selection(listData, x, y, w);
+        return;
+    }
 
     // With nothing selected (an empty folder) or the folder's actions open, the folder itself.
     bool folder = listData->folderSheet && ui_top() != listData->view;
@@ -756,6 +861,7 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
     actions[count++] = (sheet_action) {ICON_COPY, _("Copy"), false, files_copy};
     actions[count++] = (sheet_action) {ICON_SCISSORS, _("Cut (move)"), false, files_cut};
     actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename"), false, files_rename};
+    actions[count++] = (sheet_action) {ICON_SQUARE_CHECK, _("Select several"), false, files_select_from_sheet};
     actions[count++] = (sheet_action) {ICON_TRASH, _("Delete"), true, files_delete_file};
 
     sheet_display_list(NULL, 0, actions, count, data);
@@ -779,6 +885,7 @@ static void files_dir_actions_open(files_data* data, linked_list* items, list_it
             {ICON_COPY, _("Copy contents"), false, files_copy_contents},
             {ICON_SCISSORS, _("Cut folder (move)"), false, files_cut},
             {ICON_PENCIL, _("Rename folder"), false, files_rename},
+            {ICON_SQUARE_CHECK, _("Select several"), false, files_select_from_sheet},
             {ICON_TRASH, _("Delete contents"), true, files_delete_contents},
             {ICON_TRASH_X, _("Delete folder"), true, files_delete_dir}
     };
@@ -852,7 +959,184 @@ static void files_folder_actions_open(files_data* data, linked_list* items) {
     sheet_display_list(NULL, 0, actions, count, data);
 }
 
+// ---- selection mode: tick several items, then copy, cut, install or delete them together ----
+
+static void files_mark_all(linked_list* items, bool marked) {
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        if(!files_is_base(item) && item->data != NULL) {
+            ((file_info*) item->data)->marked = marked;
+        }
+    }
+}
+
+static void files_select_start(files_data* data, list_item* mark) {
+    data->selecting = true;
+    if(mark != NULL && mark->data != NULL && !files_is_base(mark)) {
+        ((file_info*) mark->data)->marked = true;
+    }
+}
+
+static void files_select_end(files_data* data) {
+    data->selecting = false;
+    if(data->actionItems != NULL) {
+        files_mark_all(data->actionItems, false);
+    }
+}
+
+// The ticked items' names, for an action that lists the folder afterwards (files_names_filter).
+static bool files_take_names(files_data* data) {
+    free(data->selectNames);
+    data->selectNames = NULL;
+    data->selectCount = 0;
+
+    size_t size = 0;
+    linked_list_iter iter;
+    linked_list_iterate(data->actionItems, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        file_info* info = (file_info*) item->data;
+        if(!files_is_base(item) && info != NULL && info->marked) {
+            size += strlen(info->name) + 1;
+        }
+    }
+
+    if(size == 0 || (data->selectNames = (char*) malloc(size)) == NULL) {
+        return false;
+    }
+
+    char* p = data->selectNames;
+    linked_list_iterate(data->actionItems, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        file_info* info = (file_info*) item->data;
+        if(!files_is_base(item) && info != NULL && info->marked) {
+            size_t len = strlen(info->name) + 1;
+            memcpy(p, info->name, len);
+            p += len;
+            data->selectCount++;
+        }
+    }
+
+    return true;
+}
+
+static bool files_names_filter(void* data, const char* name, u32 attributes) {
+    files_data* listData = (files_data*) data;
+    const char* p = listData->selectNames;
+    for(u32 i = 0; i < listData->selectCount; i++) {
+        if(strcmp(p, name) == 0) {
+            return true;
+        }
+
+        p += strlen(p) + 1;
+    }
+
+    return false;
+}
+
+static void files_select_to_clipboard(files_data* data, bool cut) {
+    if(!files_take_names(data)) {
+        return;
+    }
+
+    Result res = clipboard_set_names(data->archive, data->archiveId, data->currDir, data->selectNames, data->selectCount, cut);
+    if(R_FAILED(res)) {
+        error_display_res(NULL, NULL, res, "Failed to copy to clipboard.");
+        return;
+    }
+
+    char text[128];
+    snprintf(text, sizeof(text), i18n_translate_text(cut ? "%lu items will be moved when you paste them." : "%lu items are in the clipboard."), data->selectCount);
+    files_select_end(data);
+    prompt_display_notify(cut ? _("Cut") : _("Copied"), text, COLOR_TEXT, NULL, NULL, NULL);
+}
+
+static void files_select_copy(void* data) { files_select_to_clipboard((files_data*) data, false); }
+static void files_select_cut(void* data) { files_select_to_clipboard((files_data*) data, true); }
+
+// An action on the ticked items of the folder: it lists the folder itself, keeping only their names.
+static void files_select_run(files_data* data, void (*action)(linked_list*, list_item*, bool (*)(void*, const char*, u32), void*)) {
+    list_item* base = files_base(data->actionItems);
+    if(base == NULL || !files_take_names(data)) {
+        return;
+    }
+
+    files_select_end(data);
+    action(data->actionItems, base, files_names_filter, data);
+}
+
+static void files_install_selected(linked_list* items, list_item* base, bool (*filter)(void*, const char*, u32), void* filterData) {
+    action_install_cias_selected(items, base, filter, filterData, false);
+}
+
+static void files_install_selected_delete(linked_list* items, list_item* base, bool (*filter)(void*, const char*, u32), void* filterData) {
+    action_install_cias_selected(items, base, filter, filterData, true);
+}
+
+static void files_select_delete(void* data) { files_select_run((files_data*) data, action_delete_selected); }
+static void files_select_install(void* data) { files_select_run((files_data*) data, files_install_selected); }
+static void files_select_install_delete(void* data) { files_select_run((files_data*) data, files_install_selected_delete); }
+static void files_select_all(void* data) { files_mark_all(((files_data*) data)->actionItems, true); }
+static void files_select_none(void* data) { files_mark_all(((files_data*) data)->actionItems, false); }
+
+static void files_selection_actions_open(files_data* data, linked_list* items) {
+    data->actionItems = items;
+
+    bool cias = false;
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        file_info* info = (file_info*) item->data;
+        cias = cias || (!files_is_base(item) && info != NULL && info->marked && info->isCia);
+    }
+
+    u32 count = files_marked_count(items, NULL, NULL);
+
+    sheet_action actions[SHEET_ACTIONS_MAX];
+    u32 actionCount = 0;
+    if(count > 0) {
+        if(cias) {
+            actions[actionCount++] = (sheet_action) {ICON_DOWNLOAD, _("Install the selected CIAs"), false, files_select_install};
+            actions[actionCount++] = (sheet_action) {ICON_DOWNLOAD, _("Install and delete the selected CIAs"), false, files_select_install_delete};
+        }
+
+        actions[actionCount++] = (sheet_action) {ICON_COPY, _("Copy"), false, files_select_copy};
+        actions[actionCount++] = (sheet_action) {ICON_SCISSORS, _("Cut (move)"), false, files_select_cut};
+    }
+
+    actions[actionCount++] = (sheet_action) {ICON_SQUARE_CHECK, _("Select all"), false, files_select_all};
+    if(count > 0) {
+        actions[actionCount++] = (sheet_action) {ICON_SQUARE, _("Select none"), false, files_select_none};
+        actions[actionCount++] = (sheet_action) {ICON_TRASH, _("Delete"), true, files_select_delete};
+    }
+
+    sheet_display_list(NULL, 0, actions, actionCount, data);
+}
+
+// From a file's or folder's own actions: selection mode, with that item ticked.
+static void files_select_from_sheet(void* data) {
+    files_data* listData = (files_data*) data;
+    files_select_start(listData, listData->actionSelected);
+}
+
 // ---- tools: clipboard, filter and sort, search, folder actions ----
+
+static bool files_select_active(ui_view* view, void* data) {
+    return ((files_data*) data)->selecting;
+}
+
+static void files_select_press(ui_view* view, void* data) {
+    files_data* listData = (files_data*) data;
+    if(listData->selecting) {
+        files_select_end(listData);
+    } else {
+        files_select_start(listData, NULL);
+    }
+}
 
 static bool files_clipboard_active(ui_view* view, void* data) {
     return clipboard_has_contents();
@@ -1004,6 +1288,13 @@ static void files_long_press(ui_view* view, void* data, linked_list* items, list
         return;
     }
 
+    // Selecting, a hold acts on the ticked items (this one ticked too).
+    if(listData->selecting) {
+        ((file_info*) item->data)->marked = true;
+        files_selection_actions_open(listData, items);
+        return;
+    }
+
     if(files_is_dir((file_info*) item->data)) {
         files_dir_actions_open(listData, items, item);
     } else {
@@ -1034,6 +1325,8 @@ static void files_repopulate(files_data* listData, linked_list* items) {
 }
 
 static void files_navigate(files_data* listData, linked_list* items, const char* path) {
+    // Ticks belong to one folder.
+    listData->selecting = false;
     string_copy(listData->currDir, path, FILE_PATH_MAX);
     list_set_search(listData->view, "");
 
@@ -1058,6 +1351,7 @@ static void files_free_data(files_data* data) {
         data->archivePath.data = NULL;
     }
 
+    free(data->selectNames);
     free(data);
 }
 
@@ -1083,12 +1377,26 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
 
     files_update_title(listData);
     view->name = listData->title;
+    if(listData->selecting) {
+        snprintf(listData->selectTitle, sizeof(listData->selectTitle), i18n_translate_text("%lu selected"), files_marked_count(items, NULL, NULL));
+        view->name = listData->selectTitle;
+    }
+
     view->info = _(" open    folder    filter    search    up");
+    if(listData->selecting) {
+        view->info = _("\uE000 tick   \uE002 actions   \uE003 all   \uE001 done");
+    }
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
         if(list_get_search(view)[0] != '\0') {
             list_set_search(view, "");
+            return;
+        }
+
+        // Then leaves selection mode.
+        if(listData->selecting) {
+            files_select_end(listData);
             return;
         }
 
@@ -1154,8 +1462,40 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
         listData->populateData.result = 0;
     }
 
+    // Y: selection mode, with the item with the focus ticked; inside it, all or none.
+    if(hidKeysDown() & KEY_Y) {
+        if(!listData->selecting) {
+            files_select_start(listData, selected);
+        } else {
+            u32 total = 0;
+            linked_list_iter iter;
+            linked_list_iterate(items, &iter);
+            while(linked_list_iter_has_next(&iter)) {
+                total += files_is_base((list_item*) linked_list_iter_next(&iter)) ? 0 : 1;
+            }
+
+            files_mark_all(items, files_marked_count(items, NULL, NULL) < total);
+        }
+
+        return;
+    }
+
     if(hidKeysDown() & KEY_X) {
-        files_folder_actions_open(listData, items);
+        if(listData->selecting) {
+            files_selection_actions_open(listData, items);
+        } else {
+            files_folder_actions_open(listData, items);
+        }
+
+        return;
+    }
+
+    if(listData->selecting) {
+        if(selected != NULL && selected->data != NULL && selectedTouched && !files_is_base(selected)) {
+            file_info* info = (file_info*) selected->data;
+            info->marked = !info->marked;
+        }
+
         return;
     }
 
@@ -1255,6 +1595,7 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
     list_add_tool(view, ICON_SEARCH, files_search_active, files_search_open);
     list_add_tool(view, ICON_FILTER, files_filter_active, files_filter_open);
     list_add_tool(view, ICON_CLIPBOARD, files_clipboard_active, files_clipboard_press);
+    list_add_tool(view, ICON_SQUARE_CHECK, files_select_active, files_select_press);
 }
 
 void files_open_sd() {

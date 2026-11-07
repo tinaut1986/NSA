@@ -267,14 +267,7 @@ static void osk_update(ui_view* view, void* v, float bx1, float by1, float bx2, 
     hidTouchRead(&pos);
 
     if(hidKeysDown() & KEY_TOUCH) {
-        d->pressedKey = -1;
-        for(u32 i = 0; i < d->keyCount; i++) {
-            const key_rect* k = &d->keys[i];
-            if(widget_touched(&pos, k->x, k->y, k->w, k->h)) {
-                d->pressedKey = (int) i;
-                break;
-            }
-        }
+        d->pressedKey = keys_hit(d->keys, d->keyCount, &pos);
 
         if(d->pressedKey >= 0) {
             const key_def* def = d->keys[d->pressedKey].def;
@@ -292,12 +285,8 @@ static void osk_update(ui_view* view, void* v, float bx1, float by1, float bx2, 
             }
         }
     } else if(hidKeysHeld() & KEY_TOUCH) {
-        if(d->pressedKey >= 0 && d->repeatAt != 0 && osGetTime() >= d->repeatAt) {
-            const key_rect* k = &d->keys[d->pressedKey];
-            if(widget_touched(&pos, k->x, k->y, k->w, k->h)) {
-                osk_run_key(view, d, k->def);
-                d->repeatAt = osGetTime() + 60;
-            }
+        if(keys_touch_repeat(d->keys, d->pressedKey, &d->repeatAt, &pos)) {
+            osk_run_key(view, d, d->keys[d->pressedKey].def);
         }
     } else if(hidKeysUp() & KEY_TOUCH) {
         d->pressedKey = -1;

@@ -405,16 +405,13 @@ static void image_draw_bottom(ui_view* view, void* v, float x1, float y1, float 
     image_data* data = (image_data*) v;
     const theme_current* t = theme();
 
-    widget_card(8, y1 + 8, x2 - x1 - 16, 84);
     float tx = 18;
-    float ty = y1 + 16;
-    widget_text_fit(data->name, tx, ty, WIDGET_TEXT_SCALE, t->palette->text, x2 - tx - 18);
-    ty += widget_text_height(WIDGET_TEXT_SCALE) + 4;
+    float ty = widget_info_card(x1, y1, x2, data->name);
 
     char line[128];
     if(data->state == IMAGE_READY) {
         char size[32];
-        snprintf(size, sizeof(size), data->fileSize < 1024 ? "%.0f %s" : "%.1f %s", ui_get_display_size(data->fileSize), ui_get_display_size_units(data->fileSize));
+        ui_format_size(size, sizeof(size), data->fileSize);
         snprintf(line, sizeof(line), "%lu x %lu   %s", data->sourceWidth, data->sourceHeight, size);
         widget_text_fit(line, tx, ty, WIDGET_SMALL_SCALE, t->palette->textMuted, x2 - tx - 18);
         ty += widget_text_height(WIDGET_SMALL_SCALE) + 3;
@@ -437,14 +434,7 @@ static void image_draw_bottom(ui_view* view, void* v, float x1, float y1, float 
     }
 
     for(int i = 0; i < IMAGE_BUTTONS; i++) {
-        float x, y, w, h;
-        widget_button_row_rect(i, IMAGE_BUTTONS, &x, &y, &w, &h);
-        bool pressed = data->pressed == i;
-        bool disabled = (i == 0 || i == 4) && data->count < 2;
-        u32 fill = pressed ? t->accent : t->palette->surface;
-        u32 edge = pressed ? t->accent : t->palette->border;
-        screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
-        screen_draw_icon(image_button_icons[i], x + (w - 16) / 2, y + (h - 16) / 2, 16, pressed ? t->onAccent : disabled ? t->palette->textMuted : t->palette->text);
+        widget_row_button(i, IMAGE_BUTTONS, image_button_icons[i], NULL, data->pressed == i, (i == 0 || i == 4) && data->count < 2, false);
     }
 }
 
@@ -516,13 +506,7 @@ static void image_update(ui_view* view, void* v, float bx1, float by1, float bx2
     if(hidKeysDown() & KEY_TOUCH) {
         data->pressed = -1;
         data->dragging = false;
-        for(int i = 0; i < IMAGE_BUTTONS; i++) {
-            float x, y, w, h;
-            widget_button_row_rect(i, IMAGE_BUTTONS, &x, &y, &w, &h);
-            if(widget_touched(&pos, x, y, w, h)) {
-                data->pressed = i;
-            }
-        }
+        data->pressed = widget_button_row_hit(&pos, IMAGE_BUTTONS);
 
         data->dragging = data->pressed < 0;
         data->lastX = pos.px;
@@ -535,13 +519,7 @@ static void image_update(ui_view* view, void* v, float bx1, float by1, float bx2
             image_clamp_pan(data);
         }
 
-        if(data->pressed >= 0) {
-            float x, y, w, h;
-            widget_button_row_rect(data->pressed, IMAGE_BUTTONS, &x, &y, &w, &h);
-            if(!widget_touched(&pos, x, y, w, h)) {
-                data->pressed = -1;
-            }
-        }
+        widget_button_row_hold(&data->pressed, &pos, IMAGE_BUTTONS);
 
         data->lastX = pos.px;
         data->lastY = pos.py;

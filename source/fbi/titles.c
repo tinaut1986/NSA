@@ -165,8 +165,7 @@ static void titles_draw_icon(title_info* info, float x, float y, float size) {
     if(info->hasMeta && info->meta.texture != 0) {
         screen_draw_texture(info->meta.texture, x, y, size, size);
     } else {
-        screen_fill_round_rect(x, y, size, size, size / 6, t->accentSoft);
-        screen_draw_icon(info->twl ? ICON_DEVICE_FLOPPY : ICON_APPS, x + size / 4, y + size / 4, size / 2, t->accent);
+        widget_icon_placeholder(x, y, size, info->twl ? ICON_DEVICE_FLOPPY : ICON_APPS, t->accentSoft, t->accent);
     }
 }
 

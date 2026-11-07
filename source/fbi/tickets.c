@@ -177,8 +177,7 @@ static void tickets_draw_icon(ticket_info* info, float x, float y, float size, b
     if(info->hasMeta && info->meta.texture != 0) {
         screen_draw_texture(info->meta.texture, x, y, size, size);
     } else {
-        screen_fill_round_rect(x, y, size, size, size / 6, selected ? THEME_ALPHA(t->onAccent, 0x40) : info->inUse ? t->accentSoft : t->palette->background);
-        screen_draw_icon(ICON_TICKET, x + size / 4, y + size / 4, size / 2, selected ? t->onAccent : info->inUse ? t->accent : t->palette->textMuted);
+        widget_icon_placeholder(x, y, size, ICON_TICKET, selected ? THEME_ALPHA(t->onAccent, 0x40) : info->inUse ? t->accentSoft : t->palette->background, selected ? t->onAccent : info->inUse ? t->accent : t->palette->textMuted);
     }
 }
 

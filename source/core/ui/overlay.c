@@ -155,14 +155,7 @@ static void popover_card(popover_data* p, float x1, float y1, float x2, float y2
 }
 
 static void popover_clamp_scroll(popover_data* p, float cardH) {
-    float max = p->contentHeight - (cardH - 2 * POPOVER_PAD);
-    if(p->scroll > max) {
-        p->scroll = max;
-    }
-
-    if(p->scroll < 0) {
-        p->scroll = 0;
-    }
+    p->scroll = widget_clamp_scroll(p->scroll, p->contentHeight - (cardH - 2 * POPOVER_PAD));
 }
 
 // Scrolls so the focused option, and its group's label, are in view.

@@ -684,15 +684,12 @@ static void tv_draw_bottom(ui_view* view, void* v, float x1, float y1, float x2,
         return;
     }
 
-    widget_card(8, y1 + 8, x2 - x1 - 16, 84);
     float tx = 18;
-    float ty = y1 + 16;
-    widget_text_fit(d->name, tx, ty, WIDGET_TEXT_SCALE, t->palette->text, x2 - tx - 18);
-    ty += widget_text_height(WIDGET_TEXT_SCALE) + 4;
+    float ty = widget_info_card(x1, y1, x2, d->name);
 
     char line[128];
     char size[32];
-    snprintf(size, sizeof(size), d->fileSize < 1024 ? "%.0f %s" : "%.1f %s", ui_get_display_size(d->fileSize), ui_get_display_size_units(d->fileSize));
+    ui_format_size(size, sizeof(size), d->fileSize);
     snprintf(line, sizeof(line), "%lu %s   %s", d->lineCount, _("lines"), size);
     widget_text_fit(line, tx, ty, WIDGET_SMALL_SCALE, t->palette->textMuted, x2 - tx - 18);
     ty += widget_text_height(WIDGET_SMALL_SCALE) + 3;
@@ -712,19 +709,7 @@ static void tv_draw_bottom(ui_view* view, void* v, float x1, float y1, float x2,
     static const u32 icons[TV_BUTTONS] = {ICON_PENCIL, ICON_CHEVRON_UP, ICON_CHEVRON_DOWN};
     const char* labels[TV_BUTTONS] = {_("Edit"), _("Start"), _("End")};
     for(int i = 0; i < TV_BUTTONS; i++) {
-        float x, y, w, h;
-        widget_button_row_rect(i, TV_BUTTONS, &x, &y, &w, &h);
-        bool pressed = d->pressedButton == i;
-        bool disabled = i == 0 && d->readOnly;
-        u32 fill = pressed ? t->accent : t->palette->surface;
-        u32 edge = pressed ? t->accent : t->palette->border;
-        u32 ink = pressed ? t->onAccent : disabled ? t->palette->textMuted : t->palette->text;
-        screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
-
-        float tw = widget_text_width(labels[i], WIDGET_TEXT_SCALE);
-        float bx = x + (w - (16 + 6 + tw)) / 2;
-        screen_draw_icon(icons[i], bx, y + (h - 16) / 2, 16, ink);
-        screen_draw_text(labels[i], bx + 22, y + (h - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, ink);
+        widget_row_button(i, TV_BUTTONS, icons[i], labels[i], d->pressedButton == i, i == 0 && d->readOnly, false);
     }
 }
 
@@ -847,14 +832,7 @@ static void tv_update(ui_view* view, void* v, float bx1, float by1, float bx2, f
         }
 
         if(hidKeysDown() & KEY_TOUCH) {
-            d->pressedKey = -1;
-            for(u32 i = 0; i < d->keyCount; i++) {
-                const key_rect* k = &d->keys[i];
-                if(widget_touched(&pos, k->x, k->y, k->w, k->h)) {
-                    d->pressedKey = (int) i;
-                    break;
-                }
-            }
+            d->pressedKey = keys_hit(d->keys, d->keyCount, &pos);
 
             if(d->pressedKey >= 0) {
                 const key_def* def = d->keys[d->pressedKey].def;
@@ -866,12 +844,8 @@ static void tv_update(ui_view* view, void* v, float bx1, float by1, float bx2, f
                 }
             }
         } else if(hidKeysHeld() & KEY_TOUCH) {
-            if(d->pressedKey >= 0 && d->repeatAt != 0 && osGetTime() >= d->repeatAt) {
-                const key_rect* k = &d->keys[d->pressedKey];
-                if(widget_touched(&pos, k->x, k->y, k->w, k->h)) {
-                    tv_run_key(d, k->def);
-                    d->repeatAt = osGetTime() + 60;
-                }
+            if(keys_touch_repeat(d->keys, d->pressedKey, &d->repeatAt, &pos)) {
+                tv_run_key(d, d->keys[d->pressedKey].def);
             }
         } else if(hidKeysUp() & KEY_TOUCH) {
             d->pressedKey = -1;
@@ -891,13 +865,7 @@ static void tv_update(ui_view* view, void* v, float bx1, float by1, float bx2, f
 
     if(hidKeysDown() & KEY_TOUCH) {
         d->pressedButton = -1;
-        for(int i = 0; i < TV_BUTTONS; i++) {
-            float x, y, w, h;
-            widget_button_row_rect(i, TV_BUTTONS, &x, &y, &w, &h);
-            if(widget_touched(&pos, x, y, w, h)) {
-                d->pressedButton = i;
-            }
-        }
+        d->pressedButton = widget_button_row_hit(&pos, TV_BUTTONS);
 
         d->dragging = d->pressedButton < 0;
         d->lastY = pos.py;
@@ -917,13 +885,7 @@ static void tv_update(ui_view* view, void* v, float bx1, float by1, float bx2, f
             tv_clamp_top(d);
         }
 
-        if(d->pressedButton >= 0) {
-            float x, y, w, h;
-            widget_button_row_rect(d->pressedButton, TV_BUTTONS, &x, &y, &w, &h);
-            if(!widget_touched(&pos, x, y, w, h)) {
-                d->pressedButton = -1;
-            }
-        }
+        widget_button_row_hold(&d->pressedButton, &pos, TV_BUTTONS);
 
         d->lastY = pos.py;
     } else if(hidKeysUp() & KEY_TOUCH) {

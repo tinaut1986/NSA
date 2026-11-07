@@ -162,8 +162,7 @@ static void mods_draw_icon(mod_info* info, float x, float y, float size, bool se
         screen_draw_texture(info->meta.texture, x, y, size, size);
     } else {
         bool present = mods_present(info);
-        screen_fill_round_rect(x, y, size, size, size / 6, selected ? THEME_ALPHA(t->onAccent, 0x40) : present ? t->accentSoft : t->palette->background);
-        screen_draw_icon(ICON_FOLDER, x + size / 4, y + size / 4, size / 2, selected ? t->onAccent : present ? t->accent : t->palette->textMuted);
+        widget_icon_placeholder(x, y, size, ICON_FOLDER, selected ? THEME_ALPHA(t->onAccent, 0x40) : present ? t->accentSoft : t->palette->background, selected ? t->onAccent : present ? t->accent : t->palette->textMuted);
     }
 }
 
@@ -183,8 +182,7 @@ static void mods_draw_row(void* data, list_item* item, float x, float y, float w
 
     if(info->summary) {
         // The hidden empty folders: a muted folder with a line through it, and what A does.
-        screen_fill_round_rect(x + 5, y + 5, icon, icon, icon / 6, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->background);
-        screen_draw_icon(ICON_FOLDER_OFF, x + 5 + icon / 4, y + 5 + icon / 4, icon / 2, selected ? t->onAccent : t->palette->textMuted);
+        widget_icon_placeholder(x + 5, y + 5, icon, ICON_FOLDER_OFF, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->background, selected ? t->onAccent : t->palette->textMuted);
         float sx = x + 5 + icon + 8;
         widget_text_fit(item->name, sx, y + 4, WIDGET_TEXT_SCALE, ink, x + width - 8 - sx);
         widget_text_fit(_("Hidden: they hold no mods"), sx, y + height - 4 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, muted, x + width - 8 - sx);

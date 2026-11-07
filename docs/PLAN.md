@@ -214,7 +214,10 @@ buttons, and the progress views of data operations (`info_task_finished`, `data_
 subfolders was deleted from Files there (progress, "Deleted.").
 - [ ] Titles and Tickets grouped: a game with an update or DLC opens its chain; A on each row; delete one from there.
 - [ ] Install CIAs and tickets, paste a copied folder, delete a selection, export a CIA: the progress, B cancels, the end.
-- [ ] The search keyboard and the text editor's (pages, shift, held D-Pad and X).
+- [ ] The search keyboard and the text editor's (pages, shift, held D-Pad and X; a key held with a finger repeats).
+- Then (`refactor/ui-structure-2`): the viewers' buttons, their touches and card, the keyboards' touches, the icon of
+  an item without one, the scroll clamp of popovers and dialogs. Same 49 pictures in Azahar.
+- [ ] The image, audio and text viewers: tap their buttons, slide off one before letting go (nothing happens).
 
 **Sort both ways, hold A, the clipboard, the picture viewer** (2026-11-07, `feat/sort-both-ways`; the owner asked; Files'
 hint, the reversed name sort and Left/Right in the viewer seen in Azahar):

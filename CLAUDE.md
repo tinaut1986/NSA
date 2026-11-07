@@ -101,6 +101,10 @@ it in WSL from the repo with `./tools/bin/makerom`; check the TMD's title versio
   `widget_loading_card`; the title bar's search and grid/rows tools are `list_add_search_tool` / `list_add_view_tools`
   (with `list_open_search`, `list_clear_search`, `list_toggle_mode` for R, B and Y); a list's loading task starts,
   stops and clears with `task_start_populate` / `task_stop_populate` / `task_clear_list` (`task/uitask.c`).
+  A viewer's buttons: `widget_row_button` / `widget_button_row_hit` / `widget_button_row_hold`, its card
+  `widget_info_card`; an item without icon `widget_icon_placeholder`; sizes `ui_format_size`; keyboards `core/ui/keys.c`;
+  a task's progress view `info_task_finished` with `data_op_progress_items` / `data_op_progress_bytes`; a grouped game's
+  list `chain.c`.
 - `tools/ui_snapshots.py` takes pictures of every screen in Azahar on a fixed SD card (`run`) and compares two builds
   (`compare`): run it before and after a change that should not show (a refactor). The search keyboard's caret blinks,
   so that step may differ by a few pixels.

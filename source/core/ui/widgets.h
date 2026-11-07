@@ -71,8 +71,19 @@ bool widget_touched(const touchPosition* pos, float x, float y, float width, flo
 
 // ---- a viewer's buttons ----
 
+// A viewer's card at the top of the bottom screen, with `name` on its first line; returns where the next line goes
+// (x 18, up to x2 - 18).
+float widget_info_card(float x1, float y1, float x2, const char* name);
+
 // Where button `i` of a row of `count` sits: 40 px tall, side by side over the bottom screen's hint bar.
 void widget_button_row_rect(int i, int count, float* x, float* y, float* width, float* height);
+// Draws that button: its icon, and its label beside it when there is one. `primary` draws it in the accent (the player's
+// play button); `disabled` greys its icon.
+void widget_row_button(int i, int count, u32 icon, const char* label, bool pressed, bool disabled, bool primary);
+// The button of the row a finger is on, or -1.
+int widget_button_row_hit(const touchPosition* pos, int count);
+// While a finger is held: the button it went down on stays pressed only while the finger is on it (else *pressed = -1).
+void widget_button_row_hold(int* pressed, const touchPosition* pos, int count);
 
 // ---- items of a list ----
 
@@ -81,6 +92,10 @@ void widget_button_row_rect(int i, int count, float* x, float* y, float* width, 
 void widget_item_frame(float x, float y, float width, float height, bool selected, u32* ink, u32* muted);
 // The frame of a tile of a grid: a ring of accent around it when selected.
 void widget_tile_frame(float x, float y, float size, bool selected);
+// An item without an icon of its own: `icon` at half size in a rounded square of `background`.
+void widget_icon_placeholder(float x, float y, float size, u32 icon, u32 background, u32 foreground);
+// `scroll` kept within 0..max (0 when max is below 0).
+float widget_clamp_scroll(float scroll, float max);
 // While an item loads: grey blocks where its icon (`icon` wide) and its two lines of text will be.
 void widget_skeleton(float x, float y, float width, float height, float icon, bool selected);
 // An item's contents fade in over 250 ms from `since` (when it loaded); screen_set_content_motion(0, 0, 0xFF) ends it.

@@ -98,6 +98,31 @@ void keys_draw(const key_rect* k, bool pressed, u32 shift) {
     }
 }
 
+int keys_hit(const key_rect* keys, u32 count, const touchPosition* pos) {
+    for(u32 i = 0; i < count; i++) {
+        const key_rect* k = &keys[i];
+        if(widget_touched(pos, k->x, k->y, k->w, k->h)) {
+            return (int) i;
+        }
+    }
+
+    return -1;
+}
+
+bool keys_touch_repeat(const key_rect* keys, int pressed, u64* repeatAt, const touchPosition* pos) {
+    if(pressed < 0 || *repeatAt == 0 || osGetTime() < *repeatAt) {
+        return false;
+    }
+
+    const key_rect* k = &keys[pressed];
+    if(!widget_touched(pos, k->x, k->y, k->w, k->h)) {
+        return false;
+    }
+
+    *repeatAt = osGetTime() + 60;
+    return true;
+}
+
 bool keys_hold_repeat(u64* holdAt, u32 mask) {
     if(hidKeysDown() & mask) {
         *holdAt = osGetTime() + 400;

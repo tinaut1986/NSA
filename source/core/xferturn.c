@@ -186,8 +186,8 @@ bool xferturn_describe(char* out, size_t size) {
 }
 
 // A bottom screen toast for what comes in or goes out over FTP or the web page, which have no screen of their own
-// on the console: "FTP, receiving, 650 KB/s: game.cia" with a bar when the size is known. The name goes last: a long one
-// is what gets cut.
+// on the console, on two lines: "FTP, receiving: 3.2 / 12.0 MiB, 650 KiB/s", then the name. The bar shows how far
+// when the size is known; when it is not (FileZilla does not say it before an upload) a piece of it moves.
 bool xferturn_notice(char* out, size_t size, float* progress) {
     xferturn_status status;
     xferturn_get(&status);
@@ -201,11 +201,11 @@ bool xferturn_notice(char* out, size_t size, float* progress) {
     const char* what = status.kind == XFER_FTP ? (status.incoming ? _("FTP, receiving") : _("FTP, sending"))
                                                : (status.incoming ? _("Web, receiving") : _("Web, sending"));
 
-    // How much so far when the size is not known (the bar shows it otherwise), then the speed.
-    char figures[64] = {'\0'};
-    size_t used = 0;
-    if(status.total == 0) {
-        used += snprintf(figures, sizeof(figures), ", %.1f %s", ui_get_display_size(status.done), ui_get_display_size_units(status.done));
+    // How much so far (and of how much), then the speed.
+    char figures[80] = {'\0'};
+    size_t used = snprintf(figures, sizeof(figures), "%.1f %s", ui_get_display_size(status.done), ui_get_display_size_units(status.done));
+    if(status.total > 0 && used < sizeof(figures)) {
+        used += snprintf(figures + used, sizeof(figures) - used, " / %.1f %s", ui_get_display_size(status.total), ui_get_display_size_units(status.total));
     }
 
     u64 bps = (u64) status.kbs * 1024;
@@ -213,7 +213,8 @@ bool xferturn_notice(char* out, size_t size, float* progress) {
         snprintf(figures + used, sizeof(figures) - used, ", %.1f %s/s", ui_get_display_size(bps), ui_get_display_size_units(bps));
     }
 
-    snprintf(out, size, "%s%s: %s", what, figures, name);
-    *progress = status.total > 0 ? (float) ((double) status.done / (double) status.total) : -1.0f;
+    // The name last: a long one is what the buffer or the card cuts.
+    snprintf(out, size, "%s: %s\n%s", what, figures, name);
+    *progress = status.total > 0 ? (float) ((double) status.done / (double) status.total) : WIDGET_PROGRESS_UNKNOWN;
     return true;
 }

@@ -60,8 +60,11 @@ void widget_scrollbar(float x, float y, float height, float offset, float visibl
 bool widget_scrollbar_touched(const touchPosition* pos, float x, float y, float height, float visible, float total);
 float widget_scrollbar_offset(float y, float height, float visible, float total, float py);
 
-// The bottom screen's toast, just above `bottom`: a line and, when progress
-// is known (>= 0), a bar.
+// A progress for widget_toast: something goes on, but how far is not known (a bar that moves).
+#define WIDGET_PROGRESS_UNKNOWN (-2.0f)
+
+// The bottom screen's toast, just above `bottom`: one line, or a few separated by '\n', and a bar when progress is
+// known (>= 0) or WIDGET_PROGRESS_UNKNOWN.
 void widget_toast(const char* text, float progress, float bottom);
 
 // A modal: dims the screen and draws the card; returns its content area.

@@ -129,6 +129,20 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Transfer toast and the web page's QR code** (2026-11-07, `feat/transfer-toast`; asked on Reddit: a progress bar while files
+come in or go out, and an easier way than an FTP app to reach the console from a phone):
+- Any FTP or web page transfer that holds the turn (uploads, and downloads of 1 MB or more) shows a toast at the bottom:
+  "FTP, receiving, 650 KB/s: game.cia" with a bar when the size is known (else how much so far). `xferturn_incoming` says the
+  direction; `xferturn_notice` (core/xferturn.c) comes before the FTP server's own notice, which now only shows while it
+  installs. Tried in Azahar (a 160 MB upload through the web page: "Web, receiving, 3.7 MiB/s").
+- Settings -> Web server, while it runs, draws a QR code of `http://IP:8080/?pin=PIN` beside a shorter help text. The page
+  signs in with `?pin=` and takes it out of the address bar at once. The encoder is NSA's own (`core/qrencode.c`: byte mode,
+  level M, versions 1-10, mask by penalty); `tests/qrencode_test.c` reads back every length up to version 10 with quirc, and
+  the code drawn in Azahar was read back from a screenshot. Tried in Azahar: the page opened signed in from the link.
+- [ ] On the console: the toast during an FTP upload and download (FileZilla) and a web page upload; it goes away at the end.
+- [ ] A phone's camera opens the page from the QR code, signed in; the address bar has no PIN afterwards.
+- [ ] Night mode: the QR code keeps its white square (quiet zone) on the dark card.
+
 **Selecting several files** (2026-11-07, `feat/file-selection`; asked on Reddit by two users and in issue #31): Files has a
 selection mode: the check tool in the title bar, **Y**, or *Select several* in a file's or folder's sheet (that item ticked).
 Inside it A or a tap ticks or unticks (a folder does not open), Y ticks all or none, X (or a hold) opens the sheet for the

@@ -1057,7 +1057,6 @@ const i18n_entry i18n_tw[] = {
         {"LayeredFS mods of games you deleted", "已刪除遊戲的 LayeredFS 模組"},
         {"%lu items", "%lu 個項目"},
         {"%lu selected", "已選 %lu 個"},
-        {"Size of the files", "檔案大小"},
         {"\uE000 ticks or unticks an item, \uE003 ticks all or none, \uE002 acts on the ticked ones and \uE001 leaves. A ticked folder counts with everything in it.", "\uE000 勾選或取消項目，\uE003 全選或全不選，\uE002 對已勾選的項目操作，\uE001 離開。勾選的資料夾連同其中所有內容。"},
         {"%lu items will be moved when you paste them.", "貼上時會移動 %lu 個項目。"},
         {"%lu items are in the clipboard.", "剪貼簿中有 %lu 個項目。"},
@@ -1078,6 +1077,11 @@ const i18n_entry i18n_tw[] = {
         {"Then \uE002 copies, moves, installs or deletes all the ticked ones together, and \uE001 leaves.", "接著 \uE002 可一起複製、移動、安裝或刪除所有勾選的項目，\uE001 離開。"},
         {"Selecting several", "選擇多個"},
         {"Copy, move or delete many at once", "一次複製、移動或刪除多個"},
+        {"Open this address in a browser and type the PIN, or scan the code with a phone: the page opens already signed in.", "在瀏覽器中開啟這個網址並輸入 PIN，或用手機掃描這個碼：網頁開啟時已登入。"},
+        {"FTP, receiving", "FTP 接收中"},
+        {"FTP, sending", "FTP 傳送中"},
+        {"Web, receiving", "網頁接收中"},
+        {"Web, sending", "網頁傳送中"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

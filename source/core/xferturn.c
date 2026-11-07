@@ -5,6 +5,8 @@
 
 #include "xferturn.h"
 #include "stringutil.h"
+#include "i18n.h"
+#include "ui/ui.h"
 
 static LightLock xferturn_lock;
 static u32 xferturn_next = 0;
@@ -20,6 +22,7 @@ static struct {
     u64 rateTime;           // The speed: bytes since rateTime, measured every 2 s.
     u64 rateDone;
     u32 kbs;
+    bool incoming;
 } xferturn;
 
 // The share of the system core the app keeps (APT_SetAppCpuTimeLimit) while it holds no turn; 0 leaves it alone.
@@ -64,6 +67,7 @@ u32 xferturn_take(xfer_kind kind, const char* name, u64 total) {
         xferturn.started = xferturn.touched = xferturn.rateTime = now;
         xferturn.rateDone = 0;
         xferturn.kbs = 0;
+        xferturn.incoming = false;
         xferturn_cpu(true);
     }
     LightLock_Unlock(&xferturn_lock);
@@ -98,6 +102,18 @@ void xferturn_total(u32 ticket, u64 total) {
     LightLock_Lock(&xferturn_lock);
     if(xferturn.ticket == ticket) {
         xferturn.total = total;
+    }
+    LightLock_Unlock(&xferturn_lock);
+}
+
+void xferturn_incoming(u32 ticket, bool incoming) {
+    if(ticket == 0) {
+        return;
+    }
+
+    LightLock_Lock(&xferturn_lock);
+    if(xferturn.ticket == ticket) {
+        xferturn.incoming = incoming;
     }
     LightLock_Unlock(&xferturn_lock);
 }
@@ -138,6 +154,7 @@ void xferturn_get(xferturn_status* out) {
         out->done = xferturn.done;
         out->total = xferturn.total;
         out->kbs = xferturn.kbs;
+        out->incoming = xferturn.incoming;
         out->seconds = (u32) ((now - xferturn.started) / 1000);
     }
     LightLock_Unlock(&xferturn_lock);
@@ -165,5 +182,38 @@ bool xferturn_describe(char* out, size_t size) {
         snprintf(out, size, "Busy: %s, %s", xferturn_kind_name(status.kind), name);
     }
 
+    return true;
+}
+
+// A bottom screen toast for what comes in or goes out over FTP or the web page, which have no screen of their own
+// on the console: "FTP, receiving, 650 KB/s: game.cia" with a bar when the size is known. The name goes last: a long one
+// is what gets cut.
+bool xferturn_notice(char* out, size_t size, float* progress) {
+    xferturn_status status;
+    xferturn_get(&status);
+    if(!status.busy || (status.kind != XFER_FTP && status.kind != XFER_WEB)) {
+        return false;
+    }
+
+    const char* name = strrchr(status.name, '/');
+    name = name != NULL && name[1] != '\0' ? name + 1 : status.name;
+
+    const char* what = status.kind == XFER_FTP ? (status.incoming ? _("FTP, receiving") : _("FTP, sending"))
+                                               : (status.incoming ? _("Web, receiving") : _("Web, sending"));
+
+    // How much so far when the size is not known (the bar shows it otherwise), then the speed.
+    char figures[64] = {'\0'};
+    size_t used = 0;
+    if(status.total == 0) {
+        used += snprintf(figures, sizeof(figures), ", %.1f %s", ui_get_display_size(status.done), ui_get_display_size_units(status.done));
+    }
+
+    u64 bps = (u64) status.kbs * 1024;
+    if(status.kbs > 0 && used < sizeof(figures)) {
+        snprintf(figures + used, sizeof(figures) - used, ", %.1f %s/s", ui_get_display_size(bps), ui_get_display_size_units(bps));
+    }
+
+    snprintf(out, size, "%s%s: %s", what, figures, name);
+    *progress = status.total > 0 ? (float) ((double) status.done / (double) status.total) : -1.0f;
     return true;
 }

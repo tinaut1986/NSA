@@ -613,9 +613,10 @@ static void ftp_cmd_list(ftp_session* s, const char* arg, list_kind kind) {
 #define FTP_TURN_MIN_RETR (1024 * 1024)
 
 // Takes the turn for `vpath`, or says who has it (450) and gives the PASV socket up.
-static bool ftp_take_turn(ftp_session* s, const char* vpath, u64 total) {
+static bool ftp_take_turn(ftp_session* s, const char* vpath, u64 total, bool incoming) {
     ftp_turn = xferturn_take(XFER_FTP, vpath, total);
     if(ftp_turn != 0) {
+        xferturn_incoming(ftp_turn, incoming);
         return true;
     }
 
@@ -666,7 +667,7 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
 
     // NSA's own speed traces are read while something transfers (tools/speed_tests.py): never the turn for them.
     bool traces = strcmp(vpath, APP_DATA_DIR "speed-log.txt") == 0;
-    if(!traces && (zero || size >= FTP_TURN_MIN_RETR) && !ftp_take_turn(s, vpath, size)) {
+    if(!traces && (zero || size >= FTP_TURN_MIN_RETR) && !ftp_take_turn(s, vpath, size, false)) {
         if(f != NULL) {
             fclose(f);
         }
@@ -735,7 +736,7 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
     bool null = strncmp(vpath, FTP_DEV_NULL, strlen(FTP_DEV_NULL)) == 0 && (vpath[strlen(FTP_DEV_NULL)] == '\0' || vpath[strlen(FTP_DEV_NULL)] == '/');
 
     // Before opening: "wb" would empty a file that is not going to be written.
-    if(!ftp_take_turn(s, vpath, ftp_allo)) {
+    if(!ftp_take_turn(s, vpath, ftp_allo, true)) {
         ftp_allo = 0;
         return;
     }

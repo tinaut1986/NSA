@@ -1069,7 +1069,6 @@ const i18n_entry i18n_ja[] = {
         {"LayeredFS mods of games you deleted", "削除したゲームの LayeredFS MOD"},
         {"%lu items", "%lu 個の項目"},
         {"%lu selected", "%lu 個を選択"},
-        {"Size of the files", "ファイルのサイズ"},
         {"\uE000 ticks or unticks an item, \uE003 ticks all or none, \uE002 acts on the ticked ones and \uE001 leaves. A ticked folder counts with everything in it.", "\uE000 で項目にチェックを付け外し、\uE003 で全部か無し、\uE002 でチェックした項目を操作、\uE001 で終了。チェックしたフォルダは中身ごと対象です。"},
         {"%lu items will be moved when you paste them.", "%lu 個の項目は貼り付けたときに移動されます。"},
         {"%lu items are in the clipboard.", "%lu 個の項目がクリップボードにあります。"},
@@ -1090,6 +1089,11 @@ const i18n_entry i18n_ja[] = {
         {"Then \uE002 copies, moves, installs or deletes all the ticked ones together, and \uE001 leaves.", "次に \uE002 でチェックした項目をまとめてコピー、移動、インストール、削除できます。\uE001 で終了。"},
         {"Selecting several", "複数を選択"},
         {"Copy, move or delete many at once", "まとめてコピー、移動、削除"},
+        {"Open this address in a browser and type the PIN, or scan the code with a phone: the page opens already signed in.", "ブラウザでこのアドレスを開いてPINを入力するか、スマホでコードを読み取ると、ログイン済みでページが開きます。"},
+        {"FTP, receiving", "FTP 受信中"},
+        {"FTP, sending", "FTP 送信中"},
+        {"Web, receiving", "Web 受信中"},
+        {"Web, sending", "Web 送信中"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

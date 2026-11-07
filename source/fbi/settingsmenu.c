@@ -2,12 +2,14 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <3ds.h>
 
 #include "ftpserver.h"
 #include "guide.h"
 #include "webserver.h"
+#include "../core/qrencode.h"
 #include "section.h"
 #include "settings.h"
 #include "../core/bgmusic.h"
@@ -543,6 +545,48 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
     screen_draw_text(line, x, y + 6, WIDGET_TEXT_SCALE, t->palette->text);
 }
 
+// The web page's address and PIN as a QR code, to open it from a phone's camera: dark modules on a white square with
+// a quiet zone of 4 modules. Made again only when the address changes.
+static void settingsmenu_draw_web_qr(float x, float y, float side) {
+    static qr_code qr;
+    static char encoded[96] = "";
+
+    char address[64];
+    char pin[16];
+    webserver_address(address, sizeof(address));
+    webserver_pin(pin, sizeof(pin));
+
+    char url[96];
+    snprintf(url, sizeof(url), pin[0] != '\0' ? "%s/?pin=%s" : "%s/", address, pin);
+    if(strcmp(url, encoded) != 0) {
+        if(!qr_encode(url, &qr)) {
+            encoded[0] = '\0';
+            return;
+        }
+
+        string_copy(encoded, url, sizeof(encoded));
+    }
+
+    // Whole pixels per module: a blurred edge is harder for a camera.
+    int total = qr.size + 8;
+    int module = (int) (side / total);
+    if(module < 1) {
+        return;
+    }
+
+    float drawn = (float) (module * total);
+    float ox = x + (side - drawn) / 2;
+    float oy = y + (side - drawn) / 2;
+    screen_fill_rect(ox, oy, drawn, drawn, 0xFFFFFFFF);
+    for(int my = 0; my < qr.size; my++) {
+        for(int mx = 0; mx < qr.size; mx++) {
+            if(qr_dark(&qr, mx, my)) {
+                screen_fill_rect(ox + (mx + 4) * module, oy + (my + 4) * module, module, module, 0xFF000000);
+            }
+        }
+    }
+}
+
 static void settingsmenu_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     settingsmenu_data* menu = (settingsmenu_data*) data;
     const theme_current* t = theme();
@@ -560,10 +604,25 @@ static void settingsmenu_draw_top(ui_view* view, void* data, float x1, float y1,
     screen_draw_text(settingsmenu_label(option), x + 30, y + 1, WIDGET_TITLE_SCALE, t->palette->text);
 
     y += 32;
+
+    // The web server running: its QR code on the right, the help beside it.
+    float qrSide = 0;
+    if(option == OPTION_WEB && webserver_running()) {
+        qrSide = cardH - 70;
+        if(qrSide > 132) {
+            qrSide = 132;
+        }
+
+        settingsmenu_draw_web_qr(cardX + cardW - 12 - qrSide, cardY + 12, qrSide);
+        qrSide += 12;
+    }
+
+    // Beside the QR code there is room for less: a shorter text, which ends above the address.
     float helpHeight = 0;
-    const char* help = settingsmenu_help(option);
-    screen_get_string_size_wrap(NULL, &helpHeight, help, WIDGET_TEXT_SCALE, WIDGET_TEXT_SCALE, cardW - 32);
-    screen_draw_text_wrap(help, x, y, WIDGET_TEXT_SCALE, t->palette->textMuted, cardX + cardW - 16);
+    const char* help = qrSide > 0 ? _("Open this address in a browser and type the PIN, or scan the code with a phone: the page opens already signed in.")
+                                  : settingsmenu_help(option);
+    screen_get_string_size_wrap(NULL, &helpHeight, help, WIDGET_TEXT_SCALE, WIDGET_TEXT_SCALE, cardW - 32 - qrSide);
+    screen_draw_text_wrap(help, x, y, WIDGET_TEXT_SCALE, t->palette->textMuted, cardX + cardW - 16 - qrSide);
 
     settingsmenu_draw_preview(option, x, cardY + cardH - 56, cardW - 32);
 }

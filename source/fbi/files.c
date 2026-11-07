@@ -619,7 +619,7 @@ static void files_draw_selection(files_data* data, float x, float y, float w) {
     snprintf(values[0], sizeof(values[0]), "%lu", dirs);
     snprintf(values[1], sizeof(values[1]), "%lu", count - dirs);
     files_size_text(values[2], sizeof(values[2]), bytes);
-    const char* labels[3] = {_("Folders"), _("Files"), _("Size of the files")};
+    const char* labels[3] = {_("Folders"), _("Files"), _("Size")};
 
     float gap = 6;
     float cellW = (w - 2 * gap) / 3;

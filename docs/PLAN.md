@@ -517,6 +517,7 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Chinese: **Traditional** (繁體中文) draws completely with the console's font on the New 3DS XL (an EUR console), because its table only uses characters of JIS X 0208 (checked with `shift_jis`; a few Taiwan forms are written as their Japanese variants, 内 録 緑 ...). **Simplified** (简体中文) needs its own font: about a quarter of its characters (设 软 单 远 请 ...) are not in that console's Japanese character set, so while it is the language `screen.c` draws all of its Chinese from `romfs/hanfont.png` (Noto Sans CJK SC, 528 characters at one size, scaled like the system font; seen working on the New 3DS XL, Pixel theme not looked at). In any other language that font only fills in what the console's font lacks (the name 简体中文 in the language list). Check how it reads at the small sizes and in the Pixel theme.
 - [ ] Japanese lines break between characters (dialogs, the top screen's descriptions, the update changelog) and never leave 、 。 」 at the start of a line.
 - [ ] System follows the console's language (Settings of the console in French, German, Italian, Portuguese, Russian or Japanese); a console in Korean or Dutch shows English (Catalan is never picked by System: the 3DS has no Catalan).
+- [ ] Advanced -> Dump NAND (only on `advanced`): its texts in every language (21 strings: sizes, time left, "Fits, with ... left over", "Saved as", the hints); built, not looked at on a console.
 - [ ] The web page's Language drop-down lists all twelve and changes the console; the page itself is still English or Spanish.
 
 **PKSM backups** (2026-11-05, branch `feat/pksm-import`, builds; not tried on a console)
@@ -735,6 +736,13 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
       confirmation in the red warning. Azahar crashes on this screen (also on the previous
       `release`, before this change): not seen even once; readable names of the modules were not
       added (no source found for the IDs).
+
+**Dump NAND screen** (branch `advanced`)
+- [ ] On a console: the raw NAND opens (Azahar cannot, it closes), size and free space are right,
+      a dump runs to the end, the SHA-256 shown matches the file (`sha256sum`) and the `.sha256` next to it
+      passes `sha256sum -c`, cancelling deletes the
+      half file, a full SD card shows the red "not enough space" screen. Seen in Azahar only with a
+      fake source of zeros (UI and hash).
 
 **Pixel theme** (Settings -> Theme, `tools/make_pixelfont.py`)
 - [ ] On a console: the pixel font (Pixelify Sans 10/12/16 px, `romfs/pixelfont.png`) is readable on

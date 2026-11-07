@@ -206,6 +206,14 @@ no DSP firmware (sdmc:/3ds/dspfirm.cdc comes from a console).
 - [ ] On the **2DS / Old 3DS**: an FTP upload and a URL download with music in the background against without (`tools/speed_tests.py`,
       back to back). If it costs much, pause the background player while a transfer holds the turn (`xferturn_get`) on an Old 3DS.
 
+**Time left in the transfer toast** (2026-11-07, `feat/toast-eta`; built, not seen on a console):
+- The FTP and web page toast's second line starts with the time left when the size is known: "FTP, receiving: 3.2 / 12.0 MiB,
+  650 KiB/s", then "00:00:14 left · game.cia" (from the average speed since the start, so it does not jump; none in the
+  first 2 s). The other ways already showed it on their own screens: console to console, URL and QR downloads and installs,
+  copies (data_op), Export CIA and Dump NAND.
+- [ ] On the console: the time left in the toast during an FTP upload with ALLO (curl), an FTP download and a web page upload,
+  in Spanish and in Japanese or Chinese; a FileZilla upload (no size) shows none.
+
 **Transfer toast and the web page's QR code** (2026-11-07, `feat/transfer-toast`; asked on Reddit: a progress bar while files
 come in or go out, and an easier way than an FTP app to reach the console from a phone):
 - Any FTP or web page transfer that holds the turn (uploads, and downloads of 1 MB or more) shows a toast at the bottom:

@@ -1114,6 +1114,7 @@ const i18n_entry i18n_ja[] = {
         {"Copy, move or delete many at once", "まとめてコピー、移動、削除"},
         {"Open this address in a browser and type the PIN, or scan the code with a phone: the page opens already signed in.", "ブラウザでこのアドレスを開いてPINを入力するか、スマホでコードを読み取ると、ログイン済みでページが開きます。"},
         {"FTP, receiving", "FTP 受信中"},
+        {"%s left", "残り%s"},
         {"FTP, sending", "FTP 送信中"},
         {"Web, receiving", "Web 受信中"},
         {"Web, sending", "Web 送信中"},

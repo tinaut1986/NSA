@@ -9,6 +9,14 @@ things are the way they are. Keep it current in the same change that alters it.
 `master` and `advanced` (its Dump NAND screen kept; the empty suspend/restore callbacks dropped there too). DEBUG builds
 for the consoles now use `VERSION_MINOR=9 VERSION_MICRO=0`. `staging` goes on for what comes next.
 
+**The guide for 0.9** (`feat/guide-0.9`): the chapters new in 0.9.0 (Selecting several, Music in the background, Game mods)
+were marked 0.8, so someone updating from 0.8.4 (`guide_known` 0.8) was never offered them. Now `since` 0.9, and chapters
+have `updated`: a release that changes one (Store: your own stores; From your computer: the transfer toast and the web
+server's QR code) sets it, and the chapter is offered again also to whoever saw it. New steps: repeat and the playing
+song in Music in the background, the toast and the QR code in From your computer (all 11 languages). 0.9.0 keeps
+`guide_known` at 0.8 (its newest chapter said 0.8), so 0.9.1 offers the five. Tried in Azahar with `guide_known` 8 and
+Store and From your computer seen: "New in this version" listed the five, 27 steps.
+
 Start here in a new session. `staging` is pushed (`b41f2f6`) and holds all of it; nothing is uncommitted.
 
 - **Builds on the consoles**: the New 3DS XL (192.168.1.136) and the 2DS (192.168.1.140) run `staging` as of `9135288`

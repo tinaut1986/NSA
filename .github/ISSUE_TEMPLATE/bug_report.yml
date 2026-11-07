@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in NSA does not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        NSA does not provide or support pirated content. Reports about it will be closed.
+        If an install fails, first check the CIA is valid and try another SD card.
+  - type: input
+    id: version
+    attributes:
+      label: NSA version
+      description: Settings / System page. Say if it is a beta.
+      placeholder: v0.8.4
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Console model
+      options: [Old 3DS / 3DS XL, Old 2DS, New 3DS / New 3DS XL, New 2DS XL, Other / not sure]
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware and CFW
+      placeholder: "11.17 with Luma3DS 13.x"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else (screenshots, transfer log)

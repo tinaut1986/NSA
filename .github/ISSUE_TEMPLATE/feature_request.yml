@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest an idea for NSA
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: NSA does not provide or support pirated content.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: The problem or use case.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you tried

@@ -1102,6 +1102,7 @@ const i18n_entry i18n_tw[] = {
         {"Copy, move or delete many at once", "一次複製、移動或刪除多個"},
         {"Open this address in a browser and type the PIN, or scan the code with a phone: the page opens already signed in.", "在瀏覽器中開啟這個網址並輸入 PIN，或用手機掃描這個碼：網頁開啟時已登入。"},
         {"FTP, receiving", "FTP 接收中"},
+        {"%s left", "剩餘 %s"},
         {"FTP, sending", "FTP 傳送中"},
         {"Web, receiving", "網頁接收中"},
         {"Web, sending", "網頁傳送中"},

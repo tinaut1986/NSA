@@ -1101,6 +1101,7 @@ const i18n_entry i18n_zh[] = {
         {"Copy, move or delete many at once", "一次复制、移动或删除多个"},
         {"Open this address in a browser and type the PIN, or scan the code with a phone: the page opens already signed in.", "在浏览器中打开这个地址并输入 PIN，或用手机扫描这个码：无需输入 PIN，直接进入网页。"},
         {"FTP, receiving", "FTP 接收中"},
+        {"%s left", "剩余 %s"},
         {"FTP, sending", "FTP 发送中"},
         {"Web, receiving", "网页接收中"},
         {"Web, sending", "网页发送中"},

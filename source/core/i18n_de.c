@@ -1114,6 +1114,7 @@ const i18n_entry i18n_de[] = {
         {"Copy, move or delete many at once", "Viele auf einmal kopieren, verschieben oder löschen"},
         {"Open this address in a browser and type the PIN, or scan the code with a phone: the page opens already signed in.", "Öffne diese Adresse im Browser und gib die PIN ein, oder scanne den Code mit dem Handy: Die Seite öffnet sich schon angemeldet."},
         {"FTP, receiving", "FTP, Empfang"},
+        {"%s left", "Noch %s"},
         {"FTP, sending", "FTP, Senden"},
         {"Web, receiving", "Web, Empfang"},
         {"Web, sending", "Web, Senden"},

@@ -819,6 +819,28 @@ static void files_launch(void* data) {
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
 static void files_player(void* data) { audioview_resume(); }
 
+// The last part of a folder's path ("/3ds/NSA/" -> "NSA"), or "/" for the root.
+static void files_dir_name(const char* path, char* out, size_t size) {
+    size_t len = strlen(path);
+    while(len > 1 && path[len - 1] == '/') {
+        len--;
+    }
+
+    size_t start = len;
+    while(start > 0 && path[start - 1] != '/') {
+        start--;
+    }
+
+    if(len <= 1 || start >= len) {
+        string_copy(out, "/", size);
+        return;
+    }
+
+    size_t n = len - start < size - 1 ? len - start : size - 1;
+    memcpy(out, path + start, n);
+    out[n] = 0;
+}
+
 static void files_file_actions_open(files_data* data, linked_list* items, list_item* selected) {
     file_info* info = (file_info*) selected->data;
     data->actionItems = items;
@@ -865,7 +887,8 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
     actions[count++] = (sheet_action) {ICON_SQUARE_CHECK, _("Select several"), false, files_select_from_sheet};
     actions[count++] = (sheet_action) {ICON_TRASH, _("Delete"), true, files_delete_file};
 
-    sheet_display_list(NULL, 0, actions, count, data);
+    u32 icon = info->isCia ? ICON_PACKAGE : info->isTicket ? ICON_TICKET : files_type_icon(files_type_of(info));
+    sheet_display_list_for(_("File"), info->name, icon, actions, count, data);
 }
 
 static void files_open_dir(void* data) {
@@ -891,7 +914,8 @@ static void files_dir_actions_open(files_data* data, linked_list* items, list_it
             {ICON_TRASH_X, _("Delete folder"), true, files_delete_dir}
     };
 
-    sheet_display_list(NULL, 0, actions, sizeof(actions) / sizeof(*actions), data);
+    const char* name = ((file_info*) selected->data)->name;
+    sheet_display_list_for(_("Folder"), name, files_folder_icon(name), actions, sizeof(actions) / sizeof(*actions), data);
 }
 
 static void files_folder_actions_open(files_data* data, linked_list* items) {
@@ -962,7 +986,13 @@ static void files_folder_actions_open(files_data* data, linked_list* items) {
         actions[count++] = (sheet_action) {ICON_TRASH_X, _("Delete folder"), true, files_delete_dir};
     }
 
-    sheet_display_list(NULL, 0, actions, count, data);
+    // Not an item of the list but the folder it shows: the header says so.
+    char name[FILE_NAME_MAX];
+    files_dir_name(data->currDir, name, sizeof(name));
+    if(root) {
+        string_copy(name, data->archiveId == ARCHIVE_SDMC ? _("Root of the SD card") : _("Root"), sizeof(name));
+    }
+    sheet_display_list_for(_("This folder (where you are)"), name, ICON_FOLDER_OPEN, actions, count, data);
 }
 
 // ---- selection mode: tick several items, then copy, cut, install or delete them together ----
@@ -1120,7 +1150,9 @@ static void files_selection_actions_open(files_data* data, linked_list* items) {
         actions[actionCount++] = (sheet_action) {ICON_TRASH, _("Delete"), true, files_select_delete};
     }
 
-    sheet_display_list(NULL, 0, actions, actionCount, data);
+    char title[48];
+    snprintf(title, sizeof(title), i18n_translate_text("%lu selected"), count);
+    sheet_display_list_for(_("The ticked items"), title, ICON_SQUARE_CHECK, actions, actionCount, data);
 }
 
 // From a file's or folder's own actions: selection mode, with that item ticked.
@@ -1211,7 +1243,7 @@ static void files_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 2,
             .groups = {
-                    {_("Show"), true, 5, {_("Folders"), _("Files"), "CIA", _("Tickets"), _("Hidden")}, {ICON_FOLDER, ICON_FILE, ICON_PACKAGE, ICON_TICKET, -1}},
+                    {_("Show"), true, 5, {_("Folders"), _("Files"), "CIA", _("Tickets"), _("Hidden")}, {ICON_FOLDER, ICON_FILE, ICON_PACKAGE, ICON_TICKET, ICON_EYE_OFF}},
                     {_("Sort by"), false, 3, {_("Name"), _("Size"), _("Type")}, {ICON_ABC, ICON_DATABASE, ICON_APPS}, true}
             },
             .isOn = files_popover_is_on,

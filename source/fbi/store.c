@@ -2066,12 +2066,12 @@ static void store_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 5,
             .groups = {
-                    {_("Type"), true, 3, {"CIA", "3DSX", _("Other")}, {-1, -1, -1}},
+                    {_("Type"), true, 3, {"CIA", "3DSX", _("Other")}, {ICON_PACKAGE, ICON_APP_WINDOW, ICON_DOTS}},
                     // Icons with the name in a tooltip, as Show and Sort by: eight names take three lines.
                     {_("Category"), true, STORE_CATEGORY_COUNT, {_("Games"), _("Apps"), _("Utilities"), _("Emulators"), _("Media"), _("Save tools"), _("Plugins"), _("Other")},
                      {ICON_DEVICE_GAMEPAD_2, ICON_APPS, ICON_SETTINGS, ICON_DEVICE_NINTENDO, ICON_MOVIE, ICON_DEVICE_FLOPPY, ICON_FILE_CODE, ICON_DOTS}, true},
                     {_("Show"), false, 3, {_("All"), _("Installed / downloaded"), _("Not installed / downloaded")}, {ICON_APPS, ICON_CHECK, ICON_X}, true},
-                    {_("Updated"), false, 4, {_("All"), _("1 month"), _("6 months"), _("1 year")}, {-1, -1, -1, -1}},
+                    {_("Updated"), false, 4, {_("All"), _("1 month"), _("6 months"), _("1 year")}, {ICON_INFINITY, ICON_HOURGLASS_LOW, ICON_HOURGLASS, ICON_HOURGLASS_HIGH}},
                     // Icons with the name in a tooltip: four names this long do not fit in one line.
                     {_("Sort by"), false, 4, {_("Name"), _("Author"), _("Newest"), _("Stars")}, {ICON_ABC, ICON_USER, ICON_CLOCK, ICON_STAR}, true, true}
             },

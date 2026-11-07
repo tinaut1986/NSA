@@ -1110,6 +1110,10 @@ const i18n_entry i18n_ja[] = {
         {"Delete %lu empty folders in /luma/titles? There is nothing in them.", "/luma/titles の空のフォルダ %lu 個を削除しますか？中には何もありません。"},
         {"Empty folders", "空のフォルダ"},
         {"This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.", "このフォルダは空です。MODは入っておらず、Luma3DSは何も見つけません。削除しても何も変わりません。"},
+        {"This folder (where you are)", "このフォルダ（今いる場所）"},
+        {"The ticked items", "チェックした項目"},
+        {"Root of the SD card", "SDカードのルート"},
+        {"Root", "ルート"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

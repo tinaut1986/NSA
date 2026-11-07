@@ -677,7 +677,7 @@ static void mods_update(ui_view* view, void* data, linked_list* items, list_item
     }
 
     list_set_progress(view, ready, total);
-    view->info = _(" actions    view    filter    search    back");
+    view->info = _(" actions    view    filter    search    back");
 
     if(hidKeysDown() & KEY_B) {
         if(list_get_search(view)[0] != '\0') {
@@ -742,7 +742,7 @@ static void mods_update(ui_view* view, void* data, linked_list* items, list_item
     }
 
     // Deleting removes items, which the populate thread walks: only once it is done (it takes a moment).
-    if(selected != NULL && selected->data != NULL && selectedTouched && listData->populateData.finished) {
+    if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A)) && listData->populateData.finished) {
         mods_actions_open(listData, selected);
     }
 }

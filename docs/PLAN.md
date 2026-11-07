@@ -208,6 +208,8 @@ on the small screen, the folder's and the item's sheets looked alike, and a held
 - In a sheet and in the filter card a held direction moves on and on (400 ms, then every 90 ms, as in the lists) and stops at
   the ends; a fresh press still goes round.
 - Game mods: A opens the sheet (only a tap did), and its hint bar has the button glyphs again.
+- Region shows one-colour flags (NSA's own `tools/icons/flag-eu|us|jp.svg`: the ring of stars, the canton and stripes, the
+  red disc) instead of letters (`feat/region-flags`, the owner's idea).
 Tried in Azahar (Titles' and Mods' filters, the sheets of the root, a file and the empty folders, a held Down).
 - [ ] The filter cards of Titles, Tickets, Files, Store, Ext Save Data, Pending titles: readable, the tooltips say the right names.
 - [ ] Files: the three sheets (X in a folder, an item's, the ticked items') tell themselves apart at a glance.

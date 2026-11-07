@@ -108,9 +108,6 @@ typedef enum {
     ICON_EYE_OFF,
     ICON_PUZZLE,
     ICON_FLASK,
-    ICON_LETTER_E,
-    ICON_LETTER_U,
-    ICON_LETTER_J,
     ICON_WORLD,
     ICON_INFINITY,
     ICON_HOURGLASS_LOW,
@@ -120,5 +117,8 @@ typedef enum {
     ICON_CIRCLE_CHECK,
     ICON_CIRCLE_X,
     ICON_DEVICE_MOBILE,
+    ICON_FLAG_EU,
+    ICON_FLAG_US,
+    ICON_FLAG_JP,
     ICON_COUNT
 } icon_id;

@@ -204,6 +204,12 @@ cut and pasted onto another medium, the web page's delete and a store script's `
 - [ ] Mods: delete the test mods of 0004000000FFFF00 (romfs/ and code.ips), alone and with *Delete mods of games not installed*.
 - [ ] Files: cut a folder with folders in it and paste it onto another medium (the NAND, a save): the source goes.
 
+**Delete a title's mods from Titles** (2026-11-07, `feat/title-delete-mods`; the owner asked for it): a title with something
+in `/luma/titles/<ID>/` has *Delete mods* in its sheet, right before *Delete* (a game card's too). To try it, a dummy CIA
+"NSA Test" (`000400000FB1AE00`, devkitPro's hello world) with a test mods folder.
+- [ ] Titles -> NSA Test -> *Delete mods*: asks, deletes, and the action is gone the next time.
+- [ ] Deleting NSA Test with mods asks whether to delete them too.
+
 **Shorter filters, clearer sheets, D-Pad held** (2026-11-07, `feat/compact-overlays`; the owner: the filter card grew too long
 on the small screen, the folder's and the item's sheets looked alike, and a held D-Pad did not run through the actions):
 - Every filter option is an icon now (`popover_display` makes a group icon-only when all its options have one; new icons for

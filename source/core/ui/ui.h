@@ -59,6 +59,8 @@ typedef struct ui_description_s {
 } ui_description;
 
 const char* ui_get_display_eta(u32 seconds);
+// A size in short form: "512 B", "4.7 KiB".
+void ui_format_size(char* out, size_t size, u64 bytes);
 double ui_get_display_size(u64 size);
 const char* ui_get_display_size_units(u64 size);
 

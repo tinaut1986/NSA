@@ -53,5 +53,10 @@ typedef struct {
 u32 keys_build(key_rect* out, u32 max, const key_row* toolbar, u32 page, key_action confirm);
 // Draws a key; `shift` 0 off, 1 the next letter, 2 caps lock.
 void keys_draw(const key_rect* key, bool pressed, u32 shift);
+// The key a finger is on, or -1.
+int keys_hit(const key_rect* keys, u32 count, const touchPosition* pos);
+// A key held by a finger (`pressed`, -1 for none) repeats: true when it is due again (after *repeatAt, which the press
+// set, 0 for a key that does not repeat) and the finger is still on it; *repeatAt then moves 60 ms on.
+bool keys_touch_repeat(const key_rect* keys, int pressed, u64* repeatAt, const touchPosition* pos);
 // A button held on a keyboard: true on the press, then every 60 ms after 400 ms. `holdAt` is the button's own.
 bool keys_hold_repeat(u64* holdAt, u32 mask);

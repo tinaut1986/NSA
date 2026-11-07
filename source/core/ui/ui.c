@@ -492,3 +492,7 @@ const char* ui_get_display_size_units(u64 size) {
 
     return "B";
 }
+
+void ui_format_size(char* out, size_t size, u64 bytes) {
+    snprintf(out, size, bytes < 1024 ? "%.0f %s" : "%.1f %s", ui_get_display_size(bytes), ui_get_display_size_units(bytes));
+}

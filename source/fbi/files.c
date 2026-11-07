@@ -287,14 +287,10 @@ static void files_draw_icon(file_info* info, float x, float y, float size) {
     screen_draw_icon(icon, x + size * 0.2f, y + size * 0.2f, size * 0.6f, ink);
 }
 
-static void files_size_text(char* out, size_t size, u64 bytes) {
-    snprintf(out, size, bytes < 1024 ? "%.0f %s" : "%.1f %s", ui_get_display_size(bytes), ui_get_display_size_units(bytes));
-}
-
 // The row's second line: what it is and how big.
 static void files_subtitle(char* out, size_t size, file_info* info) {
     char bytes[32];
-    files_size_text(bytes, sizeof(bytes), info->size);
+    ui_format_size(bytes, sizeof(bytes), info->size);
     switch(files_kind_of(info)) {
         case KIND_DIR:
             snprintf(out, size, "%s", _("Folder"));
@@ -469,7 +465,7 @@ static void files_draw_file(file_info* info, const char* name, float x, float y,
     char modified[32];
     files_modified_text(info, onSd, modified, sizeof(modified));
     char size[32];
-    files_size_text(size, sizeof(size), info->size);
+    ui_format_size(size, sizeof(size), info->size);
 
     float gap = 6;
     float cellW = (w - 2 * gap) / 3;
@@ -488,7 +484,7 @@ static void files_draw_file(file_info* info, const char* name, float x, float y,
         char region[64];
         snprintf(id, sizeof(id), "%016llX", cia->titleId);
         snprintf(version, sizeof(version), "%d.%d.%d (%hu)", (cia->version >> 10) & 0x3F, (cia->version >> 4) & 0x3F, cia->version & 0xF, cia->version);
-        files_size_text(installed, sizeof(installed), cia->installedSize);
+        ui_format_size(installed, sizeof(installed), cia->installedSize);
         if(cia->hasMeta) {
             smdh_region_to_string(region, cia->meta.region, sizeof(region));
         } else {
@@ -610,7 +606,7 @@ static void files_draw_selection(files_data* data, float x, float y, float w) {
     char values[3][32];
     snprintf(values[0], sizeof(values[0]), "%lu", dirs);
     snprintf(values[1], sizeof(values[1]), "%lu", count - dirs);
-    files_size_text(values[2], sizeof(values[2]), bytes);
+    ui_format_size(values[2], sizeof(values[2]), bytes);
     const char* labels[3] = {_("Folders"), _("Files"), _("Size")};
 
     float gap = 6;

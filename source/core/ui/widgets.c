@@ -76,12 +76,61 @@ void widget_card(float x, float y, float width, float height) {
     screen_frame_round_rect(x, y, width, height, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
 }
 
+float widget_info_card(float x1, float y1, float x2, const char* name) {
+    widget_card(8, y1 + 8, x2 - x1 - 16, 84);
+    float ty = y1 + 16;
+    widget_text_fit(name, 18, ty, WIDGET_TEXT_SCALE, theme()->palette->text, x2 - 18 - 18);
+    return ty + widget_text_height(WIDGET_TEXT_SCALE) + 4;
+}
+
 void widget_button_row_rect(int i, int count, float* x, float* y, float* width, float* height) {
     float gap = 6;
     *width = (BOTTOM_SCREEN_WIDTH - 16 - gap * (count - 1)) / count;
     *height = 40;
     *x = 8 + i * (*width + gap);
     *y = BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT - 8 - *height;
+}
+
+void widget_row_button(int i, int count, u32 icon, const char* label, bool pressed, bool disabled, bool primary) {
+    const theme_current* t = theme();
+    float x, y, w, h;
+    widget_button_row_rect(i, count, &x, &y, &w, &h);
+    u32 fill = pressed ? t->accent : primary ? t->accentSoft : t->palette->surface;
+    u32 edge = pressed ? t->accent : primary ? t->accent : t->palette->border;
+    u32 ink = pressed ? t->onAccent : disabled ? t->palette->textMuted : primary ? t->accent : t->palette->text;
+    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
+
+    if(label == NULL) {
+        screen_draw_icon(icon, x + (w - 16) / 2, y + (h - 16) / 2, 16, ink);
+    } else {
+        float tw = widget_text_width(label, WIDGET_TEXT_SCALE);
+        float bx = x + (w - (16 + 6 + tw)) / 2;
+        screen_draw_icon(icon, bx, y + (h - 16) / 2, 16, ink);
+        screen_draw_text(label, bx + 22, y + (h - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, ink);
+    }
+}
+
+int widget_button_row_hit(const touchPosition* pos, int count) {
+    int hit = -1;
+    for(int i = 0; i < count; i++) {
+        float x, y, w, h;
+        widget_button_row_rect(i, count, &x, &y, &w, &h);
+        if(widget_touched(pos, x, y, w, h)) {
+            hit = i;
+        }
+    }
+
+    return hit;
+}
+
+void widget_button_row_hold(int* pressed, const touchPosition* pos, int count) {
+    if(*pressed >= 0) {
+        float x, y, w, h;
+        widget_button_row_rect(*pressed, count, &x, &y, &w, &h);
+        if(!widget_touched(pos, x, y, w, h)) {
+            *pressed = -1;
+        }
+    }
 }
 
 void widget_item_frame(float x, float y, float width, float height, bool selected, u32* ink, u32* muted) {

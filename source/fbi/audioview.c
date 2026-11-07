@@ -745,15 +745,8 @@ static void audio_draw_bottom(ui_view* view, void* v, float x1, float y1, float 
     widget_progress(x + 24, y + 8, w - 24, 8, data->volume);
 
     for(int i = 0; i < AUDIO_BUTTONS; i++) {
-        widget_button_row_rect(i, AUDIO_BUTTONS, &x, &y, &w, &h);
-        bool pressed = data->pressed == i;
-        bool disabled = (i == 0 || i == 4) && data->count < 2;
         u32 icon = i == 0 ? ICON_PLAYER_TRACK_PREV : i == 1 ? ICON_REWIND_BACKWARD_10 : i == 2 ? (data->paused || data->finished || data->player == NULL ? ICON_PLAYER_PLAY : ICON_PLAYER_PAUSE) : i == 3 ? ICON_REWIND_FORWARD_10 : ICON_PLAYER_TRACK_NEXT;
-        u32 fill = pressed ? t->accent : i == 2 ? t->accentSoft : t->palette->surface;
-        u32 edge = pressed ? t->accent : i == 2 ? t->accent : t->palette->border;
-        screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
-        u32 ink = pressed ? t->onAccent : disabled ? t->palette->textMuted : i == 2 ? t->accent : t->palette->text;
-        screen_draw_icon(icon, x + (w - 16) / 2, y + (h - 16) / 2, 16, ink);
+        widget_row_button(i, AUDIO_BUTTONS, icon, NULL, data->pressed == i, (i == 0 || i == 4) && data->count < 2, i == 2);
     }
 }
 
@@ -783,13 +776,7 @@ static void audio_update(ui_view* view, void* v, float bx1, float by1, float bx2
     if(hidKeysDown() & KEY_TOUCH) {
         data->pressed = -1;
         data->dragging = 0;
-        for(int i = 0; i < AUDIO_BUTTONS; i++) {
-            float x, y, w, h;
-            widget_button_row_rect(i, AUDIO_BUTTONS, &x, &y, &w, &h);
-            if(widget_touched(&pos, x, y, w, h)) {
-                data->pressed = i;
-            }
-        }
+        data->pressed = widget_button_row_hit(&pos, AUDIO_BUTTONS);
 
         for(int bar = 0; bar < 2 && data->pressed < 0; bar++) {
             float x, y, w, h;
@@ -808,12 +795,8 @@ static void audio_update(ui_view* view, void* v, float bx1, float by1, float bx2
         float x, y, w, h;
         audio_bar_rect(1, &x, &y, &w, &h);
         audio_set_volume(data, (pos.px - (x + 24)) / (w - 24));
-    } else if((hidKeysHeld() & KEY_TOUCH) && data->pressed >= 0) {
-        float x, y, w, h;
-        widget_button_row_rect(data->pressed, AUDIO_BUTTONS, &x, &y, &w, &h);
-        if(!widget_touched(&pos, x, y, w, h)) {
-            data->pressed = -1;
-        }
+    } else if(hidKeysHeld() & KEY_TOUCH) {
+        widget_button_row_hold(&data->pressed, &pos, AUDIO_BUTTONS);
     }
 
     if(hidKeysUp() & KEY_TOUCH) {

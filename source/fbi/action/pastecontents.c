@@ -329,7 +329,10 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
     paste_contents_loading_data* loadingData = (paste_contents_loading_data*) data;
 
     if(info_task_finished(view, &loadingData->popData.finished, loadingData->popData.cancelEvent)) {
-        if(R_SUCCEEDED(loadingData->popData.result)) {
+        if(loadingData->popData.cancelled) {
+            // B while reading: nothing to ask about, the list is not whole.
+            action_paste_contents_free_data(loadingData->pasteData);
+        } else if(R_SUCCEEDED(loadingData->popData.result)) {
             loadingData->pasteData->pasteInfo.total = linked_list_size(&loadingData->pasteData->contents);
             loadingData->pasteData->pasteInfo.processed = loadingData->pasteData->pasteInfo.total;
 

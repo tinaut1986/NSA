@@ -31,6 +31,7 @@ typedef struct {
     u32 sort;
     bool sortReverse;
     bool grid;
+    u32 tile;        // Size of the tiles of the grid: a level of list_tile_size_of.
 } tickets_settings;
 
 typedef struct {

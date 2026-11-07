@@ -737,27 +737,6 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
 
 static void titles_store(titles_data* data);
 
-// The tiles of the grid in the next size (and the grid itself, when the rows were showing).
-static void titles_next_tile_size(ui_view* view) {
-    titles_settings* saved = &settings_get()->titles;
-    saved->tile = (saved->tile + 1) % LIST_TILE_LEVELS;
-    if(list_get_mode(view) != LIST_MODE_GRID) {
-        list_set_mode(view, LIST_MODE_GRID);
-        saved->grid = true;
-    }
-
-    list_set_tile_size(view, list_tile_size_of(saved->tile));
-    settings_save();
-}
-
-static bool titles_tile_active(ui_view* view, void* data) {
-    return false;
-}
-
-static void titles_tile_press(ui_view* view, void* data) {
-    titles_next_tile_size(view);
-}
-
 // The grid / rows mode is kept in the settings.
 static void titles_view_changed(void* data) {
     titles_store((titles_data*) data);
@@ -958,14 +937,14 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
     }
 
     if(hidKeysDown() & KEY_SELECT) {
-        titles_next_tile_size(view);
+        list_next_tile_size(view);
     }
 
     if(hidKeysDown() & KEY_Y) {
         list_toggle_mode(view);
     }
 
-    if(hidKeysDown() & (KEY_L | KEY_SELECT)) {
+    if(hidKeysDown() & KEY_L) {
         titles_filter_open(view, listData);
         return;
     }
@@ -1129,6 +1108,6 @@ void titles_open() {
     // Right to left.
     list_add_search_tool(view, _("Search titles"));
     list_add_tool(view, ICON_FILTER, titles_filter_active, titles_filter_open);
-    list_add_tool(view, ICON_ZOOM_IN, titles_tile_active, titles_tile_press);
+    list_add_tile_tool(view, &settings_get()->titles.tile);
     list_add_view_tools(view, titles_view_changed);
 }

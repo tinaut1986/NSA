@@ -199,7 +199,10 @@ static void action_install_tickets_loading_update(ui_view* view, void* data, flo
     install_tickets_loading_data* loadingData = (install_tickets_loading_data*) data;
 
     if(info_task_finished(view, &loadingData->popData.finished, loadingData->popData.cancelEvent)) {
-        if(R_SUCCEEDED(loadingData->popData.result)) {
+        if(loadingData->popData.cancelled) {
+            // B while reading: nothing to ask about, the list is not whole.
+            action_install_tickets_free_data(loadingData->installData);
+        } else if(R_SUCCEEDED(loadingData->popData.result)) {
             loadingData->installData->installInfo.total = linked_list_size(&loadingData->installData->contents);
             loadingData->installData->installInfo.processed = loadingData->installData->installInfo.total;
 

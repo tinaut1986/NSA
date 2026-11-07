@@ -63,6 +63,11 @@ bool list_clear_search(ui_view* view);
 // The grid and rows tools, which switch the mode; list_toggle_mode switches it too (Y). `changed` (may be NULL) runs
 // with the list's data after each switch, to keep the mode in the settings.
 void list_add_view_tools(ui_view* view, void (*changed)(void* data));
+// The tile size tool (a zoom icon): each press shows the grid's tiles in the next of the LIST_TILE_LEVELS sizes (and the
+// grid, when the rows were showing). `level` is the caller's (kept in its settings); the view tools' `changed` runs after
+// it changes. list_next_tile_size does the same (SELECT).
+void list_add_tile_tool(ui_view* view, u32* level);
+void list_next_tile_size(ui_view* view);
 void list_toggle_mode(ui_view* view);
 
 // Shows only items whose name contains `text` (case-insensitive); "" for all.

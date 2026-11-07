@@ -219,6 +219,13 @@ typedef struct {
     u32 sort;
     bool sortReverse;   // Choosing the same sort again turns it round.
     bool resort;
+
+    // An app just installed or downloaded: a script's CIA install goes on in its own screens after the script has
+    // ended, so its status is looked at again, once a second while the Store is on top, until it shows (10 times at
+    // most). -1 for none.
+    s32 recheck;
+    u32 recheckTries;
+    u64 recheckAt;
 } store_data;
 
 // The Store on screen (NULL: closed), for store_exit. Main thread only.
@@ -1785,6 +1792,9 @@ static void store_install_finished_all(void* data) {
                 }
 
                 LightLock_Unlock(&store->lock);
+                store->recheck = (s32) i;
+                store->recheckTries = 0;
+                store->recheckAt = 0;
                 break;
             }
         }
@@ -1795,6 +1805,38 @@ static void store_install_finished_all(void* data) {
 
 static store_data* store_sheet_store;
 static store_app* store_sheet_app;
+
+// See store_data's `recheck`: runs in the Store's update, so only while it is on top.
+static void store_recheck_step(store_data* store) {
+    if(store->recheck < 0 || osGetTime() < store->recheckAt) {
+        return;
+    }
+
+    u32 i = (u32) store->recheck;
+    LightLock_Lock(&store->lock);
+    bool known = store->scan != NULL && store->status != NULL && i < store->scanCount;
+    store_scan_entry entry = known ? store->scan[i] : (store_scan_entry) {{0}};
+    LightLock_Unlock(&store->lock);
+    if(!known) {
+        store->recheck = -1;
+        return;
+    }
+
+    u8 bits = store_compute_status(&entry, NULL, 0);
+    LightLock_Lock(&store->lock);
+    if(store->status != NULL && i < store->scanCount) {
+        store->status[i] = bits | 0x80;
+    }
+
+    LightLock_Unlock(&store->lock);
+
+    bool wanted = (entry.hasCia && (bits & STATUS_CIA)) || (entry.hasDsx && (bits & STATUS_DSX));
+    if(wanted || ++store->recheckTries >= 10) {
+        store->recheck = -1;
+    } else {
+        store->recheckAt = osGetTime() + 1000;
+    }
+}
 
 static void store_script_done(void* data, bool ok) {
     ((store_install_ctx*) data)->ok = ok;
@@ -1932,27 +1974,6 @@ static void store_save(store_data* store) {
     saved->sortReverse = store->sortReverse;
     saved->grid = store->view != NULL && list_get_mode(store->view) == LIST_MODE_GRID;
     settings_save();
-}
-
-// The tiles of the grid in the next size (and the grid itself, when the rows were showing).
-static void store_next_tile_size(ui_view* view) {
-    store_settings* saved = &settings_get()->store;
-    saved->tile = (saved->tile + 1) % LIST_TILE_LEVELS;
-    if(list_get_mode(view) != LIST_MODE_GRID) {
-        list_set_mode(view, LIST_MODE_GRID);
-        saved->grid = true;
-    }
-
-    list_set_tile_size(view, list_tile_size_of(saved->tile));
-    settings_save();
-}
-
-static bool store_tile_active(ui_view* view, void* data) {
-    return false;
-}
-
-static void store_tile_press(ui_view* view, void* data) {
-    store_next_tile_size(view);
 }
 
 // The grid / rows mode is kept in the settings.
@@ -2324,6 +2345,8 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
     // Until the first catalogue is here (the copy on the SD card, or the server's when there is none), a wheel turns.
     list_set_busy(view, store->haveCatalogue || store->done ? NULL : "Loading the catalogue...");
 
+    store_recheck_step(store);
+
     if(hidKeysDown() & KEY_B) {
         if(list_clear_search(view)) {
             return;
@@ -2363,7 +2386,7 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
     }
 
     if(hidKeysDown() & KEY_SELECT) {
-        store_next_tile_size(view);
+        list_next_tile_size(view);
     }
 
     if(hidKeysDown() & KEY_Y) {
@@ -2388,6 +2411,7 @@ void store_open_source(const store_source* source) {
     }
 
     store->source = *source;
+    store->recheck = -1;
 
     LightLock_Init(&store->lock);
     store->users = 2;   // The screen and the loading thread.
@@ -2426,6 +2450,6 @@ void store_open_source(const store_source* source) {
     // Right to left.
     list_add_search_tool(view, _("Search the Store"));
     list_add_tool(view, ICON_FILTER, store_filter_active, store_filter_open);
-    list_add_tool(view, ICON_ZOOM_IN, store_tile_active, store_tile_press);
+    list_add_tile_tool(view, &settings_get()->store.tile);
     list_add_view_tools(view, store_view_changed);
 }

@@ -221,8 +221,24 @@ subfolders was deleted from Files there (progress, "Deleted.").
 - Then (`refactor/ui-structure-3`): deleting one ext save data or system save data runs through `action_delete_one`
   (`action/deleteone.c`); the 27 data operation suspend/restore callbacks that only returned 0 are gone (a NULL one is
   skipped, the result is the same). Copy, paste and delete a folder tried in Azahar.
-- [ ] Delete an ext save data (Ext Save Data, and a title's Extra data) and a system save data: red question,
-  "Deleting...", gone from the list, notice; No keeps it.
+- [ ] Delete one ext save data: Cleanup and data -> Extra save data, A on one you do not need (or a title's sheet ->
+  Extra data -> Delete): red question, "Deleting...", gone from the list, notice; No keeps it. System save data (Advanced)
+  is the same code: only *No* is worth trying there.
+
+**The owner's tests of 2026-11-07, afternoon** (`fix/owner-feedback-1107`): grouped views, deleting titles and held
+D-Pads in sheets are good (ticked above). Changed after them:
+- Tickets has the tile size tool (zoom icon, SELECT), now shared with Titles and the Store (`list_add_tile_tool`); SELECT
+  in Titles no longer opens the filter too.
+- The Store marks an app installed by a script (a CIA from a .7z) once the install has ended: it looked too early, while
+  the install still ran in its own screens.
+- Keyboards: caps lock fills the shift key; the caret does not blink while it moves; X and Y repeat while held.
+- Deleting a big folder or its contents: only the top level is read (each folder goes in one call), every entry of a
+  folder is read (it stopped at 1024), no extra card call per file; B while reading stops without asking.
+- speed-log.txt now has a line per second of each copy/install of a data operation (`copy`) and the time of each Store
+  extraction (`extract`): the Store install of 3D Pinball (a .7z with a 963 KB CIA) was slow and the cause is not known.
+- [ ] Install 3D Pinball (or another .7z CIA) from the Store again: is it still slow? Then fetch /nsa/speed-log.txt.
+- [ ] Tickets: the zoom icon and SELECT change the tile size, kept when the screen opens again.
+- [ ] Delete the contents of the big Monkey Island port's debug folder: how long the reading and the deleting take.
 - [ ] An install or a copy while the console goes to sleep or HOME (suspend and resume) goes on afterwards.
 
 **Sort both ways, hold A, the clipboard, the picture viewer** (2026-11-07, `feat/sort-both-ways`; the owner asked; Files'

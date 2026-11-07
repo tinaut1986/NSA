@@ -24,7 +24,7 @@ static settings_data settings = {
         .musicVolume = 50,
         .language = LANGUAGE_SYSTEM,
         .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false, .tile = 1},
-        .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false},
+        .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false, .tile = 1},
         .files = {.directories = true, .files = true, .cias = true, .tickets = true, .hidden = false, .sort = 0},
         .extsave = {.sd = true, .nand = true, .byId = false, .grid = false},
         .pending = {.sd = true, .nand = true},
@@ -161,6 +161,7 @@ void settings_load() {
         settings.tickets.group = settings_get_bool(tickets, "group", settings.tickets.group);
         settings.tickets.sort = settings_get_uint(tickets, "sort", settings.tickets.sort, 1);
         settings.tickets.sortReverse = settings_get_bool(tickets, "sortReverse", settings.tickets.sortReverse);
+        settings.tickets.tile = settings_get_uint(tickets, "tile", settings.tickets.tile, 3);
         settings.tickets.grid = settings_get_bool(tickets, "grid", settings.tickets.grid);
     }
 
@@ -289,6 +290,7 @@ Result settings_save() {
     json_object_set_new(json_object_get(json, "titles"), "tile", json_integer(settings.titles.tile));
     json_object_set_new(json_object_get(json, "titles"), "sortReverse", json_boolean(settings.titles.sortReverse));
     json_object_set_new(json_object_get(json, "tickets"), "sortReverse", json_boolean(settings.tickets.sortReverse));
+    json_object_set_new(json_object_get(json, "tickets"), "tile", json_integer(settings.tickets.tile));
     json_object_set_new(json_object_get(json, "files"), "sortReverse", json_boolean(settings.files.sortReverse));
     json_object_set_new(json_object_get(json, "extsave"), "sortReverse", json_boolean(settings.extsave.sortReverse));
     json_object_set_new(json, "mods", json_pack("{s:i,s:i,s:b,s:b}", "states", (int) settings.mods.states, "sort", (int) settings.mods.sort, "sortReverse", settings.mods.sortReverse, "grid", settings.mods.grid));

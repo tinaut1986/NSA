@@ -77,6 +77,7 @@ typedef struct {
     char search[LIST_SEARCH_MAX];
     const char* searchPrompt;          // list_add_search_tool's.
     void (*modeChanged)(void* data);   // list_add_view_tools'.
+    u32* tileLevel;                    // list_add_tile_tool's.
     // While items load: how many are ready of how many (0 total: the count).
     u32 progressDone;
     u32 progressTotal;
@@ -888,6 +889,36 @@ void list_add_view_tools(ui_view* view, void (*changed)(void* data)) {
     ((list_data*) view->data)->modeChanged = changed;
     list_add_tool(view, ICON_LAYOUT_GRID, list_is_grid, list_show_grid);
     list_add_tool(view, ICON_LIST, list_is_rows, list_show_rows);
+}
+
+static bool list_tile_active(ui_view* view, void* data) {
+    return false;
+}
+
+static void list_tile_press(ui_view* view, void* data) {
+    list_next_tile_size(view);
+}
+
+void list_add_tile_tool(ui_view* view, u32* level) {
+    ((list_data*) view->data)->tileLevel = level;
+    list_add_tool(view, ICON_ZOOM_IN, list_tile_active, list_tile_press);
+}
+
+void list_next_tile_size(ui_view* view) {
+    list_data* listData = (list_data*) view->data;
+    if(listData->tileLevel == NULL) {
+        return;
+    }
+
+    *listData->tileLevel = (*listData->tileLevel + 1) % LIST_TILE_LEVELS;
+    if(list_get_mode(view) != LIST_MODE_GRID) {
+        list_set_mode(view, LIST_MODE_GRID);
+    }
+
+    list_set_tile_size(view, list_tile_size_of(*listData->tileLevel));
+    if(listData->modeChanged != NULL) {
+        listData->modeChanged(listData->data);
+    }
 }
 
 void list_toggle_mode(ui_view* view) {

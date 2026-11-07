@@ -53,6 +53,7 @@ typedef struct populate_files_data_s {
     volatile bool finished;
     Result result;
     Handle cancelEvent;
+    bool cancelled;   // Stopped before the end (its cancel event): `items` is not all there is.
 } populate_files_data;
 
 int task_compare_files(void* userData, const void* p1, const void* p2);

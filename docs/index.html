@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NSA - Title manager for Nintendo 3DS</title>
+<meta name="description" content="NSA is an open source title manager for the Nintendo 3DS, a fork of FBI. / NSA es un gestor de títulos de código abierto para Nintendo 3DS, basado en FBI.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="style.css">
+<script src="main.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main"><span lang="en">Skip to content</span><span lang="es">Saltar al contenido</span></a>
+
+<header class="top"><div class="wrap">
+  <a class="brand" href="#"><img src="assets/icon.png" alt="" width="36" height="36">NSA</a>
+  <nav aria-label="Main"><ul>
+    <li><a href="#features"><span lang="en">Features</span><span lang="es">Funciones</span></a></li>
+    <li><a href="#screenshots"><span lang="en">Screenshots</span><span lang="es">Capturas</span></a></li>
+    <li><a href="#install"><span lang="en">Install</span><span lang="es">Instalar</span></a></li>
+    <li><a href="#faq">FAQ</a></li>
+    <li><a href="#report"><span lang="en">Report a problem</span><span lang="es">Reportar un problema</span></a></li>
+  </ul></nav>
+  <div class="lang" role="group" aria-label="Language / Idioma">
+    <button type="button" data-lang="en" aria-pressed="true" lang="en">EN</button><button type="button" data-lang="es" aria-pressed="false" lang="es">ES</button>
+  </div>
+</div></header>
+
+<main id="main">
+<div class="wrap">
+
+<div class="hero">
+  <img src="assets/icon.png" alt="NSA icon" width="96" height="96">
+  <h1>NSA</h1>
+  <p class="lead" lang="en">An open source title manager for the Nintendo 3DS: install and manage titles, browse and view files, send games to another 3DS, and look after the console's own data. A fork of FBI with a new interface, new tools and its own updater.</p>
+  <p class="lead" lang="es">Un gestor de títulos de código abierto para Nintendo 3DS: instala y gestiona títulos, explora y abre archivos, envía juegos a otra 3DS y cuida los datos de la consola. Un fork de FBI con interfaz nueva, herramientas nuevas y su propio actualizador.</p>
+  <p>
+    <a class="btn" href="https://github.com/tinaut1986/NSA/releases/latest"><span lang="en">Download the latest release (v0.8.4)</span><span lang="es">Descargar la última versión (v0.8.4)</span></a>
+    <a class="btn alt" href="https://github.com/tinaut1986/NSA"><span lang="en">Source on GitHub</span><span lang="es">Código en GitHub</span></a>
+  </p>
+  <p class="small" lang="en">Installs as its own app next to FBI (it does not replace it). Data lives in <code>sdmc:/nsa/</code>. MIT license.</p>
+  <p class="small" lang="es">Se instala como app propia junto a FBI (no lo reemplaza). Sus datos van en <code>sdmc:/nsa/</code>. Licencia MIT.</p>
+</div>
+
+<div class="notice" role="note">
+  <p lang="en"><strong>No piracy.</strong> NSA does not provide, host, link to or support pirated content, and the project will not help with it. NSA is a tool to manage software you legally own, your own backups and homebrew. Requests or links for pirated games will be removed.</p>
+  <p lang="es"><strong>Nada de piratería.</strong> NSA no proporciona, aloja, enlaza ni apoya contenido pirata, y el proyecto no ayudará con ello. NSA es una herramienta para gestionar software que posees legalmente, tus propias copias de seguridad y homebrew. Se eliminarán las peticiones o enlaces a juegos pirata.</p>
+</div>
+
+<section id="features" aria-labelledby="h-features">
+  <h2 id="h-features"><span lang="en">Features</span><span lang="es">Funciones</span></h2>
+  <div class="grid">
+    <div class="card" lang="en"><h3>Install</h3><ul>
+      <li>CIAs and tickets from the SD card, from a computer on your network, or over the Internet with a URL or QR code</li>
+      <li>Remote install history to install again</li>
+      <li>Send a file or installed title to another 3DS running NSA (Wi-Fi or with no router); cut transfers resume</li>
+      <li>Export an installed title as a CIA</li></ul></div>
+    <div class="card" lang="es"><h3>Instalar</h3><ul>
+      <li>CIAs y tickets desde la tarjeta SD, desde un ordenador de tu red o por Internet con una URL o código QR</li>
+      <li>Historial de instalación remota para volver a instalar</li>
+      <li>Envía un archivo o título instalado a otra 3DS con NSA (Wi-Fi o sin router); las transferencias cortadas se reanudan</li>
+      <li>Exporta un título instalado como CIA</li></ul></div>
+
+    <div class="card" lang="en"><h3>Store</h3><ul>
+      <li>Browse the homebrew of <a href="https://db.universal-team.net/">Universal-DB</a> with icons, search, filters and sorting</li>
+      <li>Install an app's CIA or download its <code>.3dsx</code></li>
+      <li>A mark shows what is already on the console</li></ul></div>
+    <div class="card" lang="es"><h3>Tienda</h3><ul>
+      <li>Explora el homebrew de <a href="https://db.universal-team.net/">Universal-DB</a> con iconos, búsqueda, filtros y orden</li>
+      <li>Instala el CIA de una app o descarga su <code>.3dsx</code></li>
+      <li>Una marca indica lo que ya está en la consola</li></ul></div>
+
+    <div class="card" lang="en"><h3>Titles, tickets and data</h3><ul>
+      <li>Titles as rows or an icon grid, with filters, search and sorting; updates and DLC grouped under their game</li>
+      <li>Launch, delete, extract icon, browse save data</li>
+      <li>Back up, restore and send save, extra and SpotPass data; finds Checkpoint backups</li>
+      <li>Tickets, Ext Save Data, Pending titles; DS cartridge saves</li>
+      <li>Optional web page to manage the console from your computer's browser, protected by a PIN</li></ul></div>
+    <div class="card" lang="es"><h3>Títulos, tickets y datos</h3><ul>
+      <li>Títulos en filas o cuadrícula de iconos, con filtros, búsqueda y orden; actualizaciones y DLC agrupados bajo su juego</li>
+      <li>Lanzar, borrar, extraer el icono, explorar la partida guardada</li>
+      <li>Copia, restaura y envía datos de guardado, extra y SpotPass; encuentra copias de Checkpoint</li>
+      <li>Tickets, Ext Save Data, títulos pendientes; guardados de cartuchos DS</li>
+      <li>Página web opcional para gestionar la consola desde el navegador del ordenador, protegida con PIN</li></ul></div>
+
+    <div class="card" lang="en"><h3>Files</h3><ul>
+      <li>Browse the SD card: copy, cut, rename, delete, new folder</li>
+      <li>Picture viewer (PNG, JPEG, BMP, GIF, TGA, 3D photos), text viewer/editor, audio player (MP3, WAV, FLAC, Ogg Vorbis)</li>
+      <li>Run a <code>.3dsx</code> from the list (needs Luma3DS)</li></ul></div>
+    <div class="card" lang="es"><h3>Archivos</h3><ul>
+      <li>Explora la SD: copiar, cortar, renombrar, borrar, nueva carpeta</li>
+      <li>Visor de imágenes (PNG, JPEG, BMP, GIF, TGA, fotos 3D), visor/editor de texto, reproductor de audio (MP3, WAV, FLAC, Ogg Vorbis)</li>
+      <li>Ejecuta un <code>.3dsx</code> desde la lista (requiere Luma3DS)</li></ul></div>
+
+    <div class="card" lang="en"><h3>Advanced</h3><p>Behind a warning: browse and modify CTR NAND, TWL NAND, TWL photos and sounds, system save data, and dump the raw NAND to the SD. Only with NSA installed as a CIA, or run as a 3DSX under Luma3DS. A wrong change can stop the console from starting.</p></div>
+    <div class="card" lang="es"><h3>Avanzado</h3><p>Tras un aviso: explora y modifica CTR NAND, TWL NAND, fotos y sonidos TWL, datos de sistema, y vuelca la NAND a la SD. Solo con NSA instalado como CIA, o ejecutado como 3DSX bajo Luma3DS. Un cambio erróneo puede impedir que la consola arranque.</p></div>
+
+    <div class="card" lang="en"><h3>Look and feel</h3><ul>
+      <li>Customisable main menu; interactive guide</li>
+      <li>Three themes (Cards, Pixel, HOME), day/night colours, accent colours</li>
+      <li>10 languages incl. English, Spanish, Catalan, French, German, Italian, Portuguese, Russian, Japanese, Chinese</li>
+      <li>Stereoscopic 3D, touch and buttons, optional sounds and generated background music</li>
+      <li>Self-updater with Stable and Beta channels</li></ul></div>
+    <div class="card" lang="es"><h3>Aspecto y manejo</h3><ul>
+      <li>Menú principal personalizable; guía interactiva</li>
+      <li>Tres temas (Cards, Pixel, HOME), colores de día/noche y de acento</li>
+      <li>10 idiomas: inglés, español, catalán, francés, alemán, italiano, portugués, ruso, japonés y chino</li>
+      <li>3D estereoscópico, táctil y botones, sonidos opcionales y música de fondo generada</li>
+      <li>Actualizador propio con canales Estable y Beta</li></ul></div>
+
+    <div class="card" lang="en"><h3>For developers</h3><p>An FTP server (port 5021, on by default in Settings) serves the SD card. See the <a href="https://github.com/tinaut1986/NSA">repository</a>.</p></div>
+    <div class="card" lang="es"><h3>Para desarrolladores</h3><p>Un servidor FTP (puerto 5021, activado por defecto en Ajustes) sirve la tarjeta SD. Mira el <a href="https://github.com/tinaut1986/NSA">repositorio</a>.</p></div>
+  </div>
+</section>
+
+<section id="screenshots" aria-labelledby="h-shots">
+  <h2 id="h-shots"><span lang="en">Screenshots</span><span lang="es">Capturas</span></h2>
+  <!-- TODO: add screenshots here. Real ones already exist in docs/images/ (e.g. main-menu.png, store.png, titles.png). -->
+  <div class="todo" role="note">
+    <p lang="en"><strong>TODO:</strong> screenshots will go here.</p>
+    <p lang="es"><strong>PENDIENTE:</strong> aquí irán las capturas.</p>
+  </div>
+</section>
+
+<section id="install" aria-labelledby="h-install">
+  <h2 id="h-install"><span lang="en">Install guide</span><span lang="es">Guía de instalación</span></h2>
+  <div lang="en">
+    <p><strong>You need:</strong> a Nintendo 3DS family console (Old or New 3DS/2DS) with custom firmware. As with FBI, NSA does not work on a console without custom firmware. Some tools need <a href="https://github.com/LumaTeam/Luma3DS">Luma3DS</a>.</p>
+    <h3>As a CIA (recommended)</h3>
+    <ol>
+      <li>Download <code>NSA.cia</code> from the <a href="https://github.com/tinaut1986/NSA/releases/latest">latest release</a>.</li>
+      <li>Copy it to your SD card.</li>
+      <li>Install it with FBI (or another CIA installer) and launch NSA from the HOME menu.</li>
+    </ol>
+    <h3>As a 3DSX (Homebrew Launcher)</h3>
+    <ol>
+      <li>Download <code>NSA.3dsx</code> and put it in <code>/3ds/</code> on the SD card.</li>
+      <li>Open it from the Homebrew Launcher.</li>
+    </ol>
+    <h3>Updating and channels</h3>
+    <p>Once installed, NSA can update itself from Settings. <strong>Stable</strong> releases come from the <code>master</code> branch and are what "latest release" points to. <strong>Beta</strong> builds come from the <code>release</code> branch and are published as pre-releases on the <a href="https://github.com/tinaut1986/NSA/releases">releases page</a>; a beta is promoted to stable once merged into <code>master</code>. Choose your channel in Settings.</p>
+  </div>
+  <div lang="es">
+    <p><strong>Necesitas:</strong> una consola de la familia Nintendo 3DS (Old o New 3DS/2DS) con firmware personalizado. Igual que FBI, NSA no funciona en una consola sin firmware personalizado. Algunas herramientas necesitan <a href="https://github.com/LumaTeam/Luma3DS">Luma3DS</a>.</p>
+    <h3>Como CIA (recomendado)</h3>
+    <ol>
+      <li>Descarga <code>NSA.cia</code> de la <a href="https://github.com/tinaut1986/NSA/releases/latest">última versión</a>.</li>
+      <li>Cópialo a la tarjeta SD.</li>
+      <li>Instálalo con FBI (u otro instalador de CIA) y abre NSA desde el menú HOME.</li>
+    </ol>
+    <h3>Como 3DSX (Homebrew Launcher)</h3>
+    <ol>
+      <li>Descarga <code>NSA.3dsx</code> y ponlo en <code>/3ds/</code> en la SD.</li>
+      <li>Ábrelo desde el Homebrew Launcher.</li>
+    </ol>
+    <h3>Actualizaciones y canales</h3>
+    <p>Una vez instalado, NSA puede actualizarse solo desde Ajustes. Las versiones <strong>Estables</strong> salen de la rama <code>master</code> y son a las que apunta "última versión". Las <strong>Beta</strong> salen de la rama <code>release</code> y se publican como pre-versiones en la <a href="https://github.com/tinaut1986/NSA/releases">página de releases</a>; una beta pasa a estable al fusionarse en <code>master</code>. Elige tu canal en Ajustes.</p>
+  </div>
+</section>
+
+<section id="faq" aria-labelledby="h-faq">
+  <h2 id="h-faq">FAQ</h2>
+  <div lang="en">
+    <details><summary>Does NSA replace FBI?</summary><p>No. It installs as its own app next to FBI and keeps its data in <code>sdmc:/nsa/</code>.</p></details>
+    <details><summary>Does it work without custom firmware?</summary><p>No, same as FBI.</p></details>
+    <details><summary>Which consoles are supported?</summary><p>The 3DS family. The README's screenshots come from a New 3DS XL and a 2DS; some newer features have so far run only in an emulator, so please report anything that fails on your model.</p></details>
+    <details><summary>What is the difference between Stable and Beta?</summary><p>Stable = <code>master</code>, the newest stable release. Beta = <code>release</code>, newer features that are not yet merged into <code>master</code>. A beta calls itself X.Y.Z-beta in the app.</p></details>
+    <details><summary>Where does NSA keep its files?</summary><p>In <code>sdmc:/nsa/</code> on the SD card, including the transfer log <code>transfer-log.txt</code>.</p></details>
+    <details><summary>Can you give me games?</summary><p>No. NSA does not provide or support pirated content.</p></details>
+    <details><summary>Is the web page / FTP safe?</summary><p>The web page is off until you enable it and is protected by a PIN, but it is plain HTTP: use it only on your own network.</p></details>
+  </div>
+  <div lang="es">
+    <details><summary>¿NSA reemplaza a FBI?</summary><p>No. Se instala como app propia junto a FBI y guarda sus datos en <code>sdmc:/nsa/</code>.</p></details>
+    <details><summary>¿Funciona sin firmware personalizado?</summary><p>No, igual que FBI.</p></details>
+    <details><summary>¿Qué consolas son compatibles?</summary><p>La familia 3DS. Las capturas del README son de una New 3DS XL y una 2DS; algunas funciones nuevas solo se han probado en emulador, así que reporta cualquier fallo en tu modelo.</p></details>
+    <details><summary>¿Diferencia entre Estable y Beta?</summary><p>Estable = <code>master</code>, la última versión estable. Beta = <code>release</code>, funciones más nuevas aún no fusionadas en <code>master</code>. Una beta se identifica como X.Y.Z-beta en la app.</p></details>
+    <details><summary>¿Dónde guarda NSA sus archivos?</summary><p>En <code>sdmc:/nsa/</code> de la SD, incluido el registro de transferencias <code>transfer-log.txt</code>.</p></details>
+    <details><summary>¿Me podéis dar juegos?</summary><p>No. NSA no proporciona ni apoya contenido pirata.</p></details>
+    <details><summary>¿Es segura la página web / el FTP?</summary><p>La página web está desactivada hasta que la actives y se protege con PIN, pero es HTTP sin cifrar: úsala solo en tu propia red.</p></details>
+  </div>
+</section>
+
+<section id="report" aria-labelledby="h-report">
+  <h2 id="h-report"><span lang="en">Report a problem</span><span lang="es">Reportar un problema</span></h2>
+  <div lang="en">
+    <p>Found a bug or have an idea? <a href="https://discord.gg/TODO">Join the Discord</a> or <a href="https://github.com/tinaut1986/NSA/issues/new/choose">open a GitHub issue</a>. Please include:</p>
+    <ul>
+      <li><strong>NSA version</strong> (Settings / System page, e.g. v0.8.4 or a beta)</li>
+      <li><strong>Console model:</strong> Old or New 3DS / 2DS, and size (XL or not)</li>
+      <li><strong>Firmware and CFW</strong> (e.g. 11.17 with Luma3DS)</li>
+      <li><strong>Steps to reproduce</strong>, what you expected and what happened</li>
+    </ul>
+    <p>If an install fails, also check that the CIA is valid and try another SD card (counterfeit cards and filesystem errors are common causes). No pirated content in reports, please.</p>
+  </div>
+  <div lang="es">
+    <p>¿Has encontrado un error o tienes una idea? <a href="https://discord.gg/TODO">Únete al Discord</a> o <a href="https://github.com/tinaut1986/NSA/issues/new/choose">abre un issue en GitHub</a>. Incluye por favor:</p>
+    <ul>
+      <li><strong>Versión de NSA</strong> (Ajustes / página Sistema, p. ej. v0.8.4 o una beta)</li>
+      <li><strong>Modelo de consola:</strong> Old o New 3DS / 2DS, y tamaño (XL o no)</li>
+      <li><strong>Firmware y CFW</strong> (p. ej. 11.17 con Luma3DS)</li>
+      <li><strong>Pasos para reproducirlo</strong>, lo que esperabas y lo que pasó</li>
+    </ul>
+    <p>Si falla una instalación, comprueba también que el CIA es válido y prueba otra tarjeta SD (las tarjetas falsas y los errores del sistema de archivos son causas comunes). Sin contenido pirata en los reportes, por favor.</p>
+  </div>
+</section>
+
+</div>
+</main>
+
+<footer><div class="wrap">
+  <p lang="en">NSA is a fork of <a href="https://github.com/Steveice10/FBI">FBI</a> by Steveice10 (MIT). Not affiliated with Nintendo. Nintendo 3DS is a trademark of Nintendo. NSA does not provide or support pirated content.</p>
+  <p lang="es">NSA es un fork de <a href="https://github.com/Steveice10/FBI">FBI</a> de Steveice10 (MIT). Sin relación con Nintendo. Nintendo 3DS es marca registrada de Nintendo. NSA no proporciona ni apoya contenido pirata.</p>
+</div></footer>
+</body>
+</html>

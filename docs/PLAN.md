@@ -204,6 +204,18 @@ cut and pasted onto another medium, the web page's delete and a store script's `
 - [ ] Mods: delete the test mods of 0004000000FFFF00 (romfs/ and code.ips), alone and with *Delete mods of games not installed*.
 - [ ] Files: cut a folder with folders in it and paste it onto another medium (the NAND, a save): the source goes.
 
+**Shared UI pieces** (2026-11-07, `refactor/ui-structure`; the owner: screens, dialogs and bars each re-implemented the
+same things): nothing should change on screen. What was copied now lives once: the items of a list (`widgets.c`: row and
+tile frames, loading skeleton, fade-in, count badge, right tag, label/value cells, the "Loading..." card), the title bar's
+search and grid/rows tools with R/B/Y (`list.c`), the "N of M" count, a list's loading task (`task/uitask.c`), the chain of
+a grouped game (`chain.c`), the keyboards' keys (`core/ui/keys.c`), key repeat in popovers and sheets, the viewers'
+buttons, and the progress views of data operations (`info_task_finished`, `data_op_progress_items/bytes`).
+`tools/ui_snapshots.py` gave the same 49 pictures in Azahar before and after (but for blinking carets), and a folder with
+subfolders was deleted from Files there (progress, "Deleted.").
+- [ ] Titles and Tickets grouped: a game with an update or DLC opens its chain; A on each row; delete one from there.
+- [ ] Install CIAs and tickets, paste a copied folder, delete a selection, export a CIA: the progress, B cancels, the end.
+- [ ] The search keyboard and the text editor's (pages, shift, held D-Pad and X).
+
 **Sort both ways, hold A, the clipboard, the picture viewer** (2026-11-07, `feat/sort-both-ways`; the owner asked; Files'
 hint, the reversed name sort and Left/Right in the viewer seen in Azahar):
 - Every *Sort by* (Titles, Tickets, Files, Ext Save Data, Game mods) turns round when its option is chosen again, as the

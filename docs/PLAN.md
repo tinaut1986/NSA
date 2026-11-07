@@ -150,6 +150,26 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**The owner's tests of 2026-11-07, evening** (the items ticked below, all on `staging` 6760a75). Changed after them, on
+`staging` and tried on the New 3DS XL (DEBUG) unless said:
+- Transfer toast (`feat/toast-two-lines`): two lines, "FTP, receiving: 3.2 / 12.0 MiB, 650 KiB/s" over the name (it was one line,
+  cut at the edge), and a piece of the bar moves when the size is not known: FileZilla says no size before an upload (no
+  ALLO), so there is no percentage then. Not seen on a console: the web page's screen view waits while a transfer runs.
+- Viewers' buttons (`fix/viewer-drag-focus`): a finger sliding along the row lights the button under it, as the menus do, and
+  that one is pressed on release; a finger that went down on the picture or a bar lights nothing. Not tried by hand.
+- Audio player (`feat/player-seek-repeat`): an MP3's seek table is made by a second decoder at the lowest priority, so the
+  seek bar answers at once (it read the track from the start: 4-5 s of silence on the New 3DS XL; 3:11 of a 4 min, 5.7 MB
+  MP3 now plays 0.6 s after the tap, and back to 0:24 too). Repeat with Y or the button right of the volume: off, the list,
+  the track (`player_repeat` in settings.json; both ends tried). The track that plays in the background chosen again in Files
+  opens its player where it is.
+- Test mods for the Game mods items, on the New 3DS XL: `/luma/titles/000400000FB1AE00/` (NSA Test: code.ips, an empty
+  patch, and romfs/nsa-test.txt), `0004000000030700/romfs/nsa-test-mod/` (Mario Kart 7: a 2.4 MB file and a text, files the
+  game never opens), `0004000000FFFF00/` (no such game: code.ips and romfs/) and the empty `0004000000FFFE00/`.
+- [ ] The toast during a FileZilla upload (two lines, the moving piece) and a download (the bar fills).
+- [ ] Slide a finger along a viewer's buttons: the one under it lights; let go on it and it acts.
+- [ ] The player: the seek bar on a long MP3 (right away and after a few seconds), repeat in its three states, and A on the
+  track that plays in the background.
+
 **Music in the background** (2026-11-07, `feat/player-background`; asked on Reddit): the audio player left with **B** while a
 track plays goes on behind the other screens; **X** stops it and closes (the hint says so). The main loop calls
 `audioview_tick` (the next track when one ends; at the end of the list it lets go). While it plays the top bar shows a play
@@ -157,8 +177,8 @@ icon (`UI_STATUS_PLAYER`), and the SD card's folder sheet (X) starts with *Back 
 kept view again). Opening another track replaces it; NSA leaving stops it (`audioview_exit` in the cleanup). The background
 music already ducks while channel 0 plays (bgmusic.c). Guide chapter `player` (since 0.8). **Not tried anywhere**: Azahar has
 no DSP firmware (sdmc:/3ds/dspfirm.cdc comes from a console).
-- [ ] Play a folder of MP3s, B: it goes on; the play icon shows; browse Files, Titles, the Store; the next track starts by itself.
-- [ ] *Back to the player* in a folder's sheet opens it where it is; X there stops it and the icon goes.
+- [x] Play a folder of MP3s, B: it goes on; the play icon shows; browse Files, Titles, the Store; the next track starts by itself.
+- [x] *Back to the player* in a folder's sheet opens it where it is; X there stops it and the icon goes.
 - [ ] On the **2DS / Old 3DS**: an FTP upload and a URL download with music in the background against without (`tools/speed_tests.py`,
       back to back). If it costs much, pause the background player while a transfer holds the turn (`xferturn_get`) on an Old 3DS.
 
@@ -175,7 +195,7 @@ come in or go out, and an easier way than an FTP app to reach the console from a
 - [ ] On the console: the toast during an FTP upload and download (FileZilla) and a web page upload; it goes away at the end.
 - [x] A phone's camera opens the page from the QR code, signed in; the address bar has no PIN afterwards (the owner, 2026-11-07:
   the QR code and the web page are good).
-- [ ] Night mode: the QR code keeps its white square (quiet zone) on the dark card.
+- [x] Night mode: the QR code keeps its white square (quiet zone) on the dark card.
 
 **Selecting several files** (2026-11-07, `feat/file-selection`; asked on Reddit by two users and in issue #31): Files has a
 selection mode: the check tool in the title bar, **Y**, or *Select several* in a file's or folder's sheet (that item ticked).
@@ -188,11 +208,11 @@ kept folder holds is all listed); the clipboard holds a folder plus names (`clip
 copies only those (`clipboard_filter_names`), a cut on the same medium renames each, on another medium deletes only those after
 the copy. Copying a selection into the folder it came from is refused (the paste would delete each file before copying it onto
 itself). `action_delete_selected`, `action_install_cias_selected`. Guide chapter `select` (since 0.8).
-- [ ] Y, the check tool and *Select several* enter the mode; A ticks, Y all/none, B leaves; the title says "N selected".
-- [ ] Copy 3 files and a folder, paste in another folder: only those arrive, the folder with all it holds.
-- [ ] Cut and paste on the SD (rename) and from the SD to the CTR NAND or back (copy then delete only those).
-- [ ] Delete a selection with a folder in it; install 2 ticked CIAs (and "and delete").
-- [ ] Pasting a copied selection into its own folder says so and changes nothing.
+- [x] Y, the check tool and *Select several* enter the mode; A ticks, Y all/none, B leaves; the title says "N selected".
+- [x] Copy 3 files and a folder, paste in another folder: only those arrive, the folder with all it holds.
+- [x] Cut and paste on the SD (rename) and from the SD to the CTR NAND or back (copy then delete only those).
+- [x] Delete a selection with a folder in it; install 2 ticked CIAs (and "and delete").
+- [x] Pasting a copied selection into its own folder says so and changes nothing. (It says so as an error; the owner: fine.)
 
 **Game mods** (2026-11-07, `feat/layeredfs-cleanup`; asked on r/3dshomebrew: "I always forget to delete LayeredFS stuff when I
 uninstall games"): Cleanup -> *Game mods* (`source/fbi/mods.c`, `task/listmods.c`) lists the folders of `sdmc:/luma/titles/`
@@ -234,12 +254,12 @@ a grouped game (`chain.c`), the keyboards' keys (`core/ui/keys.c`), key repeat i
 buttons, and the progress views of data operations (`info_task_finished`, `data_op_progress_items/bytes`).
 `tools/ui_snapshots.py` gave the same 49 pictures in Azahar before and after (but for blinking carets), and a folder with
 subfolders was deleted from Files there (progress, "Deleted.").
-- [ ] Titles and Tickets grouped: a game with an update or DLC opens its chain; A on each row; delete one from there.
-- [ ] Install CIAs and tickets, paste a copied folder, delete a selection, export a CIA: the progress, B cancels, the end.
-- [ ] The search keyboard and the text editor's (pages, shift, held D-Pad and X; a key held with a finger repeats).
+- [x] Titles and Tickets grouped: a game with an update or DLC opens its chain; A on each row; delete one from there.
+- [x] Install CIAs and tickets, paste a copied folder, delete a selection, export a CIA: the progress, B cancels, the end.
+- [x] The search keyboard and the text editor's (pages, shift, held D-Pad and X; a key held with a finger repeats).
 - Then (`refactor/ui-structure-2`): the viewers' buttons, their touches and card, the keyboards' touches, the icon of
   an item without one, the scroll clamp of popovers and dialogs. Same 49 pictures in Azahar.
-- [ ] The image, audio and text viewers: tap their buttons, slide off one before letting go (nothing happens).
+- [x] The image, audio and text viewers: tap their buttons, slide off one before letting go (nothing happens).
 - Then (`refactor/ui-structure-3`): deleting one ext save data or system save data runs through `action_delete_one`
   (`action/deleteone.c`); the 27 data operation suspend/restore callbacks that only returned 0 are gone (a NULL one is
   skipped, the result is the same). Copy, paste and delete a folder tried in Azahar.
@@ -258,10 +278,10 @@ D-Pads in sheets are good (ticked above). Changed after them:
   folder is read (it stopped at 1024), no extra card call per file; B while reading stops without asking.
 - speed-log.txt now has a line per second of each copy/install of a data operation (`copy`) and the time of each Store
   extraction (`extract`): the Store install of 3D Pinball (a .7z with a 963 KB CIA) was slow and the cause is not known.
-- [ ] Install 3D Pinball (or another .7z CIA) from the Store again: is it still slow? Then fetch /nsa/speed-log.txt.
+- [x] Install 3D Pinball (or another .7z CIA) from the Store again: is it still slow? Then fetch /nsa/speed-log.txt.
   (Slow while the Store's status scan ran; fixed below.)
 - [x] Big folders read and delete fast now (the owner, 2026-11-07).
-- [ ] The zoom icon and SELECT change the tile size in every grid: Titles, Tickets, Ext Save Data, Game mods, Store
+- [x] The zoom icon and SELECT change the tile size in every grid: Titles, Tickets, Ext Save Data, Game mods, Store
   (`feat/tile-tool-all`); kept when the screen opens again; the mods summary tile at the smallest size.
 - The Store's 3D Pinball install (New 3DS XL, 15:31-15:34): download 1.7 s, extraction 5.4 s, then 66 s before the
   install started (reading the CIA's info, AM) and 59.6 s to install 963 KB (AM_StartCiaInstall 4.9 s, the first write
@@ -276,14 +296,14 @@ D-Pads in sheets are good (ticked above). Changed after them:
   entries, 98 ms) and only calls `stat()` for an app whose folder is there: 1.07 s for 411 apps, and Pinball installed
   right after opening the Store took 6.7 s. Tried on the New 3DS XL (DEBUG); the "on this console" filter still shows
   the same 8 apps.
-- [ ] The Store on the 2DS: the scan's time in `store-log.txt` ("status of N apps found in ... ms") and an install soon
+- [x] The Store on the 2DS: the scan's time in `store-log.txt` ("status of N apps found in ... ms") and an install soon
   after opening it.
 - The 2DS's screen going off and on, Wi-Fi gone for a moment: sleep-log.txt has 26 sleeps since it started, 12 of them
   under 3 s (sleep, wake 1.2 s later). The system sends them (NSA never asks to sleep): on a 2DS that is the sleep
   switch. Wi-Fi is down for a moment after any wake, then NSA reconnects (acInit). Likely a worn or bumped switch.
 - [x] Delete the contents of the big Metroid Zero Mission port's debug folder: how long the reading and the deleting take
   (the owner, 2026-11-07: good).
-- [ ] An install or a copy while the console goes to sleep or HOME (suspend and resume) goes on afterwards.
+- [x] An install or a copy while the console goes to sleep or HOME (suspend and resume) goes on afterwards.
 
 **Sort both ways, hold A, the clipboard, the picture viewer** (2026-11-07, `feat/sort-both-ways`; the owner asked; Files'
 hint, the reversed name sort and Left/Right in the viewer seen in Azahar):
@@ -295,11 +315,11 @@ hint, the reversed name sort and Left/Right in the viewer seen in Azahar):
 - The guide says the clipboard stays after leaving the SD card (it was always so: it empties only after pasting a cut, or
   when NSA closes), to paste on the CTR NAND for example.
 - The picture viewer: Left and Right go to the folder's other pictures when not zoomed in (zoomed, the D-Pad still moves it).
-- [ ] Each screen's sort, both ways, kept when the screen opens again.
+- [x] Each screen's sort, both ways, kept when the screen opens again.
 - Titles listed every title again when the sort changed (the owner noticed the wait); it now sorts what is loaded in place,
   as Tickets, Files, Ext Save Data, Game mods and the Store already did (`fix/titles-sort-in-place`; seen on the New 3DS XL:
   196 titles by size at once, the selection kept).
-- [ ] The hint fits in German and Russian; the viewer with Left/Right and the Circle Pad.
+- [x] The hint fits in German and Russian; the viewer with Left/Right and the Circle Pad.
 
 **Delete a title's mods from Titles** (2026-11-07, `feat/title-delete-mods`; the owner asked for it): a title with something
 in `/luma/titles/<ID>/` has *Delete mods* in its sheet, right before *Delete* (a game card's too). To try it, a dummy CIA
@@ -326,8 +346,8 @@ on the small screen, the folder's and the item's sheets looked alike, and a held
 Tried in Azahar (Titles' and Mods' filters, the sheets of the root, a file and the empty folders, a held Down).
 - [x] The filter cards of Titles, Tickets, Files, Store, Ext Save Data, Pending titles: readable, the tooltips say the right names
   (the owner, 2026-11-07).
-- [ ] Files: the three sheets (X in a folder, an item's, the ticked items') tell themselves apart at a glance.
-- [ ] Holding Up/Down/Left/Right in a long sheet and in a filter card.
+- [x] Files: the three sheets (X in a folder, an item's, the ticked items') tell themselves apart at a glance.
+- [x] Holding Up/Down/Left/Right in a long sheet and in a filter card.
 
 **Updates start sooner** (2026-11-06, `fix/update-start`): the first request of a download (`http_probe`: where the file is,
 how big) ran on the caller's thread, on the system core, which an Old 3DS shares at 5% while a transfer turn is held; it now runs

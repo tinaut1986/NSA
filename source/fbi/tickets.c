@@ -54,7 +54,6 @@ typedef struct {
 } tickets_data;
 
 #define ROW_HEIGHT 40
-#define TILE_SIZE 50
 
 static const char* tickets_kind_name(u64 titleId) {
     switch(title_kind_of(titleId)) {
@@ -481,6 +480,10 @@ static void tickets_update(ui_view* view, void* data, linked_list* items, list_i
         return;
     }
 
+    if(hidKeysDown() & KEY_SELECT) {
+        list_next_tile_size(view);
+    }
+
     if(hidKeysDown() & KEY_Y) {
         list_toggle_mode(view);
     }
@@ -573,7 +576,7 @@ void tickets_open() {
     list_style style = {
             .rowHeight = ROW_HEIGHT,
             .drawRow = tickets_draw_row,
-            .tileSize = TILE_SIZE,
+            .tileSize = list_tile_size_of(settings_get()->tickets.tile),
             .drawTile = tickets_draw_tile
     };
     list_set_style(view, &style);
@@ -583,5 +586,6 @@ void tickets_open() {
     // Right to left.
     list_add_search_tool(view, _("Search tickets"));
     list_add_tool(view, ICON_FILTER, tickets_filter_active, tickets_filter_open);
+    list_add_tile_tool(view, &settings_get()->tickets.tile);
     list_add_view_tools(view, tickets_view_changed);
 }

@@ -73,8 +73,9 @@ typedef struct {
 // once both are done with it. Measured on the New 3DS XL (1.84 GiB) with the copy of data_op (one
 // thread, 256 KB blocks): 198 s reading and 449 s writing, 2.99 MiB/s without the hash, and about
 // half that with the hash on the system core (the app gets 30% of it, at 268 MHz). The hasher runs
-// on core 2 of a New 3DS (on the app core otherwise, below the UI), and the New 3DS's faster clock
-// and L2 cache are on while the dump runs.
+// on core 2 of a New 3DS (on the app core otherwise, below the UI). The New 3DS's faster clock and
+// L2 cache are main.c's, on for all of NSA's life: never turned off here (it slowed everything after
+// a dump, FTP downloads from 1.3 MB/s to 0.46).
 
 static Result dumpnand_open_src(void* data, u32 index, u32* handle) {
     return FSUSER_OpenFileDirectly(handle, ARCHIVE_NAND_W_FS, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_UTF16, u"/"), FS_OPEN_READ, 0);
@@ -241,7 +242,6 @@ static void dumpnand_free_resources(dumpnand_data* dump) {
         dump->op.cancelEvent = 0;
     }
 
-    osSetSpeedupEnable(false);
     aptSetSleepAllowed(true);
 }
 
@@ -399,7 +399,6 @@ static void dumpnand_start(dumpnand_data* dump) {
     LightSemaphore_Init(&dump->toHash, 0, DUMP_SLOTS);
 
     aptSetSleepAllowed(false);
-    osSetSpeedupEnable(true);
 
     Result res = 0;
     for(u32 i = 0; i < DUMP_SLOTS; i++) {

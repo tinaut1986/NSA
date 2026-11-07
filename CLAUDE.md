@@ -46,6 +46,9 @@ SendUserFile; installing it on a console still waits for them to ask (they usual
 
 ## Branches in use
 
+- **`staging`** (since 2026-11-07): what is finished but **not yet tried on a console**. While it exists, topic branches are
+  cut from `staging` and merged (`--no-ff`) into `staging`, not `release`; push both. Once the owner confirms the items of
+  "Pending tests on the console", `staging` is merged into `release` (then `release` into `advanced`).
 - `release`: the working line; `master`: stable (only moves by merging `release`).
 - `advanced`: the risky tools (Dump NAND, Pending titles, System save data, Advanced's red look). Merge `release`
   into it after changing `release` (`git merge release`), and the owner's call decides when it goes into `release`.
@@ -93,6 +96,19 @@ it in WSL from the repo with `./tools/bin/makerom`; check the TMD's title versio
   floating layers `overlay.c` (popover, action sheet), dialogs `prompt.c`/`info.c`/`error.c`.
   Titles, Tickets and Ext Save Data are the model for a screen (placeholders, live sort,
   remembered filters in `settings.json`): see `docs/PLAN.md`, Decisions.
+- Reuse before copying: a list's items draw with `widget_item_frame` / `widget_tile_frame` / `widget_skeleton` /
+  `widget_fade_in` / `widget_count_badge` / `widget_badge_right`, the top screen's details with `widget_cell` and
+  `widget_loading_card`; the title bar's search and grid/rows tools are `list_add_search_tool` / `list_add_view_tools`
+  (with `list_open_search`, `list_clear_search`, `list_toggle_mode` for R, B and Y); a list's loading task starts,
+  stops and clears with `task_start_populate` / `task_stop_populate` / `task_clear_list` (`task/uitask.c`).
+  A viewer's buttons: `widget_row_button` / `widget_button_row_hit` / `widget_button_row_hold`, its card
+  `widget_info_card`; an item without icon `widget_icon_placeholder`; sizes `ui_format_size`; keyboards `core/ui/keys.c`;
+  a task's progress view `info_task_finished` with `data_op_progress_items` / `data_op_progress_bytes`; a grouped game's
+  list `chain.c`; deleting one item `action_delete_one` (`action/deleteone.c`). A data operation needs no suspend /
+  restore callbacks that only return 0 (NULL is skipped).
+- `tools/ui_snapshots.py` takes pictures of every screen in Azahar on a fixed SD card (`run`) and compares two builds
+  (`compare`): run it before and after a change that should not show (a refactor). The search keyboard's caret blinks,
+  so that step may differ by a few pixels.
 - Background music: `source/core/bgmusic.c` (circular synthesis on a low-priority thread, DSP channels 14 and 15,
   cache per style on the SD, crossfade); DEBUG builds log how long a loop took to `sdmc:/nsa/music-log.txt` and write the
   loop as `music-style-N.wav`. The pixel font is baked by `tools/make_pixelfont.py`, the icon and banner by

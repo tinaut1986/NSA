@@ -219,6 +219,13 @@ typedef struct {
     u32 sort;
     bool sortReverse;   // Choosing the same sort again turns it round.
     bool resort;
+
+    // An app just installed or downloaded: a script's CIA install goes on in its own screens after the script has
+    // ended, so its status is looked at again, once a second while the Store is on top, until it shows (10 times at
+    // most). -1 for none.
+    s32 recheck;
+    u32 recheckTries;
+    u64 recheckAt;
 } store_data;
 
 // The Store on screen (NULL: closed), for store_exit. Main thread only.
@@ -973,8 +980,83 @@ static u64* store_load_installed(u32* count) {
     return ids;
 }
 
-// `installed` is the sorted list of titles (NULL: ask AM about this one title).
-static u8 store_compute_status(const store_scan_entry* entry, const u64* installed, u32 installedCount) {
+// The names in /3ds/ (folders and files), sorted without case, read once for a whole scan. Asking the card about each app
+// instead (two stat() calls each, ~185 ms apiece on the owner's New 3DS: 574 calls, 107 s) kept the SD card busy for
+// everything else meanwhile: an install from the Store took 40 s instead of 6.
+typedef struct {
+    char** names;
+    u32 count;
+} store_dsx_dir;
+
+static int store_compare_names(const void* a, const void* b) {
+    return strcasecmp(*(char* const*) a, *(char* const*) b);
+}
+
+static void store_dsx_dir_free(store_dsx_dir* dir) {
+    if(dir == NULL) {
+        return;
+    }
+
+    for(u32 i = 0; i < dir->count; i++) {
+        free(dir->names[i]);
+    }
+
+    free(dir->names);
+    free(dir);
+}
+
+// NULL when /3ds/ could not be read: each app is then looked for on the card.
+static store_dsx_dir* store_dsx_dir_load() {
+    DIR* d = opendir("sdmc:/3ds/");
+    if(d == NULL) {
+        return NULL;
+    }
+
+    store_dsx_dir* dir = (store_dsx_dir*) calloc(1, sizeof(store_dsx_dir));
+    u32 capacity = 0;
+    bool ok = dir != NULL;
+    struct dirent* e;
+    while(ok && (e = readdir(d)) != NULL) {
+        if(dir->count == capacity) {
+            u32 more = capacity > 0 ? capacity * 2 : 64;
+            char** names = (char**) realloc(dir->names, more * sizeof(char*));
+            if(names == NULL) {
+                ok = false;
+                break;
+            }
+
+            dir->names = names;
+            capacity = more;
+        }
+
+        char* name = strdup(e->d_name);
+        if(name == NULL) {
+            ok = false;
+            break;
+        }
+
+        dir->names[dir->count++] = name;
+    }
+
+    closedir(d);
+    if(!ok) {
+        store_dsx_dir_free(dir);
+        return NULL;
+    }
+
+    if(dir->count > 0) {
+        qsort(dir->names, dir->count, sizeof(char*), store_compare_names);
+    }
+
+    return dir;
+}
+
+static bool store_dsx_dir_has(const store_dsx_dir* dir, const char* name) {
+    return dir->count > 0 && bsearch(&name, dir->names, dir->count, sizeof(char*), store_compare_names) != NULL;
+}
+
+// `installed` is the sorted list of titles (NULL: ask AM about this one title); `dir` what /3ds/ holds (NULL: ask the card).
+static u8 store_compute_status(const store_scan_entry* entry, const u64* installed, u32 installedCount, const store_dsx_dir* dir) {
     u8 bits = 0;
     if(entry->hasCia) {
         // Without a unique ID, what the Store installed is all there is to go by.
@@ -989,11 +1071,22 @@ static u8 store_compute_status(const store_scan_entry* entry, const u64* install
 
     if(entry->hasDsx && entry->dsxName[0] != '\0') {
         char path[FILE_PATH_MAX];
-        snprintf(path, sizeof(path), "sdmc:/3ds/%s/%s.3dsx", entry->dsxName, entry->dsxName);
-        bool present = store_file_exists(path);
-        if(!present) {
-            snprintf(path, sizeof(path), "sdmc:/3ds/%s.3dsx", entry->dsxName);
+        bool present = false;
+        if(dir != NULL) {
+            // Only an app whose folder is there costs a call to the card.
+            snprintf(path, sizeof(path), "%s.3dsx", entry->dsxName);
+            present = store_dsx_dir_has(dir, path);
+            if(!present && store_dsx_dir_has(dir, entry->dsxName)) {
+                snprintf(path, sizeof(path), "sdmc:/3ds/%s/%s.3dsx", entry->dsxName, entry->dsxName);
+                present = store_file_exists(path);
+            }
+        } else {
+            snprintf(path, sizeof(path), "sdmc:/3ds/%s/%s.3dsx", entry->dsxName, entry->dsxName);
             present = store_file_exists(path);
+            if(!present) {
+                snprintf(path, sizeof(path), "sdmc:/3ds/%s.3dsx", entry->dsxName);
+                present = store_file_exists(path);
+            }
         }
 
         if(present) {
@@ -1005,7 +1098,7 @@ static u8 store_compute_status(const store_scan_entry* entry, const u64* install
 }
 
 // A few apps' status, for the background thread to call now and then (`installed` is its list of titles).
-static void store_scan_step(store_data* store, const u64* installed, u32 installedCount) {
+static void store_scan_step(store_data* store, const u64* installed, u32 installedCount, const store_dsx_dir* dir) {
     for(int n = 0; n < 16; n++) {
         store_scan_entry entry;
         u32 index = 0;
@@ -1023,7 +1116,7 @@ static void store_scan_step(store_data* store, const u64* installed, u32 install
             return;
         }
 
-        u8 bits = store_compute_status(&entry, installed, installedCount);
+        u8 bits = store_compute_status(&entry, installed, installedCount, dir);
         LightLock_Lock(&store->lock);
         if(generation == store->generation && store->status != NULL && index < store->scanCount) {
             store->status[index] = bits | 0x80;
@@ -1355,6 +1448,7 @@ static void store_background_thread(void* arg) {
     u64 nextFlush = osGetTime() + 500;
     u64* installed = NULL;
     u32 installedCount = 0;
+    store_dsx_dir* dsxDir = NULL;
     u32 listGeneration = 0xFFFFFFFF;
     u32 loggedGeneration = 0xFFFFFFFF;
     u64 scanStart = 0;
@@ -1370,13 +1464,17 @@ static void store_background_thread(void* arg) {
             u64 t = osGetTime();
             free(installed);
             installed = store_load_installed(&installedCount);
+            u64 dirStart = osGetTime();
+            store_dsx_dir_free(dsxDir);
+            dsxDir = store_dsx_dir_load();
             listGeneration = generation;
             scanStart = t;
-            store_logf(store, "installed titles: %u read in %u ms", installedCount, (u32) (osGetTime() - t));
+            store_logf(store, "installed titles: %u read in %u ms; /3ds/: %d entries read in %u ms", installedCount,
+                       (u32) (dirStart - t), dsxDir != NULL ? (int) dsxDir->count : -1, (u32) (osGetTime() - dirStart));
         }
 
         if(scanning) {
-            store_scan_step(store, installed, installedCount);
+            store_scan_step(store, installed, installedCount, dsxDir);
         } else {
             if(listGeneration == generation && loggedGeneration != generation) {
                 loggedGeneration = generation;
@@ -1394,6 +1492,7 @@ static void store_background_thread(void* arg) {
 
     store_log_flush(store);
     free(installed);
+    store_dsx_dir_free(dsxDir);
     store_release(store);
 }
 
@@ -1582,14 +1681,11 @@ static void store_draw_app_icon(store_data* store, store_app* app, float x, floa
 
 static void store_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     store_data* store = (store_data*) data;
-    const theme_current* t = theme();
     store_app* app = store_of(item);
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     float icon = height - 8;
     store_draw_app_icon(store, app, x + 6, y + 4, icon, selected);
@@ -1781,13 +1877,16 @@ static void store_install_finished_all(void* data) {
                 store_scan_entry entry = store->scan != NULL && i < store->scanCount ? store->scan[i] : (store_scan_entry) {{0}};
                 LightLock_Unlock(&store->lock);
 
-                u8 bits = store_compute_status(&entry, NULL, 0);
+                u8 bits = store_compute_status(&entry, NULL, 0, NULL);
                 LightLock_Lock(&store->lock);
                 if(store->status != NULL && i < store->scanCount) {
                     store->status[i] = bits | 0x80;
                 }
 
                 LightLock_Unlock(&store->lock);
+                store->recheck = (s32) i;
+                store->recheckTries = 0;
+                store->recheckAt = 0;
                 break;
             }
         }
@@ -1798,6 +1897,38 @@ static void store_install_finished_all(void* data) {
 
 static store_data* store_sheet_store;
 static store_app* store_sheet_app;
+
+// See store_data's `recheck`: runs in the Store's update, so only while it is on top.
+static void store_recheck_step(store_data* store) {
+    if(store->recheck < 0 || osGetTime() < store->recheckAt) {
+        return;
+    }
+
+    u32 i = (u32) store->recheck;
+    LightLock_Lock(&store->lock);
+    bool known = store->scan != NULL && store->status != NULL && i < store->scanCount;
+    store_scan_entry entry = known ? store->scan[i] : (store_scan_entry) {{0}};
+    LightLock_Unlock(&store->lock);
+    if(!known) {
+        store->recheck = -1;
+        return;
+    }
+
+    u8 bits = store_compute_status(&entry, NULL, 0, NULL);
+    LightLock_Lock(&store->lock);
+    if(store->status != NULL && i < store->scanCount) {
+        store->status[i] = bits | 0x80;
+    }
+
+    LightLock_Unlock(&store->lock);
+
+    bool wanted = (entry.hasCia && (bits & STATUS_CIA)) || (entry.hasDsx && (bits & STATUS_DSX));
+    if(wanted || ++store->recheckTries >= 10) {
+        store->recheck = -1;
+    } else {
+        store->recheckAt = osGetTime() + 1000;
+    }
+}
 
 static void store_script_done(void* data, bool ok) {
     ((store_install_ctx*) data)->ok = ok;
@@ -1937,42 +2068,8 @@ static void store_save(store_data* store) {
     settings_save();
 }
 
-// The tiles of the grid in the next size (and the grid itself, when the rows were showing).
-static void store_next_tile_size(ui_view* view) {
-    store_settings* saved = &settings_get()->store;
-    saved->tile = (saved->tile + 1) % LIST_TILE_LEVELS;
-    if(list_get_mode(view) != LIST_MODE_GRID) {
-        list_set_mode(view, LIST_MODE_GRID);
-        saved->grid = true;
-    }
-
-    list_set_tile_size(view, list_tile_size_of(saved->tile));
-    settings_save();
-}
-
-static bool store_tile_active(ui_view* view, void* data) {
-    return false;
-}
-
-static void store_tile_press(ui_view* view, void* data) {
-    store_next_tile_size(view);
-}
-
-static bool store_is_rows(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_ROWS;
-}
-
-static bool store_is_grid(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_GRID;
-}
-
-static void store_show_rows(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_ROWS);
-    store_save((store_data*) data);
-}
-
-static void store_show_grid(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_GRID);
+// The grid / rows mode is kept in the settings.
+static void store_view_changed(void* data) {
     store_save((store_data*) data);
 }
 
@@ -2066,12 +2163,12 @@ static void store_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 5,
             .groups = {
-                    {_("Type"), true, 3, {"CIA", "3DSX", _("Other")}, {-1, -1, -1}},
+                    {_("Type"), true, 3, {"CIA", "3DSX", _("Other")}, {ICON_PACKAGE, ICON_APP_WINDOW, ICON_DOTS}},
                     // Icons with the name in a tooltip, as Show and Sort by: eight names take three lines.
                     {_("Category"), true, STORE_CATEGORY_COUNT, {_("Games"), _("Apps"), _("Utilities"), _("Emulators"), _("Media"), _("Save tools"), _("Plugins"), _("Other")},
                      {ICON_DEVICE_GAMEPAD_2, ICON_APPS, ICON_SETTINGS, ICON_DEVICE_NINTENDO, ICON_MOVIE, ICON_DEVICE_FLOPPY, ICON_FILE_CODE, ICON_DOTS}, true},
                     {_("Show"), false, 3, {_("All"), _("Installed / downloaded"), _("Not installed / downloaded")}, {ICON_APPS, ICON_CHECK, ICON_X}, true},
-                    {_("Updated"), false, 4, {_("All"), _("1 month"), _("6 months"), _("1 year")}, {-1, -1, -1, -1}},
+                    {_("Updated"), false, 4, {_("All"), _("1 month"), _("6 months"), _("1 year")}, {ICON_INFINITY, ICON_HOURGLASS_LOW, ICON_HOURGLASS, ICON_HOURGLASS_HIGH}},
                     // Icons with the name in a tooltip: four names this long do not fit in one line.
                     {_("Sort by"), false, 4, {_("Name"), _("Author"), _("Newest"), _("Stars")}, {ICON_ABC, ICON_USER, ICON_CLOCK, ICON_STAR}, true, true}
             },
@@ -2113,12 +2210,7 @@ static int store_compare_items(void* data, const void* p1, const void* p2) {
 static void store_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
     store_data* store = (store_data*) data;
     const theme_current* t = theme();
-    if(selected) {
-        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
-        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
-    } else {
-        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
-    }
+    widget_tile_frame(x, y, size, selected);
 
     store_app* app = store_of(item);
     store_draw_app_icon(store, app, x + 4, y + 4, size - 8, false);
@@ -2136,21 +2228,6 @@ static void store_draw_tile(void* data, list_item* item, float x, float y, float
 }
 
 // ---- search ----
-
-static bool store_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void store_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    store_data* store = (store_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(store->view, response);
-    }
-}
-
-static void store_search_open(ui_view* view, void* data) {
-    osk_display(_("Search the Store"), list_get_search(view), 64, 0, data, store_search_done);
-}
 
 // ---- the screen ----
 
@@ -2360,9 +2437,10 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
     // Until the first catalogue is here (the copy on the SD card, or the server's when there is none), a wheel turns.
     list_set_busy(view, store->haveCatalogue || store->done ? NULL : "Loading the catalogue...");
 
+    store_recheck_step(store);
+
     if(hidKeysDown() & KEY_B) {
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
@@ -2400,12 +2478,11 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
     }
 
     if(hidKeysDown() & KEY_SELECT) {
-        store_next_tile_size(view);
+        list_next_tile_size(view);
     }
 
     if(hidKeysDown() & KEY_Y) {
-        list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
-        store_save(store);
+        list_toggle_mode(view);
     }
 
     if(hidKeysDown() & KEY_L) {
@@ -2414,7 +2491,7 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
     }
 
     if(hidKeysDown() & KEY_R) {
-        store_search_open(view, store);
+        list_open_search(view);
     }
 }
 
@@ -2426,6 +2503,7 @@ void store_open_source(const store_source* source) {
     }
 
     store->source = *source;
+    store->recheck = -1;
 
     LightLock_Init(&store->lock);
     store->users = 2;   // The screen and the loading thread.
@@ -2462,9 +2540,8 @@ void store_open_source(const store_source* source) {
     list_show_title_bar(view);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, store_search_active, store_search_open);
+    list_add_search_tool(view, _("Search the Store"));
     list_add_tool(view, ICON_FILTER, store_filter_active, store_filter_open);
-    list_add_tool(view, ICON_ZOOM_IN, store_tile_active, store_tile_press);
-    list_add_tool(view, ICON_LAYOUT_GRID, store_is_grid, store_show_grid);
-    list_add_tool(view, ICON_LIST, store_is_rows, store_show_rows);
+    list_add_tile_tool(view, &settings_get()->store.tile);
+    list_add_view_tools(view, store_view_changed);
 }

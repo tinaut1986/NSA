@@ -36,11 +36,14 @@ static void overlay_draw_parent_title(ui_view* parent, float x1, float y1, float
 
 // ---- popover ----
 
-#define POPOVER_WIDTH 236
-#define POPOVER_PAD 10
+// As wide as the screen allows: a group's name and its icons share one line when they fit.
+#define POPOVER_WIDTH 304
+#define POPOVER_PAD 8
 #define POPOVER_OPTION_HEIGHT 24
-#define POPOVER_CHIP_GAP 5
-#define POPOVER_GROUP_GAP 8
+#define POPOVER_CHIP_GAP 4
+#define POPOVER_GROUP_GAP 6
+#define POPOVER_ICON_CHIP 34
+#define POPOVER_ICON_CHIP_MIN 26
 
 typedef struct {
     ui_view* parent;
@@ -64,32 +67,52 @@ typedef struct {
     u16 lastTouchY;
     widget_press press;   // Index: group * POPOVER_OPTIONS_MAX + option.
     u64 opened;           // For the card's entrance.
+    widget_repeat repeat;   // A direction held: it moves on, and stops at the ends.
 } popover_data;
 
 static float popover_chip_width(popover_group* group, u32 o) {
     if(group->iconOnly) {
-        return group->directional ? 46 : 36;
+        return group->directional ? POPOVER_ICON_CHIP + 10 : POPOVER_ICON_CHIP;
     }
 
     return widget_text_width(group->options[o], WIDGET_SMALL_SCALE) + (group->icons[o] >= 0 ? 14 : 0) + 20;
 }
 
-// Chips flow onto more lines when a group has many; a segmented choice
-// shares one line.
+// A group of chips sits on the line of its name, at the right, when they fit there; otherwise the name goes above and the
+// chips flow onto more lines (icons narrow first, to keep one). A segmented choice shares one line under its name.
 static void popover_layout(popover_data* p) {
-    float inner = POPOVER_WIDTH - 2 * POPOVER_PAD - WIDGET_SCROLLBAR_WIDTH - 2;
-    float labelH = widget_text_height(WIDGET_SMALL_SCALE) + 4;
-    float y = 0;
+    float inner = POPOVER_WIDTH - 2 * POPOVER_PAD - WIDGET_SCROLLBAR_WIDTH - 4;
+    float textH = widget_text_height(WIDGET_SMALL_SCALE);
+    float labelH = textH + 4;
+    // Room over the first line for the tooltip of an icon on it, which would cover the next group's from under it.
+    float y = textH + 8;
 
     for(u32 g = 0; g < p->def.groupCount; g++) {
         popover_group* group = &p->def.groups[g];
-        p->labelY[g] = y;
-        y += labelH;
 
         if(group->multiple || group->iconOnly) {
-            float x = 0;
+            float total = 0;
             for(u32 o = 0; o < group->count; o++) {
-                float w = popover_chip_width(group, o);
+                total += popover_chip_width(group, o) + (o > 0 ? POPOVER_CHIP_GAP : 0);
+            }
+
+            float labelW = widget_text_width(group->label, WIDGET_SMALL_SCALE) + 10;
+            bool inlineLabel = labelW + total <= inner;
+            float squeeze = 0;
+            if(inlineLabel) {
+                p->labelY[g] = y + (POPOVER_OPTION_HEIGHT - textH) / 2;
+            } else {
+                p->labelY[g] = y;
+                y += labelH;
+                if(group->iconOnly && !group->directional && total > inner) {
+                    squeeze = (inner - (group->count - 1) * POPOVER_CHIP_GAP) / group->count;
+                    squeeze = squeeze < POPOVER_ICON_CHIP_MIN ? POPOVER_ICON_CHIP_MIN : (float) (int) squeeze;
+                }
+            }
+
+            float x = inlineLabel ? inner - total : 0;
+            for(u32 o = 0; o < group->count; o++) {
+                float w = squeeze > 0 ? squeeze : popover_chip_width(group, o);
                 if(w > inner) {
                     w = inner;
                 }
@@ -105,6 +128,8 @@ static void popover_layout(popover_data* p) {
                 x += w + POPOVER_CHIP_GAP;
             }
         } else {
+            p->labelY[g] = y;
+            y += labelH;
             float w = inner / group->count;
             for(u32 o = 0; o < group->count; o++) {
                 p->optionX[g][o] = o * w;
@@ -130,20 +155,16 @@ static void popover_card(popover_data* p, float x1, float y1, float x2, float y2
 }
 
 static void popover_clamp_scroll(popover_data* p, float cardH) {
-    float max = p->contentHeight - (cardH - 2 * POPOVER_PAD);
-    if(p->scroll > max) {
-        p->scroll = max;
-    }
-
-    if(p->scroll < 0) {
-        p->scroll = 0;
-    }
+    p->scroll = widget_clamp_scroll(p->scroll, p->contentHeight - (cardH - 2 * POPOVER_PAD));
 }
 
 // Scrolls so the focused option, and its group's label, are in view.
 static void popover_reveal(popover_data* p, float cardH) {
     float view = cardH - 2 * POPOVER_PAD;
-    float top = p->option == 0 ? p->labelY[p->group] : p->optionY[p->group][p->option];
+    float top = p->optionY[p->group][p->option];
+    if(p->option == 0 && p->labelY[p->group] < top) {
+        top = p->labelY[p->group];
+    }
     float bottom = p->optionY[p->group][p->option] + POPOVER_OPTION_HEIGHT;
     if(top < p->scroll) {
         p->scroll = top;
@@ -176,17 +197,26 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
     }
 
     bool moved = true;
-    if(down & KEY_DOWN) {
-        p->group = (p->group + 1) % p->def.groupCount;
-        p->option = 0;
-    } else if(down & KEY_UP) {
-        p->group = (p->group + p->def.groupCount - 1) % p->def.groupCount;
-        p->option = 0;
-    } else if(down & KEY_RIGHT) {
-        p->option = (p->option + 1) % p->def.groups[p->group].count;
-    } else if(down & KEY_LEFT) {
-        u32 count = p->def.groups[p->group].count;
-        p->option = (p->option + count - 1) % count;
+    bool fresh = false;
+    u32 count = p->def.groups[p->group].count;
+    if(widget_repeat_step(&p->repeat, KEY_DOWN, &fresh)) {
+        if(fresh || p->group + 1 < p->def.groupCount) {
+            p->group = (p->group + 1) % p->def.groupCount;
+            p->option = 0;
+        }
+    } else if(widget_repeat_step(&p->repeat, KEY_UP, &fresh)) {
+        if(fresh || p->group > 0) {
+            p->group = (p->group + p->def.groupCount - 1) % p->def.groupCount;
+            p->option = 0;
+        }
+    } else if(widget_repeat_step(&p->repeat, KEY_RIGHT, &fresh)) {
+        if(fresh || p->option + 1 < count) {
+            p->option = (p->option + 1) % count;
+        }
+    } else if(widget_repeat_step(&p->repeat, KEY_LEFT, &fresh)) {
+        if(fresh || p->option > 0) {
+            p->option = (p->option + count - 1) % count;
+        }
     } else {
         moved = false;
     }
@@ -385,7 +415,11 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
         }
     }
 
-    if(tipGroup >= 0) {
+    screen_clear_clip();
+
+    // Above the icon, or under it when that would leave the card (its first line); never for one scrolled out of sight.
+    float optionTop = tipGroup >= 0 ? contentTop + p->optionY[tipGroup][tipOption] : 0;
+    if(tipGroup >= 0 && optionTop >= cardY && optionTop + POPOVER_OPTION_HEIGHT <= cardY + cardH) {
         const char* label = p->def.groups[tipGroup].options[tipOption];
         float width = widget_text_width(label, WIDGET_SMALL_SCALE) + 16;
         float cx = cardX + POPOVER_PAD + p->optionX[tipGroup][tipOption] + p->optionW[tipGroup][tipOption] / 2;
@@ -396,14 +430,17 @@ static void popover_draw_bottom(ui_view* view, void* data, float x1, float y1, f
             tx = cardX + POPOVER_WIDTH - 4 - width;
         }
 
-        float ty = contentTop + p->optionY[tipGroup][tipOption] - POPOVER_OPTION_HEIGHT + 2;
         float height = widget_text_height(WIDGET_SMALL_SCALE) + 6;
-        screen_fill_round_rect(cx - 4, ty + height - 3, 8, 8, 2, t->palette->text);
+        float ty = optionTop - height - 4;
+        bool below = ty < cardY + 2;
+        if(below) {
+            ty = optionTop + POPOVER_OPTION_HEIGHT + 4;
+        }
+
+        screen_fill_round_rect(cx - 4, below ? ty - 3 : ty + height - 5, 8, 8, 2, t->palette->text);
         screen_fill_round_rect(tx, ty, width, height, t->def->radiusSmall, t->palette->text);
         screen_draw_text(label, tx + 8, ty + 3, WIDGET_SMALL_SCALE, t->palette->background);
     }
-
-    screen_clear_clip();
 
     float visible = cardH - 2 * POPOVER_PAD;
     widget_scrollbar(cardX + POPOVER_WIDTH - POPOVER_PAD / 2 - WIDGET_SCROLLBAR_WIDTH, cardY + POPOVER_PAD, visible, p->scroll, visible, p->contentHeight);
@@ -424,6 +461,18 @@ void popover_display(const popover_def* def, void* data) {
     p->opened = osGetTime();
     p->def = *def;
     p->data = data;
+
+    // Icons, with the focused one's name in a tooltip, wherever every option has one: the card stays short.
+    for(u32 g = 0; g < p->def.groupCount; g++) {
+        popover_group* group = &p->def.groups[g];
+        bool icons = group->count > 0;
+        for(u32 o = 0; o < group->count; o++) {
+            icons = icons && group->icons[o] >= 0;
+        }
+
+        group->iconOnly = group->iconOnly || icons;
+    }
+
     popover_layout(p);
 
     ui_view* view = ui_create();
@@ -452,6 +501,8 @@ typedef struct {
     ui_view* parent;
     char title[128];
     u32 texture;
+    char kicker[64];   // sheet_display_list_for: what the actions are for, over the title, by `icon`.
+    u32 icon;
     sheet_action actions[SHEET_ACTIONS_MAX];
     u32 count;
     void* data;
@@ -463,6 +514,7 @@ typedef struct {
     u16 touchStartY;
     u16 lastTouchY;
     u64 opened;           // For the slide up.
+    widget_repeat repeat;   // A direction held: it moves on, and stops at the ends.
     bool list;     // One row per action instead of a grid of buttons.
     float scroll;  // List only, when the rows do not all fit.
     // An action is running in what it opened: back here, the sheet closes if
@@ -602,6 +654,7 @@ static void sheet_run(ui_view* view, sheet_data* s, u32 index) {
     }
 }
 
+
 static void sheet_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     sheet_data* s = (sheet_data*) data;
 
@@ -628,24 +681,34 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
         page = 1;
     }
 
-    if((down & KEY_RIGHT) && cols > 1) {
-        s->selected = (s->selected + 1) % s->count;
-    } else if((down & KEY_LEFT) && cols > 1) {
-        s->selected = (s->selected + s->count - 1) % s->count;
-    } else if((down & KEY_RIGHT) && s->count > 0) {
+    // Held, the focus stops at the ends instead of going round.
+    bool fresh = false;
+    if(cols > 1 && widget_repeat_step(&s->repeat, KEY_RIGHT, &fresh)) {
+        if(fresh || s->selected + 1 < s->count) {
+            s->selected = (s->selected + 1) % s->count;
+        }
+    } else if(cols > 1 && widget_repeat_step(&s->repeat, KEY_LEFT, &fresh)) {
+        if(fresh || s->selected > 0) {
+            s->selected = (s->selected + s->count - 1) % s->count;
+        }
+    } else if(cols == 1 && s->count > 0 && widget_repeat_step(&s->repeat, KEY_RIGHT, &fresh)) {
         u32 first = (u32) ((s->scroll + sheet_button_height(s) + sheet_gap(s) - 1) / (sheet_button_height(s) + sheet_gap(s)));
         s->selected = first + page < s->count ? first + page : s->count - 1;
         sheet_page_to(s, s->selected);
-    } else if((down & KEY_LEFT) && s->count > 0) {
+    } else if(cols == 1 && s->count > 0 && widget_repeat_step(&s->repeat, KEY_LEFT, &fresh)) {
         u32 first = (u32) ((s->scroll + sheet_button_height(s) + sheet_gap(s) - 1) / (sheet_button_height(s) + sheet_gap(s)));
         s->selected = first > page ? first - page : 0;
         sheet_page_to(s, s->selected);
-    } else if(down & KEY_DOWN) {
-        s->selected = s->selected + cols < s->count ? s->selected + cols : s->selected % cols;
-    } else if(down & KEY_UP) {
+    } else if(widget_repeat_step(&s->repeat, KEY_DOWN, &fresh)) {
+        if(s->selected + cols < s->count) {
+            s->selected += cols;
+        } else if(fresh) {
+            s->selected %= cols;
+        }
+    } else if(widget_repeat_step(&s->repeat, KEY_UP, &fresh)) {
         if(s->selected >= cols) {
             s->selected -= cols;
-        } else {
+        } else if(fresh) {
             u32 lastRow = ((s->count - 1) / cols) * cols;
             s->selected = lastRow + s->selected < s->count ? lastRow + s->selected : s->count - 1;
         }
@@ -775,7 +838,19 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
     screen_fill_round_rect(x1, top, x2 - x1, y2 - top + r, r, t->palette->surface);
     screen_fill_rect(x1, top + r, x2 - x1, 1, t->palette->surface);
 
-    if(s->title[0] != '\0') {
+    if(s->title[0] != '\0' && s->kicker[0] != '\0') {
+        // What the actions are for: a tinted icon, the kind in the accent colour, the name under it.
+        float hx = x1 + SHEET_PAD;
+        float hy = top + SHEET_PAD;
+        screen_fill_round_rect(hx, hy, 26, 26, t->def->radiusSmall, t->accentSoft);
+        screen_draw_icon(s->icon, hx + 5, hy + 5, 16, t->accent);
+        hx += 33;
+        float smallH = widget_text_height(WIDGET_SMALL_SCALE);
+        widget_text_fit(s->kicker, hx, hy - 1, WIDGET_SMALL_SCALE, t->accent, x2 - SHEET_PAD - 24 - hx);
+        widget_text_fit(s->title, hx, hy + smallH, WIDGET_TEXT_SCALE, t->palette->text, x2 - SHEET_PAD - 24 - hx);
+        screen_draw_icon(ICON_X, x2 - SHEET_PAD - 16, hy + 5, 16, t->palette->textMuted);
+        screen_fill_rect(x1 + SHEET_PAD, hy + 30, x2 - x1 - 2 * SHEET_PAD, 1, t->palette->border);
+    } else if(s->title[0] != '\0') {
         float hx = x1 + SHEET_PAD;
         float hy = top + SHEET_PAD;
         if(s->texture != 0) {
@@ -923,6 +998,15 @@ void sheet_display(const char* title, u32 texture, const sheet_action* actions, 
 
 void sheet_display_list(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data) {
     sheet_open(title, texture, actions, count, data, true);
+}
+
+void sheet_display_list_for(const char* kicker, const char* title, u32 icon, const sheet_action* actions, u32 count, void* data) {
+    ui_view* view = sheet_open(title != NULL && title[0] != '\0' ? title : " ", 0, actions, count, data, true);
+    if(view != NULL) {
+        sheet_data* s = (sheet_data*) view->data;
+        string_copy(s->kicker, kicker != NULL ? kicker : "", sizeof(s->kicker));
+        s->icon = icon;
+    }
 }
 
 void sheet_display_choice(const char* title, const sheet_action* actions, u32 count, void* data,

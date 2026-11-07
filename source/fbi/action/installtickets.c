@@ -120,14 +120,6 @@ static Result action_install_tickets_write_dst(void* data, u32 handle, u32* byte
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 
-static Result action_install_tickets_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_install_tickets_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_install_tickets_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(data, action_install_tickets_draw_top, res, "Failed to install ticket.");
     return true;
@@ -170,15 +162,7 @@ static void action_install_tickets_update(ui_view* view, void* data, float* prog
         svcSignalEvent(installData->installInfo.cancelEvent);
     }
 
-    *progress = installData->installInfo.currTotal != 0 ? (float) ((double) installData->installInfo.currProcessed / (double) installData->installInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), installData->installInfo.processed, installData->installInfo.total,
-             ui_get_display_size(installData->installInfo.currProcessed),
-             ui_get_display_size_units(installData->installInfo.currProcessed),
-             ui_get_display_size(installData->installInfo.currTotal),
-             ui_get_display_size_units(installData->installInfo.currTotal),
-             ui_get_display_size(installData->installInfo.bytesPerSecond),
-             ui_get_display_size_units(installData->installInfo.bytesPerSecond),
-             ui_get_display_eta(installData->installInfo.estimatedRemainingSeconds));
+    data_op_progress_bytes(&installData->installInfo, progress, text, true);
 }
 
 static void action_install_tickets_onresponse(ui_view* view, void* data, u32 response) {
@@ -214,11 +198,11 @@ static void action_install_tickets_loading_draw_top(ui_view* view, void* data, f
 static void action_install_tickets_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     install_tickets_loading_data* loadingData = (install_tickets_loading_data*) data;
 
-    if(loadingData->popData.finished) {
-        ui_pop();
-        info_destroy(view);
-
-        if(R_SUCCEEDED(loadingData->popData.result)) {
+    if(info_task_finished(view, &loadingData->popData.finished, loadingData->popData.cancelEvent)) {
+        if(loadingData->popData.cancelled) {
+            // B while reading: nothing to ask about, the list is not whole.
+            action_install_tickets_free_data(loadingData->installData);
+        } else if(R_SUCCEEDED(loadingData->popData.result)) {
             loadingData->installData->installInfo.total = linked_list_size(&loadingData->installData->contents);
             loadingData->installData->installInfo.processed = loadingData->installData->installInfo.total;
 
@@ -231,10 +215,6 @@ static void action_install_tickets_loading_update(ui_view* view, void* data, flo
 
         free(loadingData);
         return;
-    }
-
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
     }
 
     snprintf(text, PROGRESS_TEXT_MAX, _("Fetching ticket list..."));
@@ -281,9 +261,6 @@ static void action_install_tickets_internal(linked_list* items, list_item* selec
     data->installInfo.openDst = action_install_tickets_open_dst;
     data->installInfo.closeDst = action_install_tickets_close_dst;
     data->installInfo.writeDst = action_install_tickets_write_dst;
-
-    data->installInfo.suspend = action_install_tickets_suspend;
-    data->installInfo.restore = action_install_tickets_restore;
 
     data->installInfo.error = action_install_tickets_error;
 

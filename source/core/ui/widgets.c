@@ -9,6 +9,7 @@
 #include "../i18n.h"
 #include "../icons.h"
 #include "../screen.h"
+#include "../stringutil.h"
 #include "../theme.h"
 
 float widget_text_width(const char* text, float scale) {
@@ -74,6 +75,147 @@ void widget_background(float width, float height) {
 void widget_card(float x, float y, float width, float height) {
     const theme_current* t = theme();
     screen_frame_round_rect(x, y, width, height, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
+}
+
+float widget_info_card(float x1, float y1, float x2, const char* name) {
+    widget_card(8, y1 + 8, x2 - x1 - 16, 84);
+    float ty = y1 + 16;
+    widget_text_fit(name, 18, ty, WIDGET_TEXT_SCALE, theme()->palette->text, x2 - 18 - 18);
+    return ty + widget_text_height(WIDGET_TEXT_SCALE) + 4;
+}
+
+void widget_button_row_rect(int i, int count, float* x, float* y, float* width, float* height) {
+    float gap = 6;
+    *width = (BOTTOM_SCREEN_WIDTH - 16 - gap * (count - 1)) / count;
+    *height = 40;
+    *x = 8 + i * (*width + gap);
+    *y = BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT - 8 - *height;
+}
+
+void widget_row_button(int i, int count, u32 icon, const char* label, bool pressed, bool disabled, bool primary) {
+    const theme_current* t = theme();
+    float x, y, w, h;
+    widget_button_row_rect(i, count, &x, &y, &w, &h);
+    u32 fill = pressed ? t->accent : primary ? t->accentSoft : t->palette->surface;
+    u32 edge = pressed ? t->accent : primary ? t->accent : t->palette->border;
+    u32 ink = pressed ? t->onAccent : disabled ? t->palette->textMuted : primary ? t->accent : t->palette->text;
+    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
+
+    if(label == NULL) {
+        screen_draw_icon(icon, x + (w - 16) / 2, y + (h - 16) / 2, 16, ink);
+    } else {
+        float tw = widget_text_width(label, WIDGET_TEXT_SCALE);
+        float bx = x + (w - (16 + 6 + tw)) / 2;
+        screen_draw_icon(icon, bx, y + (h - 16) / 2, 16, ink);
+        screen_draw_text(label, bx + 22, y + (h - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, ink);
+    }
+}
+
+int widget_button_row_hit(const touchPosition* pos, int count) {
+    int hit = -1;
+    for(int i = 0; i < count; i++) {
+        float x, y, w, h;
+        widget_button_row_rect(i, count, &x, &y, &w, &h);
+        if(widget_touched(pos, x, y, w, h)) {
+            hit = i;
+        }
+    }
+
+    return hit;
+}
+
+void widget_button_row_hold(int* pressed, const touchPosition* pos, int count) {
+    // A finger that went down elsewhere (panning, a bar) lights nothing on its way.
+    if(*pressed == -1) {
+        return;
+    }
+
+    // Like the menus, the button under the finger is the one lit (and pressed on release); between buttons, none.
+    int hit = widget_button_row_hit(pos, count);
+    *pressed = hit >= 0 ? hit : WIDGET_BUTTON_ROW_OFF;
+}
+
+void widget_item_frame(float x, float y, float width, float height, bool selected, u32* ink, u32* muted) {
+    const theme_current* t = theme();
+    u32 fill = selected ? t->accent : t->palette->surface;
+    u32 edge = selected ? t->accent : t->palette->border;
+    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    if(ink != NULL) {
+        *ink = selected ? t->onAccent : t->palette->text;
+    }
+
+    if(muted != NULL) {
+        *muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
+    }
+}
+
+void widget_tile_frame(float x, float y, float size, bool selected) {
+    const theme_current* t = theme();
+    if(selected) {
+        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
+        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
+    } else {
+        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
+    }
+}
+
+void widget_icon_placeholder(float x, float y, float size, u32 icon, u32 background, u32 foreground) {
+    screen_fill_round_rect(x, y, size, size, size / 6, background);
+    screen_draw_icon(icon, x + size / 4, y + size / 4, size / 2, foreground);
+}
+
+float widget_clamp_scroll(float scroll, float max) {
+    if(scroll > max) {
+        scroll = max;
+    }
+
+    return scroll < 0 ? 0 : scroll;
+}
+
+void widget_skeleton(float x, float y, float width, float height, float icon, bool selected) {
+    const theme_current* t = theme();
+    u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;
+    screen_fill_round_rect(x, y, icon, icon, icon / 6, block);
+    if(width > icon + 30) {
+        float tx = x + icon + 8;
+        screen_fill_round_rect(tx, y + 4, (width - icon - 8) * 0.55f, 8, 4, block);
+        screen_fill_round_rect(tx, y + height - 12, (width - icon - 8) * 0.35f, 6, 3, block);
+    }
+}
+
+void widget_fade_in(u64 since) {
+    screen_set_content_motion(0, 0, (u8) (widget_ease(since, 250) * 0xFF));
+}
+
+void widget_count_badge(u32 count, float x, float y) {
+    const theme_current* t = theme();
+    char text[8];
+    snprintf(text, sizeof(text), "%lu", count);
+    float r = 8;
+    screen_fill_circle(x, y, r + 1.5f, t->palette->surface);
+    screen_fill_circle(x, y, r, t->accent);
+    float w = widget_text_width(text, WIDGET_SMALL_SCALE);
+    screen_draw_text(text, x - w / 2, y - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->onAccent);
+}
+
+float widget_badge_right(float right, float y, const char* text, u32 background, u32 foreground) {
+    float w = widget_text_width(text, WIDGET_SMALL_SCALE) + 12;
+    widget_badge(right - w, y, text, background, foreground);
+    return w;
+}
+
+void widget_cell(float x, float y, float width, const char* label, const char* value) {
+    const theme_current* t = theme();
+    screen_frame_round_rect(x, y, width, WIDGET_CELL_HEIGHT, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
+    screen_draw_text(label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
+    float scale = widget_text_width(value, WIDGET_TEXT_SCALE) <= width - 14 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
+    widget_text_fit(value, x + 8, y + 3 + widget_text_height(WIDGET_SMALL_SCALE), scale, t->palette->text, width - 14);
+}
+
+void widget_loading_card(float x1, float y1, float x2) {
+    widget_card(x1 + 10, y1 + 10, x2 - x1 - 20, 76);
+    widget_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
+    widget_text_centered(_("Loading..."), x1, x2, y1 + 110, WIDGET_TEXT_SCALE, theme()->palette->textMuted);
 }
 
 void widget_badge(float x, float y, const char* text, u32 background, u32 foreground) {
@@ -424,8 +566,28 @@ void widget_scrollbar(float x, float y, float height, float offset, float visibl
 
 void widget_toast(const char* text, float progress, float bottom) {
     const theme_current* t = theme();
+
+    // Each line on its own, cut to the card's width when too long.
+    char buf[256];
+    string_copy(buf, text, sizeof(buf));
+    const char* lines[3];
+    int lineCount = 0;
+    char* line = buf;
+    while(line != NULL && lineCount < 3) {
+        lines[lineCount++] = line;
+        char* end = strchr(line, '\n');
+        if(end != NULL) {
+            *end = '\0';
+            line = end + 1;
+        } else {
+            line = NULL;
+        }
+    }
+
+    bool bar = progress >= 0 || progress == WIDGET_PROGRESS_UNKNOWN;
     float textHeight = widget_text_height(WIDGET_SMALL_SCALE);
-    float height = textHeight + (progress >= 0 ? 18 : 10);
+    float lineGap = 2;
+    float height = lineCount * textHeight + (lineCount - 1) * lineGap + (bar ? 18 : 10);
     float x = 8;
     float width = BOTTOM_SCREEN_WIDTH - 16;
     float y = bottom - 6 - height;
@@ -436,11 +598,27 @@ void widget_toast(const char* text, float progress, float bottom) {
         ink = t->palette->surface;
     }
 
-    widget_text_fit(text, x + 10, y + 5, WIDGET_SMALL_SCALE, ink, width - 20);
-    if(progress >= 0) {
+    for(int i = 0; i < lineCount; i++) {
+        widget_text_fit(lines[i], x + 10, y + 5 + i * (textHeight + lineGap), WIDGET_SMALL_SCALE, i == 0 ? ink : THEME_ALPHA(ink, 0xC0), width - 20);
+    }
+
+    if(bar) {
+        float barX = x + 10;
         float barY = y + height - 9;
-        screen_fill_round_rect(x + 10, barY, width - 20, 4, 2, THEME_ALPHA(ink, 0x50));
-        screen_fill_round_rect(x + 10, barY, (width - 20) * (progress > 1 ? 1 : progress), 4, 2, ink);
+        float barW = width - 20;
+        screen_fill_round_rect(barX, barY, barW, 4, 2, THEME_ALPHA(ink, 0x50));
+        if(progress >= 0) {
+            screen_fill_round_rect(barX, barY, barW * (progress > 1 ? 1 : progress), 4, 2, ink);
+        } else {
+            // A piece that crosses the bar every two seconds (drawn at the idle pace, a few times a second).
+            float piece = barW * 0.3f;
+            float start = (float) (osGetTime() % 2000) / 2000.0f * (barW + piece) - piece;
+            float from = start < 0 ? 0 : start;
+            float to = start + piece > barW ? barW : start + piece;
+            if(to - from >= 4) {
+                screen_fill_round_rect(barX + from, barY, to - from, 4, 2, ink);
+            }
+        }
     }
 }
 
@@ -526,6 +704,23 @@ void widget_press_draw(const widget_press* p, int index, float x, float y, float
 }
 
 // ---- motion ----
+
+bool widget_repeat_step(widget_repeat* r, u32 key, bool* fresh) {
+    if(hidKeysDown() & key) {
+        r->key = key;
+        r->at = osGetTime() + 400;
+        *fresh = true;
+        return true;
+    }
+
+    if(r->key == key && (hidKeysHeld() & key) && osGetTime() >= r->at) {
+        r->at = osGetTime() + 90;
+        *fresh = false;
+        return true;
+    }
+
+    return false;
+}
 
 float widget_ease(u64 start, u32 duration) {
     u64 now = osGetTime();

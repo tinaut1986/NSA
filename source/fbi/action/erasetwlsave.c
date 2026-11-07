@@ -66,14 +66,6 @@ static Result action_erase_twl_save_write_dst(void* data, u32 handle, u32* bytes
     return spi_write_save(bytesWritten, buffer, (u32) offset, size);
 }
 
-static Result action_erase_twl_save_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_erase_twl_save_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_erase_twl_save_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(((erase_twl_save_data*) data)->title, task_draw_title_info, res, "Failed to erase save.");
     return true;
@@ -82,10 +74,7 @@ static bool action_erase_twl_save_error(void* data, u32 index, Result res, ui_vi
 static void action_erase_twl_save_update(ui_view* view, void* data, float* progress, char* text) {
     erase_twl_save_data* eraseData = (erase_twl_save_data*) data;
 
-    if(eraseData->eraseInfo.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &eraseData->eraseInfo.finished, eraseData->eraseInfo.cancelEvent)) {
         if(R_SUCCEEDED(eraseData->eraseInfo.result)) {
             prompt_display_notify("Success", "Save erased.", COLOR_TEXT, eraseData->title, task_draw_title_info, NULL);
         }
@@ -95,19 +84,7 @@ static void action_erase_twl_save_update(ui_view* view, void* data, float* progr
         return;
     }
 
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(eraseData->eraseInfo.cancelEvent);
-    }
-
-    *progress = eraseData->eraseInfo.currTotal != 0 ? (float) ((double) eraseData->eraseInfo.currProcessed / (double) eraseData->eraseInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"),
-             ui_get_display_size(eraseData->eraseInfo.currProcessed),
-             ui_get_display_size_units(eraseData->eraseInfo.currProcessed),
-             ui_get_display_size(eraseData->eraseInfo.currTotal),
-             ui_get_display_size_units(eraseData->eraseInfo.currTotal),
-             ui_get_display_size(eraseData->eraseInfo.bytesPerSecond),
-             ui_get_display_size_units(eraseData->eraseInfo.bytesPerSecond),
-             ui_get_display_eta(eraseData->eraseInfo.estimatedRemainingSeconds));
+    data_op_progress_bytes(&eraseData->eraseInfo, progress, text, false);
 }
 
 static void action_erase_twl_save_onresponse(ui_view* view, void* data, u32 response) {
@@ -156,9 +133,6 @@ void action_erase_twl_save(linked_list* items, list_item* selected) {
     data->eraseInfo.openDst = action_erase_twl_save_open_dst;
     data->eraseInfo.closeDst = action_erase_twl_save_close_dst;
     data->eraseInfo.writeDst = action_erase_twl_save_write_dst;
-
-    data->eraseInfo.suspend = action_erase_twl_save_suspend;
-    data->eraseInfo.restore = action_erase_twl_save_restore;
 
     data->eraseInfo.error = action_erase_twl_save_error;
 

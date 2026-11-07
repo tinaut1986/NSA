@@ -11,6 +11,7 @@
 #include "action/action.h"
 #include "../core/core.h"
 #include "../core/minire.h"
+#include "../core/speedlog.h"
 #include "../core/unarchive.h"
 
 #define SCRIPT_STEPS_MAX 40
@@ -518,7 +519,10 @@ static void script_files_thread(void* arg) {
             run->progress.done = 0;
             run->progress.total = 0;
             u32 extracted = 0;
+            // speed-log.txt: how long an extraction takes (its line says the time; no bytes are counted).
+            speedlog* trace = speedlog_begin("extract", s->c, 0);
             res = unarchive_extract(from, s->b, to, &run->progress, &extracted);
+            speedlog_end(trace, R_SUCCEEDED(res));
             // Nothing matched: the archive is not what the catalogue expects, and what should be installed is not there.
             if(R_SUCCEEDED(res) && extracted == 0) {
                 res = R_APP_BAD_DATA;
@@ -708,14 +712,9 @@ static void script_rmdir_answered(ui_view* view, void* data, u32 response) {
     script_run* run = (script_run*) data;
     if(response == PROMPT_YES) {
         FS_Archive sd = 0;
-        FS_Path* path = fs_make_path_utf8(run->steps[run->pc].b);
-        if(path != NULL && R_SUCCEEDED(fs_open_archive(&sd, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-            FSUSER_DeleteDirectoryRecursively(sd, *path);
+        if(R_SUCCEEDED(fs_open_archive(&sd, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
+            fs_delete_dir_recursively(sd, run->steps[run->pc].b);
             fs_close_archive(sd);
-        }
-
-        if(path != NULL) {
-            fs_free_path_utf8(path);
         }
     }
 

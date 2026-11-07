@@ -16,7 +16,8 @@ typedef struct {
     const char* options[POPOVER_OPTIONS_MAX];
     int icons[POPOVER_OPTIONS_MAX];   // -1 for none.
     // Only the icons show (a small chip each), and the one with the focus (or, with none, the one chosen) shows its
-    // label in a tooltip above it. Every option needs an icon.
+    // label in a tooltip above it. Every option needs an icon; popover_display sets it for any group whose options all
+    // have one.
     bool iconOnly;
     // A sort: the chosen option shows which way it goes (a chevron beside its icon), and choosing it again turns it
     // round (the caller's select does that; isReversed says which way it is).
@@ -56,6 +57,9 @@ void sheet_confirmed();
 void sheet_display(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data);
 // The same as a list: one row per action with its whole label; scrolls.
 void sheet_display_list(const char* title, u32 texture, const sheet_action* actions, u32 count, void* data);
+// A list whose header says what the actions are for: `kicker` (translated by the caller: "This folder", "File"...) in
+// the accent colour over `title` (the item's name), by `icon` in a tinted square.
+void sheet_display_list_for(const char* kicker, const char* title, u32 icon, const sheet_action* actions, u32 count, void* data);
 
 // A question answered from a list: the rows are the answers, each with its detail line.
 // The sheet closes before the chosen action runs. B and a touch above the list call `cancel` instead (the caller's "no"), so nothing is left unanswered.

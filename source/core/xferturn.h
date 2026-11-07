@@ -38,6 +38,7 @@ typedef struct {
     u64 total;          // 0 when not known.
     u32 kbs;            // Over the last seconds.
     u32 seconds;        // Since it began.
+    bool incoming;      // Coming in to the console (xferturn_incoming), else going out.
 } xferturn_status;
 
 void xferturn_init();
@@ -51,6 +52,8 @@ u32 xferturn_take(xfer_kind kind, const char* name, u64 total);
 void xferturn_progress(u32 ticket, u64 done);
 // The size, once known (a download learns it from the server's first answer).
 void xferturn_total(u32 ticket, u64 total);
+// Whether the data comes in to the console (an upload to it); a take starts as going out.
+void xferturn_incoming(u32 ticket, bool incoming);
 void xferturn_release(u32 ticket);
 // Whether `ticket` still holds the turn.
 bool xferturn_holds(u32 ticket);
@@ -59,3 +62,5 @@ void xferturn_get(xferturn_status* out);
 // "Busy: FTP, game.cia (45%)", in English (callers translate the start): false when nobody holds it.
 bool xferturn_describe(char* out, size_t size);
 const char* xferturn_kind_name(xfer_kind kind);
+// The bottom screen's toast (ui_set_status) for an FTP or web transfer: what, how far and how fast; false for none.
+bool xferturn_notice(char* out, size_t size, float* progress);

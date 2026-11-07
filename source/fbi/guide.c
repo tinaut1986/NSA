@@ -84,10 +84,10 @@ static const coach_step titles_steps[] = {
 static const coach_step files_steps[] = {
         OPEN("menu.sd", "Open SD card.", "tool.clipboard"),
         INFO("top", "The top screen shows the file with the focus: a CIA with its icon and sizes."),
-        INFO("list.selected", "\uE000 opens a folder, and a picture, a text or a song in its viewer. Holding a file opens its actions: install, copy, cut, rename, delete, send."),
+        INFO("list.selected", "\uE000 opens a folder, and a picture, a text or a song in its viewer. Hold \uE000 on a file (or keep your finger on it) to open its actions: install, copy, cut, rename, delete, send."),
         DO("tool.more", "\uE002 has the actions of the folder itself, such as installing all its CIAs. Open them.", KEY_X, true, "sheet"),
         DO("sheet", "Close them with \uE001.", KEY_B, false, "!sheet"),
-        INFO("tool.clipboard", "What you copy or cut waits here until you paste it."),
+        INFO("tool.clipboard", "What you copy or cut waits here until you paste it, even if you leave the SD card: you can paste it somewhere else, such as the CTR NAND."),
         DO(NULL, "\uE001 goes up a folder, and from the top back to the menu.", KEY_B, false, "v:Main menu"),
 };
 
@@ -155,6 +155,23 @@ static const coach_step cleanup_steps[] = {
         INFO("menu.advanced", "The console's own memories. NSA asks before going in: a wrong change there can stop the console from starting."),
 };
 
+static const coach_step mods_steps[] = {
+        INFO("menu.cleanup", "Game mods, in Cleanup: the mods in /luma/titles, and which games are no longer installed."),
+        INFO("menu.cleanup", "Deleting a game that has mods asks whether to delete them too."),
+};
+
+static const coach_step select_steps[] = {
+        OPEN("menu.sd", "Open SD card.", "tool.select"),
+        INFO("tool.select", "This box (or ) ticks several files and folders at once:  or a tap on each one."),
+        INFO("tool.select", "Then  copies, moves, installs or deletes all the ticked ones together, and  leaves."),
+        DO(NULL, " goes up a folder, and from the top back to the menu.", KEY_B, false, "v:Main menu"),
+};
+
+static const coach_step player_steps[] = {
+        INFO("menu.sd", "Music you play from the SD card goes on when you leave the player with ;  in the player stops it."),
+        INFO("menu.sd", "While it plays, a play icon shows in the top bar, and  in any folder of the SD card has Back to the player."),
+};
+
 static const coach_step updates_steps[] = {
         OPEN("menu.settings", "Open Settings.", "v:Settings"),
         REACH("settings.channel", "Go down to Update channel."),
@@ -178,6 +195,9 @@ static const guide_chapter chapters[] = {
         {"look", GUIDE_VERSION(0, 4), false, "basics", ICON_PALETTE, "Look and sound", "Themes, colours, music and language", look_steps, COUNT_OF(look_steps)},
         {"cleanup", GUIDE_VERSION(0, 2), false, "basics", ICON_STACK_2, "Cleanup and System", "Tickets, extra data, System and Advanced", cleanup_steps, COUNT_OF(cleanup_steps)},
         {"updates", GUIDE_VERSION(0, 3), false, "basics", ICON_REFRESH, "Updates and this guide", "New versions, and what each brings", updates_steps, COUNT_OF(updates_steps)},
+        {"select", GUIDE_VERSION(0, 8), false, "files", ICON_SQUARE_CHECK, "Selecting several", "Copy, move or delete many at once", select_steps, COUNT_OF(select_steps)},
+        {"player", GUIDE_VERSION(0, 8), false, "files", ICON_MUSIC, "Music in the background", "Keep listening while you browse", player_steps, COUNT_OF(player_steps)},
+        {"mods", GUIDE_VERSION(0, 8), false, "basics", ICON_FOLDER, "Game mods", "LayeredFS mods of games you deleted", mods_steps, COUNT_OF(mods_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)
@@ -518,10 +538,8 @@ static void guide_draw_row(void* data, list_item* item, float x, float y, float 
     const theme_current* t = theme();
     u32 row = guide_row_of(item);
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, NULL);
 
     icon_id icon = row == ROW_UNSEEN ? ICON_PLAYER_PLAY : row == ROW_RESET ? ICON_REFRESH : chapters[row].icon;
     screen_draw_icon(icon, x + 9, y + (height - 16) / 2, 16, selected ? t->onAccent : t->accent);

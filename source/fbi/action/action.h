@@ -9,6 +9,21 @@ typedef struct ui_view_s ui_view;
 
 #define INSTALL_URLS_MAX 128
 
+// Deleting one item, asked in red: "Deleting..." while `run` deletes it, then it leaves `items` (NULL: `selected` is a
+// copy made for the action, freed in any case) and a notice says so (deleteone.c). The texts are English (translated).
+typedef struct {
+    const char* question;
+    const char* progress;
+    const char* failure;
+    const char* success;
+    const char* allocError;
+    void (*drawInfo)(ui_view* view, void* info, float x1, float y1, float x2, float y2);   // The item's info (item->data).
+    Result (*run)(list_item* item);
+    void (*freeItem)(list_item* item);
+} action_delete_one_def;
+
+void action_delete_one(const action_delete_one_def* def, linked_list* items, list_item* selected);
+
 void action_browse_boss_ext_save_data(linked_list* items, list_item* selected);
 void action_browse_user_ext_save_data(linked_list* items, list_item* selected);
 void action_delete_ext_save_data(linked_list* items, list_item* selected);
@@ -24,6 +39,8 @@ void action_install_cia_delete_now(linked_list* items, list_item* selected);
 void action_install_cia_paths_now(const char* paths, bool delete);
 void action_install_cias(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_cias_delete(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
+// The CIAs of the folder `selected` that `filter` keeps (the Files screen's selection).
+void action_install_cias_selected(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData, bool delete);
 void action_install_ticket(linked_list* items, list_item* selected);
 void action_install_ticket_delete(linked_list* items, list_item* selected);
 void action_install_tickets(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
@@ -33,6 +50,8 @@ void action_delete_dir(linked_list* items, list_item* selected);
 void action_delete_dir_contents(linked_list* items, list_item* selected);
 void action_delete_dir_cias(linked_list* items, list_item* selected);
 void action_delete_dir_tickets(linked_list* items, list_item* selected);
+// The items of the folder `selected` that `filter` keeps (the Files screen's selection), folders with all they hold.
+void action_delete_selected(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_new_folder(linked_list* items, list_item* selected);
 void action_paste_contents(linked_list* items, list_item* selected);
 // Like it, but a cut item on the same medium (`archiveId`) is renamed into the folder instead of copied.

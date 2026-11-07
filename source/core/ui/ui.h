@@ -39,6 +39,7 @@ void ui_wake();
 // What the top bar shows besides the clock: `activity` gives UI_STATUS_* bits.
 #define UI_STATUS_FTP_BUSY 1   // The FTP server is moving data: its icon blinks.
 #define UI_STATUS_WEB 2        // The web server runs: its icon is shown.
+#define UI_STATUS_PLAYER 4     // The audio player plays in the background: a note.
 
 void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* out, size_t size, float* progress), u32 (*activity)());
 
@@ -58,6 +59,8 @@ typedef struct ui_description_s {
 } ui_description;
 
 const char* ui_get_display_eta(u32 seconds);
+// A size in short form: "512 B", "4.7 KiB".
+void ui_format_size(char* out, size_t size, u64 bytes);
 double ui_get_display_size(u64 size);
 const char* ui_get_display_size_units(u64 size);
 

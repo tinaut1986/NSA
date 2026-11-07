@@ -38,6 +38,7 @@ static const mainmenu_entry cleanup[] = {
         {ICON_TICKET, "Tickets", "Installed tickets: see which are in use and delete the ones you no longer need.", "Licences of titles", tickets_open, SYSTEM_MEDIATYPE_CTR_NAND, -1},
         {ICON_CLOCK, "Pending titles", "Titles left half installed. Deleting them frees their space.", "Half-finished installs", pendingtitles_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
         {ICON_DATABASE, "Extra save data", "Extra save data of titles: browse, back up or delete it.", "Games' extra data", extsavedata_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
+        {ICON_FOLDER, "Game mods", "Mods in /luma/titles (LayeredFS): see which games are no longer installed and delete their mods.", "LayeredFS in /luma/titles", mods_open, SYSTEM_MEDIATYPE_SD, -1},
 };
 
 static const mainmenu_entry advanced[] = {
@@ -64,7 +65,7 @@ static const mainmenu_entry entries[] = {
         {ICON_APPS, "Titles", "Installed titles: launch them, delete them, back up their saves or extract their icons.", NULL, titles_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
         {ICON_WORLD_DOWNLOAD, "Remote install", "Install from the network: scan a QR code, type a URL or receive URLs from a computer.", NULL, remoteinstall_open, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_PACKAGE, "Store", "Homebrew from Universal-DB and the stores you add: browse them and install or download apps.", NULL, store_open, SYSTEM_MEDIATYPE_SD, -1},
-        {ICON_STACK_2, "Cleanup and data", "Licences, half-finished installs and the games' extra data.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, cleanup, COUNT_OF(cleanup), false},
+        {ICON_STACK_2, "Cleanup and data", "Licences, half-finished installs, the games' extra data and mods.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, cleanup, COUNT_OF(cleanup), false},
         {ICON_ALERT_TRIANGLE, "Advanced", "The console's own memories and system data. Handle with care.", NULL, NULL, SYSTEM_MEDIATYPE_CTR_NAND, SYSTEM_MEDIATYPE_TWL_NAND, NULL, advanced, COUNT_OF(advanced), true},
         {ICON_3DS, "System", "The console at a glance: model, versions, network, battery and space.", NULL, NULL, -1, -1, systeminfo_draw_top, details, COUNT_OF(details), false},
         {ICON_SETTINGS, "Settings", "Theme, colours, language, updates and the FTP server.", NULL, settingsmenu_open, -1, -1},
@@ -462,11 +463,9 @@ static void mainmenu_draw_storage(const mainmenu_entry* entry, float x1, float y
 static void mainmenu_group_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     const theme_current* t = theme();
     const mainmenu_entry* entry = (const mainmenu_entry*) item->data;
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     screen_draw_icon(entry->icon, x + 9, y + (height - 16) / 2, 16, selected ? t->onAccent : t->accent);
     float tx = x + 33;

@@ -178,6 +178,20 @@ ui_view* info_display(const char* name, const char* info, bool bar, void* data, 
     return view;
 }
 
+bool info_task_finished(ui_view* view, volatile bool* finished, Handle cancelEvent) {
+    if(*finished) {
+        ui_pop();
+        info_destroy(view);
+        return true;
+    }
+
+    if(hidKeysDown() & KEY_B) {
+        svcSignalEvent(cancelEvent);
+    }
+
+    return false;
+}
+
 void info_destroy(ui_view* view) {
     if(view != NULL) {
         free(view->data);

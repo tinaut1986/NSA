@@ -59,7 +59,8 @@ static Result task_populate_ext_save_data_from(populate_ext_save_data_data* data
     Result res = 0;
 
     u32 extSaveDataCount = 0;
-    u64 extSaveDataIds[MAX_EXT_SAVE_DATA];
+    // Zeroed: Azahar counts its ext save data without writing their IDs.
+    u64 extSaveDataIds[MAX_EXT_SAVE_DATA] = {0};
     if(R_SUCCEEDED(res = FSUSER_EnumerateExtSaveData(&extSaveDataCount, MAX_EXT_SAVE_DATA, mediaType, 8, mediaType == MEDIATYPE_NAND, (u8*) extSaveDataIds))) {
         qsort(extSaveDataIds, extSaveDataCount, sizeof(u64), task_populate_ext_save_data_compare_ids);
 
@@ -162,19 +163,7 @@ void task_free_ext_save_data(list_item* item) {
 }
 
 void task_clear_ext_save_data(linked_list* items) {
-    if(items == NULL) {
-        return;
-    }
-
-    linked_list_iter iter;
-    linked_list_iterate(items, &iter);
-
-    while(linked_list_iter_has_next(&iter)) {
-        list_item* item = (list_item*) linked_list_iter_next(&iter);
-
-        linked_list_iter_remove(&iter);
-        task_free_ext_save_data(item);
-    }
+    task_clear_list(items, task_free_ext_save_data);
 }
 
 Result task_populate_ext_save_data(populate_ext_save_data_data* data) {
@@ -184,25 +173,5 @@ Result task_populate_ext_save_data(populate_ext_save_data_data* data) {
 
     task_clear_ext_save_data(data->items);
 
-    data->finished = false;
-    data->result = 0;
-    data->cancelEvent = 0;
-
-    Result res = 0;
-    if(R_SUCCEEDED(res = svcCreateEvent(&data->cancelEvent, RESET_STICKY))) {
-        if(threadCreate(task_populate_ext_save_data_thread, data, 0x10000, 0x19, 1, true) == NULL) {
-            res = R_APP_THREAD_CREATE_FAILED;
-        }
-    }
-
-    if(R_FAILED(res)) {
-        data->finished = true;
-
-        if(data->cancelEvent != 0) {
-            svcCloseHandle(data->cancelEvent);
-            data->cancelEvent = 0;
-        }
-    }
-
-    return res;
+    return task_start_populate(task_populate_ext_save_data_thread, data, &data->cancelEvent, &data->finished, &data->result);
 }

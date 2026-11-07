@@ -12,7 +12,7 @@ endif
 
 BUILD := build
 
-TESTS := update_manifest_test relstream_test foldermanifest_test
+TESTS := update_manifest_test relstream_test foldermanifest_test qrencode_test
 
 .PHONY: all clean
 all: $(addprefix $(BUILD)/,$(TESTS))
@@ -29,6 +29,11 @@ $(BUILD)/relstream_test: relstream_test.c ../source/fbi/relstream.c ../source/fb
 $(BUILD)/foldermanifest_test: foldermanifest_test.c ../source/fbi/foldermanifest.c ../source/fbi/foldermanifest.h
 	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -o $@ foldermanifest_test.c ../source/fbi/foldermanifest.c
+
+# The QR encoder, checked by reading its codes back with quirc (the camera's decoder).
+$(BUILD)/qrencode_test: qrencode_test.c ../source/core/qrencode.c ../source/core/qrencode.h
+	@mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -w -o $@ qrencode_test.c ../source/core/qrencode.c ../source/libs/quirc/*.c -lm
 
 clean:
 	rm -rf $(BUILD)

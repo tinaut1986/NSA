@@ -5,6 +5,7 @@
 #include <3ds.h>
 
 #include "resources.h"
+#include "chain.h"
 #include "section.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -30,6 +31,7 @@ typedef struct {
     bool showSD;
     bool showNAND;
     titles_sort sort;
+    bool sortReverse;   // The sort turned round (choosing the same sort again).
     bool group;
 
     // Hidden in place (no new listing): by kind (title_kind) and by region.
@@ -156,17 +158,6 @@ static bool titles_visible(void* data, list_item* item) {
     return !listData->group || !info->linked || !listData->showKind[TITLE_KIND_GAME];
 }
 
-static void titles_draw_count_badge(u32 count, float x, float y) {
-    const theme_current* t = theme();
-    char text[8];
-    snprintf(text, sizeof(text), "%lu", count);
-    float r = 8;
-    screen_fill_circle(x, y, r + 1.5f, t->palette->surface);
-    screen_fill_circle(x, y, r, t->accent);
-    float w = widget_text_width(text, WIDGET_SMALL_SCALE);
-    screen_draw_text(text, x - w / 2, y - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->onAccent);
-}
-
 // ---- items ----
 
 static void titles_draw_icon(title_info* info, float x, float y, float size) {
@@ -174,52 +165,31 @@ static void titles_draw_icon(title_info* info, float x, float y, float size) {
     if(info->hasMeta && info->meta.texture != 0) {
         screen_draw_texture(info->meta.texture, x, y, size, size);
     } else {
-        screen_fill_round_rect(x, y, size, size, size / 6, t->accentSoft);
-        screen_draw_icon(info->twl ? ICON_DEVICE_FLOPPY : ICON_APPS, x + size / 4, y + size / 4, size / 2, t->accent);
+        widget_icon_placeholder(x, y, size, info->twl ? ICON_DEVICE_FLOPPY : ICON_APPS, t->accentSoft, t->accent);
     }
-}
-
-// While a title loads: grey blocks where its icon and text will be.
-static void titles_draw_skeleton(float x, float y, float w, float h, float icon, bool selected) {
-    const theme_current* t = theme();
-    u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;
-    screen_fill_round_rect(x, y, icon, icon, icon / 6, block);
-    if(w > icon + 30) {
-        float tx = x + icon + 8;
-        screen_fill_round_rect(tx, y + 4, (w - icon - 8) * 0.55f, 8, 4, block);
-        screen_fill_round_rect(tx, y + h - 12, (w - icon - 8) * 0.35f, 6, 3, block);
-    }
-}
-
-// A title's contents fade in once it has loaded.
-static void titles_fade_in(title_info* info) {
-    float e = widget_ease(info->loadedTime, 250);
-    screen_set_content_motion(0, 0, (u8) (e * 0xFF));
 }
 
 static void titles_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     const theme_current* t = theme();
     title_info* info = (title_info*) item->data;
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     if(!info->loaded) {
-        titles_draw_skeleton(x + 5, y + 5, width - 18, height - 10, height - 10, selected);
+        widget_skeleton(x + 5, y + 5, width - 18, height - 10, height - 10, selected);
         return;
     }
 
-    titles_fade_in(info);
+    widget_fade_in(info->loadedTime);
 
     float icon = height - 10;
     titles_draw_icon(info, x + 5, y + 5, icon);
 
     titles_data* listData = (titles_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
-        titles_draw_count_badge(info->linkedCount, x + 5 + icon - 1, y + 7);
+        widget_count_badge(info->linkedCount, x + 5 + icon - 1, y + 7);
     }
 
     float tx = x + 5 + icon + 8;
@@ -230,8 +200,7 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
     float nameRight = right;
     if(kind != TITLE_KIND_GAME) {
         const char* tag = titles_kind_name(kind);
-        float tagW = widget_text_width(tag, WIDGET_SMALL_SCALE) + 12;
-        widget_badge(right - tagW, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
+        float tagW = widget_badge_right(right, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
         nameRight = right - tagW - 6;
     }
 
@@ -253,42 +222,27 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
 }
 
 static void titles_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
-    const theme_current* t = theme();
     title_info* info = (title_info*) item->data;
 
-    if(selected) {
-        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
-        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
-    } else {
-        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
-    }
+    widget_tile_frame(x, y, size, selected);
 
     float icon = size - 8;
     if(!info->loaded) {
-        titles_draw_skeleton(x + 4, y + 4, icon, icon, icon, selected);
+        widget_skeleton(x + 4, y + 4, icon, icon, icon, selected);
         return;
     }
 
-    titles_fade_in(info);
+    widget_fade_in(info->loadedTime);
     titles_draw_icon(info, x + 4, y + 4, icon);
     screen_set_content_motion(0, 0, 0xFF);
 
     titles_data* listData = (titles_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
-        titles_draw_count_badge(info->linkedCount, x + size - 4, y + 4);
+        widget_count_badge(info->linkedCount, x + size - 4, y + 4);
     }
 }
 
 // ---- top screen: the selected title ----
-
-static void titles_draw_cell(float x, float y, float w, const char* label, const char* value) {
-    const theme_current* t = theme();
-    float h = 34;
-    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
-    screen_draw_text(label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
-    float scale = widget_text_width(value, WIDGET_TEXT_SCALE) <= w - 14 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
-    widget_text_fit(value, x + 8, y + 3 + widget_text_height(WIDGET_SMALL_SCALE), scale, t->palette->text, w - 14);
-}
 
 // The updates and DLC of a game, as badges under its details.
 static void titles_draw_linked(linked_list* items, title_info* game, float x, float y, float right) {
@@ -346,7 +300,7 @@ static void titles_draw_details(linked_list* items, list_item* selected, float x
     // Not loaded yet: the card's place, with a word on why it is empty.
     if(!info->loaded) {
         widget_card(x1 + 10, y1 + 10, x2 - x1 - 20, 76);
-        titles_draw_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
+        widget_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
         widget_text_centered(_("Loading..."), x1, x2, y1 + 110, WIDGET_TEXT_SCALE, t->palette->textMuted);
         return;
     }
@@ -399,12 +353,12 @@ static void titles_draw_details(linked_list* items, list_item* selected, float x
     // The ID needs more room than the version and size beside it.
     float idW = cellW * 1.4f;
     float smallW = (cardW - idW - 2 * gap) / 2;
-    titles_draw_cell(cardX, row1, idW, _("Title ID"), id);
-    titles_draw_cell(cardX + idW + gap, row1, smallW, _("Version"), version);
-    titles_draw_cell(cardX + idW + gap + smallW + gap, row1, smallW, _("Size"), size);
-    titles_draw_cell(cardX, row2, cellW, _("Product code"), info->productCode);
-    titles_draw_cell(cardX + cellW + gap, row2, cellW, _("Region"), region);
-    titles_draw_cell(cardX + 2 * (cellW + gap), row2, cellW, _("Type"), titles_kind_name(title_kind_of(info->titleId)));
+    widget_cell(cardX, row1, idW, _("Title ID"), id);
+    widget_cell(cardX + idW + gap, row1, smallW, _("Version"), version);
+    widget_cell(cardX + idW + gap + smallW + gap, row1, smallW, _("Size"), size);
+    widget_cell(cardX, row2, cellW, _("Product code"), info->productCode);
+    widget_cell(cardX + cellW + gap, row2, cellW, _("Region"), region);
+    widget_cell(cardX + 2 * (cellW + gap), row2, cellW, _("Type"), titles_kind_name(title_kind_of(info->titleId)));
 
     // Left: what hangs from the game; right: the space left on each medium.
     float half = cardW / 2;
@@ -695,6 +649,35 @@ static void titles_manage_save(void* data) { titles_data_open(data, SAVE_KIND_SA
 static void titles_manage_ext(void* data) { titles_data_open(data, SAVE_KIND_EXT); }
 static void titles_manage_boss(void* data) { titles_data_open(data, SAVE_KIND_BOSS); }
 
+// ---- the game's mods (/luma/titles, LayeredFS) ----
+
+static void titles_mods_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    task_draw_title_info(view, ((titles_data*) data)->actionSelected->data, x1, y1, x2, y2);
+}
+
+static void titles_delete_mods_answer(ui_view* view, void* data, u32 response) {
+    if(response != PROMPT_YES) {
+        return;
+    }
+
+    titles_data* listData = (titles_data*) data;
+    Result res = task_mods_delete(((title_info*) listData->actionSelected->data)->titleId);
+    if(R_FAILED(res)) {
+        error_display_res(listData, titles_mods_draw_top, res, "Failed to delete the mods.");
+    } else {
+        prompt_display_notify("Success", "Mods deleted.", COLOR_TEXT, NULL, NULL, NULL);
+    }
+}
+
+static void titles_delete_mods(void* data) {
+    titles_data* listData = (titles_data*) data;
+    title_info* info = (title_info*) listData->actionSelected->data;
+
+    char message[256];
+    snprintf(message, sizeof(message), "%s\n" MODS_ROOT "%016llX/", _("Delete these mods? The game stays, without them."), info->titleId);
+    prompt_display_warning("Confirmation", message, COLOR_TEXT, data, titles_mods_draw_top, titles_delete_mods_answer);
+}
+
 static void titles_actions_open(titles_data* data, linked_list* items, list_item* selected) {
     title_info* info = (title_info*) selected->data;
     data->actionItems = items;
@@ -736,6 +719,11 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
         actions[count++] = (sheet_action) {ICON_TRASH, _("Erase save"), true, titles_erase_save};
     }
 
+    // Its mods in /luma/titles, if it has any (a game card's too: LayeredFS works for it).
+    if(!info->twl && task_mods_exist(info->titleId)) {
+        actions[count++] = (sheet_action) {ICON_TRASH, _("Delete mods"), true, titles_delete_mods};
+    }
+
     if(!card) {
         actions[count++] = (sheet_action) {ICON_TRASH, _("Delete"), true, titles_delete};
         actions[count++] = (sheet_action) {ICON_TRASH_X, _("Delete with ticket"), true, titles_delete_ticket};
@@ -747,44 +735,10 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
 
 // ---- tools: view, filter and sort, search ----
 
-static bool titles_is_rows(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_ROWS;
-}
-
-static bool titles_is_grid(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_GRID;
-}
-
 static void titles_store(titles_data* data);
 
-// The tiles of the grid in the next size (and the grid itself, when the rows were showing).
-static void titles_next_tile_size(ui_view* view) {
-    titles_settings* saved = &settings_get()->titles;
-    saved->tile = (saved->tile + 1) % LIST_TILE_LEVELS;
-    if(list_get_mode(view) != LIST_MODE_GRID) {
-        list_set_mode(view, LIST_MODE_GRID);
-        saved->grid = true;
-    }
-
-    list_set_tile_size(view, list_tile_size_of(saved->tile));
-    settings_save();
-}
-
-static bool titles_tile_active(ui_view* view, void* data) {
-    return false;
-}
-
-static void titles_tile_press(ui_view* view, void* data) {
-    titles_next_tile_size(view);
-}
-
-static void titles_show_rows(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_ROWS);
-    titles_store((titles_data*) data);
-}
-
-static void titles_show_grid(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_GRID);
+// The grid / rows mode is kept in the settings.
+static void titles_view_changed(void* data) {
     titles_store((titles_data*) data);
 }
 
@@ -830,6 +784,7 @@ static void titles_store(titles_data* data) {
 
     saved->group = data->group;
     saved->sort = (u32) data->sort;
+    saved->sortReverse = data->sortReverse;
     saved->grid = data->view != NULL && list_get_mode(data->view) == LIST_MODE_GRID;
     settings_save();
 }
@@ -849,6 +804,7 @@ static void titles_restore(titles_data* data) {
 
     data->group = saved->group;
     data->sort = saved->sort <= SORT_SIZE ? (titles_sort) saved->sort : SORT_NAME;
+    data->sortReverse = saved->sortReverse;
 }
 
 static void titles_popover_select(void* data, u32 group, u32 option) {
@@ -871,9 +827,12 @@ static void titles_popover_select(void* data, u32 group, u32 option) {
         case 3:
             listData->group = option == 0;
             break;
+        // Sorting needs no new listing either: the titles already loaded are sorted again in place.
         default:
+            listData->sortReverse = listData->sort == (titles_sort) option ? !listData->sortReverse : false;
             listData->sort = (titles_sort) option;
-            relist = true;
+            listData->sorted = false;
+            listData->sortedLoaded = (u32) -1;
             break;
     }
 
@@ -884,166 +843,70 @@ static void titles_popover_select(void* data, u32 group, u32 option) {
     titles_store(listData);
 }
 
+static bool titles_popover_is_reversed(void* data, u32 group, u32 option) {
+    titles_data* listData = (titles_data*) data;
+    return group == 4 && listData->sort == (titles_sort) option && listData->sortReverse;
+}
+
 static void titles_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 5,
             .groups = {
                     {_("Show"), true, 3, {"SD", "NAND", _("Game card")}, {ICON_DEVICE_SD_CARD, ICON_CPU, ICON_DEVICE_GAMEPAD_2}},
                     // In title_kind's order.
-                    {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {-1, -1, -1, -1, -1, -1}},
-                    {_("Region"), true, 5, {_("Region free"), _("Europe"), _("America"), _("Japan"), _("Other")}, {-1, -1, -1, -1, -1}},
-                    {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {-1, -1}},
-                    {_("Sort by"), false, 3, {_("Name"), "ID", _("Size")}, {ICON_ABC, ICON_KEY, ICON_DATABASE}, true}
+                    {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {ICON_DEVICE_GAMEPAD_2, ICON_REFRESH, ICON_PUZZLE, ICON_FLASK, ICON_DEVICE_MOBILE, ICON_SETTINGS}},
+                    {_("Region"), true, 5, {_("Region free"), _("Europe"), _("America"), _("Japan"), _("Other")}, {ICON_WORLD, ICON_FLAG_EU, ICON_FLAG_US, ICON_FLAG_JP, ICON_DOTS}},
+                    {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {ICON_CHECK, ICON_X}},
+                    {_("Sort by"), false, 3, {_("Name"), "ID", _("Size")}, {ICON_ABC, ICON_KEY, ICON_DATABASE}, true, true}
             },
             .isOn = titles_popover_is_on,
-            .select = titles_popover_select
+            .select = titles_popover_select,
+            .isReversed = titles_popover_is_reversed
     };
 
     popover_display(&def, data);
 }
 
-static bool titles_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
+// ---- a game's chain: the game, its update and its DLC (chain.c) ----
+
+static u64 titles_chain_id(list_item* item) {
+    return ((title_info*) item->data)->titleId;
 }
 
-static void titles_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    titles_data* listData = (titles_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
+static void titles_chain_draw_row(list_item* item, float x, float y, float width, float height, bool selected) {
+    titles_draw_row(NULL, item, x, y, width, height, selected);
 }
 
-static void titles_search_open(ui_view* view, void* data) {
-    osk_display(_("Search titles"), list_get_search(view), 64, 0, data, titles_search_done);
-}
-
-// ---- a game's chain: the game, its update and its DLC ----
-
-typedef struct {
-    titles_data* parent;
-    linked_list* parentItems;
-    list_item* game;
-    char name[LIST_ITEM_NAME_MAX];   // The game's item may be deleted while this is open.
-} titles_chain_data;
-
-// Chain rows wrap the main list's items (item->data), which keep owning the titles.
-static list_item* titles_chain_target(list_item* wrapper) {
-    return (list_item*) wrapper->data;
-}
-
-static void titles_chain_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
-    titles_draw_row(NULL, titles_chain_target(item), x, y, width, height, selected);
-}
-
-static void titles_chain_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
-    titles_chain_data* chain = (titles_chain_data*) data;
+static void titles_chain_draw_top(ui_view* view, void* parent, linked_list* parentItems, list_item* item, float x1, float y1, float x2, float y2) {
     coach_anchor("titles.chain", x1, y1, x2 - x1, y2 - y1, false);   // A game's updates and DLC are open (guide.c).
-    titles_draw_details(chain->parentItems, selected != NULL ? titles_chain_target(selected) : NULL, x1, y1, x2, y2);
+    titles_draw_details(parentItems, item, x1, y1, x2, y2);
 }
 
-static void titles_chain_close(ui_view* view, linked_list* items, titles_chain_data* chain) {
-    ui_pop();
-
-    linked_list_iter iter;
-    linked_list_iterate(items, &iter);
-    while(linked_list_iter_has_next(&iter)) {
-        free(linked_list_iter_next(&iter));
-        linked_list_iter_remove(&iter);
-    }
-
-    list_destroy(view);
-    free(chain);
+static void titles_chain_actions(void* parent, linked_list* parentItems, list_item* item) {
+    titles_actions_open((titles_data*) parent, parentItems, item);
 }
 
-static void titles_chain_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
-    titles_chain_data* chain = (titles_chain_data*) data;
-
-    view->info = _("\uE000 actions   \uE001 back");
-
-    if(hidKeysDown() & KEY_B) {
-        titles_chain_close(view, items, chain);
-        return;
-    }
-
-    if(linked_list_size(items) == 0) {
-        // The game first, then its update, then its DLC.
-        title_info* game = (title_info*) chain->game->data;
-        for(int pass = 0; pass < 3; pass++) {
-            linked_list_iter iter;
-            linked_list_iterate(chain->parentItems, &iter);
-            while(linked_list_iter_has_next(&iter)) {
-                list_item* item = (list_item*) linked_list_iter_next(&iter);
-                title_info* info = (title_info*) item->data;
-                title_kind kind = title_kind_of(info->titleId);
-                bool wanted = pass == 0 ? item == chain->game : pass == 1 ? kind == TITLE_KIND_UPDATE : kind == TITLE_KIND_DLC;
-                if(!wanted || (u32) info->titleId != (u32) game->titleId) {
-                    continue;
-                }
-
-                list_item* wrapper = (list_item*) calloc(1, sizeof(list_item));
-                if(wrapper != NULL) {
-                    string_copy(wrapper->name, item->name, sizeof(wrapper->name));
-                    wrapper->color = item->color;
-                    wrapper->data = item;
-                    linked_list_add(items, wrapper);
-                }
-            }
-        }
-    } else {
-        // An action may have deleted titles from the main list: drop their rows.
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            list_item* wrapper = (list_item*) linked_list_iter_next(&iter);
-            if(linked_list_index_of(chain->parentItems, titles_chain_target(wrapper)) < 0) {
-                free(wrapper);
-                linked_list_iter_remove(&iter);
-            }
-        }
-
-        if(linked_list_size(items) == 0) {
-            titles_chain_close(view, items, chain);
-            return;
-        }
-
-        selected = selected != NULL && linked_list_index_of(items, selected) >= 0 ? selected : NULL;
-    }
-
-    if(selected != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
-        titles_actions_open(chain->parent, chain->parentItems, titles_chain_target(selected));
-    }
-}
+static const chain_def titles_chain = {
+        .rowHeight = ROW_HEIGHT,
+        .titleId = titles_chain_id,
+        .drawRow = titles_chain_draw_row,
+        .drawTop = titles_chain_draw_top,
+        .actions = titles_chain_actions,
+        .allocError = "Failed to allocate title chain."
+};
 
 static void titles_chain_open(titles_data* data, linked_list* items, list_item* game) {
-    titles_chain_data* chain = (titles_chain_data*) calloc(1, sizeof(titles_chain_data));
-    if(chain == NULL) {
-        error_display(NULL, NULL, "Failed to allocate title chain.");
-        return;
-    }
-
-    chain->parent = data;
-    chain->parentItems = items;
-    chain->game = game;
-    string_copy(chain->name, game->name, sizeof(chain->name));
-
-    ui_view* view = list_display(chain->name, _("\uE000 actions   \uE001 back"), chain, titles_chain_update, titles_chain_draw_top);
-    if(view == NULL) {
-        free(chain);
-        return;
-    }
-
-    list_style style = {
-            .rowHeight = ROW_HEIGHT,
-            .drawRow = titles_chain_draw_row
-    };
-    list_set_style(view, &style);
-    // The back arrow (and the count) of the other lists.
-    list_show_title_bar(view);
+    chain_open(&titles_chain, data, items, game);
 }
 
 // ---- the list ----
 
 static int titles_compare(void* data, const void* p1, const void* p2);
+
+// Loaded, for the count of the title bar.
+static bool titles_item_ready(list_item* item) {
+    return ((title_info*) item->data)->loaded;
+}
 
 static void titles_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     titles_data* listData = (titles_data*) data;
@@ -1053,32 +916,17 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
     titles_group(listData, items);
 
     // How many have loaded, for the title bar.
-    u32 loaded = 0;
-    u32 total = 0;
-    if(!listData->populateData.finished) {
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            total++;
-            loaded += ((title_info*) ((list_item*) linked_list_iter_next(&iter))->data)->loaded ? 1 : 0;
-        }
-    }
-
-    list_set_progress(view, loaded, total);
+    u32 loaded = list_count_progress(view, items, !listData->populateData.finished, titles_item_ready);
     view->info = _(" actions    view    filter    search    back");
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         ui_pop();
@@ -1091,30 +939,26 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
     }
 
     if(hidKeysDown() & KEY_SELECT) {
-        titles_next_tile_size(view);
+        list_next_tile_size(view);
     }
 
     if(hidKeysDown() & KEY_Y) {
-        list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
-        titles_store(listData);
+        list_toggle_mode(view);
     }
 
-    if(hidKeysDown() & (KEY_L | KEY_SELECT)) {
+    if(hidKeysDown() & KEY_L) {
         titles_filter_open(view, listData);
         return;
     }
 
     if(hidKeysDown() & KEY_R) {
-        titles_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
     if(!listData->populated || (hidKeysDown() & KEY_X)) {
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         listData->populateData.items = items;
@@ -1179,6 +1023,7 @@ static bool titles_filter(void* data, u64 titleId, FS_MediaType mediaType) {
 
 static int titles_compare(void* data, const void* p1, const void* p2) {
     titles_data* listData = (titles_data*) data;
+    int dir = listData->sortReverse ? -1 : 1;
 
     list_item* info1 = (list_item*) p1;
     list_item* info2 = (list_item*) p2;
@@ -1205,12 +1050,12 @@ static int titles_compare(void* data, const void* p1, const void* p2) {
         u64 id1 = title1->titleId;
         u64 id2 = title2->titleId;
 
-        return id1 > id2 ? 1 : id1 < id2 ? -1 : 0;
+        return dir * (id1 > id2 ? 1 : id1 < id2 ? -1 : 0);
     } else if(listData->sort == SORT_SIZE) {
         u64 size1 = title1->installedSize;
         u64 size2 = title2->installedSize;
 
-        return size1 > size2 ? -1 : size1 < size2 ? 1 : 0;
+        return dir * (size1 > size2 ? -1 : size1 < size2 ? 1 : 0);
     } else {
         bool title1HasName = title1->hasMeta && !string_is_empty(title1->meta.shortDescription);
         bool title2HasName = title2->hasMeta && !string_is_empty(title2->meta.shortDescription);
@@ -1220,7 +1065,7 @@ static int titles_compare(void* data, const void* p1, const void* p2) {
         } else if(!title1HasName && title2HasName) {
             return 1;
         } else {
-            return strncasecmp(info1->name, info2->name, sizeof(info1->name));
+            return dir * strncasecmp(info1->name, info2->name, sizeof(info1->name));
         }
     }
 }
@@ -1263,9 +1108,8 @@ void titles_open() {
     list_set_long_press(view, titles_long_press);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, titles_search_active, titles_search_open);
+    list_add_search_tool(view, _("Search titles"));
     list_add_tool(view, ICON_FILTER, titles_filter_active, titles_filter_open);
-    list_add_tool(view, ICON_ZOOM_IN, titles_tile_active, titles_tile_press);
-    list_add_tool(view, ICON_LAYOUT_GRID, titles_is_grid, titles_show_grid);
-    list_add_tool(view, ICON_LIST, titles_is_rows, titles_show_rows);
+    list_add_tile_tool(view, &settings_get()->titles.tile);
+    list_add_view_tools(view, titles_view_changed);
 }

@@ -6,6 +6,7 @@
 #include <3ds.h>
 
 #include "resources.h"
+#include "chain.h"
 #include "section.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -34,6 +35,7 @@ typedef struct {
     bool showNAND;
     bool group;
     tickets_sort sort;
+    bool sortReverse;   // The sort turned round (choosing the same sort again).
 
     bool populated;
     bool sorted;
@@ -52,7 +54,6 @@ typedef struct {
 } tickets_data;
 
 #define ROW_HEIGHT 40
-#define TILE_SIZE 50
 
 static const char* tickets_kind_name(u64 titleId) {
     switch(title_kind_of(titleId)) {
@@ -123,6 +124,7 @@ static void tickets_store(tickets_data* data) {
     saved->media = (data->showSD ? 1 : 0) | (data->showNAND ? 2 : 0);
     saved->group = data->group;
     saved->sort = (u32) data->sort;
+    saved->sortReverse = data->sortReverse;
     saved->grid = data->view != NULL && list_get_mode(data->view) == LIST_MODE_GRID;
     settings_save();
 }
@@ -139,6 +141,7 @@ static void tickets_restore(tickets_data* data) {
     data->showNAND = (saved->media & 2) != 0;
     data->group = saved->group;
     data->sort = saved->sort <= SORT_ID ? (tickets_sort) saved->sort : SORT_NAME;
+    data->sortReverse = saved->sortReverse;
 }
 
 // State, kind and memory filters, and grouping: update and DLC tickets whose
@@ -168,41 +171,12 @@ static bool tickets_visible(void* data, list_item* item) {
 
 // ---- items ----
 
-static void tickets_draw_count_badge(u32 count, float x, float y) {
-    const theme_current* t = theme();
-    char text[8];
-    snprintf(text, sizeof(text), "%lu", count);
-    float r = 8;
-    screen_fill_circle(x, y, r + 1.5f, t->palette->surface);
-    screen_fill_circle(x, y, r, t->accent);
-    float w = widget_text_width(text, WIDGET_SMALL_SCALE);
-    screen_draw_text(text, x - w / 2, y - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->onAccent);
-}
-
-// While a ticket's title is found: grey blocks where its icon and text will be.
-static void tickets_draw_skeleton(float x, float y, float w, float h, float icon, bool selected) {
-    const theme_current* t = theme();
-    u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;
-    screen_fill_round_rect(x, y, icon, icon, icon / 6, block);
-    if(w > icon + 30) {
-        float tx = x + icon + 8;
-        screen_fill_round_rect(tx, y + 4, (w - icon - 8) * 0.55f, 8, 4, block);
-        screen_fill_round_rect(tx, y + h - 12, (w - icon - 8) * 0.35f, 6, 3, block);
-    }
-}
-
-// A ticket's contents fade in once its title has been found.
-static void tickets_fade_in(ticket_info* info) {
-    screen_set_content_motion(0, 0, (u8) (widget_ease(info->readyTime, 250) * 0xFF));
-}
-
 static void tickets_draw_icon(ticket_info* info, float x, float y, float size, bool selected) {
     const theme_current* t = theme();
     if(info->hasMeta && info->meta.texture != 0) {
         screen_draw_texture(info->meta.texture, x, y, size, size);
     } else {
-        screen_fill_round_rect(x, y, size, size, size / 6, selected ? THEME_ALPHA(t->onAccent, 0x40) : info->inUse ? t->accentSoft : t->palette->background);
-        screen_draw_icon(ICON_TICKET, x + size / 4, y + size / 4, size / 2, selected ? t->onAccent : info->inUse ? t->accent : t->palette->textMuted);
+        widget_icon_placeholder(x, y, size, ICON_TICKET, selected ? THEME_ALPHA(t->onAccent, 0x40) : info->inUse ? t->accentSoft : t->palette->background, selected ? t->onAccent : info->inUse ? t->accent : t->palette->textMuted);
     }
 }
 
@@ -210,24 +184,22 @@ static void tickets_draw_row(void* data, list_item* item, float x, float y, floa
     const theme_current* t = theme();
     ticket_info* info = (ticket_info*) item->data;
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     float icon = height - 10;
     if(!info->ready) {
-        tickets_draw_skeleton(x + 5, y + 5, width - 18, height - 10, icon, selected);
+        widget_skeleton(x + 5, y + 5, width - 18, height - 10, icon, selected);
         return;
     }
 
-    tickets_fade_in(info);
+    widget_fade_in(info->readyTime);
     tickets_draw_icon(info, x + 5, y + 5, icon, selected);
 
     tickets_data* listData = (tickets_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
-        tickets_draw_count_badge(info->linkedCount, x + 5 + icon - 1, y + 7);
+        widget_count_badge(info->linkedCount, x + 5 + icon - 1, y + 7);
     }
 
     float tx = x + 5 + icon + 8;
@@ -235,8 +207,7 @@ static void tickets_draw_row(void* data, list_item* item, float x, float y, floa
 
     // The state as a tag; without an installed title, a ticket is only an ID.
     const char* tag = info->inUse ? _("In use") : _("Not in use");
-    float tagW = widget_text_width(tag, WIDGET_SMALL_SCALE) + 12;
-    widget_badge(right - tagW, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : info->inUse ? t->accentSoft : t->palette->background, selected ? t->onAccent : info->inUse ? t->accent : t->palette->textMuted);
+    float tagW = widget_badge_right(right, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : info->inUse ? t->accentSoft : t->palette->background, selected ? t->onAccent : info->inUse ? t->accent : t->palette->textMuted);
 
     widget_text_fit(item->name, tx, y + 4, WIDGET_TEXT_SCALE, ink, right - tagW - 6 - tx);
 
@@ -252,28 +223,22 @@ static void tickets_draw_row(void* data, list_item* item, float x, float y, floa
 }
 
 static void tickets_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
-    const theme_current* t = theme();
     ticket_info* info = (ticket_info*) item->data;
 
-    if(selected) {
-        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
-        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
-    } else {
-        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
-    }
+    widget_tile_frame(x, y, size, selected);
 
     if(!info->ready) {
-        tickets_draw_skeleton(x + 4, y + 4, size - 8, size - 8, size - 8, selected);
+        widget_skeleton(x + 4, y + 4, size - 8, size - 8, size - 8, selected);
         return;
     }
 
-    tickets_fade_in(info);
+    widget_fade_in(info->readyTime);
     tickets_draw_icon(info, x + 4, y + 4, size - 8, false);
     screen_set_content_motion(0, 0, 0xFF);
 
     tickets_data* listData = (tickets_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
-        tickets_draw_count_badge(info->linkedCount, x + size - 4, y + 4);
+        widget_count_badge(info->linkedCount, x + size - 4, y + 4);
     }
 }
 
@@ -286,7 +251,7 @@ static void tickets_draw_details(ui_view* view, list_item* selected, float x1, f
     if(!((ticket_info*) selected->data)->ready) {
         const theme_current* t = theme();
         widget_card(x1 + 10, y1 + 10, x2 - x1 - 20, 76);
-        tickets_draw_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
+        widget_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
         widget_text_centered(_("Loading..."), x1, x2, y1 + 110, WIDGET_TEXT_SCALE, t->palette->textMuted);
         return;
     }
@@ -325,21 +290,8 @@ static void tickets_actions_open(tickets_data* data, linked_list* items, list_it
 
 // ---- tools: view, filter and sort, search ----
 
-static bool tickets_is_rows(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_ROWS;
-}
-
-static bool tickets_is_grid(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_GRID;
-}
-
-static void tickets_show_rows(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_ROWS);
-    tickets_store((tickets_data*) data);
-}
-
-static void tickets_show_grid(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_GRID);
+// The grid / rows mode is kept in the settings.
+static void tickets_view_changed(void* data) {
     tickets_store((tickets_data*) data);
 }
 
@@ -385,6 +337,7 @@ static void tickets_popover_select(void* data, u32 group, u32 option) {
             listData->group = option == 0;
             break;
         default:
+            listData->sortReverse = listData->sort == (tickets_sort) option ? !listData->sortReverse : false;
             listData->sort = (tickets_sort) option;
             // Sorted again at the next frame.
             listData->sorted = false;
@@ -394,160 +347,66 @@ static void tickets_popover_select(void* data, u32 group, u32 option) {
     tickets_store(listData);
 }
 
+static bool tickets_popover_is_reversed(void* data, u32 group, u32 option) {
+    tickets_data* listData = (tickets_data*) data;
+    return group == 4 && listData->sort == (tickets_sort) option && listData->sortReverse;
+}
+
 static void tickets_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 5,
             .groups = {
-                    {_("Show"), true, 2, {_("In use"), _("Not in use")}, {-1, -1}},
+                    {_("Show"), true, 2, {_("In use"), _("Not in use")}, {ICON_CIRCLE_CHECK, ICON_CIRCLE_X}},
                     // In title_kind's order.
-                    {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {-1, -1, -1, -1, -1, -1}},
+                    {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {ICON_DEVICE_GAMEPAD_2, ICON_REFRESH, ICON_PUZZLE, ICON_FLASK, ICON_DEVICE_MOBILE, ICON_SETTINGS}},
                     {_("Memory"), true, 2, {"SD", "NAND"}, {ICON_DEVICE_SD_CARD, ICON_CPU}},
-                    {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {-1, -1}},
-                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true}
+                    {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {ICON_CHECK, ICON_X}},
+                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true, true}
             },
             .isOn = tickets_popover_is_on,
-            .select = tickets_popover_select
+            .select = tickets_popover_select,
+            .isReversed = tickets_popover_is_reversed
     };
 
     popover_display(&def, data);
 }
 
-static bool tickets_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
+// ---- a game's chain: its ticket, its update and its DLC (chain.c) ----
+
+static u64 tickets_chain_id(list_item* item) {
+    return ((ticket_info*) item->data)->titleId;
 }
 
-static void tickets_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    tickets_data* listData = (tickets_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
+static void tickets_chain_draw_row(list_item* item, float x, float y, float width, float height, bool selected) {
+    tickets_draw_row(NULL, item, x, y, width, height, selected);
+}
+
+static void tickets_chain_draw_top(ui_view* view, void* parent, linked_list* parentItems, list_item* item, float x1, float y1, float x2, float y2) {
+    if(item != NULL) {
+        tickets_draw_details(view, item, x1, y1, x2, y2);
     }
 }
 
-static void tickets_search_open(ui_view* view, void* data) {
-    osk_display(_("Search tickets"), list_get_search(view), 64, 0, data, tickets_search_done);
+static bool tickets_chain_ready(list_item* item) {
+    return ((ticket_info*) item->data)->ready;
 }
 
-// ---- a game's chain: its ticket, its update and its DLC ----
-
-typedef struct {
-    tickets_data* parent;
-    linked_list* parentItems;
-    list_item* game;
-    char name[LIST_ITEM_NAME_MAX];   // The game's item may be deleted while this is open.
-} tickets_chain_data;
-
-// Chain rows wrap the main list's items (item->data), which keep owning the tickets.
-static list_item* tickets_chain_target(list_item* wrapper) {
-    return (list_item*) wrapper->data;
+static void tickets_chain_actions(void* parent, linked_list* parentItems, list_item* item) {
+    tickets_actions_open((tickets_data*) parent, parentItems, item);
 }
 
-static void tickets_chain_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
-    tickets_draw_row(NULL, tickets_chain_target(item), x, y, width, height, selected);
-}
-
-static void tickets_chain_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
-    if(selected != NULL) {
-        tickets_draw_details(view, tickets_chain_target(selected), x1, y1, x2, y2);
-    }
-}
-
-static void tickets_chain_close(ui_view* view, linked_list* items, tickets_chain_data* chain) {
-    ui_pop();
-
-    linked_list_iter iter;
-    linked_list_iterate(items, &iter);
-    while(linked_list_iter_has_next(&iter)) {
-        free(linked_list_iter_next(&iter));
-        linked_list_iter_remove(&iter);
-    }
-
-    list_destroy(view);
-    free(chain);
-}
-
-static void tickets_chain_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
-    tickets_chain_data* chain = (tickets_chain_data*) data;
-
-    view->info = _(" actions    back");
-
-    if(hidKeysDown() & KEY_B) {
-        tickets_chain_close(view, items, chain);
-        return;
-    }
-
-    if(linked_list_size(items) == 0) {
-        // The game's ticket first, then its update, then its DLC.
-        ticket_info* game = (ticket_info*) chain->game->data;
-        for(int pass = 0; pass < 3; pass++) {
-            linked_list_iter iter;
-            linked_list_iterate(chain->parentItems, &iter);
-            while(linked_list_iter_has_next(&iter)) {
-                list_item* item = (list_item*) linked_list_iter_next(&iter);
-                ticket_info* info = (ticket_info*) item->data;
-                title_kind kind = title_kind_of(info->titleId);
-                bool wanted = pass == 0 ? item == chain->game : pass == 1 ? kind == TITLE_KIND_UPDATE : kind == TITLE_KIND_DLC;
-                if(!wanted || (u32) info->titleId != (u32) game->titleId) {
-                    continue;
-                }
-
-                list_item* wrapper = (list_item*) calloc(1, sizeof(list_item));
-                if(wrapper != NULL) {
-                    string_copy(wrapper->name, item->name, sizeof(wrapper->name));
-                    wrapper->color = item->color;
-                    wrapper->data = item;
-                    linked_list_add(items, wrapper);
-                }
-            }
-        }
-    } else {
-        // An action may have deleted tickets from the main list: drop their rows.
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            list_item* wrapper = (list_item*) linked_list_iter_next(&iter);
-            if(linked_list_index_of(chain->parentItems, tickets_chain_target(wrapper)) < 0) {
-                free(wrapper);
-                linked_list_iter_remove(&iter);
-            }
-        }
-
-        if(linked_list_size(items) == 0) {
-            tickets_chain_close(view, items, chain);
-            return;
-        }
-
-        selected = selected != NULL && linked_list_index_of(items, selected) >= 0 ? selected : NULL;
-    }
-
-    if(selected != NULL && (selectedTouched || (hidKeysDown() & KEY_A)) && ((ticket_info*) tickets_chain_target(selected)->data)->ready) {
-        tickets_actions_open(chain->parent, chain->parentItems, tickets_chain_target(selected));
-    }
-}
+static const chain_def tickets_chain = {
+        .rowHeight = ROW_HEIGHT,
+        .titleId = tickets_chain_id,
+        .drawRow = tickets_chain_draw_row,
+        .drawTop = tickets_chain_draw_top,
+        .ready = tickets_chain_ready,
+        .actions = tickets_chain_actions,
+        .allocError = "Failed to allocate ticket chain."
+};
 
 static void tickets_chain_open(tickets_data* data, linked_list* items, list_item* game) {
-    tickets_chain_data* chain = (tickets_chain_data*) calloc(1, sizeof(tickets_chain_data));
-    if(chain == NULL) {
-        error_display(NULL, NULL, "Failed to allocate ticket chain.");
-        return;
-    }
-
-    chain->parent = data;
-    chain->parentItems = items;
-    chain->game = game;
-    string_copy(chain->name, game->name, sizeof(chain->name));
-
-    ui_view* view = list_display(chain->name, _(" actions    back"), chain, tickets_chain_update, tickets_chain_draw_top);
-    if(view == NULL) {
-        free(chain);
-        return;
-    }
-
-    list_style style = {
-            .rowHeight = ROW_HEIGHT,
-            .drawRow = tickets_chain_draw_row
-    };
-    list_set_style(view, &style);
-    list_show_title_bar(view);
+    chain_open(&tickets_chain, data, items, game);
 }
 
 // ---- the list ----
@@ -568,6 +427,7 @@ static int tickets_compare(void* data, const void* p1, const void* p2) {
         return ticket1->titleId > ticket2->titleId ? 1 : ticket1->titleId < ticket2->titleId ? -1 : 0;
     }
 
+    int dir = listData->sortReverse ? -1 : 1;
     if(listData->sort == SORT_NAME) {
         if(ticket1->hasMeta != ticket2->hasMeta) {
             return ticket1->hasMeta ? -1 : 1;
@@ -576,12 +436,18 @@ static int tickets_compare(void* data, const void* p1, const void* p2) {
         if(ticket1->hasMeta) {
             int byName = strncasecmp(item1->name, item2->name, sizeof(item1->name));
             if(byName != 0) {
-                return byName;
+                return dir * byName;
             }
         }
     }
 
-    return ticket1->titleId > ticket2->titleId ? 1 : ticket1->titleId < ticket2->titleId ? -1 : 0;
+    int byId = ticket1->titleId > ticket2->titleId ? 1 : ticket1->titleId < ticket2->titleId ? -1 : 0;
+    return listData->sort == SORT_ID ? dir * byId : byId;
+}
+
+// Loaded, for the count of the title bar.
+static bool tickets_item_ready(list_item* item) {
+    return ((ticket_info*) item->data)->ready;
 }
 
 static void tickets_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
@@ -592,32 +458,17 @@ static void tickets_update(ui_view* view, void* data, linked_list* items, list_i
     tickets_group(listData, items);
 
     // How many have their title found, for the title bar.
-    u32 ready = 0;
-    u32 total = 0;
-    if(!listData->populateData.finished) {
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            total++;
-            ready += ((ticket_info*) ((list_item*) linked_list_iter_next(&iter))->data)->ready ? 1 : 0;
-        }
-    }
-
-    list_set_progress(view, ready, total);
+    u32 ready = list_count_progress(view, items, !listData->populateData.finished, tickets_item_ready);
     view->info = _(" actions    view    filter    search    back");
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         ui_pop();
@@ -629,9 +480,12 @@ static void tickets_update(ui_view* view, void* data, linked_list* items, list_i
         return;
     }
 
+    if(hidKeysDown() & KEY_SELECT) {
+        list_next_tile_size(view);
+    }
+
     if(hidKeysDown() & KEY_Y) {
-        list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
-        tickets_store(listData);
+        list_toggle_mode(view);
     }
 
     if(hidKeysDown() & KEY_L) {
@@ -640,16 +494,13 @@ static void tickets_update(ui_view* view, void* data, linked_list* items, list_i
     }
 
     if(hidKeysDown() & KEY_R) {
-        tickets_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
     if(!listData->populated || (hidKeysDown() & KEY_X)) {
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         listData->populateData.items = items;
@@ -725,7 +576,7 @@ void tickets_open() {
     list_style style = {
             .rowHeight = ROW_HEIGHT,
             .drawRow = tickets_draw_row,
-            .tileSize = TILE_SIZE,
+            .tileSize = list_tile_size_of(settings_get()->tickets.tile),
             .drawTile = tickets_draw_tile
     };
     list_set_style(view, &style);
@@ -733,8 +584,8 @@ void tickets_open() {
     list_set_long_press(view, tickets_long_press);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, tickets_search_active, tickets_search_open);
+    list_add_search_tool(view, _("Search tickets"));
     list_add_tool(view, ICON_FILTER, tickets_filter_active, tickets_filter_open);
-    list_add_tool(view, ICON_LAYOUT_GRID, tickets_is_grid, tickets_show_grid);
-    list_add_tool(view, ICON_LIST, tickets_is_rows, tickets_show_rows);
+    list_add_tile_tool(view, &settings_get()->tickets.tile);
+    list_add_view_tools(view, tickets_view_changed);
 }

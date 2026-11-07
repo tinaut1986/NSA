@@ -104,10 +104,7 @@ static bool action_export_twl_save_error(void* data, u32 index, Result res, ui_v
 static void action_export_twl_save_update(ui_view* view, void* data, float* progress, char* text) {
     export_twl_save_data* exportData = (export_twl_save_data*) data;
 
-    if(exportData->exportInfo.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &exportData->exportInfo.finished, exportData->exportInfo.cancelEvent)) {
         if(R_SUCCEEDED(exportData->exportInfo.result)) {
             prompt_display_notify("Success", "Save exported.", COLOR_TEXT, exportData->title, task_draw_title_info, NULL);
         }
@@ -115,10 +112,6 @@ static void action_export_twl_save_update(ui_view* view, void* data, float* prog
         free(data);
 
         return;
-    }
-
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(exportData->exportInfo.cancelEvent);
     }
 
     data_op_progress_bytes(&exportData->exportInfo, progress, text, false);

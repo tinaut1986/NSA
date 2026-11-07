@@ -82,10 +82,7 @@ static bool action_erase_twl_save_error(void* data, u32 index, Result res, ui_vi
 static void action_erase_twl_save_update(ui_view* view, void* data, float* progress, char* text) {
     erase_twl_save_data* eraseData = (erase_twl_save_data*) data;
 
-    if(eraseData->eraseInfo.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &eraseData->eraseInfo.finished, eraseData->eraseInfo.cancelEvent)) {
         if(R_SUCCEEDED(eraseData->eraseInfo.result)) {
             prompt_display_notify("Success", "Save erased.", COLOR_TEXT, eraseData->title, task_draw_title_info, NULL);
         }
@@ -93,10 +90,6 @@ static void action_erase_twl_save_update(ui_view* view, void* data, float* progr
         free(data);
 
         return;
-    }
-
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(eraseData->eraseInfo.cancelEvent);
     }
 
     data_op_progress_bytes(&eraseData->eraseInfo, progress, text, false);

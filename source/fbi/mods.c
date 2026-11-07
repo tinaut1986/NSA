@@ -337,20 +337,13 @@ static void mods_delete_free(mods_delete_data* data) {
 static void mods_delete_update(ui_view* view, void* data, float* progress, char* text) {
     mods_delete_data* deleteData = (mods_delete_data*) data;
 
-    if(deleteData->deleteInfo.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &deleteData->deleteInfo.finished, deleteData->deleteInfo.cancelEvent)) {
         if(R_SUCCEEDED(deleteData->deleteInfo.result)) {
             prompt_display_notify("Success", "Mods deleted.", COLOR_TEXT, NULL, NULL, NULL);
         }
 
         mods_delete_free(deleteData);
         return;
-    }
-
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(deleteData->deleteInfo.cancelEvent);
     }
 
     data_op_progress_items(&deleteData->deleteInfo, progress, text);

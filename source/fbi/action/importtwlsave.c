@@ -90,10 +90,7 @@ static bool action_import_twl_save_error(void* data, u32 index, Result res, ui_v
 static void action_import_twl_save_update(ui_view* view, void* data, float* progress, char* text) {
     import_twl_save_data* importData = (import_twl_save_data*) data;
 
-    if(importData->importInfo.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &importData->importInfo.finished, importData->importInfo.cancelEvent)) {
         if(R_SUCCEEDED(importData->importInfo.result)) {
             prompt_display_notify("Success", "Save imported.", COLOR_TEXT, importData->title, task_draw_title_info, NULL);
         }
@@ -101,10 +98,6 @@ static void action_import_twl_save_update(ui_view* view, void* data, float* prog
         free(data);
 
         return;
-    }
-
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(importData->importInfo.cancelEvent);
     }
 
     data_op_progress_bytes(&importData->importInfo, progress, text, false);

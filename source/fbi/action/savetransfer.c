@@ -179,16 +179,9 @@ static void tree_finish(tree_copy* job, Result res) {
 static void tree_copy_update(ui_view* view, void* data, float* progress, char* text) {
     tree_copy* job = (tree_copy*) data;
 
-    if(job->op.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &job->op.finished, job->op.cancelEvent)) {
         tree_finish(job, job->op.result);
         return;
-    }
-
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(job->op.cancelEvent);
     }
 
     data_op_progress_bytes(&job->op, progress, text, true);
@@ -206,10 +199,7 @@ static void tree_loading_draw_top(ui_view* view, void* data, float x1, float y1,
 static void tree_loading_update(ui_view* view, void* data, float* progress, char* text) {
     tree_loading* loading = (tree_loading*) data;
 
-    if(loading->pop.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &loading->pop.finished, loading->pop.cancelEvent)) {
         tree_copy* job = loading->job;
         Result res = loading->pop.result;
         free(loading);
@@ -233,10 +223,6 @@ static void tree_loading_update(ui_view* view, void* data, float* progress, char
         // Nothing to copy (an empty archive) is a success of its own.
         tree_finish(job, res);
         return;
-    }
-
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(loading->pop.cancelEvent);
     }
 
     snprintf(text, PROGRESS_TEXT_MAX, "%s", _("Listing the files..."));

@@ -206,10 +206,7 @@ static void action_install_tickets_loading_draw_top(ui_view* view, void* data, f
 static void action_install_tickets_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     install_tickets_loading_data* loadingData = (install_tickets_loading_data*) data;
 
-    if(loadingData->popData.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &loadingData->popData.finished, loadingData->popData.cancelEvent)) {
         if(R_SUCCEEDED(loadingData->popData.result)) {
             loadingData->installData->installInfo.total = linked_list_size(&loadingData->installData->contents);
             loadingData->installData->installInfo.processed = loadingData->installData->installInfo.total;
@@ -223,10 +220,6 @@ static void action_install_tickets_loading_update(ui_view* view, void* data, flo
 
         free(loadingData);
         return;
-    }
-
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
     }
 
     snprintf(text, PROGRESS_TEXT_MAX, _("Fetching ticket list..."));

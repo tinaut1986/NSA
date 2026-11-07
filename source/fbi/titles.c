@@ -695,6 +695,35 @@ static void titles_manage_save(void* data) { titles_data_open(data, SAVE_KIND_SA
 static void titles_manage_ext(void* data) { titles_data_open(data, SAVE_KIND_EXT); }
 static void titles_manage_boss(void* data) { titles_data_open(data, SAVE_KIND_BOSS); }
 
+// ---- the game's mods (/luma/titles, LayeredFS) ----
+
+static void titles_mods_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    task_draw_title_info(view, ((titles_data*) data)->actionSelected->data, x1, y1, x2, y2);
+}
+
+static void titles_delete_mods_answer(ui_view* view, void* data, u32 response) {
+    if(response != PROMPT_YES) {
+        return;
+    }
+
+    titles_data* listData = (titles_data*) data;
+    Result res = task_mods_delete(((title_info*) listData->actionSelected->data)->titleId);
+    if(R_FAILED(res)) {
+        error_display_res(listData, titles_mods_draw_top, res, "Failed to delete the mods.");
+    } else {
+        prompt_display_notify("Success", "Mods deleted.", COLOR_TEXT, NULL, NULL, NULL);
+    }
+}
+
+static void titles_delete_mods(void* data) {
+    titles_data* listData = (titles_data*) data;
+    title_info* info = (title_info*) listData->actionSelected->data;
+
+    char message[256];
+    snprintf(message, sizeof(message), "%s\n" MODS_ROOT "%016llX/", _("Delete these mods? The game stays, without them."), info->titleId);
+    prompt_display_warning("Confirmation", message, COLOR_TEXT, data, titles_mods_draw_top, titles_delete_mods_answer);
+}
+
 static void titles_actions_open(titles_data* data, linked_list* items, list_item* selected) {
     title_info* info = (title_info*) selected->data;
     data->actionItems = items;
@@ -734,6 +763,11 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
         actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Import save"), false, titles_import_save};
         actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Export save"), false, titles_export_save};
         actions[count++] = (sheet_action) {ICON_TRASH, _("Erase save"), true, titles_erase_save};
+    }
+
+    // Its mods in /luma/titles, if it has any (a game card's too: LayeredFS works for it).
+    if(!info->twl && task_mods_exist(info->titleId)) {
+        actions[count++] = (sheet_action) {ICON_TRASH, _("Delete mods"), true, titles_delete_mods};
     }
 
     if(!card) {

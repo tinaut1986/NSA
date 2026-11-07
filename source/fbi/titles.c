@@ -891,7 +891,7 @@ static void titles_filter_open(ui_view* view, void* data) {
                     {_("Show"), true, 3, {"SD", "NAND", _("Game card")}, {ICON_DEVICE_SD_CARD, ICON_CPU, ICON_DEVICE_GAMEPAD_2}},
                     // In title_kind's order.
                     {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {ICON_DEVICE_GAMEPAD_2, ICON_REFRESH, ICON_PUZZLE, ICON_FLASK, ICON_DEVICE_MOBILE, ICON_SETTINGS}},
-                    {_("Region"), true, 5, {_("Region free"), _("Europe"), _("America"), _("Japan"), _("Other")}, {ICON_WORLD, ICON_LETTER_E, ICON_LETTER_U, ICON_LETTER_J, ICON_DOTS}},
+                    {_("Region"), true, 5, {_("Region free"), _("Europe"), _("America"), _("Japan"), _("Other")}, {ICON_WORLD, ICON_FLAG_EU, ICON_FLAG_US, ICON_FLAG_JP, ICON_DOTS}},
                     {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {ICON_CHECK, ICON_X}},
                     {_("Sort by"), false, 3, {_("Name"), "ID", _("Size")}, {ICON_ABC, ICON_KEY, ICON_DATABASE}, true}
             },

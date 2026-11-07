@@ -102,9 +102,6 @@ folder-open
 eye-off
 puzzle
 flask
-letter-e
-letter-u
-letter-j
 world
 infinity
 hourglass-low
@@ -114,3 +111,6 @@ app-window
 circle-check
 circle-x
 device-mobile
+flag-eu
+flag-us
+flag-jp

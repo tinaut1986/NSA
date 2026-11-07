@@ -117,8 +117,7 @@ static void action_delete_update(ui_view* view, void* data, float* progress, cha
         svcSignalEvent(deleteData->deleteInfo.cancelEvent);
     }
 
-    *progress = deleteData->deleteInfo.total > 0 ? (float) deleteData->deleteInfo.processed / (float) deleteData->deleteInfo.total : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu"), deleteData->deleteInfo.processed, deleteData->deleteInfo.total);
+    data_op_progress_items(&deleteData->deleteInfo, progress, text);
 }
 
 static void action_delete_onresponse(ui_view* view, void* data, u32 response) {

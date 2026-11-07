@@ -353,8 +353,7 @@ static void mods_delete_update(ui_view* view, void* data, float* progress, char*
         svcSignalEvent(deleteData->deleteInfo.cancelEvent);
     }
 
-    *progress = deleteData->deleteInfo.total > 0 ? (float) deleteData->deleteInfo.processed / (float) deleteData->deleteInfo.total : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu"), deleteData->deleteInfo.processed, deleteData->deleteInfo.total);
+    data_op_progress_items(&deleteData->deleteInfo, progress, text);
 }
 
 static void mods_delete_answer(ui_view* view, void* data, u32 response) {

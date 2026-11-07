@@ -170,15 +170,7 @@ static void action_install_tickets_update(ui_view* view, void* data, float* prog
         svcSignalEvent(installData->installInfo.cancelEvent);
     }
 
-    *progress = installData->installInfo.currTotal != 0 ? (float) ((double) installData->installInfo.currProcessed / (double) installData->installInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), installData->installInfo.processed, installData->installInfo.total,
-             ui_get_display_size(installData->installInfo.currProcessed),
-             ui_get_display_size_units(installData->installInfo.currProcessed),
-             ui_get_display_size(installData->installInfo.currTotal),
-             ui_get_display_size_units(installData->installInfo.currTotal),
-             ui_get_display_size(installData->installInfo.bytesPerSecond),
-             ui_get_display_size_units(installData->installInfo.bytesPerSecond),
-             ui_get_display_eta(installData->installInfo.estimatedRemainingSeconds));
+    data_op_progress_bytes(&installData->installInfo, progress, text, true);
 }
 
 static void action_install_tickets_onresponse(ui_view* view, void* data, u32 response) {

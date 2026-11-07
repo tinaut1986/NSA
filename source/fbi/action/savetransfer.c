@@ -191,15 +191,7 @@ static void tree_copy_update(ui_view* view, void* data, float* progress, char* t
         svcSignalEvent(job->op.cancelEvent);
     }
 
-    *progress = job->op.currTotal != 0 ? (float) ((double) job->op.currProcessed / (double) job->op.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), job->op.processed, job->op.total,
-             ui_get_display_size(job->op.currProcessed),
-             ui_get_display_size_units(job->op.currProcessed),
-             ui_get_display_size(job->op.currTotal),
-             ui_get_display_size_units(job->op.currTotal),
-             ui_get_display_size(job->op.bytesPerSecond),
-             ui_get_display_size_units(job->op.bytesPerSecond),
-             ui_get_display_eta(job->op.estimatedRemainingSeconds));
+    data_op_progress_bytes(&job->op, progress, text, true);
 }
 
 typedef struct {

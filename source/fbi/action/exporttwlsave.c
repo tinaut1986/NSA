@@ -121,15 +121,7 @@ static void action_export_twl_save_update(ui_view* view, void* data, float* prog
         svcSignalEvent(exportData->exportInfo.cancelEvent);
     }
 
-    *progress = exportData->exportInfo.currTotal != 0 ? (float) ((double) exportData->exportInfo.currProcessed / (double) exportData->exportInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"),
-             ui_get_display_size(exportData->exportInfo.currProcessed),
-             ui_get_display_size_units(exportData->exportInfo.currProcessed),
-             ui_get_display_size(exportData->exportInfo.currTotal),
-             ui_get_display_size_units(exportData->exportInfo.currTotal),
-             ui_get_display_size(exportData->exportInfo.bytesPerSecond),
-             ui_get_display_size_units(exportData->exportInfo.bytesPerSecond),
-             ui_get_display_eta(exportData->exportInfo.estimatedRemainingSeconds));
+    data_op_progress_bytes(&exportData->exportInfo, progress, text, false);
 }
 
 static void action_export_twl_save_onresponse(ui_view* view, void* data, u32 response) {

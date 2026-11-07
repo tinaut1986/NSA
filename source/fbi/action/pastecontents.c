@@ -304,15 +304,7 @@ static void action_paste_contents_update(ui_view* view, void* data, float* progr
         svcSignalEvent(pasteData->pasteInfo.cancelEvent);
     }
 
-    *progress = pasteData->pasteInfo.currTotal != 0 ? (float) ((double) pasteData->pasteInfo.currProcessed / (double) pasteData->pasteInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), pasteData->pasteInfo.processed, pasteData->pasteInfo.total,
-             ui_get_display_size(pasteData->pasteInfo.currProcessed),
-             ui_get_display_size_units(pasteData->pasteInfo.currProcessed),
-             ui_get_display_size(pasteData->pasteInfo.currTotal),
-             ui_get_display_size_units(pasteData->pasteInfo.currTotal),
-             ui_get_display_size(pasteData->pasteInfo.bytesPerSecond),
-             ui_get_display_size_units(pasteData->pasteInfo.bytesPerSecond),
-             ui_get_display_eta(pasteData->pasteInfo.estimatedRemainingSeconds));
+    data_op_progress_bytes(&pasteData->pasteInfo, progress, text, true);
 }
 
 static void action_paste_contents_onresponse(ui_view* view, void* data, u32 response) {

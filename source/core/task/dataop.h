@@ -12,6 +12,14 @@ typedef enum data_op_e {
     DATAOP_DELETE
 } data_op;
 
+typedef struct data_op_data_s data_op_data;
+
+// An operation's progress for info_display's update: the bar (0..1) and its text.
+// By items: "3 / 10".
+void data_op_progress_items(const data_op_data* op, float* progress, char* text);
+// By the bytes of the current item, with the speed and the time left; `items` puts "3 / 10" on a line above.
+void data_op_progress_bytes(const data_op_data* op, float* progress, char* text, bool items);
+
 typedef struct data_op_data_s {
     void* data;
 

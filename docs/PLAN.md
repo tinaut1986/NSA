@@ -1044,8 +1044,26 @@ current, this list is the summary. What only the owner can test (local wireless)
     - More sound: the held repeat of a list, text-editor keys, a tone per kind of action.
     - ~~Hide "Open as text" on programs, ROMs, archives~~ done; open `.3dsx` by tap instead of through the sheet.
     - The NSA icon and banner (item 6) show now in every 3DSX preview: still FBI's.
-    - A mini player that keeps the song playing while browsing (the audio view stops it on B).
+    - ~~A mini player that keeps the song playing while browsing~~ done on `staging` (`feat/player-background`).
     - Date of creation: not available (the 3DS only gives the last change); NSA could record its own.
+
+11. **A HOME Menu icon for a .3dsx: make a forwarder CIA** (asked on Reddit by rhinofinger in the first thread, 2026-10; the
+    owner answered it could be done; not started, no issue yet). A small CIA that only starts the .3dsx, which stays where it
+    is; its icon and name come from the .3dsx's SMDH, and the user may give a banner picture and a jingle. Plan (2026-11-07):
+    - **The stub**: a tiny app built with NSA (devkitARM + makerom on the PC, kept in `romfs:/forwarder.cxi`) that reads a path
+      patched into its own `.code` (a 512-byte buffer after a marker, so no RomFS and no hash tree), calls `hb:ldr` SetTarget /
+      SetArgv as `launch3dsx.c` does, and jumps to the Homebrew Launcher placeholder title (`APT_PrepareToDoApplicationJump`).
+      So it needs Luma3DS and that title, like "Run program" today (`launch3dsx_available` says what is missing). Open question:
+      whether Luma's loader can be pointed at the forwarder's own title instead, so no placeholder is needed.
+    - **On the console**: copy the template NCCH, set a new title ID (unique ID from a hash of the path, in the homebrew range
+      0xF0000-0xFFFFF, avoiding installed ones) in the NCCH header and the exheader, patch the path, put the .3dsx's SMDH as the
+      ExeFS `icon`, recompute the ExeFS file hashes, the ExeFS superblock hash and the exheader hash (signatures stay invalid:
+      Luma's signature patches, as for exported CIAs). Then wrap it with `exportcia.c`'s writer (certificates, ticket, TMD with
+      the content's SHA-256) and install it, or save it to `/nsa/cias/`.
+    - **Banner and jingle**: first a generic NSA banner (CBMD + BCWAV made at build time with bannertool). A custom one later:
+      a .bnr the user made elsewhere is easy (use it as is); a picture needs a CGFX built from a template with the picture as its
+      texture, and a .wav a BCWAV (PCM16 in a CWAV container, the easy part) — what bannertool does.
+    - Size: a few days of work; the risky part is the NCCH (test with `ctrtool` on the PC before any console install).
 
 ## Decisions
 

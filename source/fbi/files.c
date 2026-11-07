@@ -817,6 +817,7 @@ static void files_launch(void* data) {
 }
 
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
+static void files_player(void* data) { audioview_resume(); }
 
 static void files_file_actions_open(files_data* data, linked_list* items, list_item* selected) {
     file_info* info = (file_info*) selected->data;
@@ -917,6 +918,11 @@ static void files_folder_actions_open(files_data* data, linked_list* items) {
 
     sheet_action actions[SHEET_ACTIONS_MAX];
     u32 count = 0;
+
+    // The audio player, left playing in the background.
+    if(audioview_background(NULL, 0)) {
+        actions[count++] = (sheet_action) {ICON_PLAYER_PLAY, _("Back to the player"), false, files_player};
+    }
 
     if(cias) {
         actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Install all CIAs"), false, files_install_cias};

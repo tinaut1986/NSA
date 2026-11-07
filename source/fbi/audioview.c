@@ -494,6 +494,10 @@ typedef struct {
 
 #define AUDIO_BUTTONS 5
 
+// The player left with B while it played: it goes on behind the other screens (audioview_tick moves it to the next
+// track) until it ends, is stopped, or its screen is opened again (audioview_resume). Its view is kept for that.
+static audio_data* audio_background = NULL;
+
 static void audio_play_index(audio_data* data, u32 index);
 
 static void audio_stop(audio_data* data) {
@@ -520,8 +524,9 @@ static void audio_play_index(audio_data* data, u32 index) {
     }
 }
 
-static void audio_close(ui_view* view, audio_data* data) {
-    ui_pop();
+// Stops the player and frees its screen (no longer on the stack).
+static void audio_free(audio_data* data) {
+    ui_view* view = data->view;
     audio_stop(data);
     for(u32 i = 0; i < data->count; i++) {
         free(data->paths[i]);
@@ -529,7 +534,32 @@ static void audio_close(ui_view* view, audio_data* data) {
 
     free(data->paths);
     free(data);
-    ui_destroy(view);
+    if(view != NULL) {
+        ui_destroy(view);
+    }
+}
+
+// B: a track that plays goes on in the background; anything else closes. X (`stop`) always closes.
+static void audio_close(ui_view* view, audio_data* data, bool stop) {
+    ui_pop();
+    if(!stop && data->player != NULL && !data->paused && !data->finished) {
+        audio_background = data;
+        return;
+    }
+
+    audio_free(data);
+}
+
+// A track that ends goes on to the next; the last one stops.
+static void audio_advance(audio_data* data) {
+    if(data->player != NULL && data->player->ended && !data->finished) {
+        if(data->index + 1 < data->count) {
+            audio_play_index(data, data->index + 1);
+        } else {
+            data->finished = true;
+            data->paused = true;
+        }
+    }
 }
 
 static u64 audio_position(audio_data* data) {
@@ -739,22 +769,14 @@ static void audio_update(ui_view* view, void* v, float bx1, float by1, float bx2
     audio_data* data = (audio_data*) v;
 
     view->name = data->name;
-    view->info = _(" pause     track    back");
+    view->info = _("\uE000 pause   \uE004 \uE005 track   \uE002 stop   \uE001 back");
 
-    if(hidKeysDown() & KEY_B) {
-        audio_close(view, data);
+    if(hidKeysDown() & (KEY_B | KEY_X)) {
+        audio_close(view, data, (hidKeysDown() & KEY_X) != 0);
         return;
     }
 
-    // A track that ends goes on to the next; the last one stops.
-    if(data->player != NULL && data->player->ended && !data->finished) {
-        if(data->index + 1 < data->count) {
-            audio_play_index(data, data->index + 1);
-        } else {
-            data->finished = true;
-            data->paused = true;
-        }
-    }
+    audio_advance(data);
 
     if(hidKeysDown() & KEY_A) audio_toggle(data);
     if(hidKeysDown() & KEY_L) audio_press(data, 0);
@@ -818,10 +840,56 @@ static void audio_update(ui_view* view, void* v, float bx1, float by1, float bx2
     }
 }
 
+void audioview_tick() {
+    audio_data* data = audio_background;
+    if(data == NULL) {
+        return;
+    }
+
+    audio_advance(data);
+    if(data->finished || data->player == NULL) {
+        audio_background = NULL;
+        audio_free(data);
+    }
+}
+
+bool audioview_background(char* name, size_t size) {
+    if(audio_background == NULL) {
+        return false;
+    }
+
+    if(name != NULL) {
+        snprintf(name, size, "%s", audio_background->name);
+    }
+
+    return true;
+}
+
+void audioview_resume() {
+    audio_data* data = audio_background;
+    if(data == NULL) {
+        return;
+    }
+
+    audio_background = NULL;
+    ui_push(data->view);
+}
+
+void audioview_exit() {
+    audio_data* data = audio_background;
+    audio_background = NULL;
+    if(data != NULL) {
+        audio_free(data);
+    }
+}
+
 void audioview_open(FS_Archive archive, const char* const* paths, u32 count, u32 index) {
     if(count == 0 || index >= count) {
         return;
     }
+
+    // Another list replaces what plays in the background.
+    audioview_exit();
 
     audio_data* data = (audio_data*) calloc(1, sizeof(audio_data));
     if(data == NULL) {

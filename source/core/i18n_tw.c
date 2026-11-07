@@ -1082,6 +1082,12 @@ const i18n_entry i18n_tw[] = {
         {"FTP, sending", "FTP 傳送中"},
         {"Web, receiving", "網頁接收中"},
         {"Web, sending", "網頁傳送中"},
+        {"\uE000 pause   \uE004 \uE005 track   \uE002 stop   \uE001 back", "\uE000 暫停   \uE004 \uE005 曲目   \uE002 停止   \uE001 返回"},
+        {"Back to the player", "返回播放器"},
+        {"Music you play from the SD card goes on when you leave the player with \uE001; \uE002 in the player stops it.", "從 SD 卡播放的音樂，用 \uE001 離開播放器後會繼續播放；在播放器中按 \uE002 停止。"},
+        {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "播放時頂部列會顯示播放圖示，在 SD 卡的任何資料夾中按 \uE002 都有「返回播放器」。"},
+        {"Music in the background", "背景音樂播放"},
+        {"Keep listening while you browse", "瀏覽時繼續聆聽"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

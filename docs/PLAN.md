@@ -129,6 +129,18 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Music in the background** (2026-11-07, `feat/player-background`; asked on Reddit): the audio player left with **B** while a
+track plays goes on behind the other screens; **X** stops it and closes (the hint says so). The main loop calls
+`audioview_tick` (the next track when one ends; at the end of the list it lets go). While it plays the top bar shows a play
+icon (`UI_STATUS_PLAYER`), and the SD card's folder sheet (X) starts with *Back to the player* (`audioview_resume` pushes the
+kept view again). Opening another track replaces it; NSA leaving stops it (`audioview_exit` in the cleanup). The background
+music already ducks while channel 0 plays (bgmusic.c). Guide chapter `player` (since 0.8). **Not tried anywhere**: Azahar has
+no DSP firmware (sdmc:/3ds/dspfirm.cdc comes from a console).
+- [ ] Play a folder of MP3s, B: it goes on; the play icon shows; browse Files, Titles, the Store; the next track starts by itself.
+- [ ] *Back to the player* in a folder's sheet opens it where it is; X there stops it and the icon goes.
+- [ ] On the **2DS / Old 3DS**: an FTP upload and a URL download with music in the background against without (`tools/speed_tests.py`,
+      back to back). If it costs much, pause the background player while a transfer holds the turn (`xferturn_get`) on an Old 3DS.
+
 **Transfer toast and the web page's QR code** (2026-11-07, `feat/transfer-toast`; asked on Reddit: a progress bar while files
 come in or go out, and an easier way than an FTP app to reach the console from a phone):
 - Any FTP or web page transfer that holds the turn (uploads, and downloads of 1 MB or more) shows a toast at the bottom:

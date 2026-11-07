@@ -169,6 +169,18 @@ What `release` holds, in the order it was built:
 - [ ] Slide a finger along a viewer's buttons: the one under it lights; let go on it and it acts.
 - [ ] The player: the seek bar on a long MP3 (right away and after a few seconds), repeat in its three states, and A on the
   track that plays in the background.
+- FileZilla waited 20 s ("waiting for the welcome message", then a timeout) before each transfer: it browses on one
+  connection and opens another to transfer, and the FTP server served one session at a time, so the second was accepted
+  but not greeted until the first closed. Now (`feat/ftp-sessions`) up to 3 sessions, each on its own thread with its own
+  buffer, turn and ALLO; a fourth gets "421 Too many connections" at once. Data still moves one transfer at a time (450
+  Busy), listings and SITE answer meanwhile; installs (SITE INSTALL, the web page's) and the main thread's errands (SITE
+  SCREENSHOT, TEST) go one at a time. Tried on both consoles (`multi.py` in the session's scratchpad: 11 checks, three
+  greeted at once, the fourth refused, a listing during an upload, a second upload refused, a dropped client), a restart
+  by SITE INSTALL with an idle session open, and the web page's install. Speed, the two builds one after the other on the
+  New 3DS XL (32 MB, twice): up 871/971 before, 943/947 after; down 685/724 before, 773/771 after. 2DS after: 840 up,
+  640 down.
+- [ ] FileZilla with its default settings (2 connections): browse, upload and download several files; no wait before a
+  transfer.
 
 **Music in the background** (2026-11-07, `feat/player-background`; asked on Reddit): the audio player left with **B** while a
 track plays goes on behind the other screens; **X** stops it and closes (the hint says so). The main loop calls
@@ -1438,8 +1450,8 @@ current, this list is the summary. What only the owner can test (local wireless)
   send to a client that had gone waited inside the SOC session until TCP gave up, holding every socket call of NSA, the
   shutdown() meant to wake it too; the 2DS stopped answering FTP and web during a download test and froze when the FTP
   server was turned off (2026-11-02). Closing waits (up to 2 s) for the other side to close, as the SOC service drops
-  unsent data when a non-blocking socket closes. The FTP serves one session at a time: one silent for 30 s gives way to a
-  new connection. Second requests for a segment only for the one the install waits for (near the end, any), once it has
+  unsent data when a non-blocking socket closes. The FTP serves up to 3 sessions, each on its own thread (since
+  2026-11-07, `feat/ftp-sessions`; it served one at a time, one silent for 30 s gave way to a new connection). Second requests for a segment only for the one the install waits for (near the end, any), once it has
   taken three times the average: with a fixed 2 s the 2DS asked for 158 segments twice (~80 MB wasted); now 1, and the
   same download went from 401 to 514 KB/s. The 2DS's install lags the network there (the window stays full).
 - `SITE CPU` leaves counting threads at the lowest priority on every core until `SITE CPU OFF`: send it after measuring.

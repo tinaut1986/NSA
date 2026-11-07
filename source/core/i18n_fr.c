@@ -1105,6 +1105,10 @@ const i18n_entry i18n_fr[] = {
         {"Delete %lu empty folders in /luma/titles? There is nothing in them.", "Supprimer %lu dossiers vides de /luma/titles ? Ils ne contiennent rien."},
         {"Empty folders", "Dossiers vides"},
         {"This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.", "Ce dossier est vide : il ne contient aucun mod et Luma3DS n'y trouve rien. Le supprimer ne change rien."},
+        {"This folder (where you are)", "Ce dossier (où vous êtes)"},
+        {"The ticked items", "Les éléments cochés"},
+        {"Root of the SD card", "Racine de la carte SD"},
+        {"Root", "Racine"},
 };
 
 const u32 i18n_fr_count = sizeof(i18n_fr) / sizeof(*i18n_fr);

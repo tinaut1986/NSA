@@ -1097,6 +1097,10 @@ const i18n_entry i18n_zh[] = {
         {"Delete %lu empty folders in /luma/titles? There is nothing in them.", "要删除 /luma/titles 中的 %lu 个空文件夹吗？其中没有任何内容。"},
         {"Empty folders", "空文件夹"},
         {"This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.", "此文件夹是空的：其中没有 MOD，Luma3DS 也找不到任何内容。可以放心删除。"},
+        {"This folder (where you are)", "此文件夹（当前位置）"},
+        {"The ticked items", "已选的项目"},
+        {"Root of the SD card", "SD 卡主目录"},
+        {"Root", "主目录"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

@@ -1105,6 +1105,10 @@ const i18n_entry i18n_ca[] = {
         {"Delete %lu empty folders in /luma/titles? There is nothing in them.", "Esborrar %lu carpetes buides de /luma/titles? No hi ha res a dins."},
         {"Empty folders", "Carpetes buides"},
         {"This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.", "Aquesta carpeta és buida: no té mods i Luma3DS no hi troba res. Esborrar-la no canvia res."},
+        {"This folder (where you are)", "Aquesta carpeta (on ets)"},
+        {"The ticked items", "El que has marcat"},
+        {"Root of the SD card", "Arrel de la targeta SD"},
+        {"Root", "Arrel"},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

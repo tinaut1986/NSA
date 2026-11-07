@@ -196,6 +196,23 @@ from Titles no longer asks about an empty folder. The owner decides whether hidd
 - [ ] The New 3DS XL: the list shows only the summary row (or the real mods); A on it: show them, delete them all.
 - [ ] Filter -> Empty folders on and off; the setting is kept when the screen opens again.
 
+**Shorter filters, clearer sheets, D-Pad held** (2026-11-07, `feat/compact-overlays`; the owner: the filter card grew too long
+on the small screen, the folder's and the item's sheets looked alike, and a held D-Pad did not run through the actions):
+- Every filter option is an icon now (`popover_display` makes a group icon-only when all its options have one; new icons for
+  Type, Region, Group, In use, Hidden, the Store's Type and Updated). The card is as wide as the screen (304 px); a group's name
+  and its icons share a line when they fit (Titles' five groups fit with no scroll). The focused icon's name is in a tooltip
+  above it (room is kept over the first line for it).
+- Files' sheets have a header that says what they act on: *This folder (where you are)* with the folder's name (or *Root of the
+  SD card*), *File* / *Folder* with the item's name and type icon, or *The ticked items* with the count
+  (`sheet_display_list_for`, a kicker in the accent colour over the name, and a rule under it).
+- In a sheet and in the filter card a held direction moves on and on (400 ms, then every 90 ms, as in the lists) and stops at
+  the ends; a fresh press still goes round.
+- Game mods: A opens the sheet (only a tap did), and its hint bar has the button glyphs again.
+Tried in Azahar (Titles' and Mods' filters, the sheets of the root, a file and the empty folders, a held Down).
+- [ ] The filter cards of Titles, Tickets, Files, Store, Ext Save Data, Pending titles: readable, the tooltips say the right names.
+- [ ] Files: the three sheets (X in a folder, an item's, the ticked items') tell themselves apart at a glance.
+- [ ] Holding Up/Down/Left/Right in a long sheet and in a filter card.
+
 **Updates start sooner** (2026-11-06, `fix/update-start`): the first request of a download (`http_probe`: where the file is,
 how big) ran on the caller's thread, on the system core, which an Old 3DS shares at 5% while a transfer turn is held; it now runs
 on the app's core, as the fetches do, and the update check too. Measured on the 2DS (DEBUG built as 0.8.3-beta, offered v0.8.4):

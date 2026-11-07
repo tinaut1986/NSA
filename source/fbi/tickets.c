@@ -398,11 +398,11 @@ static void tickets_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 5,
             .groups = {
-                    {_("Show"), true, 2, {_("In use"), _("Not in use")}, {-1, -1}},
+                    {_("Show"), true, 2, {_("In use"), _("Not in use")}, {ICON_CIRCLE_CHECK, ICON_CIRCLE_X}},
                     // In title_kind's order.
-                    {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {-1, -1, -1, -1, -1, -1}},
+                    {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {ICON_DEVICE_GAMEPAD_2, ICON_REFRESH, ICON_PUZZLE, ICON_FLASK, ICON_DEVICE_MOBILE, ICON_SETTINGS}},
                     {_("Memory"), true, 2, {"SD", "NAND"}, {ICON_DEVICE_SD_CARD, ICON_CPU}},
-                    {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {-1, -1}},
+                    {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {ICON_CHECK, ICON_X}},
                     {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true}
             },
             .isOn = tickets_popover_is_on,

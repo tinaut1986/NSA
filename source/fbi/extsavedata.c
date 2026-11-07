@@ -275,6 +275,11 @@ static int extsavedata_compare(void* data, const void* p1, const void* p2) {
     return listData->sort == SORT_ID ? dir * byId : byId;
 }
 
+// Loaded, for the count of the title bar.
+static bool extsavedata_item_ready(list_item* item) {
+    return ((ext_save_data_info*) item->data)->ready;
+}
+
 static void extsavedata_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     extsavedata_data* listData = (extsavedata_data*) data;
 
@@ -282,18 +287,7 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
     view->info = _(" actions    view    filter    search    back");
 
     // How many have their name and icon, for the title bar.
-    u32 ready = 0;
-    u32 total = 0;
-    if(!listData->populateData.finished) {
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            total++;
-            ready += ((ext_save_data_info*) ((list_item*) linked_list_iter_next(&iter))->data)->ready ? 1 : 0;
-        }
-    }
-
-    list_set_progress(view, ready, total);
+    u32 ready = list_count_progress(view, items, !listData->populateData.finished, extsavedata_item_ready);
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.

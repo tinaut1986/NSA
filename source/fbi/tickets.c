@@ -6,6 +6,7 @@
 #include <3ds.h>
 
 #include "resources.h"
+#include "chain.h"
 #include "section.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -372,127 +373,42 @@ static void tickets_filter_open(ui_view* view, void* data) {
     popover_display(&def, data);
 }
 
-// ---- a game's chain: its ticket, its update and its DLC ----
+// ---- a game's chain: its ticket, its update and its DLC (chain.c) ----
 
-typedef struct {
-    tickets_data* parent;
-    linked_list* parentItems;
-    list_item* game;
-    char name[LIST_ITEM_NAME_MAX];   // The game's item may be deleted while this is open.
-} tickets_chain_data;
-
-// Chain rows wrap the main list's items (item->data), which keep owning the tickets.
-static list_item* tickets_chain_target(list_item* wrapper) {
-    return (list_item*) wrapper->data;
+static u64 tickets_chain_id(list_item* item) {
+    return ((ticket_info*) item->data)->titleId;
 }
 
-static void tickets_chain_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
-    tickets_draw_row(NULL, tickets_chain_target(item), x, y, width, height, selected);
+static void tickets_chain_draw_row(list_item* item, float x, float y, float width, float height, bool selected) {
+    tickets_draw_row(NULL, item, x, y, width, height, selected);
 }
 
-static void tickets_chain_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
-    if(selected != NULL) {
-        tickets_draw_details(view, tickets_chain_target(selected), x1, y1, x2, y2);
+static void tickets_chain_draw_top(ui_view* view, void* parent, linked_list* parentItems, list_item* item, float x1, float y1, float x2, float y2) {
+    if(item != NULL) {
+        tickets_draw_details(view, item, x1, y1, x2, y2);
     }
 }
 
-static void tickets_chain_close(ui_view* view, linked_list* items, tickets_chain_data* chain) {
-    ui_pop();
-
-    linked_list_iter iter;
-    linked_list_iterate(items, &iter);
-    while(linked_list_iter_has_next(&iter)) {
-        free(linked_list_iter_next(&iter));
-        linked_list_iter_remove(&iter);
-    }
-
-    list_destroy(view);
-    free(chain);
+static bool tickets_chain_ready(list_item* item) {
+    return ((ticket_info*) item->data)->ready;
 }
 
-static void tickets_chain_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
-    tickets_chain_data* chain = (tickets_chain_data*) data;
-
-    view->info = _(" actions    back");
-
-    if(hidKeysDown() & KEY_B) {
-        tickets_chain_close(view, items, chain);
-        return;
-    }
-
-    if(linked_list_size(items) == 0) {
-        // The game's ticket first, then its update, then its DLC.
-        ticket_info* game = (ticket_info*) chain->game->data;
-        for(int pass = 0; pass < 3; pass++) {
-            linked_list_iter iter;
-            linked_list_iterate(chain->parentItems, &iter);
-            while(linked_list_iter_has_next(&iter)) {
-                list_item* item = (list_item*) linked_list_iter_next(&iter);
-                ticket_info* info = (ticket_info*) item->data;
-                title_kind kind = title_kind_of(info->titleId);
-                bool wanted = pass == 0 ? item == chain->game : pass == 1 ? kind == TITLE_KIND_UPDATE : kind == TITLE_KIND_DLC;
-                if(!wanted || (u32) info->titleId != (u32) game->titleId) {
-                    continue;
-                }
-
-                list_item* wrapper = (list_item*) calloc(1, sizeof(list_item));
-                if(wrapper != NULL) {
-                    string_copy(wrapper->name, item->name, sizeof(wrapper->name));
-                    wrapper->color = item->color;
-                    wrapper->data = item;
-                    linked_list_add(items, wrapper);
-                }
-            }
-        }
-    } else {
-        // An action may have deleted tickets from the main list: drop their rows.
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            list_item* wrapper = (list_item*) linked_list_iter_next(&iter);
-            if(linked_list_index_of(chain->parentItems, tickets_chain_target(wrapper)) < 0) {
-                free(wrapper);
-                linked_list_iter_remove(&iter);
-            }
-        }
-
-        if(linked_list_size(items) == 0) {
-            tickets_chain_close(view, items, chain);
-            return;
-        }
-
-        selected = selected != NULL && linked_list_index_of(items, selected) >= 0 ? selected : NULL;
-    }
-
-    if(selected != NULL && (selectedTouched || (hidKeysDown() & KEY_A)) && ((ticket_info*) tickets_chain_target(selected)->data)->ready) {
-        tickets_actions_open(chain->parent, chain->parentItems, tickets_chain_target(selected));
-    }
+static void tickets_chain_actions(void* parent, linked_list* parentItems, list_item* item) {
+    tickets_actions_open((tickets_data*) parent, parentItems, item);
 }
+
+static const chain_def tickets_chain = {
+        .rowHeight = ROW_HEIGHT,
+        .titleId = tickets_chain_id,
+        .drawRow = tickets_chain_draw_row,
+        .drawTop = tickets_chain_draw_top,
+        .ready = tickets_chain_ready,
+        .actions = tickets_chain_actions,
+        .allocError = "Failed to allocate ticket chain."
+};
 
 static void tickets_chain_open(tickets_data* data, linked_list* items, list_item* game) {
-    tickets_chain_data* chain = (tickets_chain_data*) calloc(1, sizeof(tickets_chain_data));
-    if(chain == NULL) {
-        error_display(NULL, NULL, "Failed to allocate ticket chain.");
-        return;
-    }
-
-    chain->parent = data;
-    chain->parentItems = items;
-    chain->game = game;
-    string_copy(chain->name, game->name, sizeof(chain->name));
-
-    ui_view* view = list_display(chain->name, _(" actions    back"), chain, tickets_chain_update, tickets_chain_draw_top);
-    if(view == NULL) {
-        free(chain);
-        return;
-    }
-
-    list_style style = {
-            .rowHeight = ROW_HEIGHT,
-            .drawRow = tickets_chain_draw_row
-    };
-    list_set_style(view, &style);
-    list_show_title_bar(view);
+    chain_open(&tickets_chain, data, items, game);
 }
 
 // ---- the list ----
@@ -531,6 +447,11 @@ static int tickets_compare(void* data, const void* p1, const void* p2) {
     return listData->sort == SORT_ID ? dir * byId : byId;
 }
 
+// Loaded, for the count of the title bar.
+static bool tickets_item_ready(list_item* item) {
+    return ((ticket_info*) item->data)->ready;
+}
+
 static void tickets_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     tickets_data* listData = (tickets_data*) data;
 
@@ -539,18 +460,7 @@ static void tickets_update(ui_view* view, void* data, linked_list* items, list_i
     tickets_group(listData, items);
 
     // How many have their title found, for the title bar.
-    u32 ready = 0;
-    u32 total = 0;
-    if(!listData->populateData.finished) {
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            total++;
-            ready += ((ticket_info*) ((list_item*) linked_list_iter_next(&iter))->data)->ready ? 1 : 0;
-        }
-    }
-
-    list_set_progress(view, ready, total);
+    u32 ready = list_count_progress(view, items, !listData->populateData.finished, tickets_item_ready);
     view->info = _(" actions    view    filter    search    back");
 
     if(hidKeysDown() & KEY_B) {

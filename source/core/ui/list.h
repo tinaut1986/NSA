@@ -73,6 +73,9 @@ void list_select(ui_view* view, list_item* item);
 // While held, D-Pad, A and taps on items do nothing (the screen's update still runs):
 // for a selection still to come, so a press does not land on the wrong item.
 void list_hold(ui_view* view, bool held);
+// While items load (`loading`), the title bar shows how many of `items` are `ready` of how many; once loaded, the count.
+// Returns how many are ready (0 once loaded).
+u32 list_count_progress(ui_view* view, linked_list* items, bool loading, bool (*ready)(list_item* item));
 // While items load, the title bar shows "done/total" instead of the count.
 void list_set_progress(ui_view* view, u32 done, u32 total);
 // While the list is empty: a turning wheel in the middle with `text` (English, translated when drawn) under it; NULL

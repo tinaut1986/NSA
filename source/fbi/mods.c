@@ -618,24 +618,18 @@ static void mods_stop(mods_data* listData) {
     }
 }
 
+// Loaded, for the count of the title bar.
+static bool mods_item_ready(list_item* item) {
+    return ((mod_info*) item->data)->ready;
+}
+
 static void mods_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     mods_data* listData = (mods_data*) data;
 
     view->name = _("Game mods");
     listData->items = items;
 
-    u32 ready = 0;
-    u32 total = 0;
-    if(!listData->populateData.finished) {
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            total++;
-            ready += ((mod_info*) ((list_item*) linked_list_iter_next(&iter))->data)->ready ? 1 : 0;
-        }
-    }
-
-    list_set_progress(view, ready, total);
+    u32 ready = list_count_progress(view, items, !listData->populateData.finished, mods_item_ready);
     view->info = _(" actions    view    filter    search    back");
 
     if(hidKeysDown() & KEY_B) {

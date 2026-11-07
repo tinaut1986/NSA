@@ -5,6 +5,7 @@
 #include <3ds.h>
 
 #include "resources.h"
+#include "chain.h"
 #include "section.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -886,133 +887,46 @@ static void titles_filter_open(ui_view* view, void* data) {
     popover_display(&def, data);
 }
 
-// ---- a game's chain: the game, its update and its DLC ----
+// ---- a game's chain: the game, its update and its DLC (chain.c) ----
 
-typedef struct {
-    titles_data* parent;
-    linked_list* parentItems;
-    list_item* game;
-    char name[LIST_ITEM_NAME_MAX];   // The game's item may be deleted while this is open.
-} titles_chain_data;
-
-// Chain rows wrap the main list's items (item->data), which keep owning the titles.
-static list_item* titles_chain_target(list_item* wrapper) {
-    return (list_item*) wrapper->data;
+static u64 titles_chain_id(list_item* item) {
+    return ((title_info*) item->data)->titleId;
 }
 
-static void titles_chain_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
-    titles_draw_row(NULL, titles_chain_target(item), x, y, width, height, selected);
+static void titles_chain_draw_row(list_item* item, float x, float y, float width, float height, bool selected) {
+    titles_draw_row(NULL, item, x, y, width, height, selected);
 }
 
-static void titles_chain_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
-    titles_chain_data* chain = (titles_chain_data*) data;
+static void titles_chain_draw_top(ui_view* view, void* parent, linked_list* parentItems, list_item* item, float x1, float y1, float x2, float y2) {
     coach_anchor("titles.chain", x1, y1, x2 - x1, y2 - y1, false);   // A game's updates and DLC are open (guide.c).
-    titles_draw_details(chain->parentItems, selected != NULL ? titles_chain_target(selected) : NULL, x1, y1, x2, y2);
+    titles_draw_details(parentItems, item, x1, y1, x2, y2);
 }
 
-static void titles_chain_close(ui_view* view, linked_list* items, titles_chain_data* chain) {
-    ui_pop();
-
-    linked_list_iter iter;
-    linked_list_iterate(items, &iter);
-    while(linked_list_iter_has_next(&iter)) {
-        free(linked_list_iter_next(&iter));
-        linked_list_iter_remove(&iter);
-    }
-
-    list_destroy(view);
-    free(chain);
+static void titles_chain_actions(void* parent, linked_list* parentItems, list_item* item) {
+    titles_actions_open((titles_data*) parent, parentItems, item);
 }
 
-static void titles_chain_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
-    titles_chain_data* chain = (titles_chain_data*) data;
-
-    view->info = _("\uE000 actions   \uE001 back");
-
-    if(hidKeysDown() & KEY_B) {
-        titles_chain_close(view, items, chain);
-        return;
-    }
-
-    if(linked_list_size(items) == 0) {
-        // The game first, then its update, then its DLC.
-        title_info* game = (title_info*) chain->game->data;
-        for(int pass = 0; pass < 3; pass++) {
-            linked_list_iter iter;
-            linked_list_iterate(chain->parentItems, &iter);
-            while(linked_list_iter_has_next(&iter)) {
-                list_item* item = (list_item*) linked_list_iter_next(&iter);
-                title_info* info = (title_info*) item->data;
-                title_kind kind = title_kind_of(info->titleId);
-                bool wanted = pass == 0 ? item == chain->game : pass == 1 ? kind == TITLE_KIND_UPDATE : kind == TITLE_KIND_DLC;
-                if(!wanted || (u32) info->titleId != (u32) game->titleId) {
-                    continue;
-                }
-
-                list_item* wrapper = (list_item*) calloc(1, sizeof(list_item));
-                if(wrapper != NULL) {
-                    string_copy(wrapper->name, item->name, sizeof(wrapper->name));
-                    wrapper->color = item->color;
-                    wrapper->data = item;
-                    linked_list_add(items, wrapper);
-                }
-            }
-        }
-    } else {
-        // An action may have deleted titles from the main list: drop their rows.
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            list_item* wrapper = (list_item*) linked_list_iter_next(&iter);
-            if(linked_list_index_of(chain->parentItems, titles_chain_target(wrapper)) < 0) {
-                free(wrapper);
-                linked_list_iter_remove(&iter);
-            }
-        }
-
-        if(linked_list_size(items) == 0) {
-            titles_chain_close(view, items, chain);
-            return;
-        }
-
-        selected = selected != NULL && linked_list_index_of(items, selected) >= 0 ? selected : NULL;
-    }
-
-    if(selected != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
-        titles_actions_open(chain->parent, chain->parentItems, titles_chain_target(selected));
-    }
-}
+static const chain_def titles_chain = {
+        .rowHeight = ROW_HEIGHT,
+        .titleId = titles_chain_id,
+        .drawRow = titles_chain_draw_row,
+        .drawTop = titles_chain_draw_top,
+        .actions = titles_chain_actions,
+        .allocError = "Failed to allocate title chain."
+};
 
 static void titles_chain_open(titles_data* data, linked_list* items, list_item* game) {
-    titles_chain_data* chain = (titles_chain_data*) calloc(1, sizeof(titles_chain_data));
-    if(chain == NULL) {
-        error_display(NULL, NULL, "Failed to allocate title chain.");
-        return;
-    }
-
-    chain->parent = data;
-    chain->parentItems = items;
-    chain->game = game;
-    string_copy(chain->name, game->name, sizeof(chain->name));
-
-    ui_view* view = list_display(chain->name, _("\uE000 actions   \uE001 back"), chain, titles_chain_update, titles_chain_draw_top);
-    if(view == NULL) {
-        free(chain);
-        return;
-    }
-
-    list_style style = {
-            .rowHeight = ROW_HEIGHT,
-            .drawRow = titles_chain_draw_row
-    };
-    list_set_style(view, &style);
-    // The back arrow (and the count) of the other lists.
-    list_show_title_bar(view);
+    chain_open(&titles_chain, data, items, game);
 }
 
 // ---- the list ----
 
 static int titles_compare(void* data, const void* p1, const void* p2);
+
+// Loaded, for the count of the title bar.
+static bool titles_item_ready(list_item* item) {
+    return ((title_info*) item->data)->loaded;
+}
 
 static void titles_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     titles_data* listData = (titles_data*) data;
@@ -1022,18 +936,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
     titles_group(listData, items);
 
     // How many have loaded, for the title bar.
-    u32 loaded = 0;
-    u32 total = 0;
-    if(!listData->populateData.finished) {
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            total++;
-            loaded += ((title_info*) ((list_item*) linked_list_iter_next(&iter))->data)->loaded ? 1 : 0;
-        }
-    }
-
-    list_set_progress(view, loaded, total);
+    u32 loaded = list_count_progress(view, items, !listData->populateData.finished, titles_item_ready);
     view->info = _(" actions    view    filter    search    back");
 
     if(hidKeysDown() & KEY_B) {

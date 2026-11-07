@@ -894,6 +894,22 @@ void list_toggle_mode(ui_view* view) {
     list_mode_to(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
 }
 
+u32 list_count_progress(ui_view* view, linked_list* items, bool loading, bool (*ready)(list_item* item)) {
+    u32 done = 0;
+    u32 total = 0;
+    if(loading) {
+        linked_list_iter iter;
+        linked_list_iterate(items, &iter);
+        while(linked_list_iter_has_next(&iter)) {
+            total++;
+            done += ready((list_item*) linked_list_iter_next(&iter)) ? 1 : 0;
+        }
+    }
+
+    list_set_progress(view, done, total);
+    return done;
+}
+
 u32 list_visible_count(ui_view* view) {
     return ((list_data*) view->data)->visibleCount;
 }

@@ -9,6 +9,53 @@
 #include "../../core/core.h"
 #include "../../core/data/smdh.h"
 
+void task_clear_list(linked_list* items, void (*freeItem)(list_item* item)) {
+    if(items == NULL) {
+        return;
+    }
+
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+
+        linked_list_iter_remove(&iter);
+        freeItem(item);
+    }
+}
+
+Result task_start_populate(ThreadFunc thread, void* data, Handle* cancelEvent, volatile bool* finished, Result* result) {
+    *finished = false;
+    *result = 0;
+    *cancelEvent = 0;
+
+    Result res = 0;
+    if(R_SUCCEEDED(res = svcCreateEvent(cancelEvent, RESET_STICKY))) {
+        if(threadCreate(thread, data, 0x10000, 0x19, 1, true) == NULL) {
+            res = R_APP_THREAD_CREATE_FAILED;
+        }
+    }
+
+    if(R_FAILED(res)) {
+        *finished = true;
+
+        if(*cancelEvent != 0) {
+            svcCloseHandle(*cancelEvent);
+            *cancelEvent = 0;
+        }
+    }
+
+    return res;
+}
+
+void task_stop_populate(Handle cancelEvent, volatile bool* finished) {
+    svcSignalEvent(cancelEvent);
+    while(!*finished) {
+        svcSleepThread(1000000);
+    }
+}
+
 // The top screen while an action asks or works: what it is about, as a card
 // with the item's icon and name and a grid of cells under it (the same look as
 // Titles and Files).

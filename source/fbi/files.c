@@ -1345,10 +1345,7 @@ static void files_long_press(ui_view* view, void* data, linked_list* items, list
 
 static void files_repopulate(files_data* listData, linked_list* items) {
     if(!listData->populateData.finished) {
-        svcSignalEvent(listData->populateData.cancelEvent);
-        while(!listData->populateData.finished) {
-            svcSleepThread(1000000);
-        }
+        task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
     }
 
     listData->populateData.items = items;
@@ -1376,10 +1373,7 @@ static void files_navigate(files_data* listData, linked_list* items, const char*
 
 static void files_free_data(files_data* data) {
     if(!data->populateData.finished) {
-        svcSignalEvent(data->populateData.cancelEvent);
-        while(!data->populateData.finished) {
-            svcSleepThread(1000000);
-        }
+        task_stop_populate(data->populateData.cancelEvent, &data->populateData.finished);
     }
 
     if(data->archive != 0) {

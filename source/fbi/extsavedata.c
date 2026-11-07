@@ -331,10 +331,7 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
         }
 
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         ui_pop();
@@ -363,10 +360,7 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
 
     if(!listData->populated || (hidKeysDown() & KEY_X)) {
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         listData->populateData.items = items;

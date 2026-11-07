@@ -188,10 +188,7 @@ static void pendingtitles_update(ui_view* view, void* data, linked_list* items, 
         }
 
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         ui_pop();
@@ -215,10 +212,7 @@ static void pendingtitles_update(ui_view* view, void* data, linked_list* items, 
 
     if(!listData->populated || (hidKeysDown() & KEY_X)) {
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         listData->populateData.items = items;

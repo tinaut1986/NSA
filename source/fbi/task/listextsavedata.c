@@ -59,7 +59,8 @@ static Result task_populate_ext_save_data_from(populate_ext_save_data_data* data
     Result res = 0;
 
     u32 extSaveDataCount = 0;
-    u64 extSaveDataIds[MAX_EXT_SAVE_DATA];
+    // Zeroed: Azahar counts its ext save data without writing their IDs.
+    u64 extSaveDataIds[MAX_EXT_SAVE_DATA] = {0};
     if(R_SUCCEEDED(res = FSUSER_EnumerateExtSaveData(&extSaveDataCount, MAX_EXT_SAVE_DATA, mediaType, 8, mediaType == MEDIATYPE_NAND, (u8*) extSaveDataIds))) {
         qsort(extSaveDataIds, extSaveDataCount, sizeof(u64), task_populate_ext_save_data_compare_ids);
 

@@ -38,3 +38,8 @@ code{padding:.1em .3em}pre{padding:.75rem 1rem;overflow:auto;border:1px solid va
 footer{border-top:1px solid var(--line);padding:1.5rem 0;color:var(--muted);font-size:.9rem}
 /* language toggle: only the active language is shown */
 html[lang=en] [lang=es],html[lang=es] [lang=en]{display:none!important}
+
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem}
+.gallery figure{margin:0}
+.gallery img{width:100%;height:auto;border-radius:8px;border:1px solid rgba(128,128,128,.3)}
+.gallery figcaption{font-size:.85rem;text-align:center;opacity:.8;margin-top:.25rem}

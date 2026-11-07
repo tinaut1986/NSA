@@ -10,6 +10,7 @@
 #include "section.h"
 #include "task/uitask.h"
 #include "../core/core.h"
+#include "../core/speedlog.h"
 
 // Dump NAND: its own screen. It shows the space the image needs against what the SD card has,
 // where the file will go, the progress with speed and time left, and at the end how long it
@@ -23,8 +24,11 @@ typedef enum {
     DUMP_DONE
 } dumpnand_state;
 
+#define DUMP_SLOTS 4
+#define DUMP_BLOCK (1024 * 1024)
+
 typedef struct {
-    data_op_data op;   // First: the task works on it.
+    data_op_data op;   // Progress, cancel and result, as the screen reads them.
 
     dumpnand_state state;
     u64 nandSize;
@@ -35,9 +39,24 @@ typedef struct {
     u64 startTime;
     u64 elapsedMs;
 
-    // Hashed as it is written, in order.
+    // The copy (see "the copy" below).
+    u8* block[DUMP_SLOTS];
+    u32 blockSize[DUMP_SLOTS];      // 0: the end, nothing more comes.
+    u32 blockUsers[DUMP_SLOTS];     // Of the writer and the hasher, still to take it.
+    LightSemaphore freeBlocks;
+    LightSemaphore toWrite;
+    LightSemaphore toHash;
+    u32 srcHandle;
+    u32 dstHandle;
+    volatile Result writeRes;
+    Thread writer;
+    Thread hasher;
+    LightLock traceLock;
+    speedlog* trace;
+    u64 hashTicks;
+
+    // Hashed in order, on its own thread.
     mbedtls_sha256_context sha;
-    u64 hashedOffset;
     char hash[65];
 
     widget_press press;
@@ -48,15 +67,14 @@ typedef struct {
 #define BUTTON_HEIGHT 30
 
 // ---- the copy ----
-
-static Result dumpnand_is_src_directory(void* data, u32 index, bool* isDirectory) {
-    *isDirectory = false;
-    return 0;
-}
-
-static Result dumpnand_make_dst_directory(void* data, u32 index) {
-    return 0;
-}
+//
+// Three threads, so that reading the NAND, writing the SD card and hashing overlap: a reader fills
+// DUMP_SLOTS blocks in turn, and a writer and a hasher take each block in order and hand it back
+// once both are done with it. Measured on the New 3DS XL (1.84 GiB) with the copy of data_op (one
+// thread, 256 KB blocks): 198 s reading and 449 s writing, 2.99 MiB/s without the hash, and about
+// half that with the hash on the system core (the app gets 30% of it, at 268 MHz). The hasher runs
+// on core 2 of a New 3DS (on the app core otherwise, below the UI), and the New 3DS's faster clock
+// and L2 cache are on while the dump runs.
 
 static Result dumpnand_open_src(void* data, u32 index, u32* handle) {
     return FSUSER_OpenFileDirectly(handle, ARCHIVE_NAND_W_FS, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_UTF16, u"/"), FS_OPEN_READ, 0);
@@ -70,13 +88,7 @@ static Result dumpnand_get_src_size(void* data, u32 handle, u64* size) {
     return FSFILE_GetSize(handle, size);
 }
 
-static Result dumpnand_read_src(void* data, u32 handle, u32* bytesRead, void* buffer, u64 offset, u32 size) {
-    return FSFILE_Read(handle, bytesRead, offset, buffer, size);
-}
-
-static Result dumpnand_open_dst(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle) {
-    dumpnand_data* dump = (dumpnand_data*) data;
-
+static Result dumpnand_open_dst(dumpnand_data* dump, u32* handle) {
     Result res = 0;
 
     FS_Archive sdmcArchive = 0;
@@ -98,25 +110,207 @@ static Result dumpnand_open_dst(void* data, u32 index, void* initialReadBlock, u
     return res;
 }
 
-static Result dumpnand_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
-    return FSFILE_Close(handle);
+// The writer and the hasher each give a block back; the second one frees it for the reader.
+static void dumpnand_release_block(dumpnand_data* dump, u32 slot) {
+    if(__atomic_sub_fetch(&dump->blockUsers[slot], 1, __ATOMIC_ACQ_REL) == 0) {
+        LightSemaphore_Release(&dump->freeBlocks, 1);
+    }
 }
 
-static Result dumpnand_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {
-    dumpnand_data* dump = (dumpnand_data*) data;
+static void dumpnand_trace_disk(dumpnand_data* dump, u64 bytes, u64 ticks) {
+    LightLock_Lock(&dump->traceLock);
+    speedlog_disk(dump->trace, bytes, ticks);
+    LightLock_Unlock(&dump->traceLock);
+}
 
-    // Blocks come in order: hashed as they pass.
-    if(offset == dump->hashedOffset) {
-        mbedtls_sha256_update_ret(&dump->sha, (const unsigned char*) buffer, size);
-        dump->hashedOffset += size;
+static void dumpnand_trace_net(dumpnand_data* dump, u64 bytes, u64 ticks) {
+    LightLock_Lock(&dump->traceLock);
+    speedlog_net(dump->trace, bytes, ticks);
+    LightLock_Unlock(&dump->traceLock);
+}
+
+// After a failed write it goes on taking blocks (without writing them) until the end, so the
+// reader never waits for a block that does not come back.
+static void dumpnand_writer(void* arg) {
+    dumpnand_data* dump = (dumpnand_data*) arg;
+
+    u64 offset = 0;
+    u64 lastUpdate = osGetTime();
+    u64 bytesSinceUpdate = 0;
+    for(u32 slot = 0; ; slot = (slot + 1) % DUMP_SLOTS) {
+        LightSemaphore_Acquire(&dump->toWrite, 1);
+
+        u32 size = dump->blockSize[slot];
+        if(size == 0) {
+            break;
+        }
+
+        if(R_SUCCEEDED(dump->writeRes)) {
+            u32 written = 0;
+            u64 ticks = speedlog_ticks();
+            Result res = FSFILE_Write(dump->dstHandle, &written, offset, dump->block[slot], size, 0);
+            if(R_SUCCEEDED(res) && written != size) {
+                res = R_APP_IO_ERROR;
+            }
+
+            dumpnand_trace_disk(dump, written, speedlog_ticks() - ticks);
+
+            if(R_FAILED(res)) {
+                dump->writeRes = res;
+            } else {
+                offset += size;
+                dump->op.currProcessed = offset;
+                bytesSinceUpdate += size;
+
+                u64 time = osGetTime();
+                if(time - lastUpdate >= 1000) {
+                    dump->op.bytesPerSecond = (u32) (bytesSinceUpdate * 1000 / (time - lastUpdate));
+
+                    u64 elapsed = time - dump->startTime;
+                    dump->op.estimatedRemainingSeconds = elapsed > 0 ? (u32) ((dump->op.currTotal - offset) * elapsed / offset / 1000) : 0;
+
+                    lastUpdate = time;
+                    bytesSinceUpdate = 0;
+                }
+            }
+        }
+
+        dumpnand_release_block(dump, slot);
+    }
+}
+
+static void dumpnand_hasher(void* arg) {
+    dumpnand_data* dump = (dumpnand_data*) arg;
+
+    for(u32 slot = 0; ; slot = (slot + 1) % DUMP_SLOTS) {
+        LightSemaphore_Acquire(&dump->toHash, 1);
+
+        u32 size = dump->blockSize[slot];
+        if(size == 0) {
+            break;
+        }
+
+        u64 ticks = speedlog_ticks();
+        mbedtls_sha256_update_ret(&dump->sha, (const unsigned char*) dump->block[slot], size);
+        dump->hashTicks += speedlog_ticks() - ticks;
+
+        dumpnand_release_block(dump, slot);
+    }
+}
+
+// The end for the writer and the hasher: a block of size 0, then both are waited for.
+static void dumpnand_stop_workers(dumpnand_data* dump, u32 slot) {
+    if(dump->writer != NULL || dump->hasher != NULL) {
+        LightSemaphore_Acquire(&dump->freeBlocks, 1);
+        dump->blockSize[slot] = 0;
+        LightSemaphore_Release(&dump->toWrite, 1);
+        LightSemaphore_Release(&dump->toHash, 1);
     }
 
-    return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
+    if(dump->writer != NULL) {
+        threadJoin(dump->writer, U64_MAX);
+        threadFree(dump->writer);
+        dump->writer = NULL;
+    }
+
+    if(dump->hasher != NULL) {
+        threadJoin(dump->hasher, U64_MAX);
+        threadFree(dump->hasher);
+        dump->hasher = NULL;
+    }
 }
 
-static bool dumpnand_error(void* data, u32 index, Result res, ui_view** errorView) {
-    *errorView = error_display_res(NULL, NULL, res, "Failed to dump NAND.");
-    return true;
+static void dumpnand_free_resources(dumpnand_data* dump) {
+    if(dump->dstHandle != 0) {
+        FSFILE_Close(dump->dstHandle);
+        dump->dstHandle = 0;
+    }
+
+    if(dump->srcHandle != 0) {
+        FSFILE_Close(dump->srcHandle);
+        dump->srcHandle = 0;
+    }
+
+    for(u32 i = 0; i < DUMP_SLOTS; i++) {
+        free(dump->block[i]);
+        dump->block[i] = NULL;
+    }
+
+    if(dump->op.cancelEvent != 0) {
+        svcCloseHandle(dump->op.cancelEvent);
+        dump->op.cancelEvent = 0;
+    }
+
+    osSetSpeedupEnable(false);
+    aptSetSleepAllowed(true);
+}
+
+static void dumpnand_reader(void* arg) {
+    dumpnand_data* dump = (dumpnand_data*) arg;
+
+    Result res = 0;
+    u64 offset = 0;
+    u32 slot = 0;
+    while(offset < dump->op.currTotal) {
+        if(task_is_quit_all() || svcWaitSynchronization(dump->op.cancelEvent, 0) == 0) {
+            res = R_APP_CANCELLED;
+            break;
+        }
+
+        if(R_FAILED(res = dump->writeRes)) {
+            break;
+        }
+
+        LightSemaphore_Acquire(&dump->freeBlocks, 1);
+
+        u64 left = dump->op.currTotal - offset;
+        u32 size = left < DUMP_BLOCK ? (u32) left : DUMP_BLOCK;
+        u32 bytesRead = 0;
+        u64 ticks = speedlog_ticks();
+        res = FSFILE_Read(dump->srcHandle, &bytesRead, offset, dump->block[slot], size);
+        if(R_SUCCEEDED(res) && bytesRead == 0) {
+            res = R_APP_IO_ERROR;
+        }
+
+        dumpnand_trace_net(dump, bytesRead, speedlog_ticks() - ticks);
+
+        if(R_FAILED(res)) {
+            LightSemaphore_Release(&dump->freeBlocks, 1);
+            break;
+        }
+
+        dump->blockSize[slot] = bytesRead;
+        dump->blockUsers[slot] = 2;
+        LightSemaphore_Release(&dump->toWrite, 1);
+        LightSemaphore_Release(&dump->toHash, 1);
+
+        offset += bytesRead;
+        slot = (slot + 1) % DUMP_SLOTS;
+    }
+
+    dumpnand_stop_workers(dump, slot);
+
+    if(R_SUCCEEDED(res)) {
+        res = dump->writeRes;
+    }
+
+    // In the trace the hashing shows as the time spent "waiting" (it overlaps the rest).
+    if(dump->trace != NULL) {
+        speedlog_wait(dump->trace, dump->hashTicks);
+        speedlog_end(dump->trace, R_SUCCEEDED(res));
+        dump->trace = NULL;
+    }
+
+    dumpnand_free_resources(dump);
+
+    if(res == R_APP_CANCELLED) {
+        prompt_display_notify("Failure", "Operation cancelled.", COLOR_TEXT, NULL, NULL, NULL);
+    } else if(R_FAILED(res)) {
+        error_display_res(NULL, NULL, res, "Failed to dump NAND.");
+    }
+
+    dump->op.result = res;
+    dump->op.finished = true;
 }
 
 // A half image is of no use: it goes (it is NSA's own file).
@@ -186,35 +380,73 @@ static void dumpnand_start(dumpnand_data* dump) {
 
     mbedtls_sha256_init(&dump->sha);
     mbedtls_sha256_starts_ret(&dump->sha, 0);
-    dump->hashedOffset = 0;
+    dump->hashTicks = 0;
     dump->hash[0] = '\0';
 
     data_op_data* op = &dump->op;
     memset(op, 0, sizeof(*op));
-    op->data = dump;
-    op->op = DATAOP_COPY;
-    op->bufferSize = 256 * 1024;
-    op->copyEmpty = true;
-    op->total = 1;
-    op->noRetry = true;
-
-    op->isSrcDirectory = dumpnand_is_src_directory;
-    op->makeDstDirectory = dumpnand_make_dst_directory;
-    op->openSrc = dumpnand_open_src;
-    op->closeSrc = dumpnand_close_src;
-    op->getSrcSize = dumpnand_get_src_size;
-    op->readSrc = dumpnand_read_src;
-    op->openDst = dumpnand_open_dst;
-    op->closeDst = dumpnand_close_dst;
-    op->writeDst = dumpnand_write_dst;
-    op->error = dumpnand_error;
     op->finished = true;
 
-    Result res = task_data_op(op);
+    dump->srcHandle = 0;
+    dump->dstHandle = 0;
+    dump->writer = NULL;
+    dump->hasher = NULL;
+    dump->writeRes = 0;
+    dump->trace = NULL;
+    LightLock_Init(&dump->traceLock);
+    LightSemaphore_Init(&dump->freeBlocks, DUMP_SLOTS, DUMP_SLOTS);
+    LightSemaphore_Init(&dump->toWrite, 0, DUMP_SLOTS);
+    LightSemaphore_Init(&dump->toHash, 0, DUMP_SLOTS);
+
+    aptSetSleepAllowed(false);
+    osSetSpeedupEnable(true);
+
+    Result res = 0;
+    for(u32 i = 0; i < DUMP_SLOTS; i++) {
+        dump->block[i] = (u8*) memalign(0x1000, DUMP_BLOCK);
+        if(dump->block[i] == NULL) {
+            res = R_APP_OUT_OF_MEMORY;
+        }
+    }
+
+    if(R_SUCCEEDED(res)
+       && R_SUCCEEDED(res = dumpnand_open_src(dump, 0, &dump->srcHandle))
+       && R_SUCCEEDED(res = dumpnand_get_src_size(dump, dump->srcHandle, &op->currTotal))
+       && R_SUCCEEDED(res = dumpnand_open_dst(dump, &dump->dstHandle))
+       && R_SUCCEEDED(res = svcCreateEvent(&op->cancelEvent, RESET_STICKY))) {
+        dump->trace = speedlog_begin("copy", "NAND dump", op->currTotal);
+        dump->startTime = osGetTime();
+        op->finished = false;
+
+        dump->writer = threadCreate(dumpnand_writer, dump, 0x4000, 0x18, 0, false);
+        dump->hasher = threadCreate(dumpnand_hasher, dump, 0x4000, 0x31, 2, false);
+        if(dump->hasher == NULL) {
+            dump->hasher = threadCreate(dumpnand_hasher, dump, 0x4000, 0x31, 0, false);
+        }
+
+        if(dump->writer == NULL || dump->hasher == NULL || threadCreate(dumpnand_reader, dump, 0x10000, 0x18, 1, true) == NULL) {
+            res = R_APP_THREAD_CREATE_FAILED;
+            dumpnand_stop_workers(dump, 0);
+        }
+    }
+
     if(R_SUCCEEDED(res)) {
         dump->state = DUMP_WORKING;
-        dump->startTime = osGetTime();
     } else {
+        bool dstMade = dump->dstHandle != 0;
+
+        if(dump->trace != NULL) {
+            speedlog_end(dump->trace, false);
+            dump->trace = NULL;
+        }
+
+        dumpnand_free_resources(dump);
+        if(dstMade) {
+            dumpnand_delete_partial(dump);
+        }
+
+        mbedtls_sha256_free(&dump->sha);
+        op->finished = true;
         error_display_res(NULL, NULL, res, "Failed to initiate NAND dump.");
     }
 }

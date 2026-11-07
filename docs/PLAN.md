@@ -746,11 +746,16 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
       added (no source found for the IDs).
 
 **Dump NAND screen** (branch `advanced`)
-- [ ] On a console: the raw NAND opens (Azahar cannot, it closes), size and free space are right,
-      a dump runs to the end, the SHA-256 shown matches the file (`sha256sum`) and the `.sha256` next to it
-      passes `sha256sum -c`, cancelling deletes the
-      half file, a full SD card shows the red "not enough space" screen. Seen in Azahar only with a
-      fake source of zeros (UI and hash).
+- [x] On a New 3DS XL (2026-11-07): the raw NAND opens, size and free space are right, a dump runs to the end,
+      the SHA-256 shown matches the file and the `.sha256` passes `sha256sum -c`.
+- [ ] Still to see: cancelling deletes the half file, a full SD card shows the red "not enough space" screen.
+
+**Dump NAND on three threads** (2026-11-07, `feat/dumpnand-pipeline`): read (core 1), write (core 0) and hash
+(core 2, or core 0 on an Old 3DS) in 1 MB blocks, four of them in flight, with `osSetSpeedupEnable`. On the New 3DS XL,
+1.98 GB: 0.8.5 without a hash 647 s, 0.9.1 hashing on the copy thread 1105 s, this 557 s (3.4 MB/s); the dump's
+SHA-256 checked with `sha256sum -c`, and it differs from the earlier dumps only in a few CTRNAND sectors. The SD write
+is the limit now (slower while the NAND is read at the same time).
+- [ ] On an Old 3DS or 2DS (hash on core 0): time and the hash; cancelling and the full SD again on this build.
 
 **Pixel theme** (Settings -> Theme, `tools/make_pixelfont.py`)
 - [ ] On a console: the pixel font (Pixelify Sans 10/12/16 px, `romfs/pixelfont.png`) is readable on

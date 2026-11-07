@@ -571,7 +571,6 @@ static Result action_export_cia_open_dst(void* data, u32 index, void* initialRea
 static Result action_export_cia_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
     export_cia_data* exportData = (export_cia_data*) data;
 
-
     Result res = action_export_cia_wait_job(exportData);
 
     mbedtls_sha256_finish_ret(&exportData->sha, exportData->hashes[index]);
@@ -618,14 +617,6 @@ static Result action_export_cia_write_dst(void* data, u32 handle, u32* bytesWrit
     return 0;
 }
 
-static Result action_export_cia_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_export_cia_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_export_cia_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(((export_cia_data*) data)->title, task_draw_title_info, res, "Failed to export CIA.");
     // Never skip a content: the file would be broken.
@@ -635,10 +626,7 @@ static bool action_export_cia_error(void* data, u32 index, Result res, ui_view**
 static void action_export_cia_update(ui_view* view, void* data, float* progress, char* text) {
     export_cia_data* exportData = (export_cia_data*) data;
 
-    if(exportData->exportInfo.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &exportData->exportInfo.finished, exportData->exportInfo.cancelEvent)) {
         FSFILE_Close(exportData->ciaHandle);
         exportData->ciaHandle = 0;
 
@@ -651,10 +639,6 @@ static void action_export_cia_update(ui_view* view, void* data, float* progress,
         action_export_cia_free(exportData);
 
         return;
-    }
-
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(exportData->exportInfo.cancelEvent);
     }
 
     *progress = exportData->exportInfo.currTotal != 0 ? (float) ((double) exportData->exportInfo.currProcessed / (double) exportData->exportInfo.currTotal) : 0;
@@ -731,9 +715,6 @@ void action_export_cia(linked_list* items, list_item* selected) {
     data->exportInfo.openDst = action_export_cia_open_dst;
     data->exportInfo.closeDst = action_export_cia_close_dst;
     data->exportInfo.writeDst = action_export_cia_write_dst;
-
-    data->exportInfo.suspend = action_export_cia_suspend;
-    data->exportInfo.restore = action_export_cia_restore;
 
     data->exportInfo.error = action_export_cia_error;
 

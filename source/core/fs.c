@@ -81,6 +81,28 @@ void fs_free_path_utf8(FS_Path* path) {
     free(path);
 }
 
+Result fs_delete_dir_recursively(FS_Archive archive, const char* path) {
+    char trimmed[FILE_PATH_MAX];
+    size_t len = strlen(path);
+    if(len >= sizeof(trimmed)) {
+        return R_APP_INVALID_ARGUMENT;
+    }
+
+    memcpy(trimmed, path, len + 1);
+    while(len > 1 && trimmed[len - 1] == '/') {
+        trimmed[--len] = '\0';
+    }
+
+    FS_Path* fsPath = fs_make_path_utf8(trimmed);
+    if(fsPath == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Result res = FSUSER_DeleteDirectoryRecursively(archive, *fsPath);
+    fs_free_path_utf8(fsPath);
+    return res;
+}
+
 typedef struct {
     FS_Archive archive;
     u32 refs;

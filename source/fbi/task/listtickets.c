@@ -163,19 +163,7 @@ void task_free_ticket(list_item* item) {
 }
 
 void task_clear_tickets(linked_list* items) {
-    if(items == NULL) {
-        return;
-    }
-
-    linked_list_iter iter;
-    linked_list_iterate(items, &iter);
-
-    while(linked_list_iter_has_next(&iter)) {
-        list_item* item = (list_item*) linked_list_iter_next(&iter);
-
-        linked_list_iter_remove(&iter);
-        task_free_ticket(item);
-    }
+    task_clear_list(items, task_free_ticket);
 }
 
 Result task_populate_tickets(populate_tickets_data* data) {
@@ -185,25 +173,5 @@ Result task_populate_tickets(populate_tickets_data* data) {
 
     task_clear_tickets(data->items);
 
-    data->finished = false;
-    data->result = 0;
-    data->cancelEvent = 0;
-
-    Result res = 0;
-    if(R_SUCCEEDED(res = svcCreateEvent(&data->cancelEvent, RESET_STICKY))) {
-        if(threadCreate(task_populate_tickets_thread, data, 0x10000, 0x19, 1, true) == NULL) {
-            res = R_APP_THREAD_CREATE_FAILED;
-        }
-    }
-
-    if(R_FAILED(res)) {
-        data->finished = true;
-
-        if(data->cancelEvent != 0) {
-            svcCloseHandle(data->cancelEvent);
-            data->cancelEvent = 0;
-        }
-    }
-
-    return res;
+    return task_start_populate(task_populate_tickets_thread, data, &data->cancelEvent, &data->finished, &data->result);
 }

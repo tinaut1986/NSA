@@ -14,6 +14,9 @@ Result fs_ensure_dir(FS_Archive archive, const char* path);
 FS_Path fs_make_path_binary(const void* data, u32 size);
 FS_Path* fs_make_path_utf8(const char* path);
 void fs_free_path_utf8(FS_Path* path);
+// Deletes a folder and all it holds. The path may end in '/': the console's FS refuses a folder that holds others
+// ("not found") when it does, so it is dropped.
+Result fs_delete_dir_recursively(FS_Archive archive, const char* path);
 
 Result fs_open_archive(FS_Archive* archive, FS_ArchiveID id, FS_Path path);
 Result fs_ref_archive(FS_Archive archive);

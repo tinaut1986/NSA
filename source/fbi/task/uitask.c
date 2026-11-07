@@ -9,12 +9,59 @@
 #include "../../core/core.h"
 #include "../../core/data/smdh.h"
 
+void task_clear_list(linked_list* items, void (*freeItem)(list_item* item)) {
+    if(items == NULL) {
+        return;
+    }
+
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+
+        linked_list_iter_remove(&iter);
+        freeItem(item);
+    }
+}
+
+Result task_start_populate(ThreadFunc thread, void* data, Handle* cancelEvent, volatile bool* finished, Result* result) {
+    *finished = false;
+    *result = 0;
+    *cancelEvent = 0;
+
+    Result res = 0;
+    if(R_SUCCEEDED(res = svcCreateEvent(cancelEvent, RESET_STICKY))) {
+        if(threadCreate(thread, data, 0x10000, 0x19, 1, true) == NULL) {
+            res = R_APP_THREAD_CREATE_FAILED;
+        }
+    }
+
+    if(R_FAILED(res)) {
+        *finished = true;
+
+        if(*cancelEvent != 0) {
+            svcCloseHandle(*cancelEvent);
+            *cancelEvent = 0;
+        }
+    }
+
+    return res;
+}
+
+void task_stop_populate(Handle cancelEvent, volatile bool* finished) {
+    svcSignalEvent(cancelEvent);
+    while(!*finished) {
+        svcSleepThread(1000000);
+    }
+}
+
 // The top screen while an action asks or works: what it is about, as a card
 // with the item's icon and name and a grid of cells under it (the same look as
 // Titles and Files).
 
 #define CARD_HEIGHT 76
-#define CELL_HEIGHT 34
+#define CELL_HEIGHT WIDGET_CELL_HEIGHT
 #define CELL_GAP 6
 
 typedef struct {
@@ -24,11 +71,7 @@ typedef struct {
 } task_cell;
 
 static void task_draw_cell(float x, float y, float w, const task_cell* cell) {
-    const theme_current* t = theme();
-    screen_frame_round_rect(x, y, w, CELL_HEIGHT, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
-    screen_draw_text(cell->label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
-    float scale = widget_text_width(cell->value, WIDGET_TEXT_SCALE) <= w - 14 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
-    widget_text_fit(cell->value, x + 8, y + 3 + widget_text_height(WIDGET_SMALL_SCALE), scale, t->palette->text, w - 14);
+    widget_cell(x, y, w, cell->label, cell->value);
 }
 
 // Cells fill rows three units wide; a cell of weight 1.5 (an ID) is wider than
@@ -506,6 +549,63 @@ void task_draw_ticket_info(ui_view* view, void* data, float x1, float y1, float 
     // What "in use" means, in a sentence.
     const char* note = info->inUse ? _("A title using it is installed: this is its licence.")
                                    : _("No installed title uses it: it is left from a deleted title, or the title was never installed.");
+    screen_draw_text_wrap(note, x + 2, bottom + 10, WIDGET_SMALL_SCALE + 0.04f, t->palette->textMuted, x + w - 2);
+}
+
+static const char* task_mod_state_name(mod_state state) {
+    switch(state) {
+        case MOD_STATE_INSTALLED: return _("Installed");
+        case MOD_STATE_CARD: return _("Game card");
+        case MOD_STATE_RELATED: return _("Update only");
+        default: return _("Not installed");
+    }
+}
+
+void task_draw_mod_info(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    mod_info* info = (mod_info*) data;
+    const theme_current* t = theme();
+    float x = x1 + 10;
+    float w = x2 - x1 - 20;
+
+    char id[32];
+    snprintf(id, sizeof(id), "%016llX", info->titleId);
+    if(info->hasMeta) {
+        task_draw_meta_card(&info->meta, x, y1 + 10, w);
+    } else {
+        task_draw_card(x, y1 + 10, w, 0, ICON_FOLDER, task_kind_name(info->titleId), id, task_mod_state_name(info->state));
+    }
+
+    char size[32];
+    task_size_text(size, sizeof(size), info->size);
+    char contents[96];
+    task_mod_contents_text(contents, sizeof(contents), info->contents);
+
+    task_cell cells[6];
+    u32 count = 0;
+    task_set(&cells[count], _("Title ID"), "%s", id);
+    task_wide(&cells[count++]);
+    task_set(&cells[count++], _("Game"), "%s", task_mod_state_name(info->state));
+    task_set(&cells[count++], _("Size"), "%s", size);
+    task_set(&cells[count++], _("Files"), "%lu", info->files);
+    task_set(&cells[count], _("Contents"), "%s", contents);
+    task_wide(&cells[count++]);
+
+    float bottom = task_draw_cells(x, y1 + 10 + CARD_HEIGHT + 8, w, cells, count);
+
+    // What the state means, in a sentence.
+    const char* note = NULL;
+    if(MOD_EMPTY(info)) {
+        note = _("This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.");
+    } else switch(info->state) {
+        case MOD_STATE_INSTALLED: note = _("Luma3DS loads these files into the game when it starts."); break;
+        case MOD_STATE_CARD: note = _("The game is the card in the slot: Luma3DS loads these files into it."); break;
+        case MOD_STATE_RELATED: note = _("The game is not installed but its update or DLC is: it is most likely played from a game card."); break;
+        default:
+            note = title_kind_of(info->titleId) == TITLE_KIND_SYSTEM ? _("A system title that is not installed. Luma3DS patches some of them: delete only what you know.")
+                                                                      : _("No installed game uses these mods. A game card's show here too while the card is out of the slot.");
+            break;
+    }
+
     screen_draw_text_wrap(note, x + 2, bottom + 10, WIDGET_SMALL_SCALE + 0.04f, t->palette->textMuted, x + w - 2);
 }
 

@@ -54,14 +54,6 @@ static Result action_delete_pending_titles_delete(void* data, u32 index) {
     return res;
 }
 
-static Result action_delete_pending_titles_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_delete_pending_titles_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_delete_pending_titles_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(data, action_delete_pending_titles_draw_top, res, "Failed to delete pending title.");
     return true;
@@ -79,10 +71,7 @@ static void action_delete_pending_titles_free_data(delete_pending_titles_data* d
 static void action_delete_pending_titles_update(ui_view* view, void* data, float* progress, char* text) {
     delete_pending_titles_data* deleteData = (delete_pending_titles_data*) data;
 
-    if(deleteData->deleteInfo.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &deleteData->deleteInfo.finished, deleteData->deleteInfo.cancelEvent)) {
         if(R_SUCCEEDED(deleteData->deleteInfo.result)) {
             prompt_display_notify("Success", "Pending title(s) deleted.", COLOR_TEXT, NULL, NULL, NULL);
         }
@@ -92,12 +81,7 @@ static void action_delete_pending_titles_update(ui_view* view, void* data, float
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !deleteData->deleteInfo.finished) {
-        svcSignalEvent(deleteData->deleteInfo.cancelEvent);
-    }
-
-    *progress = deleteData->deleteInfo.total > 0 ? (float) deleteData->deleteInfo.processed / (float) deleteData->deleteInfo.total : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu"), deleteData->deleteInfo.processed, deleteData->deleteInfo.total);
+    data_op_progress_items(&deleteData->deleteInfo, progress, text);
 }
 
 static void action_delete_pending_titles_onresponse(ui_view* view, void* data, u32 response) {
@@ -132,10 +116,7 @@ static void action_delete_pending_titles_loading_draw_top(ui_view* view, void* d
 static void action_delete_pending_titles_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     delete_pending_titles_loading_data* loadingData = (delete_pending_titles_loading_data*) data;
 
-    if(loadingData->popData.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &loadingData->popData.finished, loadingData->popData.cancelEvent)) {
         if(R_SUCCEEDED(loadingData->popData.result)) {
             loadingData->deleteData->deleteInfo.total = linked_list_size(&loadingData->deleteData->contents);
             loadingData->deleteData->deleteInfo.processed = loadingData->deleteData->deleteInfo.total;
@@ -149,10 +130,6 @@ static void action_delete_pending_titles_loading_update(ui_view* view, void* dat
 
         free(loadingData);
         return;
-    }
-
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
     }
 
     snprintf(text, PROGRESS_TEXT_MAX, _("Fetching pending title list..."));
@@ -176,9 +153,6 @@ void action_delete_pending_titles(linked_list* items, list_item* selected, const
     data->deleteInfo.op = DATAOP_DELETE;
 
     data->deleteInfo.delete = action_delete_pending_titles_delete;
-
-    data->deleteInfo.suspend = action_delete_pending_titles_suspend;
-    data->deleteInfo.restore = action_delete_pending_titles_restore;
 
     data->deleteInfo.error = action_delete_pending_titles_error;
 

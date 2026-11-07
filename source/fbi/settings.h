@@ -18,6 +18,7 @@ typedef struct {
     u32 regions;     // One bit per region.
     bool group;
     u32 sort;
+    bool sortReverse;   // The sort turned round.
     bool grid;
     u32 tile;        // Size of the tiles of the grid: a level of list_tile_size_of.
 } titles_settings;
@@ -28,7 +29,9 @@ typedef struct {
     u32 media;       // Bits: 1 SD, 2 NAND.
     bool group;
     u32 sort;
+    bool sortReverse;
     bool grid;
+    u32 tile;        // Size of the tiles of the grid: a level of list_tile_size_of.
 } tickets_settings;
 
 typedef struct {
@@ -38,19 +41,30 @@ typedef struct {
     bool tickets;
     bool hidden;
     u32 sort;
+    bool sortReverse;
 } files_settings;
 
 typedef struct {
     bool sd;
     bool nand;
     bool byId;
+    bool sortReverse;
     bool grid;
+    u32 tile;        // Size of the tiles of the grid: a level of list_tile_size_of.
 } extsave_settings;
 
 typedef struct {
     bool sd;
     bool nand;
 } pending_settings;
+
+typedef struct {
+    u32 states;      // Bits: 1 the game is on the console (installed, its card or its update), 2 it is not, 4 empty folders.
+    u32 sort;        // 0 name, 1 size, 2 ID.
+    bool sortReverse;
+    bool grid;
+    u32 tile;        // Size of the tiles of the grid: a level of list_tile_size_of.
+} mods_settings;
 
 typedef struct {
     u32 kinds;        // Bits: 1 CIA, 2 3DSX.
@@ -87,6 +101,8 @@ typedef struct {
     // Background music: a bgmusic_style and a volume in percent.
     u32 music;
     u32 musicVolume;
+    // The audio player at the end of a track: 0 the next one (the last stops), 1 the list again, 2 the same track.
+    u32 playerRepeat;
 
     // The main menu's layout: the ids of the entries shown in order, then "|" and the hidden ones; "" for the default.
     char menu[128];
@@ -103,6 +119,7 @@ typedef struct {
     files_settings files;
     extsave_settings extsave;
     pending_settings pending;
+    mods_settings mods;
     store_settings store;
 } settings_data;
 

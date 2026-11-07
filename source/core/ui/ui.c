@@ -184,6 +184,12 @@ static void ui_draw_top_bar() {
         screen_draw_icon(ICON_DEVICE_DESKTOP, x, (height - 14) / 2, 14, t->accent);
     }
 
+    // The audio player, left playing behind the other screens.
+    if(activity & UI_STATUS_PLAYER) {
+        x -= 15;
+        screen_draw_icon(ICON_PLAYER_PLAY, x, (height - 14) / 2, 14, t->accent);
+    }
+
     // While a song is being made for the background music, a note that breathes.
     bgmusic_status music;
     bgmusic_get_status(&music);
@@ -343,7 +349,7 @@ static void ui_draw_bottom(ui_view* ui) {
         widget_text_centered(hint, 0, BOTTOM_SCREEN_WIDTH, contentBottom + (WIDGET_HINT_BAR_HEIGHT - widget_text_height(scale)) / 2, scale, t->palette->textMuted);
     }
 
-    char notice[128];
+    char notice[256];
     float progress = -1;
     if(ui_status_notice != NULL && ui_status_notice(notice, sizeof(notice), &progress)) {
         widget_toast(notice, progress, contentBottom);
@@ -485,4 +491,8 @@ const char* ui_get_display_size_units(u64 size) {
     }
 
     return "B";
+}
+
+void ui_format_size(char* out, size_t size, u64 bytes) {
+    snprintf(out, size, bytes < 1024 ? "%.0f %s" : "%.1f %s", ui_get_display_size(bytes), ui_get_display_size_units(bytes));
 }

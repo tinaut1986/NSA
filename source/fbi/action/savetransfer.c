@@ -139,14 +139,6 @@ static Result tree_write_dst(void* data, u32 handle, u32* bytesWritten, void* bu
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 
-static Result tree_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result tree_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool tree_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(data, tree_draw_top, res, "Failed to copy the files.");
     return true;
@@ -179,27 +171,12 @@ static void tree_finish(tree_copy* job, Result res) {
 static void tree_copy_update(ui_view* view, void* data, float* progress, char* text) {
     tree_copy* job = (tree_copy*) data;
 
-    if(job->op.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &job->op.finished, job->op.cancelEvent)) {
         tree_finish(job, job->op.result);
         return;
     }
 
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(job->op.cancelEvent);
-    }
-
-    *progress = job->op.currTotal != 0 ? (float) ((double) job->op.currProcessed / (double) job->op.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), job->op.processed, job->op.total,
-             ui_get_display_size(job->op.currProcessed),
-             ui_get_display_size_units(job->op.currProcessed),
-             ui_get_display_size(job->op.currTotal),
-             ui_get_display_size_units(job->op.currTotal),
-             ui_get_display_size(job->op.bytesPerSecond),
-             ui_get_display_size_units(job->op.bytesPerSecond),
-             ui_get_display_eta(job->op.estimatedRemainingSeconds));
+    data_op_progress_bytes(&job->op, progress, text, true);
 }
 
 typedef struct {
@@ -214,10 +191,7 @@ static void tree_loading_draw_top(ui_view* view, void* data, float x1, float y1,
 static void tree_loading_update(ui_view* view, void* data, float* progress, char* text) {
     tree_loading* loading = (tree_loading*) data;
 
-    if(loading->pop.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &loading->pop.finished, loading->pop.cancelEvent)) {
         tree_copy* job = loading->job;
         Result res = loading->pop.result;
         free(loading);
@@ -243,10 +217,6 @@ static void tree_loading_update(ui_view* view, void* data, float* progress, char
         return;
     }
 
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(loading->pop.cancelEvent);
-    }
-
     snprintf(text, PROGRESS_TEXT_MAX, "%s", _("Listing the files..."));
 }
 
@@ -268,8 +238,6 @@ static void tree_copy_start(tree_copy* job) {
     job->op.openDst = tree_open_dst;
     job->op.closeDst = tree_close_dst;
     job->op.writeDst = tree_write_dst;
-    job->op.suspend = tree_suspend;
-    job->op.restore = tree_restore;
     job->op.error = tree_error;
     job->op.finished = true;
 

@@ -20,6 +20,13 @@ void imageview_open(FS_Archive archive, const char* const* paths, u32 count, u32
 // Plays the sound at `paths[index]` of `count` (MP3, WAV, FLAC, Ogg Vorbis); the folder's
 // others follow, and L and R go through them. The paths are copied.
 void audioview_open(FS_Archive archive, const char* const* paths, u32 count, u32 index);
+// The player left with B while playing goes on in the background: the main loop calls audioview_tick (it moves on to
+// the next track and lets go at the end). audioview_background says whether one plays (and its track),
+// audioview_resume opens its screen again, audioview_exit stops it (NSA leaving).
+void audioview_tick();
+bool audioview_background(char* name, size_t size);
+void audioview_resume();
+void audioview_exit();
 
 // Shows the text file, with Edit in the viewer unless `readOnly`. Any file can be opened
 // this way; up to TEXTVIEW_MAX_SIZE bytes are read.

@@ -60,14 +60,61 @@ void widget_scrollbar(float x, float y, float height, float offset, float visibl
 bool widget_scrollbar_touched(const touchPosition* pos, float x, float y, float height, float visible, float total);
 float widget_scrollbar_offset(float y, float height, float visible, float total, float py);
 
-// The bottom screen's toast, just above `bottom`: a line and, when progress
-// is known (>= 0), a bar.
+// A progress for widget_toast: something goes on, but how far is not known (a bar that moves).
+#define WIDGET_PROGRESS_UNKNOWN (-2.0f)
+
+// The bottom screen's toast, just above `bottom`: one line, or a few separated by '\n', and a bar when progress is
+// known (>= 0) or WIDGET_PROGRESS_UNKNOWN.
 void widget_toast(const char* text, float progress, float bottom);
 
 // A modal: dims the screen and draws the card; returns its content area.
 void widget_modal(float screenWidth, float screenHeight, float width, float height, float* x, float* y);
 
 bool widget_touched(const touchPosition* pos, float x, float y, float width, float height);
+
+// ---- a viewer's buttons ----
+
+// A viewer's card at the top of the bottom screen, with `name` on its first line; returns where the next line goes
+// (x 18, up to x2 - 18).
+float widget_info_card(float x1, float y1, float x2, const char* name);
+
+// Where button `i` of a row of `count` sits: 40 px tall, side by side over the bottom screen's hint bar.
+void widget_button_row_rect(int i, int count, float* x, float* y, float* width, float* height);
+// Draws that button: its icon, and its label beside it when there is one. `primary` draws it in the accent (the player's
+// play button); `disabled` greys its icon.
+void widget_row_button(int i, int count, u32 icon, const char* label, bool pressed, bool disabled, bool primary);
+// The button of the row a finger is on, or -1.
+int widget_button_row_hit(const touchPosition* pos, int count);
+// A finger that went down on the row and is now off every button: nothing is pressed.
+#define WIDGET_BUTTON_ROW_OFF (-2)
+// While a finger that went down on the row is held: the button under it is pressed (*pressed), or none
+// (WIDGET_BUTTON_ROW_OFF); a finger that went down elsewhere (*pressed == -1) presses nothing.
+void widget_button_row_hold(int* pressed, const touchPosition* pos, int count);
+
+// ---- items of a list ----
+
+// The frame of a row of a list (accent when selected) and the colours for what is drawn on it: `ink` for its text,
+// `muted` for its second line. Either may be NULL.
+void widget_item_frame(float x, float y, float width, float height, bool selected, u32* ink, u32* muted);
+// The frame of a tile of a grid: a ring of accent around it when selected.
+void widget_tile_frame(float x, float y, float size, bool selected);
+// An item without an icon of its own: `icon` at half size in a rounded square of `background`.
+void widget_icon_placeholder(float x, float y, float size, u32 icon, u32 background, u32 foreground);
+// `scroll` kept within 0..max (0 when max is below 0).
+float widget_clamp_scroll(float scroll, float max);
+// While an item loads: grey blocks where its icon (`icon` wide) and its two lines of text will be.
+void widget_skeleton(float x, float y, float width, float height, float icon, bool selected);
+// An item's contents fade in over 250 ms from `since` (when it loaded); screen_set_content_motion(0, 0, 0xFF) ends it.
+void widget_fade_in(u64 since);
+// A round badge with a number (how many updates and DLC wait under a game), centred on x, y.
+void widget_count_badge(u32 count, float x, float y);
+// widget_badge right-aligned at `right`; returns its width.
+float widget_badge_right(float right, float y, const char* text, u32 background, u32 foreground);
+// A box with a small label over its value (the details on the top screen), WIDGET_CELL_HEIGHT tall.
+#define WIDGET_CELL_HEIGHT 34
+void widget_cell(float x, float y, float width, const char* label, const char* value);
+// The top screen's card while the selected item loads: a skeleton and "Loading...".
+void widget_loading_card(float x1, float y1, float x2);
 
 // ---- presses ----
 
@@ -97,6 +144,18 @@ bool widget_press_long_due(widget_press* p);
 // The pressed look over a target drawn at x, y, w, h with corner `radius`;
 // `ink` is the colour of what is on it (text). `fill` draws the long press fill.
 void widget_press_draw(const widget_press* p, int index, float x, float y, float width, float height, float radius, u32 ink, bool fill);
+
+// ---- held keys ----
+
+// A direction pressed on a layer moves once, then again every 90 ms after 400 ms while held. Only a press made while
+// the layer is open counts: one held since before does nothing.
+typedef struct {
+    u32 key;   // The key held since it was pressed here.
+    u64 at;    // When it moves again.
+} widget_repeat;
+
+// True when `key` moves now; `fresh` says whether it is the press itself (a list may wrap round then, not while held).
+bool widget_repeat_step(widget_repeat* r, u32 key, bool* fresh);
 
 // ---- motion ----
 

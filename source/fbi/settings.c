@@ -26,9 +26,9 @@ static settings_data settings = {
         .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false, .tile = 1},
         .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false, .tile = 1},
         .files = {.directories = true, .files = true, .cias = true, .tickets = true, .hidden = false, .sort = 0},
-        .extsave = {.sd = true, .nand = true, .byId = false, .grid = false},
+        .extsave = {.sd = true, .nand = true, .byId = false, .grid = false, .tile = 1},
         .pending = {.sd = true, .nand = true},
-        .mods = {.states = 3, .sort = 0, .grid = false},
+        .mods = {.states = 3, .sort = 0, .grid = false, .tile = 1},
         .store = {.kinds = 3, .others = true, .categories = 0xFF, .sort = 0, .grid = false, .tile = 2, .shown = 0}
 };
 
@@ -182,6 +182,7 @@ void settings_load() {
         settings.extsave.nand = settings_get_bool(extsave, "nand", settings.extsave.nand);
         settings.extsave.byId = settings_get_bool(extsave, "by_id", settings.extsave.byId);
         settings.extsave.sortReverse = settings_get_bool(extsave, "sortReverse", settings.extsave.sortReverse);
+        settings.extsave.tile = settings_get_uint(extsave, "tile", settings.extsave.tile, 3);
         settings.extsave.grid = settings_get_bool(extsave, "grid", settings.extsave.grid);
     }
 
@@ -209,6 +210,7 @@ void settings_load() {
         settings.mods.states = settings_get_uint(mods, "states", settings.mods.states, 7);
         settings.mods.sort = settings_get_uint(mods, "sort", settings.mods.sort, 2);
         settings.mods.sortReverse = settings_get_bool(mods, "sortReverse", settings.mods.sortReverse);
+        settings.mods.tile = settings_get_uint(mods, "tile", settings.mods.tile, 3);
         settings.mods.grid = settings_get_bool(mods, "grid", settings.mods.grid);
     }
 
@@ -293,7 +295,9 @@ Result settings_save() {
     json_object_set_new(json_object_get(json, "tickets"), "tile", json_integer(settings.tickets.tile));
     json_object_set_new(json_object_get(json, "files"), "sortReverse", json_boolean(settings.files.sortReverse));
     json_object_set_new(json_object_get(json, "extsave"), "sortReverse", json_boolean(settings.extsave.sortReverse));
+    json_object_set_new(json_object_get(json, "extsave"), "tile", json_integer(settings.extsave.tile));
     json_object_set_new(json, "mods", json_pack("{s:i,s:i,s:b,s:b}", "states", (int) settings.mods.states, "sort", (int) settings.mods.sort, "sortReverse", settings.mods.sortReverse, "grid", settings.mods.grid));
+    json_object_set_new(json_object_get(json, "mods"), "tile", json_integer(settings.mods.tile));
     json_object_set_new(json, "menu", json_string(settings.menu));
     json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));
     json_object_set_new(json, "guide_seen", json_string(settings.guideSeen));

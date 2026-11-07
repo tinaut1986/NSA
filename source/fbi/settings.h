@@ -50,6 +50,7 @@ typedef struct {
     bool byId;
     bool sortReverse;
     bool grid;
+    u32 tile;        // Size of the tiles of the grid: a level of list_tile_size_of.
 } extsave_settings;
 
 typedef struct {
@@ -62,6 +63,7 @@ typedef struct {
     u32 sort;        // 0 name, 1 size, 2 ID.
     bool sortReverse;
     bool grid;
+    u32 tile;        // Size of the tiles of the grid: a level of list_tile_size_of.
 } mods_settings;
 
 typedef struct {

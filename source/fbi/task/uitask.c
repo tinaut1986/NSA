@@ -551,7 +551,9 @@ void task_draw_mod_info(ui_view* view, void* data, float x1, float y1, float x2,
 
     // What the state means, in a sentence.
     const char* note = NULL;
-    switch(info->state) {
+    if(MOD_EMPTY(info)) {
+        note = _("This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.");
+    } else switch(info->state) {
         case MOD_STATE_INSTALLED: note = _("Luma3DS loads these files into the game when it starts."); break;
         case MOD_STATE_CARD: note = _("The game is the card in the slot: Luma3DS loads these files into it."); break;
         case MOD_STATE_RELATED: note = _("The game is not installed but its update or DLC is: it is most likely played from a game card."); break;

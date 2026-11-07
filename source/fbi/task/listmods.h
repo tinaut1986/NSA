@@ -39,6 +39,9 @@ typedef struct mod_info_s {
     u64 size;
     u32 files;
     u32 contents;
+
+    // Not a folder: the screen's own row that stands for the empty ones while they are hidden (mods.c).
+    bool summary;
 } mod_info;
 
 typedef struct populate_mods_data_s {
@@ -54,7 +57,10 @@ typedef struct populate_mods_data_s {
 bool task_mod_unused(const mod_info* info);
 // "romfs, code patch" from the contents bits.
 void task_mod_contents_text(char* out, size_t size, u32 contents);
-// Whether the SD card has mods for this title (MODS_ROOT<ID>/).
+// An empty folder holds no mods: Luma3DS finds nothing in it. Something other than Luma makes them.
+#define MOD_EMPTY(info) ((info)->ready && !(info)->summary && (info)->files == 0)
+
+// Whether the SD card has mods for this title (MODS_ROOT<ID>/ with something in it).
 bool task_mods_exist(u64 titleId);
 // Deletes the mods folder of this title.
 Result task_mods_delete(u64 titleId);

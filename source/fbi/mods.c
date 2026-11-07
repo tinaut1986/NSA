@@ -29,11 +29,16 @@ typedef struct {
     // Hidden in place (no new listing).
     bool showPresent;
     bool showMissing;
+    bool showEmpty;
     mods_sort sort;
 
     bool populated;
     bool sorted;
     u32 sortedReady;
+
+    // Empty folders (something other than Luma makes them for every game): hidden, one row stands for them all.
+    list_item* summaryItem;
+    u32 emptyCount;
 
     linked_list* items;
     list_item* actionSelected;
@@ -48,7 +53,7 @@ static bool mods_present(const mod_info* info) {
 
 static void mods_store(mods_data* data) {
     mods_settings* saved = &settings_get()->mods;
-    saved->states = (data->showPresent ? 1 : 0) | (data->showMissing ? 2 : 0);
+    saved->states = (data->showPresent ? 1 : 0) | (data->showMissing ? 2 : 0) | (data->showEmpty ? 4 : 0);
     saved->sort = (u32) data->sort;
     saved->grid = data->view != NULL && list_get_mode(data->view) == LIST_MODE_GRID;
     settings_save();
@@ -58,22 +63,88 @@ static void mods_restore(mods_data* data) {
     mods_settings* saved = &settings_get()->mods;
     data->showPresent = (saved->states & 1) != 0;
     data->showMissing = (saved->states & 2) != 0;
+    data->showEmpty = (saved->states & 4) != 0;
     data->sort = saved->sort <= SORT_ID ? (mods_sort) saved->sort : SORT_NAME;
 }
 
 static bool mods_visible(void* data, list_item* item) {
     mods_data* listData = (mods_data*) data;
     mod_info* info = (mod_info*) item->data;
+    if(info->summary) {
+        return !listData->showEmpty && listData->emptyCount > 0;
+    }
+
     if(!info->ready) {
         return true;
+    }
+
+    if(MOD_EMPTY(info)) {
+        return listData->showEmpty;
     }
 
     return mods_present(info) ? listData->showPresent : listData->showMissing;
 }
 
+// The row of the empty folders: added once the list is complete (the populate thread walks the list until then), kept up
+// to date as folders are deleted, removed when none is left.
+static void mods_summary_text(mods_data* data, char* out, size_t size) {
+    snprintf(out, size, data->emptyCount == 1 ? i18n_translate_text("%lu empty folder") : i18n_translate_text("%lu empty folders"), data->emptyCount);
+}
+
+static void mods_summary_update(mods_data* data, linked_list* items) {
+    if(!data->populateData.finished) {
+        return;
+    }
+
+    u32 count = 0;
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        mod_info* info = (mod_info*) ((list_item*) linked_list_iter_next(&iter))->data;
+        count += MOD_EMPTY(info) ? 1 : 0;
+    }
+
+    data->emptyCount = count;
+    if(count == 0) {
+        if(data->summaryItem != NULL) {
+            linked_list_remove(items, data->summaryItem);
+            task_free_mod(data->summaryItem);
+            data->summaryItem = NULL;
+        }
+
+        return;
+    }
+
+    if(data->summaryItem == NULL) {
+        list_item* item = (list_item*) calloc(1, sizeof(list_item));
+        mod_info* info = (mod_info*) calloc(1, sizeof(mod_info));
+        if(item == NULL || info == NULL) {
+            free(item);
+            free(info);
+            return;
+        }
+
+        info->summary = true;
+        info->ready = true;
+        info->readyTime = osGetTime();
+        info->state = MOD_STATE_NOT_INSTALLED;
+        item->color = COLOR_TEXT;
+        item->data = info;
+        data->summaryItem = item;
+        linked_list_add(items, item);
+        data->sorted = false;
+    }
+
+    mods_summary_text(data, data->summaryItem->name, LIST_ITEM_NAME_MAX);
+}
+
 // ---- items ----
 
 static const char* mods_state_tag(const mod_info* info) {
+    if(MOD_EMPTY(info)) {
+        return _("Empty");
+    }
+
     switch(info->state) {
         case MOD_STATE_INSTALLED: return _("Installed");
         case MOD_STATE_CARD: return _("Game card");
@@ -124,6 +195,16 @@ static void mods_draw_row(void* data, list_item* item, float x, float y, float w
         return;
     }
 
+    if(info->summary) {
+        // The hidden empty folders: a muted folder with a line through it, and what A does.
+        screen_fill_round_rect(x + 5, y + 5, icon, icon, icon / 6, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->background);
+        screen_draw_icon(ICON_FOLDER_OFF, x + 5 + icon / 4, y + 5 + icon / 4, icon / 2, selected ? t->onAccent : t->palette->textMuted);
+        float sx = x + 5 + icon + 8;
+        widget_text_fit(item->name, sx, y + 4, WIDGET_TEXT_SCALE, ink, x + width - 8 - sx);
+        widget_text_fit(_("Hidden: they hold no mods"), sx, y + height - 4 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, muted, x + width - 8 - sx);
+        return;
+    }
+
     mods_fade_in(info);
     mods_draw_icon(info, x + 5, y + 5, icon, selected);
 
@@ -164,6 +245,15 @@ static void mods_draw_tile(void* data, list_item* item, float x, float y, float 
         return;
     }
 
+    if(info->summary) {
+        mods_data* listData = (mods_data*) data;
+        screen_draw_icon(ICON_FOLDER_OFF, x + (size - 32) / 2, y + 5, 32, t->palette->textMuted);
+        char count[16];
+        snprintf(count, sizeof(count), "%lu", listData->emptyCount);
+        widget_text_centered(count, x, x + size, y + size - 4 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, t->palette->textMuted);
+        return;
+    }
+
     mods_fade_in(info);
     mods_draw_icon(info, x + 4, y + 4, size - 8, false);
     screen_set_content_motion(0, 0, 0xFF);
@@ -183,6 +273,23 @@ static void mods_draw_top(ui_view* view, void* data, float x1, float y1, float x
             widget_text_centered(_("No mods in /luma/titles."), x1, x2, y1 + 100, WIDGET_TEXT_SCALE, t->palette->textMuted);
         }
 
+        return;
+    }
+
+    if(((mod_info*) selected->data)->summary) {
+        const theme_current* t = theme();
+        mods_data* listData = (mods_data*) data;
+        char title[64];
+        mods_summary_text(listData, title, sizeof(title));
+        float x = x1 + 10;
+        float w = x2 - x1 - 20;
+        widget_card(x, y1 + 10, w, 56);
+        screen_fill_round_rect(x + 10, y1 + 18, 40, 40, 7, t->palette->background);
+        screen_draw_icon(ICON_FOLDER_OFF, x + 14, y1 + 22, 32, t->palette->textMuted);
+        widget_text_fit(title, x + 60, y1 + 20, WIDGET_TEXT_SCALE, t->palette->text, w - 70);
+        widget_text_fit(MODS_ROOT, x + 60, y1 + 40, WIDGET_SMALL_SCALE, t->palette->textMuted, w - 70);
+        screen_draw_text_wrap(_("Folders in /luma/titles with no files in them: they hold no mods and Luma3DS finds nothing in them. Some programs make one for every game. They are hidden;  shows them or deletes them all."),
+                              x + 2, y1 + 78, WIDGET_SMALL_SCALE + 0.04f, t->palette->textMuted, x + w - 2);
         return;
     }
 
@@ -372,12 +479,53 @@ static void mods_delete_unused(void* data) {
     mods_delete_ask(deleteData);
 }
 
+static void mods_delete_empty(void* data) {
+    mods_data* listData = (mods_data*) data;
+    if(listData->emptyCount == 0) {
+        return;
+    }
+
+    mods_delete_data* deleteData = mods_delete_new(listData->items, listData->emptyCount);
+    if(deleteData == NULL) {
+        return;
+    }
+
+    linked_list_iter iter;
+    linked_list_iterate(listData->items, &iter);
+    while(linked_list_iter_has_next(&iter) && deleteData->count < listData->emptyCount) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        if(MOD_EMPTY((mod_info*) item->data)) {
+            deleteData->targets[deleteData->count++] = item;
+        }
+    }
+
+    snprintf(deleteData->message, sizeof(deleteData->message), i18n_translate_text("Delete %lu empty folders in /luma/titles? There is nothing in them."), deleteData->count);
+    mods_delete_ask(deleteData);
+}
+
+static void mods_toggle_empty(void* data) {
+    mods_data* listData = (mods_data*) data;
+    listData->showEmpty = !listData->showEmpty;
+    mods_store(listData);
+}
+
 static void mods_actions_open(mods_data* data, list_item* selected) {
     data->actionSelected = selected;
 
-    sheet_action actions[2];
+    sheet_action actions[4];
     u32 count = 0;
+    if(((mod_info*) selected->data)->summary) {
+        actions[count++] = (sheet_action) {ICON_FOLDER_OPEN, _("Show empty folders"), false, mods_toggle_empty};
+        actions[count++] = (sheet_action) {ICON_TRASH_X, _("Delete empty folders"), true, mods_delete_empty};
+        sheet_display_list(NULL, 0, actions, count, data);
+        return;
+    }
+
     actions[count++] = (sheet_action) {ICON_TRASH, _("Delete mods"), true, mods_delete};
+    if(data->showEmpty && data->emptyCount > 0) {
+        actions[count++] = (sheet_action) {ICON_EYE_OFF, _("Hide empty folders"), false, mods_toggle_empty};
+        actions[count++] = (sheet_action) {ICON_TRASH_X, _("Delete empty folders"), true, mods_delete_empty};
+    }
 
     // Only once every game is known: until then a game on the console could look gone.
     u64 size = 0;
@@ -417,7 +565,7 @@ static bool mods_filter_active(ui_view* view, void* data) {
 static bool mods_popover_is_on(void* data, u32 group, u32 option) {
     mods_data* listData = (mods_data*) data;
     if(group == 0) {
-        return option == 0 ? listData->showPresent : listData->showMissing;
+        return option == 0 ? listData->showPresent : option == 1 ? listData->showMissing : listData->showEmpty;
     }
 
     return listData->sort == (mods_sort) option;
@@ -426,7 +574,7 @@ static bool mods_popover_is_on(void* data, u32 group, u32 option) {
 static void mods_popover_select(void* data, u32 group, u32 option) {
     mods_data* listData = (mods_data*) data;
     if(group == 0) {
-        bool* flag = option == 0 ? &listData->showPresent : &listData->showMissing;
+        bool* flag = option == 0 ? &listData->showPresent : option == 1 ? &listData->showMissing : &listData->showEmpty;
         *flag = !*flag;
     } else {
         listData->sort = (mods_sort) option;
@@ -440,7 +588,7 @@ static void mods_filter_open(ui_view* view, void* data) {
     popover_def def = {
             .groupCount = 2,
             .groups = {
-                    {_("Show"), true, 2, {_("Game on the console"), _("Not installed")}, {-1, -1}},
+                    {_("Show"), true, 3, {_("Game on the console"), _("Not installed"), _("Empty folders")}, {ICON_CIRCLE_CHECK, ICON_CIRCLE_X, ICON_FOLDER_OFF}},
                     {_("Sort by"), false, 3, {_("Name"), _("Size"), "ID"}, {ICON_ABC, ICON_DATABASE, ICON_KEY}, true}
             },
             .isOn = mods_popover_is_on,
@@ -475,6 +623,10 @@ static int mods_compare(void* data, const void* p1, const void* p2) {
     list_item* item2 = (list_item*) p2;
     mod_info* mod1 = (mod_info*) item1->data;
     mod_info* mod2 = (mod_info*) item2->data;
+
+    if(mod1->summary != mod2->summary) {
+        return mod1->summary ? -1 : 1;
+    }
 
     if(mod1->ready != mod2->ready) {
         return mod1->ready ? -1 : 1;
@@ -564,6 +716,8 @@ static void mods_update(ui_view* view, void* data, linked_list* items, list_item
         listData->populateData.items = items;
         listData->sorted = false;
         listData->sortedReady = 0;
+        listData->summaryItem = NULL;   // Freed with the rest of the list.
+        listData->emptyCount = 0;
         Result res = task_populate_mods(&listData->populateData);
         if(R_FAILED(res)) {
             error_display_res(NULL, NULL, res, "Failed to initiate mods list population.");
@@ -571,6 +725,8 @@ static void mods_update(ui_view* view, void* data, linked_list* items, list_item
 
         listData->populated = true;
     }
+
+    mods_summary_update(listData, items);
 
     if(!listData->populateData.finished && ready != listData->sortedReady) {
         linked_list_sort(items, listData, mods_compare);

@@ -1095,6 +1095,16 @@ const i18n_entry i18n_fr[] = {
         {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "Pendant la lecture, une icône de lecture s'affiche dans la barre du haut, et \uE002 dans un dossier de la carte SD propose Revenir au lecteur."},
         {"Music in the background", "Musique en arrière-plan"},
         {"Keep listening while you browse", "Continuez d'écouter en naviguant"},
+        {"%lu empty folder", "%lu dossier vide"},
+        {"%lu empty folders", "%lu dossiers vides"},
+        {"Hidden: they hold no mods", "Masqués : ils ne contiennent aucun mod"},
+        {"Folders in /luma/titles with no files in them: they hold no mods and Luma3DS finds nothing in them. Some programs make one for every game. They are hidden;  shows them or deletes them all.", "Dossiers de /luma/titles sans aucun fichier : ils ne contiennent aucun mod et Luma3DS n'y trouve rien. Certains programmes en créent un pour chaque jeu. Ils sont masqués ;  les affiche ou les supprime tous."},
+        {"Show empty folders", "Afficher les dossiers vides"},
+        {"Hide empty folders", "Masquer les dossiers vides"},
+        {"Delete empty folders", "Supprimer les dossiers vides"},
+        {"Delete %lu empty folders in /luma/titles? There is nothing in them.", "Supprimer %lu dossiers vides de /luma/titles ? Ils ne contiennent rien."},
+        {"Empty folders", "Dossiers vides"},
+        {"This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.", "Ce dossier est vide : il ne contient aucun mod et Luma3DS n'y trouve rien. Le supprimer ne change rien."},
 };
 
 const u32 i18n_fr_count = sizeof(i18n_fr) / sizeof(*i18n_fr);

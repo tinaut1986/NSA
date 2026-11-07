@@ -53,7 +53,7 @@ typedef struct {
 } pending_settings;
 
 typedef struct {
-    u32 states;      // Bits: 1 the game is on the console (installed, its card or its update), 2 it is not.
+    u32 states;      // Bits: 1 the game is on the console (installed, its card or its update), 2 it is not, 4 empty folders.
     u32 sort;        // 0 name, 1 size, 2 ID.
     bool grid;
 } mods_settings;

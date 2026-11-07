@@ -201,7 +201,7 @@ void settings_load() {
 
     json_t* mods = json_object_get(json, "mods");
     if(json_is_object(mods)) {
-        settings.mods.states = settings_get_uint(mods, "states", settings.mods.states, 3);
+        settings.mods.states = settings_get_uint(mods, "states", settings.mods.states, 7);
         settings.mods.sort = settings_get_uint(mods, "sort", settings.mods.sort, 2);
         settings.mods.grid = settings_get_bool(mods, "grid", settings.mods.grid);
     }

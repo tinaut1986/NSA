@@ -1100,6 +1100,16 @@ const i18n_entry i18n_ja[] = {
         {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "再生中は上のバーに再生アイコンが表示され、SDカードのどのフォルダでも \uE002 から「プレーヤーに戻る」を選べます。"},
         {"Music in the background", "バックグラウンドで音楽"},
         {"Keep listening while you browse", "見ている間も聴き続ける"},
+        {"%lu empty folder", "空のフォルダ %lu 個"},
+        {"%lu empty folders", "空のフォルダ %lu 個"},
+        {"Hidden: they hold no mods", "非表示：MODは入っていません"},
+        {"Folders in /luma/titles with no files in them: they hold no mods and Luma3DS finds nothing in them. Some programs make one for every game. They are hidden;  shows them or deletes them all.", "ファイルが1つもない /luma/titles のフォルダです。MODは入っておらず、Luma3DSは何も見つけません。ゲームごとに作るプログラムもあります。非表示になっています。 で表示するか、まとめて削除できます。"},
+        {"Show empty folders", "空のフォルダを表示"},
+        {"Hide empty folders", "空のフォルダを隠す"},
+        {"Delete empty folders", "空のフォルダを削除"},
+        {"Delete %lu empty folders in /luma/titles? There is nothing in them.", "/luma/titles の空のフォルダ %lu 個を削除しますか？中には何もありません。"},
+        {"Empty folders", "空のフォルダ"},
+        {"This folder is empty: it holds no mods and Luma3DS finds nothing in it. Deleting it changes nothing.", "このフォルダは空です。MODは入っておらず、Luma3DSは何も見つけません。削除しても何も変わりません。"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

@@ -790,14 +790,6 @@ static void tv_draw_key(text_data* d, const key_rect* k, bool pressed) {
 
 #define TV_BUTTONS 3
 
-static void tv_button_rect(int i, float* x, float* y, float* w, float* h) {
-    float gap = 6;
-    *w = (BOTTOM_SCREEN_WIDTH - 16 - gap * (TV_BUTTONS - 1)) / TV_BUTTONS;
-    *h = 40;
-    *x = 8 + i * (*w + gap);
-    *y = BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT - 8 - *h;
-}
-
 static void tv_draw_bottom(ui_view* view, void* v, float x1, float y1, float x2, float y2) {
     text_data* d = (text_data*) v;
     const theme_current* t = theme();
@@ -839,7 +831,7 @@ static void tv_draw_bottom(ui_view* view, void* v, float x1, float y1, float x2,
     const char* labels[TV_BUTTONS] = {_("Edit"), _("Start"), _("End")};
     for(int i = 0; i < TV_BUTTONS; i++) {
         float x, y, w, h;
-        tv_button_rect(i, &x, &y, &w, &h);
+        widget_button_row_rect(i, TV_BUTTONS, &x, &y, &w, &h);
         bool pressed = d->pressedButton == i;
         bool disabled = i == 0 && d->readOnly;
         u32 fill = pressed ? t->accent : t->palette->surface;
@@ -1037,7 +1029,7 @@ static void tv_update(ui_view* view, void* v, float bx1, float by1, float bx2, f
         d->pressedButton = -1;
         for(int i = 0; i < TV_BUTTONS; i++) {
             float x, y, w, h;
-            tv_button_rect(i, &x, &y, &w, &h);
+            widget_button_row_rect(i, TV_BUTTONS, &x, &y, &w, &h);
             if(widget_touched(&pos, x, y, w, h)) {
                 d->pressedButton = i;
             }
@@ -1063,7 +1055,7 @@ static void tv_update(ui_view* view, void* v, float bx1, float by1, float bx2, f
 
         if(d->pressedButton >= 0) {
             float x, y, w, h;
-            tv_button_rect(d->pressedButton, &x, &y, &w, &h);
+            widget_button_row_rect(d->pressedButton, TV_BUTTONS, &x, &y, &w, &h);
             if(!widget_touched(&pos, x, y, w, h)) {
                 d->pressedButton = -1;
             }

@@ -76,6 +76,84 @@ void widget_card(float x, float y, float width, float height) {
     screen_frame_round_rect(x, y, width, height, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
 }
 
+void widget_button_row_rect(int i, int count, float* x, float* y, float* width, float* height) {
+    float gap = 6;
+    *width = (BOTTOM_SCREEN_WIDTH - 16 - gap * (count - 1)) / count;
+    *height = 40;
+    *x = 8 + i * (*width + gap);
+    *y = BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT - 8 - *height;
+}
+
+void widget_item_frame(float x, float y, float width, float height, bool selected, u32* ink, u32* muted) {
+    const theme_current* t = theme();
+    u32 fill = selected ? t->accent : t->palette->surface;
+    u32 edge = selected ? t->accent : t->palette->border;
+    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    if(ink != NULL) {
+        *ink = selected ? t->onAccent : t->palette->text;
+    }
+
+    if(muted != NULL) {
+        *muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
+    }
+}
+
+void widget_tile_frame(float x, float y, float size, bool selected) {
+    const theme_current* t = theme();
+    if(selected) {
+        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
+        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
+    } else {
+        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
+    }
+}
+
+void widget_skeleton(float x, float y, float width, float height, float icon, bool selected) {
+    const theme_current* t = theme();
+    u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;
+    screen_fill_round_rect(x, y, icon, icon, icon / 6, block);
+    if(width > icon + 30) {
+        float tx = x + icon + 8;
+        screen_fill_round_rect(tx, y + 4, (width - icon - 8) * 0.55f, 8, 4, block);
+        screen_fill_round_rect(tx, y + height - 12, (width - icon - 8) * 0.35f, 6, 3, block);
+    }
+}
+
+void widget_fade_in(u64 since) {
+    screen_set_content_motion(0, 0, (u8) (widget_ease(since, 250) * 0xFF));
+}
+
+void widget_count_badge(u32 count, float x, float y) {
+    const theme_current* t = theme();
+    char text[8];
+    snprintf(text, sizeof(text), "%lu", count);
+    float r = 8;
+    screen_fill_circle(x, y, r + 1.5f, t->palette->surface);
+    screen_fill_circle(x, y, r, t->accent);
+    float w = widget_text_width(text, WIDGET_SMALL_SCALE);
+    screen_draw_text(text, x - w / 2, y - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->onAccent);
+}
+
+float widget_badge_right(float right, float y, const char* text, u32 background, u32 foreground) {
+    float w = widget_text_width(text, WIDGET_SMALL_SCALE) + 12;
+    widget_badge(right - w, y, text, background, foreground);
+    return w;
+}
+
+void widget_cell(float x, float y, float width, const char* label, const char* value) {
+    const theme_current* t = theme();
+    screen_frame_round_rect(x, y, width, WIDGET_CELL_HEIGHT, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
+    screen_draw_text(label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
+    float scale = widget_text_width(value, WIDGET_TEXT_SCALE) <= width - 14 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
+    widget_text_fit(value, x + 8, y + 3 + widget_text_height(WIDGET_SMALL_SCALE), scale, t->palette->text, width - 14);
+}
+
+void widget_loading_card(float x1, float y1, float x2) {
+    widget_card(x1 + 10, y1 + 10, x2 - x1 - 20, 76);
+    widget_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
+    widget_text_centered(_("Loading..."), x1, x2, y1 + 110, WIDGET_TEXT_SCALE, theme()->palette->textMuted);
+}
+
 void widget_badge(float x, float y, const char* text, u32 background, u32 foreground) {
     float width = widget_text_width(text, WIDGET_SMALL_SCALE);
     float height = widget_text_height(WIDGET_SMALL_SCALE) + 2;
@@ -526,6 +604,23 @@ void widget_press_draw(const widget_press* p, int index, float x, float y, float
 }
 
 // ---- motion ----
+
+bool widget_repeat_step(widget_repeat* r, u32 key, bool* fresh) {
+    if(hidKeysDown() & key) {
+        r->key = key;
+        r->at = osGetTime() + 400;
+        *fresh = true;
+        return true;
+    }
+
+    if(r->key == key && (hidKeysHeld() & key) && osGetTime() >= r->at) {
+        r->at = osGetTime() + 90;
+        *fresh = false;
+        return true;
+    }
+
+    return false;
+}
 
 float widget_ease(u64 start, u32 duration) {
     u64 now = osGetTime();

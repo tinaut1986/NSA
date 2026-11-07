@@ -134,15 +134,6 @@ static void systeminfo_load_dynamic() {
     snprintf(info_dynamic.ip, sizeof(info_dynamic.ip), "%s", addr.s_addr != 0 ? inet_ntoa(addr) : "-");
 }
 
-static void systeminfo_cell(float x, float y, float w, const char* label, const char* value) {
-    const theme_current* t = theme();
-    float h = 34;
-    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
-    screen_draw_text(label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
-    float scale = widget_text_width(value, WIDGET_TEXT_SCALE) <= w - 14 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
-    widget_text_fit(value, x + 8, y + 3 + widget_text_height(WIDGET_SMALL_SCALE), scale, t->palette->text, w - 14);
-}
-
 void systeminfo_draw_top(float x1, float y1, float x2, float y2) {
     if(!info_static.loaded) {
         systeminfo_load_static();
@@ -200,12 +191,12 @@ void systeminfo_draw_top(float x1, float y1, float x2, float y2) {
     float cellW = (w - 2 * gap) / 3;
     float row1 = cardY + cardH + 6;
     float row2 = row1 + 34 + gap;
-    systeminfo_cell(x, row1, cellW, _("Region"), info_static.region);
-    systeminfo_cell(x + cellW + gap, row1, cellW, _("Language"), info_static.language);
-    systeminfo_cell(x + 2 * (cellW + gap), row1, cellW, _("Battery"), battery);
-    systeminfo_cell(x, row2, cellW, "Wi-Fi", info_dynamic.wifi);
-    systeminfo_cell(x + cellW + gap, row2, cellW, "IP", info_dynamic.ip);
-    systeminfo_cell(x + 2 * (cellW + gap), row2, cellW, _("Up for"), uptime);
+    widget_cell(x, row1, cellW, _("Region"), info_static.region);
+    widget_cell(x + cellW + gap, row1, cellW, _("Language"), info_static.language);
+    widget_cell(x + 2 * (cellW + gap), row1, cellW, _("Battery"), battery);
+    widget_cell(x, row2, cellW, "Wi-Fi", info_dynamic.wifi);
+    widget_cell(x + cellW + gap, row2, cellW, "IP", info_dynamic.ip);
+    widget_cell(x + 2 * (cellW + gap), row2, cellW, _("Up for"), uptime);
 
     // The space left on each medium.
     float bars = row2 + 34 + 7;
@@ -256,7 +247,7 @@ static float systeminfo_header(float x, float y, float w, u32 icon, const char* 
 // A cell of a grid of three columns that starts at y; span: how many columns it takes.
 static void systeminfo_grid(float x, float y, float w, u32 column, u32 row, u32 span, const char* label, const char* value) {
     float cellW = (w - 2 * CELL_GAP) / 3;
-    systeminfo_cell(x + column * (cellW + CELL_GAP), y + row * (CELL_HEIGHT + CELL_GAP), cellW * span + CELL_GAP * (span - 1), label, value);
+    widget_cell(x + column * (cellW + CELL_GAP), y + row * (CELL_HEIGHT + CELL_GAP), cellW * span + CELL_GAP * (span - 1), label, value);
 }
 
 static bool systeminfo_hwc() {

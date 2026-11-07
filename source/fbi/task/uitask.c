@@ -14,7 +14,7 @@
 // Titles and Files).
 
 #define CARD_HEIGHT 76
-#define CELL_HEIGHT 34
+#define CELL_HEIGHT WIDGET_CELL_HEIGHT
 #define CELL_GAP 6
 
 typedef struct {
@@ -24,11 +24,7 @@ typedef struct {
 } task_cell;
 
 static void task_draw_cell(float x, float y, float w, const task_cell* cell) {
-    const theme_current* t = theme();
-    screen_frame_round_rect(x, y, w, CELL_HEIGHT, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
-    screen_draw_text(cell->label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
-    float scale = widget_text_width(cell->value, WIDGET_TEXT_SCALE) <= w - 14 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
-    widget_text_fit(cell->value, x + 8, y + 3 + widget_text_height(WIDGET_SMALL_SCALE), scale, t->palette->text, w - 14);
+    widget_cell(x, y, w, cell->label, cell->value);
 }
 
 // Cells fill rows three units wide; a cell of weight 1.5 (an ID) is wider than

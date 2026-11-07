@@ -171,34 +171,6 @@ static bool tickets_visible(void* data, list_item* item) {
 
 // ---- items ----
 
-static void tickets_draw_count_badge(u32 count, float x, float y) {
-    const theme_current* t = theme();
-    char text[8];
-    snprintf(text, sizeof(text), "%lu", count);
-    float r = 8;
-    screen_fill_circle(x, y, r + 1.5f, t->palette->surface);
-    screen_fill_circle(x, y, r, t->accent);
-    float w = widget_text_width(text, WIDGET_SMALL_SCALE);
-    screen_draw_text(text, x - w / 2, y - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->onAccent);
-}
-
-// While a ticket's title is found: grey blocks where its icon and text will be.
-static void tickets_draw_skeleton(float x, float y, float w, float h, float icon, bool selected) {
-    const theme_current* t = theme();
-    u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;
-    screen_fill_round_rect(x, y, icon, icon, icon / 6, block);
-    if(w > icon + 30) {
-        float tx = x + icon + 8;
-        screen_fill_round_rect(tx, y + 4, (w - icon - 8) * 0.55f, 8, 4, block);
-        screen_fill_round_rect(tx, y + h - 12, (w - icon - 8) * 0.35f, 6, 3, block);
-    }
-}
-
-// A ticket's contents fade in once its title has been found.
-static void tickets_fade_in(ticket_info* info) {
-    screen_set_content_motion(0, 0, (u8) (widget_ease(info->readyTime, 250) * 0xFF));
-}
-
 static void tickets_draw_icon(ticket_info* info, float x, float y, float size, bool selected) {
     const theme_current* t = theme();
     if(info->hasMeta && info->meta.texture != 0) {
@@ -213,24 +185,22 @@ static void tickets_draw_row(void* data, list_item* item, float x, float y, floa
     const theme_current* t = theme();
     ticket_info* info = (ticket_info*) item->data;
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     float icon = height - 10;
     if(!info->ready) {
-        tickets_draw_skeleton(x + 5, y + 5, width - 18, height - 10, icon, selected);
+        widget_skeleton(x + 5, y + 5, width - 18, height - 10, icon, selected);
         return;
     }
 
-    tickets_fade_in(info);
+    widget_fade_in(info->readyTime);
     tickets_draw_icon(info, x + 5, y + 5, icon, selected);
 
     tickets_data* listData = (tickets_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
-        tickets_draw_count_badge(info->linkedCount, x + 5 + icon - 1, y + 7);
+        widget_count_badge(info->linkedCount, x + 5 + icon - 1, y + 7);
     }
 
     float tx = x + 5 + icon + 8;
@@ -238,8 +208,7 @@ static void tickets_draw_row(void* data, list_item* item, float x, float y, floa
 
     // The state as a tag; without an installed title, a ticket is only an ID.
     const char* tag = info->inUse ? _("In use") : _("Not in use");
-    float tagW = widget_text_width(tag, WIDGET_SMALL_SCALE) + 12;
-    widget_badge(right - tagW, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : info->inUse ? t->accentSoft : t->palette->background, selected ? t->onAccent : info->inUse ? t->accent : t->palette->textMuted);
+    float tagW = widget_badge_right(right, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : info->inUse ? t->accentSoft : t->palette->background, selected ? t->onAccent : info->inUse ? t->accent : t->palette->textMuted);
 
     widget_text_fit(item->name, tx, y + 4, WIDGET_TEXT_SCALE, ink, right - tagW - 6 - tx);
 
@@ -255,28 +224,22 @@ static void tickets_draw_row(void* data, list_item* item, float x, float y, floa
 }
 
 static void tickets_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
-    const theme_current* t = theme();
     ticket_info* info = (ticket_info*) item->data;
 
-    if(selected) {
-        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
-        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
-    } else {
-        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
-    }
+    widget_tile_frame(x, y, size, selected);
 
     if(!info->ready) {
-        tickets_draw_skeleton(x + 4, y + 4, size - 8, size - 8, size - 8, selected);
+        widget_skeleton(x + 4, y + 4, size - 8, size - 8, size - 8, selected);
         return;
     }
 
-    tickets_fade_in(info);
+    widget_fade_in(info->readyTime);
     tickets_draw_icon(info, x + 4, y + 4, size - 8, false);
     screen_set_content_motion(0, 0, 0xFF);
 
     tickets_data* listData = (tickets_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
-        tickets_draw_count_badge(info->linkedCount, x + size - 4, y + 4);
+        widget_count_badge(info->linkedCount, x + size - 4, y + 4);
     }
 }
 
@@ -289,7 +252,7 @@ static void tickets_draw_details(ui_view* view, list_item* selected, float x1, f
     if(!((ticket_info*) selected->data)->ready) {
         const theme_current* t = theme();
         widget_card(x1 + 10, y1 + 10, x2 - x1 - 20, 76);
-        tickets_draw_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
+        widget_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
         widget_text_centered(_("Loading..."), x1, x2, y1 + 110, WIDGET_TEXT_SCALE, t->palette->textMuted);
         return;
     }

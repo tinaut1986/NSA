@@ -157,17 +157,6 @@ static bool titles_visible(void* data, list_item* item) {
     return !listData->group || !info->linked || !listData->showKind[TITLE_KIND_GAME];
 }
 
-static void titles_draw_count_badge(u32 count, float x, float y) {
-    const theme_current* t = theme();
-    char text[8];
-    snprintf(text, sizeof(text), "%lu", count);
-    float r = 8;
-    screen_fill_circle(x, y, r + 1.5f, t->palette->surface);
-    screen_fill_circle(x, y, r, t->accent);
-    float w = widget_text_width(text, WIDGET_SMALL_SCALE);
-    screen_draw_text(text, x - w / 2, y - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->onAccent);
-}
-
 // ---- items ----
 
 static void titles_draw_icon(title_info* info, float x, float y, float size) {
@@ -180,47 +169,27 @@ static void titles_draw_icon(title_info* info, float x, float y, float size) {
     }
 }
 
-// While a title loads: grey blocks where its icon and text will be.
-static void titles_draw_skeleton(float x, float y, float w, float h, float icon, bool selected) {
-    const theme_current* t = theme();
-    u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;
-    screen_fill_round_rect(x, y, icon, icon, icon / 6, block);
-    if(w > icon + 30) {
-        float tx = x + icon + 8;
-        screen_fill_round_rect(tx, y + 4, (w - icon - 8) * 0.55f, 8, 4, block);
-        screen_fill_round_rect(tx, y + h - 12, (w - icon - 8) * 0.35f, 6, 3, block);
-    }
-}
-
-// A title's contents fade in once it has loaded.
-static void titles_fade_in(title_info* info) {
-    float e = widget_ease(info->loadedTime, 250);
-    screen_set_content_motion(0, 0, (u8) (e * 0xFF));
-}
-
 static void titles_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     const theme_current* t = theme();
     title_info* info = (title_info*) item->data;
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     if(!info->loaded) {
-        titles_draw_skeleton(x + 5, y + 5, width - 18, height - 10, height - 10, selected);
+        widget_skeleton(x + 5, y + 5, width - 18, height - 10, height - 10, selected);
         return;
     }
 
-    titles_fade_in(info);
+    widget_fade_in(info->loadedTime);
 
     float icon = height - 10;
     titles_draw_icon(info, x + 5, y + 5, icon);
 
     titles_data* listData = (titles_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
-        titles_draw_count_badge(info->linkedCount, x + 5 + icon - 1, y + 7);
+        widget_count_badge(info->linkedCount, x + 5 + icon - 1, y + 7);
     }
 
     float tx = x + 5 + icon + 8;
@@ -231,8 +200,7 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
     float nameRight = right;
     if(kind != TITLE_KIND_GAME) {
         const char* tag = titles_kind_name(kind);
-        float tagW = widget_text_width(tag, WIDGET_SMALL_SCALE) + 12;
-        widget_badge(right - tagW, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
+        float tagW = widget_badge_right(right, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
         nameRight = right - tagW - 6;
     }
 
@@ -254,42 +222,27 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
 }
 
 static void titles_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
-    const theme_current* t = theme();
     title_info* info = (title_info*) item->data;
 
-    if(selected) {
-        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
-        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
-    } else {
-        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
-    }
+    widget_tile_frame(x, y, size, selected);
 
     float icon = size - 8;
     if(!info->loaded) {
-        titles_draw_skeleton(x + 4, y + 4, icon, icon, icon, selected);
+        widget_skeleton(x + 4, y + 4, icon, icon, icon, selected);
         return;
     }
 
-    titles_fade_in(info);
+    widget_fade_in(info->loadedTime);
     titles_draw_icon(info, x + 4, y + 4, icon);
     screen_set_content_motion(0, 0, 0xFF);
 
     titles_data* listData = (titles_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
-        titles_draw_count_badge(info->linkedCount, x + size - 4, y + 4);
+        widget_count_badge(info->linkedCount, x + size - 4, y + 4);
     }
 }
 
 // ---- top screen: the selected title ----
-
-static void titles_draw_cell(float x, float y, float w, const char* label, const char* value) {
-    const theme_current* t = theme();
-    float h = 34;
-    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
-    screen_draw_text(label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
-    float scale = widget_text_width(value, WIDGET_TEXT_SCALE) <= w - 14 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
-    widget_text_fit(value, x + 8, y + 3 + widget_text_height(WIDGET_SMALL_SCALE), scale, t->palette->text, w - 14);
-}
 
 // The updates and DLC of a game, as badges under its details.
 static void titles_draw_linked(linked_list* items, title_info* game, float x, float y, float right) {
@@ -347,7 +300,7 @@ static void titles_draw_details(linked_list* items, list_item* selected, float x
     // Not loaded yet: the card's place, with a word on why it is empty.
     if(!info->loaded) {
         widget_card(x1 + 10, y1 + 10, x2 - x1 - 20, 76);
-        titles_draw_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
+        widget_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
         widget_text_centered(_("Loading..."), x1, x2, y1 + 110, WIDGET_TEXT_SCALE, t->palette->textMuted);
         return;
     }
@@ -400,12 +353,12 @@ static void titles_draw_details(linked_list* items, list_item* selected, float x
     // The ID needs more room than the version and size beside it.
     float idW = cellW * 1.4f;
     float smallW = (cardW - idW - 2 * gap) / 2;
-    titles_draw_cell(cardX, row1, idW, _("Title ID"), id);
-    titles_draw_cell(cardX + idW + gap, row1, smallW, _("Version"), version);
-    titles_draw_cell(cardX + idW + gap + smallW + gap, row1, smallW, _("Size"), size);
-    titles_draw_cell(cardX, row2, cellW, _("Product code"), info->productCode);
-    titles_draw_cell(cardX + cellW + gap, row2, cellW, _("Region"), region);
-    titles_draw_cell(cardX + 2 * (cellW + gap), row2, cellW, _("Type"), titles_kind_name(title_kind_of(info->titleId)));
+    widget_cell(cardX, row1, idW, _("Title ID"), id);
+    widget_cell(cardX + idW + gap, row1, smallW, _("Version"), version);
+    widget_cell(cardX + idW + gap + smallW + gap, row1, smallW, _("Size"), size);
+    widget_cell(cardX, row2, cellW, _("Product code"), info->productCode);
+    widget_cell(cardX + cellW + gap, row2, cellW, _("Region"), region);
+    widget_cell(cardX + 2 * (cellW + gap), row2, cellW, _("Type"), titles_kind_name(title_kind_of(info->titleId)));
 
     // Left: what hangs from the game; right: the space left on each medium.
     float half = cardW / 2;

@@ -64,23 +64,6 @@ static bool extsavedata_visible(void* data, list_item* item) {
 
 // ---- items ----
 
-// While one's name and icon are found: grey blocks where they will be.
-static void extsavedata_draw_skeleton(float x, float y, float w, float h, float icon, bool selected) {
-    const theme_current* t = theme();
-    u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;
-    screen_fill_round_rect(x, y, icon, icon, icon / 6, block);
-    if(w > icon + 30) {
-        float tx = x + icon + 8;
-        screen_fill_round_rect(tx, y + 4, (w - icon - 8) * 0.55f, 8, 4, block);
-        screen_fill_round_rect(tx, y + h - 12, (w - icon - 8) * 0.35f, 6, 3, block);
-    }
-}
-
-// The contents fade in once the name and icon have been found.
-static void extsavedata_fade_in(ext_save_data_info* info) {
-    screen_set_content_motion(0, 0, (u8) (widget_ease(info->readyTime, 250) * 0xFF));
-}
-
 static void extsavedata_draw_icon(ext_save_data_info* info, float x, float y, float size, bool selected) {
     const theme_current* t = theme();
     if(info->hasMeta && info->meta.texture != 0) {
@@ -95,19 +78,17 @@ static void extsavedata_draw_row(void* data, list_item* item, float x, float y, 
     const theme_current* t = theme();
     ext_save_data_info* info = (ext_save_data_info*) item->data;
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     float icon = height - 10;
     if(!info->ready) {
-        extsavedata_draw_skeleton(x + 5, y + 5, width - 18, height - 10, icon, selected);
+        widget_skeleton(x + 5, y + 5, width - 18, height - 10, icon, selected);
         return;
     }
 
-    extsavedata_fade_in(info);
+    widget_fade_in(info->readyTime);
     extsavedata_draw_icon(info, x + 5, y + 5, icon, selected);
 
     float tx = x + 5 + icon + 8;
@@ -115,8 +96,7 @@ static void extsavedata_draw_row(void* data, list_item* item, float x, float y, 
 
     // Where it is, as a tag.
     const char* tag = info->mediaType == MEDIATYPE_SD ? "SD" : "NAND";
-    float tagW = widget_text_width(tag, WIDGET_SMALL_SCALE) + 12;
-    widget_badge(right - tagW, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
+    float tagW = widget_badge_right(right, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
 
     widget_text_fit(item->name, tx, y + 4, WIDGET_TEXT_SCALE, ink, right - tagW - 6 - tx);
 
@@ -140,22 +120,16 @@ static void extsavedata_draw_row(void* data, list_item* item, float x, float y, 
 }
 
 static void extsavedata_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
-    const theme_current* t = theme();
     ext_save_data_info* info = (ext_save_data_info*) item->data;
 
-    if(selected) {
-        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
-        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
-    } else {
-        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
-    }
+    widget_tile_frame(x, y, size, selected);
 
     if(!info->ready) {
-        extsavedata_draw_skeleton(x + 4, y + 4, size - 8, size - 8, size - 8, selected);
+        widget_skeleton(x + 4, y + 4, size - 8, size - 8, size - 8, selected);
         return;
     }
 
-    extsavedata_fade_in(info);
+    widget_fade_in(info->readyTime);
     extsavedata_draw_icon(info, x + 4, y + 4, size - 8, false);
     screen_set_content_motion(0, 0, 0xFF);
 }
@@ -169,7 +143,7 @@ static void extsavedata_draw_top(ui_view* view, void* data, float x1, float y1, 
     if(!((ext_save_data_info*) selected->data)->ready) {
         const theme_current* t = theme();
         widget_card(x1 + 10, y1 + 10, x2 - x1 - 20, 76);
-        extsavedata_draw_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
+        widget_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
         widget_text_centered(_("Loading..."), x1, x2, y1 + 110, WIDGET_TEXT_SCALE, t->palette->textMuted);
         return;
     }

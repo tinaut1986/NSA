@@ -67,27 +67,8 @@ typedef struct {
     u16 lastTouchY;
     widget_press press;   // Index: group * POPOVER_OPTIONS_MAX + option.
     u64 opened;           // For the card's entrance.
-    u32 repeatKey;        // The direction held since it was pressed here, and when it moves again.
-    u64 repeatAt;
+    widget_repeat repeat;   // A direction held: it moves on, and stops at the ends.
 } popover_data;
-
-// As sheet_repeat: pressed here, a direction moves once, then on and on while held; held, it stops at the ends.
-static bool popover_repeat(popover_data* p, u32 key, bool* fresh) {
-    if(hidKeysDown() & key) {
-        p->repeatKey = key;
-        p->repeatAt = osGetTime() + 400;
-        *fresh = true;
-        return true;
-    }
-
-    if(p->repeatKey == key && (hidKeysHeld() & key) && osGetTime() >= p->repeatAt) {
-        p->repeatAt = osGetTime() + 90;
-        *fresh = false;
-        return true;
-    }
-
-    return false;
-}
 
 static float popover_chip_width(popover_group* group, u32 o) {
     if(group->iconOnly) {
@@ -225,21 +206,21 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
     bool moved = true;
     bool fresh = false;
     u32 count = p->def.groups[p->group].count;
-    if(popover_repeat(p, KEY_DOWN, &fresh)) {
+    if(widget_repeat_step(&p->repeat, KEY_DOWN, &fresh)) {
         if(fresh || p->group + 1 < p->def.groupCount) {
             p->group = (p->group + 1) % p->def.groupCount;
             p->option = 0;
         }
-    } else if(popover_repeat(p, KEY_UP, &fresh)) {
+    } else if(widget_repeat_step(&p->repeat, KEY_UP, &fresh)) {
         if(fresh || p->group > 0) {
             p->group = (p->group + p->def.groupCount - 1) % p->def.groupCount;
             p->option = 0;
         }
-    } else if(popover_repeat(p, KEY_RIGHT, &fresh)) {
+    } else if(widget_repeat_step(&p->repeat, KEY_RIGHT, &fresh)) {
         if(fresh || p->option + 1 < count) {
             p->option = (p->option + 1) % count;
         }
-    } else if(popover_repeat(p, KEY_LEFT, &fresh)) {
+    } else if(widget_repeat_step(&p->repeat, KEY_LEFT, &fresh)) {
         if(fresh || p->option > 0) {
             p->option = (p->option + count - 1) % count;
         }
@@ -540,8 +521,7 @@ typedef struct {
     u16 touchStartY;
     u16 lastTouchY;
     u64 opened;           // For the slide up.
-    u32 repeatKey;        // The direction held since it was pressed here, and when it moves again.
-    u64 repeatAt;
+    widget_repeat repeat;   // A direction held: it moves on, and stops at the ends.
     bool list;     // One row per action instead of a grid of buttons.
     float scroll;  // List only, when the rows do not all fit.
     // An action is running in what it opened: back here, the sheet closes if
@@ -681,24 +661,6 @@ static void sheet_run(ui_view* view, sheet_data* s, u32 index) {
     }
 }
 
-// A direction pressed here moves once, then again and again while it is held (as in the lists). One held since before the
-// sheet opened does nothing.
-static bool sheet_repeat(sheet_data* s, u32 key, bool* fresh) {
-    if(hidKeysDown() & key) {
-        s->repeatKey = key;
-        s->repeatAt = osGetTime() + 400;
-        *fresh = true;
-        return true;
-    }
-
-    if(s->repeatKey == key && (hidKeysHeld() & key) && osGetTime() >= s->repeatAt) {
-        s->repeatAt = osGetTime() + 90;
-        *fresh = false;
-        return true;
-    }
-
-    return false;
-}
 
 static void sheet_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     sheet_data* s = (sheet_data*) data;
@@ -728,29 +690,29 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
 
     // Held, the focus stops at the ends instead of going round.
     bool fresh = false;
-    if(cols > 1 && sheet_repeat(s, KEY_RIGHT, &fresh)) {
+    if(cols > 1 && widget_repeat_step(&s->repeat, KEY_RIGHT, &fresh)) {
         if(fresh || s->selected + 1 < s->count) {
             s->selected = (s->selected + 1) % s->count;
         }
-    } else if(cols > 1 && sheet_repeat(s, KEY_LEFT, &fresh)) {
+    } else if(cols > 1 && widget_repeat_step(&s->repeat, KEY_LEFT, &fresh)) {
         if(fresh || s->selected > 0) {
             s->selected = (s->selected + s->count - 1) % s->count;
         }
-    } else if(cols == 1 && s->count > 0 && sheet_repeat(s, KEY_RIGHT, &fresh)) {
+    } else if(cols == 1 && s->count > 0 && widget_repeat_step(&s->repeat, KEY_RIGHT, &fresh)) {
         u32 first = (u32) ((s->scroll + sheet_button_height(s) + sheet_gap(s) - 1) / (sheet_button_height(s) + sheet_gap(s)));
         s->selected = first + page < s->count ? first + page : s->count - 1;
         sheet_page_to(s, s->selected);
-    } else if(cols == 1 && s->count > 0 && sheet_repeat(s, KEY_LEFT, &fresh)) {
+    } else if(cols == 1 && s->count > 0 && widget_repeat_step(&s->repeat, KEY_LEFT, &fresh)) {
         u32 first = (u32) ((s->scroll + sheet_button_height(s) + sheet_gap(s) - 1) / (sheet_button_height(s) + sheet_gap(s)));
         s->selected = first > page ? first - page : 0;
         sheet_page_to(s, s->selected);
-    } else if(sheet_repeat(s, KEY_DOWN, &fresh)) {
+    } else if(widget_repeat_step(&s->repeat, KEY_DOWN, &fresh)) {
         if(s->selected + cols < s->count) {
             s->selected += cols;
         } else if(fresh) {
             s->selected %= cols;
         }
-    } else if(sheet_repeat(s, KEY_UP, &fresh)) {
+    } else if(widget_repeat_step(&s->repeat, KEY_UP, &fresh)) {
         if(s->selected >= cols) {
             s->selected -= cols;
         } else if(fresh) {

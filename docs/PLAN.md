@@ -1109,6 +1109,11 @@ current, this list is the summary. What only the owner can test (local wireless)
       texture, and a .wav a BCWAV (PCM16 in a CWAV container, the easy part) — what bannertool does.
     - Size: a few days of work; the risky part is the NCCH (test with `ctrtool` on the PC before any console install).
 
+- **Named mods and a GameBanana mods store** (issue #32, for later; the owner, 2026-11-07): Luma keeps one folder per game and
+  mods mix in it, so a mod's name and files exist only if NSA installs it. A library in `sdmc:/nsa/mods/<ID>/<name>/` with a
+  manifest (enable, disable, delete, conflicts), *Install as mod* from a .zip or folder in Files, a game's mods from Titles,
+  then a store over GameBanana's API (check its terms, mapping its games to title IDs, .7z/.rar archives).
+
 ## Decisions
 
 - **The guide's chapters** (`source/fbi/guide.c`, the owner asked 2026-11-06 for a tutorial where an update plays only the new

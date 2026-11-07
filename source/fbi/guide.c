@@ -17,6 +17,9 @@
 // and the version it ships in as `since`; its steps point at anchors the screens draw (coach_anchor: "menu.<entry>",
 // "tool.<name>", "list", "list.selected", "sheet", a sheet row's label, "popover", "settings.<option>", "remote.<tile>",
 // "back", "hints", "top"); add its Spanish to i18n_es.c. Never rename an id: settings.json keeps them.
+//
+// A chapter that a release changes enough to show again (a feature it explains changed): set `updated` to that release.
+// It is offered as new again, also to whoever saw it, and keeps its `since` for Settings -> Guide.
 
 #define GUIDE_VERSION(major, minor) (((major) << 8) | (minor))
 
@@ -30,6 +33,7 @@ typedef struct {
     const char* summary;     // One line for Settings -> Guide.
     const coach_step* steps;
     u32 stepCount;
+    u32 updated;             // GUIDE_VERSION of the last release that changed it enough to show it again; 0: none.
 } guide_chapter;
 
 #define COUNT_OF(a) (sizeof(a) / sizeof(*(a)))
@@ -133,8 +137,10 @@ static const coach_step computer_steps[] = {
         OPEN("menu.settings", "Open Settings.", "v:Settings"),
         REACH("settings.ftp", "Go down to FTP server with the D-Pad."),
         INFO("settings.ftp", "An FTP program on your computer copies files to and from the SD card. The address is on the top screen."),
+        INFO("settings.ftp", "Anything that goes up or down over FTP or the web page shows its progress and speed at the bottom of the screen."),
         REACH("settings.web", "Now go to Web server."),
         INFO("settings.web", "Turn it on and open the address on the top screen in your computer's browser, with the PIN: files, titles, saves, installs and the screens live. Only on your own Wi-Fi."),
+        INFO("settings.web", "While the web server runs, its row shows a QR code: scan it with your phone and the page opens, already signed in."),
         BACK_TO_MENU("\uE001 goes back to the menu."),
 };
 
@@ -170,6 +176,8 @@ static const coach_step select_steps[] = {
 static const coach_step player_steps[] = {
         INFO("menu.sd", "Music you play from the SD card goes on when you leave the player with ;  in the player stops it."),
         INFO("menu.sd", "While it plays, a play icon shows in the top bar, and  in any folder of the SD card has Back to the player."),
+        INFO("menu.sd", "In the player, \uE003 or the button beside the volume repeats the whole list or the same song, and the bar jumps to any point at once."),
+        INFO("menu.sd", "Choosing again the song that plays opens its player where it is, without starting it over."),
 };
 
 static const coach_step updates_steps[] = {
@@ -190,14 +198,14 @@ static const guide_chapter chapters[] = {
         {"remote", GUIDE_VERSION(0, 2), true, "basics", ICON_WORLD_DOWNLOAD, "Remote install", "Install from a QR code, a link or a computer", remote_steps, COUNT_OF(remote_steps)},
         {"saves", GUIDE_VERSION(0, 5), false, "titles", ICON_DEVICE_FLOPPY, "Saves and backups", "Back up, restore and share saves", saves_steps, COUNT_OF(saves_steps)},
         {"console", GUIDE_VERSION(0, 3), false, "basics", ICON_3DS, "Console to console", "Send anything to another 3DS", console_steps, COUNT_OF(console_steps)},
-        {"store", GUIDE_VERSION(0, 8), false, "basics", ICON_PACKAGE, "Store", "Homebrew from Universal-DB", store_steps, COUNT_OF(store_steps)},
-        {"computer", GUIDE_VERSION(0, 5), false, "basics", ICON_DEVICE_DESKTOP, "From your computer", "FTP and the web page", computer_steps, COUNT_OF(computer_steps)},
+        {"store", GUIDE_VERSION(0, 8), false, "basics", ICON_PACKAGE, "Store", "Homebrew from Universal-DB", store_steps, COUNT_OF(store_steps), GUIDE_VERSION(0, 9)},
+        {"computer", GUIDE_VERSION(0, 5), false, "basics", ICON_DEVICE_DESKTOP, "From your computer", "FTP and the web page", computer_steps, COUNT_OF(computer_steps), GUIDE_VERSION(0, 9)},
         {"look", GUIDE_VERSION(0, 4), false, "basics", ICON_PALETTE, "Look and sound", "Themes, colours, music and language", look_steps, COUNT_OF(look_steps)},
         {"cleanup", GUIDE_VERSION(0, 2), false, "basics", ICON_STACK_2, "Cleanup and System", "Tickets, extra data, System and Advanced", cleanup_steps, COUNT_OF(cleanup_steps)},
         {"updates", GUIDE_VERSION(0, 3), false, "basics", ICON_REFRESH, "Updates and this guide", "New versions, and what each brings", updates_steps, COUNT_OF(updates_steps)},
-        {"select", GUIDE_VERSION(0, 8), false, "files", ICON_SQUARE_CHECK, "Selecting several", "Copy, move or delete many at once", select_steps, COUNT_OF(select_steps)},
-        {"player", GUIDE_VERSION(0, 8), false, "files", ICON_MUSIC, "Music in the background", "Keep listening while you browse", player_steps, COUNT_OF(player_steps)},
-        {"mods", GUIDE_VERSION(0, 8), false, "basics", ICON_FOLDER, "Game mods", "LayeredFS mods of games you deleted", mods_steps, COUNT_OF(mods_steps)},
+        {"select", GUIDE_VERSION(0, 9), false, "files", ICON_SQUARE_CHECK, "Selecting several", "Copy, move or delete many at once", select_steps, COUNT_OF(select_steps)},
+        {"player", GUIDE_VERSION(0, 9), false, "files", ICON_MUSIC, "Music in the background", "Keep listening while you browse", player_steps, COUNT_OF(player_steps)},
+        {"mods", GUIDE_VERSION(0, 9), false, "basics", ICON_FOLDER, "Game mods", "LayeredFS mods of games you deleted", mods_steps, COUNT_OF(mods_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)
@@ -280,9 +288,18 @@ static u32 guide_newest() {
         if(chapters[i].since > newest) {
             newest = chapters[i].since;
         }
+
+        if(chapters[i].updated > newest) {
+            newest = chapters[i].updated;
+        }
     }
 
     return newest;
+}
+
+// New to someone who knew the guide up to `known`: a chapter that came after (unless seen already), or one changed after.
+static bool guide_is_new(u32 chapter, u32 known) {
+    return (chapters[chapter].since > known && !guide_seen(chapter)) || chapters[chapter].updated > known;
 }
 
 // ---- a queue of chapters to play ----
@@ -475,7 +492,7 @@ void guide_startup(void (*next)()) {
     } else {
         size_t used = (size_t) snprintf(guide_offer.text, sizeof(guide_offer.text), "%s\n", _("New in this version:"));
         for(u32 i = 0; i < CHAPTER_COUNT; i++) {
-            if(chapters[i].since > settings->guideKnown && !guide_seen(i)) {
+            if(guide_is_new(i, settings->guideKnown)) {
                 guide_queue_add(&guide_offer.queue, i);
                 if(used < sizeof(guide_offer.text)) {
                     used += (size_t) snprintf(guide_offer.text + used, sizeof(guide_offer.text) - used, "\n- %s", _(chapters[i].name));
@@ -486,7 +503,7 @@ void guide_startup(void (*next)()) {
         // What they build on, chained before them. How many others "Everything" adds is on the top screen.
         u32 added = 0;
         for(u32 i = 0; i < guide_offer.queue.count; i++) {
-            if(chapters[guide_offer.queue.items[i]].since <= settings->guideKnown) {
+            if(!guide_is_new(guide_offer.queue.items[i], settings->guideKnown)) {
                 added++;
             }
         }

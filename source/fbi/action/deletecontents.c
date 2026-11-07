@@ -18,6 +18,7 @@ typedef struct {
     linked_list contents;
 
     data_op_data deleteInfo;
+    bool wholeFolders;   // Listed to the top level: a folder is deleted with all it holds.
 } delete_data;
 
 static void action_delete_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -38,17 +39,22 @@ static Result action_delete_delete(void* data, u32 index) {
 
     file_info* info = (file_info*) ((list_item*) linked_list_get(&deleteData->contents, linked_list_size(&deleteData->contents) - index - 1))->data;
 
-    FS_Path* fsPath = fs_make_path_utf8(info->path);
-    if(fsPath != NULL) {
-        if(fs_is_dir(deleteData->target->archive, info->path)) {
-            res = FSUSER_DeleteDirectory(deleteData->target->archive, *fsPath);
-        } else {
-            res = FSUSER_DeleteFile(deleteData->target->archive, *fsPath);
-        }
-
-        fs_free_path_utf8(fsPath);
+    // The listing says what is a folder. Listed to the top level only, a folder goes with all it holds in one call.
+    if((info->attributes & FS_ATTRIBUTE_DIRECTORY) && deleteData->wholeFolders) {
+        res = fs_delete_dir_recursively(deleteData->target->archive, info->path);
     } else {
-        res = R_APP_OUT_OF_MEMORY;
+        FS_Path* fsPath = fs_make_path_utf8(info->path);
+        if(fsPath != NULL) {
+            if(info->attributes & FS_ATTRIBUTE_DIRECTORY) {
+                res = FSUSER_DeleteDirectory(deleteData->target->archive, *fsPath);
+            } else {
+                res = FSUSER_DeleteFile(deleteData->target->archive, *fsPath);
+            }
+
+            fs_free_path_utf8(fsPath);
+        } else {
+            res = R_APP_OUT_OF_MEMORY;
+        }
     }
 
     if(R_SUCCEEDED(res)) {
@@ -145,7 +151,10 @@ static void action_delete_loading_update(ui_view* view, void* data, float* progr
     delete_loading_data* loadingData = (delete_loading_data*) data;
 
     if(info_task_finished(view, &loadingData->popData.finished, loadingData->popData.cancelEvent)) {
-        if(R_SUCCEEDED(loadingData->popData.result)) {
+        if(loadingData->popData.cancelled) {
+            // B while reading: nothing to ask about, the list is not whole.
+            action_delete_free_data(loadingData->deleteData);
+        } else if(R_SUCCEEDED(loadingData->popData.result)) {
             loadingData->deleteData->deleteInfo.total = linked_list_size(&loadingData->deleteData->contents);
             loadingData->deleteData->deleteInfo.processed = loadingData->deleteData->deleteInfo.total;
 
@@ -211,7 +220,9 @@ static void action_delete_internal(linked_list* items, list_item* selected, cons
     loadingData->popData.items = &data->contents;
     loadingData->popData.archive = data->target->archive;
     string_copy(loadingData->popData.path, data->target->path, FILE_PATH_MAX);
-    loadingData->popData.recursive = recursive;
+    // Without a filter on CIAs or tickets, the top level is enough: each folder goes with all it holds.
+    data->wholeFolders = recursive && !ciasOnly && !ticketsOnly;
+    loadingData->popData.recursive = recursive && !data->wholeFolders;
     loadingData->popData.includeBase = includeBase;
     loadingData->popData.meta = false;
     if(topFilter != NULL) {

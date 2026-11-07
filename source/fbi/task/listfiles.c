@@ -111,7 +111,14 @@ static void task_populate_files_retrieve_meta(file_info* fileInfo) {
     }
 }
 
+// `probe`: ask the card whether `path` is a folder when `attributes` does not say so (a listing's entries say it).
+static Result task_create_file_item_ex(list_item** out, FS_Archive archive, const char* path, u32 attributes, bool meta, bool probe);
+
 Result task_create_file_item(list_item** out, FS_Archive archive, const char* path, u32 attributes, bool meta) {
+    return task_create_file_item_ex(out, archive, path, attributes, meta, true);
+}
+
+static Result task_create_file_item_ex(list_item** out, FS_Archive archive, const char* path, u32 attributes, bool meta, bool probe) {
     Result res = 0;
 
     list_item* item = (list_item*) calloc(1, sizeof(list_item));
@@ -126,7 +133,7 @@ Result task_create_file_item(list_item** out, FS_Archive archive, const char* pa
             fileInfo->isCia = false;
             fileInfo->isTicket = false;
 
-            if((attributes & FS_ATTRIBUTE_DIRECTORY) || fs_is_dir(archive, path)) {
+            if((attributes & FS_ATTRIBUTE_DIRECTORY) || (probe && fs_is_dir(archive, path))) {
                 item->color = COLOR_DIRECTORY;
 
                 size_t len = strlen(path);
@@ -225,10 +232,32 @@ static void task_populate_files_thread(void* arg) {
                 if(fsPath != NULL) {
                     Handle dirHandle = 0;
                     if(R_SUCCEEDED(res = FSUSER_OpenDirectory(&dirHandle, curr->archive, *fsPath))) {
+                        // Every entry, MAX_FILES at a time.
                         u32 entryCount = 0;
-                        FS_DirectoryEntry* entries = (FS_DirectoryEntry*) calloc(MAX_FILES, sizeof(FS_DirectoryEntry));
+                        u32 capacity = MAX_FILES;
+                        FS_DirectoryEntry* entries = (FS_DirectoryEntry*) calloc(capacity, sizeof(FS_DirectoryEntry));
+                        while(entries != NULL) {
+                            u32 read = 0;
+                            if(R_FAILED(res = FSDIR_Read(dirHandle, &read, MAX_FILES, entries + entryCount)) || read == 0) {
+                                break;
+                            }
+
+                            entryCount += read;
+                            if(capacity - entryCount < MAX_FILES) {
+                                FS_DirectoryEntry* more = (FS_DirectoryEntry*) realloc(entries, (capacity + MAX_FILES) * sizeof(FS_DirectoryEntry));
+                                if(more == NULL) {
+                                    free(entries);
+                                    entries = NULL;
+                                    break;
+                                }
+
+                                entries = more;
+                                capacity += MAX_FILES;
+                            }
+                        }
+
                         if(entries != NULL) {
-                            if(R_SUCCEEDED(res = FSDIR_Read(dirHandle, &entryCount, MAX_FILES, entries)) && entryCount > 0) {
+                            if(R_SUCCEEDED(res) && entryCount > 0) {
                                 qsort(entries, entryCount, sizeof(FS_DirectoryEntry), task_populate_files_compare_directory_entries);
 
                                 for(u32 i = 0; i < entryCount && R_SUCCEEDED(res); i++) {
@@ -246,7 +275,7 @@ static void task_populate_files_thread(void* arg) {
                                         snprintf(path, FILE_PATH_MAX, "%s%s", curr->path, name);
 
                                         list_item* item = NULL;
-                                        if(R_SUCCEEDED(res = task_create_file_item(&item, curr->archive, path, entries[i].attributes, false))) {
+                                        if(R_SUCCEEDED(res = task_create_file_item_ex(&item, curr->archive, path, entries[i].attributes, false, false))) {
                                             if(data->recursive && (((file_info*) item->data)->attributes & FS_ATTRIBUTE_DIRECTORY)) {
                                                 linked_list_add(&queue, item);
                                             } else {
@@ -273,6 +302,8 @@ static void task_populate_files_thread(void* arg) {
         }
 
         linked_list_destroy(&queue);
+
+        data->cancelled = quit;
 
         if(!data->includeBase) {
             task_free_file(baseItem);

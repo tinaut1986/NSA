@@ -71,14 +71,6 @@ static Result dumpnand_write_dst(void* data, u32 handle, u32* bytesWritten, void
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 
-static Result dumpnand_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result dumpnand_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool dumpnand_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(NULL, NULL, res, "Failed to dump NAND.");
     return true;
@@ -156,9 +148,6 @@ void dumpnand_open() {
     data->openDst = dumpnand_open_dst;
     data->closeDst = dumpnand_close_dst;
     data->writeDst = dumpnand_write_dst;
-
-    data->suspend = dumpnand_suspend;
-    data->restore = dumpnand_restore;
 
     data->error = dumpnand_error;
 

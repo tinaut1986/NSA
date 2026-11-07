@@ -54,14 +54,6 @@ static Result action_delete_pending_titles_delete(void* data, u32 index) {
     return res;
 }
 
-static Result action_delete_pending_titles_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_delete_pending_titles_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_delete_pending_titles_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(data, action_delete_pending_titles_draw_top, res, "Failed to delete pending title.");
     return true;
@@ -161,9 +153,6 @@ void action_delete_pending_titles(linked_list* items, list_item* selected, const
     data->deleteInfo.op = DATAOP_DELETE;
 
     data->deleteInfo.delete = action_delete_pending_titles_delete;
-
-    data->deleteInfo.suspend = action_delete_pending_titles_suspend;
-    data->deleteInfo.restore = action_delete_pending_titles_restore;
 
     data->deleteInfo.error = action_delete_pending_titles_error;
 

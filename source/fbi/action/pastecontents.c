@@ -205,14 +205,6 @@ static Result action_paste_contents_write_dst(void* data, u32 handle, u32* bytes
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 
-static Result action_paste_contents_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_paste_contents_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_paste_contents_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(data, action_paste_contents_draw_top, res, "Failed to paste content.");
     return true;
@@ -549,9 +541,6 @@ void action_paste_contents(linked_list* items, list_item* selected) {
     data->pasteInfo.openDst = action_paste_contents_open_dst;
     data->pasteInfo.closeDst = action_paste_contents_close_dst;
     data->pasteInfo.writeDst = action_paste_contents_write_dst;
-
-    data->pasteInfo.suspend = action_paste_contents_suspend;
-    data->pasteInfo.restore = action_paste_contents_restore;
 
     data->pasteInfo.error = action_paste_contents_error;
 

@@ -88,14 +88,6 @@ static Result action_export_twl_save_write_dst(void* data, u32 handle, u32* byte
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 
-static Result action_export_twl_save_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_export_twl_save_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_export_twl_save_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(((export_twl_save_data*) data)->title, task_draw_title_info, res, "Failed to export save.");
     return true;
@@ -163,9 +155,6 @@ void action_export_twl_save(linked_list* items, list_item* selected) {
     data->exportInfo.openDst = action_export_twl_save_open_dst;
     data->exportInfo.closeDst = action_export_twl_save_close_dst;
     data->exportInfo.writeDst = action_export_twl_save_write_dst;
-
-    data->exportInfo.suspend = action_export_twl_save_suspend;
-    data->exportInfo.restore = action_export_twl_save_restore;
 
     data->exportInfo.error = action_export_twl_save_error;
 

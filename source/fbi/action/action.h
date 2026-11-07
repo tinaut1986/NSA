@@ -9,6 +9,21 @@ typedef struct ui_view_s ui_view;
 
 #define INSTALL_URLS_MAX 128
 
+// Deleting one item, asked in red: "Deleting..." while `run` deletes it, then it leaves `items` (NULL: `selected` is a
+// copy made for the action, freed in any case) and a notice says so (deleteone.c). The texts are English (translated).
+typedef struct {
+    const char* question;
+    const char* progress;
+    const char* failure;
+    const char* success;
+    const char* allocError;
+    void (*drawInfo)(ui_view* view, void* info, float x1, float y1, float x2, float y2);   // The item's info (item->data).
+    Result (*run)(list_item* item);
+    void (*freeItem)(list_item* item);
+} action_delete_one_def;
+
+void action_delete_one(const action_delete_one_def* def, linked_list* items, list_item* selected);
+
 void action_browse_boss_ext_save_data(linked_list* items, list_item* selected);
 void action_browse_user_ext_save_data(linked_list* items, list_item* selected);
 void action_delete_ext_save_data(linked_list* items, list_item* selected);

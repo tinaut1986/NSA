@@ -185,21 +185,8 @@ static void extsavedata_actions_open(extsavedata_data* data, linked_list* items,
 
 // ---- tools: view, filter and sort, search ----
 
-static bool extsavedata_is_rows(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_ROWS;
-}
-
-static bool extsavedata_is_grid(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_GRID;
-}
-
-static void extsavedata_show_rows(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_ROWS);
-    extsavedata_store((extsavedata_data*) data);
-}
-
-static void extsavedata_show_grid(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_GRID);
+// The grid / rows mode is kept in the settings.
+static void extsavedata_view_changed(void* data) {
     extsavedata_store((extsavedata_data*) data);
 }
 
@@ -251,21 +238,6 @@ static void extsavedata_filter_open(ui_view* view, void* data) {
     };
 
     popover_display(&def, data);
-}
-
-static bool extsavedata_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void extsavedata_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    extsavedata_data* listData = (extsavedata_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
-}
-
-static void extsavedata_search_open(ui_view* view, void* data) {
-    osk_display(_("Search data"), list_get_search(view), 64, 0, data, extsavedata_search_done);
 }
 
 // ---- the list ----
@@ -325,8 +297,7 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
@@ -344,8 +315,7 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
     }
 
     if(hidKeysDown() & KEY_Y) {
-        list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
-        extsavedata_store(listData);
+        list_toggle_mode(view);
     }
 
     if(hidKeysDown() & KEY_L) {
@@ -354,7 +324,7 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
     }
 
     if(hidKeysDown() & KEY_R) {
-        extsavedata_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
@@ -444,8 +414,7 @@ void extsavedata_open() {
     list_set_long_press(view, extsavedata_long_press);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, extsavedata_search_active, extsavedata_search_open);
+    list_add_search_tool(view, _("Search data"));
     list_add_tool(view, ICON_FILTER, extsavedata_filter_active, extsavedata_filter_open);
-    list_add_tool(view, ICON_LAYOUT_GRID, extsavedata_is_grid, extsavedata_show_grid);
-    list_add_tool(view, ICON_LIST, extsavedata_is_rows, extsavedata_show_rows);
+    list_add_view_tools(view, extsavedata_view_changed);
 }

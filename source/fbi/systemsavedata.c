@@ -78,21 +78,6 @@ static void systemsavedata_actions_open(systemsavedata_data* data, linked_list* 
 
 // ---- search ----
 
-static bool systemsavedata_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void systemsavedata_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    systemsavedata_data* listData = (systemsavedata_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
-}
-
-static void systemsavedata_search_open(ui_view* view, void* data) {
-    osk_display(_("Search data"), list_get_search(view), 64, 0, data, systemsavedata_search_done);
-}
-
 // ---- the list ----
 
 static void systemsavedata_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
@@ -103,8 +88,7 @@ static void systemsavedata_update(ui_view* view, void* data, linked_list* items,
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
@@ -122,7 +106,7 @@ static void systemsavedata_update(ui_view* view, void* data, linked_list* items,
     }
 
     if(hidKeysDown() & KEY_R) {
-        systemsavedata_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
@@ -184,5 +168,5 @@ void systemsavedata_open() {
     list_set_style(view, &style);
     list_set_long_press(view, systemsavedata_long_press);
 
-    list_add_tool(view, ICON_SEARCH, systemsavedata_search_active, systemsavedata_search_open);
+    list_add_search_tool(view, _("Search data"));
 }

@@ -145,21 +145,6 @@ static void pendingtitles_filter_open(ui_view* view, void* data) {
     popover_display(&def, data);
 }
 
-static bool pendingtitles_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void pendingtitles_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    pendingtitles_data* listData = (pendingtitles_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
-}
-
-static void pendingtitles_search_open(ui_view* view, void* data) {
-    osk_display(_("Search titles"), list_get_search(view), 64, 0, data, pendingtitles_search_done);
-}
-
 // ---- the list ----
 
 // SD before NAND, then by title ID.
@@ -182,8 +167,7 @@ static void pendingtitles_update(ui_view* view, void* data, linked_list* items, 
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
@@ -206,7 +190,7 @@ static void pendingtitles_update(ui_view* view, void* data, linked_list* items, 
     }
 
     if(hidKeysDown() & KEY_R) {
-        pendingtitles_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
@@ -280,6 +264,6 @@ void pendingtitles_open() {
     list_set_long_press(view, pendingtitles_long_press);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, pendingtitles_search_active, pendingtitles_search_open);
+    list_add_search_tool(view, _("Search titles"));
     list_add_tool(view, ICON_FILTER, pendingtitles_filter_active, pendingtitles_filter_open);
 }

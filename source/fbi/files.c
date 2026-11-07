@@ -1253,21 +1253,6 @@ static void files_filter_open(ui_view* view, void* data) {
     popover_display(&def, data);
 }
 
-static bool files_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void files_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    files_data* listData = (files_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
-}
-
-static void files_search_open(ui_view* view, void* data) {
-    osk_display(_("Search files"), list_get_search(view), 64, 0, data, files_search_done);
-}
-
 static void files_folder_press(ui_view* view, void* data) {
     files_data* listData = (files_data*) data;
     files_folder_actions_open(listData, files_items(listData));
@@ -1424,8 +1409,7 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
@@ -1459,7 +1443,7 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
     }
 
     if(hidKeysDown() & KEY_R) {
-        files_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
@@ -1628,7 +1612,7 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
 
     // Right to left.
     list_add_tool(view, ICON_DOTS, NULL, files_folder_press);
-    list_add_tool(view, ICON_SEARCH, files_search_active, files_search_open);
+    list_add_search_tool(view, _("Search files"));
     list_add_tool(view, ICON_FILTER, files_filter_active, files_filter_open);
     list_add_tool(view, ICON_CLIPBOARD, files_clipboard_active, files_clipboard_press);
     list_add_tool(view, ICON_SQUARE_CHECK, files_select_active, files_select_press);

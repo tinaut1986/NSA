@@ -518,21 +518,8 @@ static void mods_actions_open(mods_data* data, list_item* selected) {
 
 // ---- tools: view, filter and sort, search ----
 
-static bool mods_is_rows(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_ROWS;
-}
-
-static bool mods_is_grid(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_GRID;
-}
-
-static void mods_show_rows(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_ROWS);
-    mods_store((mods_data*) data);
-}
-
-static void mods_show_grid(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_GRID);
+// The grid / rows mode is kept in the settings.
+static void mods_view_changed(void* data) {
     mods_store((mods_data*) data);
 }
 
@@ -583,21 +570,6 @@ static void mods_filter_open(ui_view* view, void* data) {
     };
 
     popover_display(&def, data);
-}
-
-static bool mods_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void mods_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    mods_data* listData = (mods_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
-}
-
-static void mods_search_open(ui_view* view, void* data) {
-    osk_display(_("Search mods"), list_get_search(view), 64, 0, data, mods_search_done);
 }
 
 // ---- the list ----
@@ -667,8 +639,7 @@ static void mods_update(ui_view* view, void* data, linked_list* items, list_item
     view->info = _(" actions    view    filter    search    back");
 
     if(hidKeysDown() & KEY_B) {
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
@@ -683,8 +654,7 @@ static void mods_update(ui_view* view, void* data, linked_list* items, list_item
     }
 
     if(hidKeysDown() & KEY_Y) {
-        list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
-        mods_store(listData);
+        list_toggle_mode(view);
     }
 
     if(hidKeysDown() & KEY_L) {
@@ -693,7 +663,7 @@ static void mods_update(ui_view* view, void* data, linked_list* items, list_item
     }
 
     if(hidKeysDown() & KEY_R) {
-        mods_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
@@ -765,8 +735,7 @@ void mods_open() {
     list_set_filter(view, mods_visible);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, mods_search_active, mods_search_open);
+    list_add_search_tool(view, _("Search mods"));
     list_add_tool(view, ICON_FILTER, mods_filter_active, mods_filter_open);
-    list_add_tool(view, ICON_LAYOUT_GRID, mods_is_grid, mods_show_grid);
-    list_add_tool(view, ICON_LIST, mods_is_rows, mods_show_rows);
+    list_add_view_tools(view, mods_view_changed);
 }

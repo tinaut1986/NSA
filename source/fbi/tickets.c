@@ -291,21 +291,8 @@ static void tickets_actions_open(tickets_data* data, linked_list* items, list_it
 
 // ---- tools: view, filter and sort, search ----
 
-static bool tickets_is_rows(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_ROWS;
-}
-
-static bool tickets_is_grid(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_GRID;
-}
-
-static void tickets_show_rows(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_ROWS);
-    tickets_store((tickets_data*) data);
-}
-
-static void tickets_show_grid(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_GRID);
+// The grid / rows mode is kept in the settings.
+static void tickets_view_changed(void* data) {
     tickets_store((tickets_data*) data);
 }
 
@@ -383,21 +370,6 @@ static void tickets_filter_open(ui_view* view, void* data) {
     };
 
     popover_display(&def, data);
-}
-
-static bool tickets_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void tickets_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    tickets_data* listData = (tickets_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
-}
-
-static void tickets_search_open(ui_view* view, void* data) {
-    osk_display(_("Search tickets"), list_get_search(view), 64, 0, data, tickets_search_done);
 }
 
 // ---- a game's chain: its ticket, its update and its DLC ----
@@ -583,8 +555,7 @@ static void tickets_update(ui_view* view, void* data, linked_list* items, list_i
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
@@ -602,8 +573,7 @@ static void tickets_update(ui_view* view, void* data, linked_list* items, list_i
     }
 
     if(hidKeysDown() & KEY_Y) {
-        list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
-        tickets_store(listData);
+        list_toggle_mode(view);
     }
 
     if(hidKeysDown() & KEY_L) {
@@ -612,7 +582,7 @@ static void tickets_update(ui_view* view, void* data, linked_list* items, list_i
     }
 
     if(hidKeysDown() & KEY_R) {
-        tickets_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
@@ -702,8 +672,7 @@ void tickets_open() {
     list_set_long_press(view, tickets_long_press);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, tickets_search_active, tickets_search_open);
+    list_add_search_tool(view, _("Search tickets"));
     list_add_tool(view, ICON_FILTER, tickets_filter_active, tickets_filter_open);
-    list_add_tool(view, ICON_LAYOUT_GRID, tickets_is_grid, tickets_show_grid);
-    list_add_tool(view, ICON_LIST, tickets_is_rows, tickets_show_rows);
+    list_add_view_tools(view, tickets_view_changed);
 }

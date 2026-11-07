@@ -14,8 +14,9 @@
 
 // Dump NAND: its own screen. It shows the space the image needs against what the SD card has,
 // where the file will go, the progress with speed and time left, and at the end how long it
-// took and the SHA-256 of what was read. The image is the raw NAND as the system serves it:
-// the whole of it, installed things and free space alike.
+// took and the SHA-256 of what was read. The image is the raw NAND as the system serves it, up to the
+// end of its last partition: installed things and free space alike, the same bytes and size as a
+// GodMode9 SysNAND backup.
 
 typedef enum {
     DUMP_READY,
@@ -85,8 +86,39 @@ static Result dumpnand_close_src(void* data, u32 index, bool succeeded, u32 hand
     return FSFILE_Close(handle);
 }
 
+// The system says 1.84 GiB on a New 3DS XL and on a 2DS alike, but the NAND ends with its last NCSD
+// partition (1.21 GiB and 943 MiB there, the size of GodMode9's backups); after it only zeros come. The
+// header's partition table says where that is; without a header that makes sense, all of it.
 static Result dumpnand_get_src_size(void* data, u32 handle, u64* size) {
-    return FSFILE_GetSize(handle, size);
+    Result res = FSFILE_GetSize(handle, size);
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    u8 header[0x200];
+    u32 bytesRead = 0;
+    if(R_FAILED(FSFILE_Read(handle, &bytesRead, 0, header, sizeof(header))) || bytesRead != sizeof(header)
+       || memcmp(header + 0x100, "NCSD", 4) != 0) {
+        return 0;
+    }
+
+    u64 end = 0;
+    for(u32 i = 0; i < 8; i++) {
+        u32 offset;
+        u32 length;
+        memcpy(&offset, header + 0x120 + i * 8, 4);
+        memcpy(&length, header + 0x124 + i * 8, 4);
+        u64 partitionEnd = ((u64) offset + length) * 0x200;
+        if(length != 0 && partitionEnd > end) {
+            end = partitionEnd;
+        }
+    }
+
+    if(end > 0 && end <= *size) {
+        *size = end;
+    }
+
+    return 0;
 }
 
 static Result dumpnand_open_dst(dumpnand_data* dump, u32* handle) {

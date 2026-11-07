@@ -1,5 +1,5 @@
 // Picture viewer: top screen the picture (in 3D for a camera's MPO), bottom screen its
-// details and buttons; drag or D-Pad to move, A to zoom, L and R for the folder's others.
+// details and buttons; drag or D-Pad to move, A to zoom, L and R (or Left and Right, not zoomed in) for the folder's others.
 
 #include <malloc.h>
 #include <stdio.h>
@@ -481,6 +481,16 @@ static void image_update(ui_view* view, void* v, float bx1, float by1, float bx2
 
     if(hidKeysDown() & KEY_R) {
         image_go(data, 1);
+    }
+
+    if(data->zoom == 0) {
+        if(hidKeysDown() & (KEY_DLEFT | KEY_CPAD_LEFT)) {
+            image_go(data, -1);
+        }
+
+        if(hidKeysDown() & (KEY_DRIGHT | KEY_CPAD_RIGHT)) {
+            image_go(data, 1);
+        }
     }
 
     if(data->state == IMAGE_READY) {

@@ -34,6 +34,7 @@ typedef struct {
     bool showNAND;
     bool group;
     tickets_sort sort;
+    bool sortReverse;   // The sort turned round (choosing the same sort again).
 
     bool populated;
     bool sorted;
@@ -123,6 +124,7 @@ static void tickets_store(tickets_data* data) {
     saved->media = (data->showSD ? 1 : 0) | (data->showNAND ? 2 : 0);
     saved->group = data->group;
     saved->sort = (u32) data->sort;
+    saved->sortReverse = data->sortReverse;
     saved->grid = data->view != NULL && list_get_mode(data->view) == LIST_MODE_GRID;
     settings_save();
 }
@@ -139,6 +141,7 @@ static void tickets_restore(tickets_data* data) {
     data->showNAND = (saved->media & 2) != 0;
     data->group = saved->group;
     data->sort = saved->sort <= SORT_ID ? (tickets_sort) saved->sort : SORT_NAME;
+    data->sortReverse = saved->sortReverse;
 }
 
 // State, kind and memory filters, and grouping: update and DLC tickets whose
@@ -385,6 +388,7 @@ static void tickets_popover_select(void* data, u32 group, u32 option) {
             listData->group = option == 0;
             break;
         default:
+            listData->sortReverse = listData->sort == (tickets_sort) option ? !listData->sortReverse : false;
             listData->sort = (tickets_sort) option;
             // Sorted again at the next frame.
             listData->sorted = false;
@@ -392,6 +396,11 @@ static void tickets_popover_select(void* data, u32 group, u32 option) {
     }
 
     tickets_store(listData);
+}
+
+static bool tickets_popover_is_reversed(void* data, u32 group, u32 option) {
+    tickets_data* listData = (tickets_data*) data;
+    return group == 4 && listData->sort == (tickets_sort) option && listData->sortReverse;
 }
 
 static void tickets_filter_open(ui_view* view, void* data) {
@@ -403,10 +412,11 @@ static void tickets_filter_open(ui_view* view, void* data) {
                     {_("Type"), true, 6, {_("Games"), _("Updates"), "DLC", _("Demos"), "DSiWare", _("System")}, {ICON_DEVICE_GAMEPAD_2, ICON_REFRESH, ICON_PUZZLE, ICON_FLASK, ICON_DEVICE_MOBILE, ICON_SETTINGS}},
                     {_("Memory"), true, 2, {"SD", "NAND"}, {ICON_DEVICE_SD_CARD, ICON_CPU}},
                     {_("Group updates and DLC"), false, 2, {_("Yes"), _("No")}, {ICON_CHECK, ICON_X}},
-                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true}
+                    {_("Sort by"), false, 2, {_("Name"), "ID"}, {ICON_ABC, ICON_KEY}, true, true}
             },
             .isOn = tickets_popover_is_on,
-            .select = tickets_popover_select
+            .select = tickets_popover_select,
+            .isReversed = tickets_popover_is_reversed
     };
 
     popover_display(&def, data);
@@ -568,6 +578,7 @@ static int tickets_compare(void* data, const void* p1, const void* p2) {
         return ticket1->titleId > ticket2->titleId ? 1 : ticket1->titleId < ticket2->titleId ? -1 : 0;
     }
 
+    int dir = listData->sortReverse ? -1 : 1;
     if(listData->sort == SORT_NAME) {
         if(ticket1->hasMeta != ticket2->hasMeta) {
             return ticket1->hasMeta ? -1 : 1;
@@ -576,12 +587,13 @@ static int tickets_compare(void* data, const void* p1, const void* p2) {
         if(ticket1->hasMeta) {
             int byName = strncasecmp(item1->name, item2->name, sizeof(item1->name));
             if(byName != 0) {
-                return byName;
+                return dir * byName;
             }
         }
     }
 
-    return ticket1->titleId > ticket2->titleId ? 1 : ticket1->titleId < ticket2->titleId ? -1 : 0;
+    int byId = ticket1->titleId > ticket2->titleId ? 1 : ticket1->titleId < ticket2->titleId ? -1 : 0;
+    return listData->sort == SORT_ID ? dir * byId : byId;
 }
 
 static void tickets_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {

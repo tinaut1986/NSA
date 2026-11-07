@@ -149,6 +149,7 @@ void settings_load() {
         settings.titles.regions = settings_get_uint(titles, "regions", settings.titles.regions, 0x1F);
         settings.titles.group = settings_get_bool(titles, "group", settings.titles.group);
         settings.titles.sort = settings_get_uint(titles, "sort", settings.titles.sort, 2);
+        settings.titles.sortReverse = settings_get_bool(titles, "sortReverse", settings.titles.sortReverse);
         settings.titles.grid = settings_get_bool(titles, "grid", settings.titles.grid);
     }
 
@@ -159,6 +160,7 @@ void settings_load() {
         settings.tickets.media = settings_get_uint(tickets, "media", settings.tickets.media, 3);
         settings.tickets.group = settings_get_bool(tickets, "group", settings.tickets.group);
         settings.tickets.sort = settings_get_uint(tickets, "sort", settings.tickets.sort, 1);
+        settings.tickets.sortReverse = settings_get_bool(tickets, "sortReverse", settings.tickets.sortReverse);
         settings.tickets.grid = settings_get_bool(tickets, "grid", settings.tickets.grid);
     }
 
@@ -170,6 +172,7 @@ void settings_load() {
         settings.files.tickets = settings_get_bool(files, "tickets", settings.files.tickets);
         settings.files.hidden = settings_get_bool(files, "hidden", settings.files.hidden);
         settings.files.sort = settings_get_uint(files, "sort", settings.files.sort, 2);
+        settings.files.sortReverse = settings_get_bool(files, "sortReverse", settings.files.sortReverse);
     }
 
     json_t* extsave = json_object_get(json, "extsave");
@@ -177,6 +180,7 @@ void settings_load() {
         settings.extsave.sd = settings_get_bool(extsave, "sd", settings.extsave.sd);
         settings.extsave.nand = settings_get_bool(extsave, "nand", settings.extsave.nand);
         settings.extsave.byId = settings_get_bool(extsave, "by_id", settings.extsave.byId);
+        settings.extsave.sortReverse = settings_get_bool(extsave, "sortReverse", settings.extsave.sortReverse);
         settings.extsave.grid = settings_get_bool(extsave, "grid", settings.extsave.grid);
     }
 
@@ -203,6 +207,7 @@ void settings_load() {
     if(json_is_object(mods)) {
         settings.mods.states = settings_get_uint(mods, "states", settings.mods.states, 7);
         settings.mods.sort = settings_get_uint(mods, "sort", settings.mods.sort, 2);
+        settings.mods.sortReverse = settings_get_bool(mods, "sortReverse", settings.mods.sortReverse);
         settings.mods.grid = settings_get_bool(mods, "grid", settings.mods.grid);
     }
 
@@ -282,7 +287,11 @@ Result settings_save() {
                                                   "tile", (int) settings.store.tile, "shown", (int) settings.store.shown,
                                                   "updated", (int) settings.store.updated, "sortReverse", settings.store.sortReverse));
     json_object_set_new(json_object_get(json, "titles"), "tile", json_integer(settings.titles.tile));
-    json_object_set_new(json, "mods", json_pack("{s:i,s:i,s:b}", "states", (int) settings.mods.states, "sort", (int) settings.mods.sort, "grid", settings.mods.grid));
+    json_object_set_new(json_object_get(json, "titles"), "sortReverse", json_boolean(settings.titles.sortReverse));
+    json_object_set_new(json_object_get(json, "tickets"), "sortReverse", json_boolean(settings.tickets.sortReverse));
+    json_object_set_new(json_object_get(json, "files"), "sortReverse", json_boolean(settings.files.sortReverse));
+    json_object_set_new(json_object_get(json, "extsave"), "sortReverse", json_boolean(settings.extsave.sortReverse));
+    json_object_set_new(json, "mods", json_pack("{s:i,s:i,s:b,s:b}", "states", (int) settings.mods.states, "sort", (int) settings.mods.sort, "sortReverse", settings.mods.sortReverse, "grid", settings.mods.grid));
     json_object_set_new(json, "menu", json_string(settings.menu));
     json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));
     json_object_set_new(json, "guide_seen", json_string(settings.guideSeen));

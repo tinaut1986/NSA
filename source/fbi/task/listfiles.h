@@ -30,6 +30,9 @@ typedef struct file_info_s {
     cia_info ciaInfo;
     bool isTicket;
     ticket_info ticketInfo;
+
+    // Ticked in the Files screen's selection mode (files.c).
+    bool marked;
 } file_info;
 
 typedef struct populate_files_data_s {
@@ -44,6 +47,8 @@ typedef struct populate_files_data_s {
 
     bool (*filter)(void* data, const char* name, u32 attributes);
     void* filterData;
+    // The filter picks among the base folder's own entries only; what is inside a folder it keeps is all listed.
+    bool filterTopOnly;
 
     volatile bool finished;
     Result result;

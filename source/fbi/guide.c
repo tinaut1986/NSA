@@ -160,6 +160,13 @@ static const coach_step mods_steps[] = {
         INFO("menu.cleanup", "Deleting a game that has mods asks whether to delete them too."),
 };
 
+static const coach_step select_steps[] = {
+        OPEN("menu.sd", "Open SD card.", "tool.select"),
+        INFO("tool.select", "This box (or ) ticks several files and folders at once:  or a tap on each one."),
+        INFO("tool.select", "Then  copies, moves, installs or deletes all the ticked ones together, and  leaves."),
+        DO(NULL, " goes up a folder, and from the top back to the menu.", KEY_B, false, "v:Main menu"),
+};
+
 static const coach_step updates_steps[] = {
         OPEN("menu.settings", "Open Settings.", "v:Settings"),
         REACH("settings.channel", "Go down to Update channel."),
@@ -183,6 +190,7 @@ static const guide_chapter chapters[] = {
         {"look", GUIDE_VERSION(0, 4), false, "basics", ICON_PALETTE, "Look and sound", "Themes, colours, music and language", look_steps, COUNT_OF(look_steps)},
         {"cleanup", GUIDE_VERSION(0, 2), false, "basics", ICON_STACK_2, "Cleanup and System", "Tickets, extra data, System and Advanced", cleanup_steps, COUNT_OF(cleanup_steps)},
         {"updates", GUIDE_VERSION(0, 3), false, "basics", ICON_REFRESH, "Updates and this guide", "New versions, and what each brings", updates_steps, COUNT_OF(updates_steps)},
+        {"select", GUIDE_VERSION(0, 8), false, "files", ICON_SQUARE_CHECK, "Selecting several", "Copy, move or delete many at once", select_steps, COUNT_OF(select_steps)},
         {"mods", GUIDE_VERSION(0, 8), false, "basics", ICON_FOLDER, "Game mods", "LayeredFS mods of games you deleted", mods_steps, COUNT_OF(mods_steps)},
 };
 

@@ -241,7 +241,7 @@ static void task_populate_files_thread(void* arg) {
                                     char name[FILE_NAME_MAX] = {'\0'};
                                     utf16_to_utf8((uint8_t*) name, entries[i].name, FILE_NAME_MAX - 1);
 
-                                    if(data->filter == NULL || data->filter(data->filterData, name, entries[i].attributes)) {
+                                    if(data->filter == NULL || (data->filterTopOnly && currItem != baseItem) || data->filter(data->filterData, name, entries[i].attributes)) {
                                         char path[FILE_PATH_MAX] = {'\0'};
                                         snprintf(path, FILE_PATH_MAX, "%s%s", curr->path, name);
 

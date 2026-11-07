@@ -129,6 +129,23 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Selecting several files** (2026-11-07, `feat/file-selection`; asked on Reddit by two users and in issue #31): Files has a
+selection mode: the check tool in the title bar, **Y**, or *Select several* in a file's or folder's sheet (that item ticked).
+Inside it A or a tap ticks or unticks (a folder does not open), Y ticks all or none, X (or a hold) opens the sheet for the
+ticked items (*Install the selected CIAs* / *and delete* when CIAs are ticked, *Copy*, *Cut (move)*, *Select all*,
+*Select none*, *Delete*), B leaves (after clearing a search). Ticked rows have a box and a soft accent; the top screen says how
+many are ticked, how many are folders and the size of the files. Going to another folder leaves the mode.
+How: `file_info.marked`; `populate_files_data.filterTopOnly` (the filter picks among the base folder's own entries, what a
+kept folder holds is all listed); the clipboard holds a folder plus names (`clipboard_set_names`, "contents only"): a paste
+copies only those (`clipboard_filter_names`), a cut on the same medium renames each, on another medium deletes only those after
+the copy. Copying a selection into the folder it came from is refused (the paste would delete each file before copying it onto
+itself). `action_delete_selected`, `action_install_cias_selected`. Guide chapter `select` (since 0.8).
+- [ ] Y, the check tool and *Select several* enter the mode; A ticks, Y all/none, B leaves; the title says "N selected".
+- [ ] Copy 3 files and a folder, paste in another folder: only those arrive, the folder with all it holds.
+- [ ] Cut and paste on the SD (rename) and from the SD to the CTR NAND or back (copy then delete only those).
+- [ ] Delete a selection with a folder in it; install 2 ticked CIAs (and "and delete").
+- [ ] Pasting a copied selection into its own folder says so and changes nothing.
+
 **Game mods** (2026-11-07, `feat/layeredfs-cleanup`; asked on r/3dshomebrew: "I always forget to delete LayeredFS stuff when I
 uninstall games"): Cleanup -> *Game mods* (`source/fbi/mods.c`, `task/listmods.c`) lists the folders of `sdmc:/luma/titles/`
 named by a 16-digit title ID, with the game's icon and name, size, files and contents (romfs, code.ips/bps/bin, exheader.bin,

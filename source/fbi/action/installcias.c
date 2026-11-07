@@ -426,6 +426,10 @@ void action_install_cias_delete(linked_list* items, list_item* selected, bool (*
     action_install_cias_internal(items, selected, filter, filterData, "Install and delete all CIAs in the current directory?", true, NULL);
 }
 
+void action_install_cias_selected(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData, bool delete) {
+    action_install_cias_internal(items, selected, filter, filterData, delete ? "Install and delete the selected CIAs?" : "Install the selected CIAs?", delete, NULL);
+}
+
 // The SD card, open for as long as the app runs: the install reads its CIAs from it after the caller is gone.
 static FS_Archive action_install_cias_sd_archive() {
     static FS_Archive archive = 0;

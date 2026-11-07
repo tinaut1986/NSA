@@ -231,12 +231,34 @@ static void action_paste_contents_free_data(paste_contents_data* data) {
     free(data);
 }
 
+static Result action_paste_contents_delete_path(const char* path);
+
+// Cut and pasted onto another medium: what was cut goes once the copy is whole. With names (a selection), only those.
 static Result action_paste_contents_delete_source() {
+    u32 count = clipboard_get_name_count();
+    if(count == 0) {
+        return action_paste_contents_delete_path(clipboard_get_path());
+    }
+
+    Result res = 0;
+    for(u32 i = 0; i < count; i++) {
+        char path[FILE_PATH_MAX];
+        snprintf(path, sizeof(path), "%s%s", clipboard_get_path(), clipboard_get_name(i));
+        Result one = action_paste_contents_delete_path(path);
+        if(R_FAILED(one) && R_SUCCEEDED(res)) {
+            res = one;
+        }
+    }
+
+    return res;
+}
+
+static Result action_paste_contents_delete_path(const char* path) {
     Result res = 0;
 
-    FS_Path* fsPath = fs_make_path_utf8(clipboard_get_path());
+    FS_Path* fsPath = fs_make_path_utf8(path);
     if(fsPath != NULL) {
-        if(fs_is_dir(clipboard_get_archive(), clipboard_get_path())) {
+        if(fs_is_dir(clipboard_get_archive(), path)) {
             res = FSUSER_DeleteDirectoryRecursively(clipboard_get_archive(), *fsPath);
         } else {
             res = FSUSER_DeleteFile(clipboard_get_archive(), *fsPath);
@@ -332,7 +354,10 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
             loadingData->pasteData->pasteInfo.total = linked_list_size(&loadingData->pasteData->contents);
             loadingData->pasteData->pasteInfo.processed = loadingData->pasteData->pasteInfo.total;
 
-            prompt_display_yes_no("Confirmation", loadingData->pasteData->moveSource ? "Move the cut item to the current directory? It is copied and then deleted from where it was." : "Paste clipboard contents to the current directory?", COLOR_TEXT, loadingData->pasteData, action_paste_contents_draw_top, action_paste_contents_onresponse);
+            bool names = clipboard_get_name_count() > 0;
+            const char* question = loadingData->pasteData->moveSource ? (names ? "Move the cut items to the current directory? They are copied and then deleted from where they were." : "Move the cut item to the current directory? It is copied and then deleted from where it was.")
+                                                                       : "Paste clipboard contents to the current directory?";
+            prompt_display_yes_no("Confirmation", question, COLOR_TEXT, loadingData->pasteData, action_paste_contents_draw_top, action_paste_contents_onresponse);
         } else {
             error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate clipboard content list.");
 
@@ -355,33 +380,32 @@ static bool action_paste_contents_renamable(FS_ArchiveID id) {
     return id == ARCHIVE_SDMC || id == ARCHIVE_NAND_CTR_FS || id == ARCHIVE_NAND_TWL_FS || id == ARCHIVE_TWL_PHOTO || id == ARCHIVE_TWL_SOUND;
 }
 
-// A cut item on the same medium is renamed into the folder: no copy.
-static void action_paste_contents_move_here(linked_list* items, list_item* selected) {
-    file_info* target = (file_info*) selected->data;
-    const char* srcPath = clipboard_get_path();
+typedef enum {
+    MOVE_DONE,
+    MOVE_SAME_FOLDER,
+    MOVE_INTO_ITSELF,
+    MOVE_FAILED
+} move_outcome;
+
+// Renames one cut file or folder (`srcPath`, a folder's without its last '/') into `baseDstPath`.
+static move_outcome action_paste_contents_move_one(linked_list* items, file_info* target, const char* baseDstPath, const char* srcPath, Result* resOut) {
     bool isDir = fs_is_dir(clipboard_get_archive(), srcPath);
 
     char name[FILE_NAME_MAX] = {'\0'};
     string_get_path_file(name, srcPath, sizeof(name));
 
-    char baseDstPath[FILE_PATH_MAX] = {'\0'};
-    if(target->attributes & FS_ATTRIBUTE_DIRECTORY) {
-        string_copy(baseDstPath, target->path, FILE_PATH_MAX);
-    } else {
-        string_get_parent_path(baseDstPath, target->path, FILE_PATH_MAX);
-    }
+    char srcDirPath[FILE_PATH_MAX] = {'\0'};
+    snprintf(srcDirPath, FILE_PATH_MAX, isDir && srcPath[strlen(srcPath) - 1] != '/' ? "%s/" : "%s", srcPath);
 
     char dstPath[FILE_PATH_MAX] = {'\0'};
     snprintf(dstPath, FILE_PATH_MAX, isDir ? "%s%s/" : "%s%s", baseDstPath, name);
 
-    if(strncmp(srcPath, dstPath, FILE_PATH_MAX) == 0) {
-        prompt_display_notify("Failure", "It is already in this folder.", COLOR_TEXT, NULL, NULL, NULL);
-        return;
+    if(strncmp(srcDirPath, dstPath, FILE_PATH_MAX) == 0) {
+        return MOVE_SAME_FOLDER;
     }
 
-    if(isDir && strncmp(dstPath, srcPath, strlen(srcPath)) == 0) {
-        prompt_display_notify("Failure", "A folder cannot be moved into itself.", COLOR_TEXT, NULL, NULL, NULL);
-        return;
+    if(isDir && strncmp(dstPath, srcDirPath, strlen(srcDirPath)) == 0) {
+        return MOVE_INTO_ITSELF;
     }
 
     Result res = 0;
@@ -406,23 +430,88 @@ static void action_paste_contents_move_here(linked_list* items, list_item* selec
     }
 
     if(R_FAILED(res)) {
-        error_display_res(NULL, NULL, res, "Failed to move the item.");
-        return;
+        *resOut = res;
+        return MOVE_FAILED;
     }
-
-    FSUSER_ControlArchive(target->archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
 
     list_item* dstItem = NULL;
     if(R_SUCCEEDED(task_create_file_item(&dstItem, target->archive, dstPath, isDir ? FS_ATTRIBUTE_DIRECTORY : 0, true))) {
         linked_list_add(items, dstItem);
+    }
+
+    return MOVE_DONE;
+}
+
+// A cut item (or the items of a selection) on the same medium is renamed into the folder: no copy.
+static void action_paste_contents_move_here(linked_list* items, list_item* selected) {
+    file_info* target = (file_info*) selected->data;
+
+    char baseDstPath[FILE_PATH_MAX] = {'\0'};
+    if(target->attributes & FS_ATTRIBUTE_DIRECTORY) {
+        string_copy(baseDstPath, target->path, FILE_PATH_MAX);
+    } else {
+        string_get_parent_path(baseDstPath, target->path, FILE_PATH_MAX);
+    }
+
+    u32 count = clipboard_get_name_count();
+    u32 total = count > 0 ? count : 1;
+    u32 moved = 0;
+    move_outcome last = MOVE_DONE;
+    Result failure = 0;
+    for(u32 i = 0; i < total; i++) {
+        char srcPath[FILE_PATH_MAX];
+        if(count > 0) {
+            snprintf(srcPath, sizeof(srcPath), "%s%s", clipboard_get_path(), clipboard_get_name(i));
+        } else {
+            string_copy(srcPath, clipboard_get_path(), sizeof(srcPath));
+        }
+
+        Result res = 0;
+        move_outcome outcome = action_paste_contents_move_one(items, target, baseDstPath, srcPath, &res);
+        if(outcome == MOVE_DONE) {
+            moved++;
+        } else {
+            last = outcome;
+            if(outcome == MOVE_FAILED && R_SUCCEEDED(failure)) {
+                failure = res;
+            }
+        }
+    }
+
+    if(moved > 0) {
+        FSUSER_ControlArchive(target->archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
         linked_list_sort(items, NULL, task_compare_files);
     }
 
-    clipboard_clear();
-    prompt_display_notify("Success", "Moved.", COLOR_TEXT, NULL, NULL, NULL);
+    if(moved == total) {
+        clipboard_clear();
+        prompt_display_notify("Success", "Moved.", COLOR_TEXT, NULL, NULL, NULL);
+    } else if(last == MOVE_FAILED) {
+        error_display_res(NULL, NULL, failure, moved > 0 ? "Some items were moved, but not all." : "Failed to move the item.");
+    } else if(last == MOVE_SAME_FOLDER) {
+        prompt_display_notify("Failure", moved > 0 ? "Some items were moved; the rest are already in this folder." : "It is already in this folder.", COLOR_TEXT, NULL, NULL, NULL);
+    } else {
+        prompt_display_notify("Failure", "A folder cannot be moved into itself.", COLOR_TEXT, NULL, NULL, NULL);
+    }
 }
 
 void action_paste_contents_in(linked_list* items, list_item* selected, FS_ArchiveID archiveId) {
+    // A selection copied into the folder it came from would overwrite each item with itself (deleting it first).
+    if(clipboard_has_contents() && !clipboard_is_cut() && clipboard_get_name_count() > 0 && archiveId != 0 && archiveId == clipboard_get_archive_id()) {
+        file_info* target = (file_info*) selected->data;
+        char dir[FILE_PATH_MAX] = {'\0'};
+        if(target->attributes & FS_ATTRIBUTE_DIRECTORY) {
+            string_copy(dir, target->path, FILE_PATH_MAX);
+        } else {
+            string_get_parent_path(dir, target->path, FILE_PATH_MAX);
+        }
+
+        if(strncmp(dir, clipboard_get_path(), FILE_PATH_MAX) == 0) {
+            prompt_display_notify("Failure", "The copied items are already in this folder.", COLOR_TEXT, NULL, NULL, NULL);
+            return;
+        }
+    }
+
     if(clipboard_has_contents() && clipboard_is_cut() && archiveId != 0 && archiveId == clipboard_get_archive_id() && action_paste_contents_renamable(archiveId)) {
         action_paste_contents_move_here(items, selected);
         return;
@@ -503,8 +592,11 @@ void action_paste_contents(linked_list* items, list_item* selected) {
     loadingData->popData.recursive = true;
     loadingData->popData.includeBase = !clipboard_is_contents_only() || !fs_is_dir(clipboard_get_archive(), clipboard_get_path());
     loadingData->popData.meta = false;
-    loadingData->popData.filter = NULL;
+    // A selection: only its items of that folder, with all they hold.
+    bool names = clipboard_get_name_count() > 0;
+    loadingData->popData.filter = names ? clipboard_filter_names : NULL;
     loadingData->popData.filterData = NULL;
+    loadingData->popData.filterTopOnly = names;
 
     Result listRes = task_populate_files(&loadingData->popData);
     if(R_FAILED(listRes)) {

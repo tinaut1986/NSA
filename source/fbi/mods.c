@@ -318,10 +318,6 @@ static Result mods_delete_one(void* data, u32 index) {
     return res;
 }
 
-static Result mods_delete_nothing(void* data, u32 index) {
-    return 0;
-}
-
 static bool mods_delete_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(data, mods_delete_draw_top, res, "Failed to delete the mods.");
     return true;
@@ -376,8 +372,6 @@ static mods_delete_data* mods_delete_new(linked_list* items, u32 count) {
     data->deleteInfo.data = data;
     data->deleteInfo.op = DATAOP_DELETE;
     data->deleteInfo.delete = mods_delete_one;
-    data->deleteInfo.suspend = mods_delete_nothing;
-    data->deleteInfo.restore = mods_delete_nothing;
     data->deleteInfo.error = mods_delete_error;
     data->deleteInfo.finished = false;
     return data;

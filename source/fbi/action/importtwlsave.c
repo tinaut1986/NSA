@@ -74,14 +74,6 @@ static Result action_import_twl_save_write_dst(void* data, u32 handle, u32* byte
     return spi_write_save(bytesWritten, buffer, (u32) offset, size);
 }
 
-static Result action_import_twl_save_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_import_twl_save_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_import_twl_save_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(((import_twl_save_data*) data)->title, task_draw_title_info, res, "Failed to import save.");
     return true;
@@ -150,8 +142,6 @@ void action_import_twl_save(linked_list* items, list_item* selected) {
     data->importInfo.closeDst = action_import_twl_save_close_dst;
     data->importInfo.writeDst = action_import_twl_save_write_dst;
 
-    data->importInfo.suspend = action_import_twl_save_suspend;
-    data->importInfo.restore = action_import_twl_save_restore;
 
     data->importInfo.error = action_import_twl_save_error;
 

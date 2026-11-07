@@ -66,14 +66,6 @@ static Result action_erase_twl_save_write_dst(void* data, u32 handle, u32* bytes
     return spi_write_save(bytesWritten, buffer, (u32) offset, size);
 }
 
-static Result action_erase_twl_save_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_erase_twl_save_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_erase_twl_save_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(((erase_twl_save_data*) data)->title, task_draw_title_info, res, "Failed to erase save.");
     return true;
@@ -142,8 +134,6 @@ void action_erase_twl_save(linked_list* items, list_item* selected) {
     data->eraseInfo.closeDst = action_erase_twl_save_close_dst;
     data->eraseInfo.writeDst = action_erase_twl_save_write_dst;
 
-    data->eraseInfo.suspend = action_erase_twl_save_suspend;
-    data->eraseInfo.restore = action_erase_twl_save_restore;
 
     data->eraseInfo.error = action_erase_twl_save_error;
 

@@ -139,14 +139,6 @@ static Result tree_write_dst(void* data, u32 handle, u32* bytesWritten, void* bu
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 
-static Result tree_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result tree_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool tree_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(data, tree_draw_top, res, "Failed to copy the files.");
     return true;
@@ -246,8 +238,6 @@ static void tree_copy_start(tree_copy* job) {
     job->op.openDst = tree_open_dst;
     job->op.closeDst = tree_close_dst;
     job->op.writeDst = tree_write_dst;
-    job->op.suspend = tree_suspend;
-    job->op.restore = tree_restore;
     job->op.error = tree_error;
     job->op.finished = true;
 

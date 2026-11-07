@@ -50,14 +50,6 @@ static Result action_delete_tickets_delete(void* data, u32 index) {
     return res;
 }
 
-static Result action_delete_tickets_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_delete_tickets_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_delete_tickets_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(data, action_delete_tickets_draw_top, res, "Failed to delete ticket(s).");
     return true;
@@ -168,8 +160,6 @@ static void action_delete_tickets_internal(linked_list* items, list_item* select
 
     data->deleteInfo.delete = action_delete_tickets_delete;
 
-    data->deleteInfo.suspend = action_delete_tickets_suspend;
-    data->deleteInfo.restore = action_delete_tickets_restore;
 
     data->deleteInfo.error = action_delete_tickets_error;
 

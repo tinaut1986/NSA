@@ -618,14 +618,6 @@ static Result action_export_cia_write_dst(void* data, u32 handle, u32* bytesWrit
     return 0;
 }
 
-static Result action_export_cia_suspend(void* data, u32 index) {
-    return 0;
-}
-
-static Result action_export_cia_restore(void* data, u32 index) {
-    return 0;
-}
-
 static bool action_export_cia_error(void* data, u32 index, Result res, ui_view** errorView) {
     *errorView = error_display_res(((export_cia_data*) data)->title, task_draw_title_info, res, "Failed to export CIA.");
     // Never skip a content: the file would be broken.
@@ -725,8 +717,6 @@ void action_export_cia(linked_list* items, list_item* selected) {
     data->exportInfo.closeDst = action_export_cia_close_dst;
     data->exportInfo.writeDst = action_export_cia_write_dst;
 
-    data->exportInfo.suspend = action_export_cia_suspend;
-    data->exportInfo.restore = action_export_cia_restore;
 
     data->exportInfo.error = action_export_cia_error;
 

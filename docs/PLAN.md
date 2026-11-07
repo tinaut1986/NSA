@@ -218,6 +218,12 @@ subfolders was deleted from Files there (progress, "Deleted.").
 - Then (`refactor/ui-structure-2`): the viewers' buttons, their touches and card, the keyboards' touches, the icon of
   an item without one, the scroll clamp of popovers and dialogs. Same 49 pictures in Azahar.
 - [ ] The image, audio and text viewers: tap their buttons, slide off one before letting go (nothing happens).
+- Then (`refactor/ui-structure-3`): deleting one ext save data or system save data runs through `action_delete_one`
+  (`action/deleteone.c`); the 27 data operation suspend/restore callbacks that only returned 0 are gone (a NULL one is
+  skipped, the result is the same). Copy, paste and delete a folder tried in Azahar.
+- [ ] Delete an ext save data (Ext Save Data, and a title's Extra data) and a system save data: red question,
+  "Deleting...", gone from the list, notice; No keeps it.
+- [ ] An install or a copy while the console goes to sleep or HOME (suspend and resume) goes on afterwards.
 
 **Sort both ways, hold A, the clipboard, the picture viewer** (2026-11-07, `feat/sort-both-ways`; the owner asked; Files'
 hint, the reversed name sort and Left/Right in the viewer seen in Azahar):

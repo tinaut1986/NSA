@@ -104,7 +104,8 @@ it in WSL from the repo with `./tools/bin/makerom`; check the TMD's title versio
   A viewer's buttons: `widget_row_button` / `widget_button_row_hit` / `widget_button_row_hold`, its card
   `widget_info_card`; an item without icon `widget_icon_placeholder`; sizes `ui_format_size`; keyboards `core/ui/keys.c`;
   a task's progress view `info_task_finished` with `data_op_progress_items` / `data_op_progress_bytes`; a grouped game's
-  list `chain.c`.
+  list `chain.c`; deleting one item `action_delete_one` (`action/deleteone.c`). A data operation needs no suspend /
+  restore callbacks that only return 0 (NULL is skipped).
 - `tools/ui_snapshots.py` takes pictures of every screen in Azahar on a fixed SD card (`run`) and compares two builds
   (`compare`): run it before and after a change that should not show (a refactor). The search keyboard's caret blinks,
   so that step may differ by a few pixels.

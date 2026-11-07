@@ -1111,6 +1111,12 @@ const i18n_entry i18n_es[] = {
         {"FTP, sending", "FTP, enviando"},
         {"Web, receiving", "Web, recibiendo"},
         {"Web, sending", "Web, enviando"},
+        {"\uE000 pause   \uE004 \uE005 track   \uE002 stop   \uE001 back", "\uE000 pausa   \uE004 \uE005 pista   \uE002 parar   \uE001 volver"},
+        {"Back to the player", "Volver al reproductor"},
+        {"Music you play from the SD card goes on when you leave the player with \uE001; \uE002 in the player stops it.", "La música que pones desde la tarjeta SD sigue sonando al salir del reproductor con \uE001; \uE002 en el reproductor la para."},
+        {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "Mientras suena, se ve un icono de reproducir en la barra superior, y \uE002 en cualquier carpeta de la tarjeta SD tiene Volver al reproductor."},
+        {"Music in the background", "Música en segundo plano"},
+        {"Keep listening while you browse", "Sigue escuchando mientras navegas"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

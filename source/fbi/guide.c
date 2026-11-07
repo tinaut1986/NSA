@@ -167,6 +167,11 @@ static const coach_step select_steps[] = {
         DO(NULL, " goes up a folder, and from the top back to the menu.", KEY_B, false, "v:Main menu"),
 };
 
+static const coach_step player_steps[] = {
+        INFO("menu.sd", "Music you play from the SD card goes on when you leave the player with ;  in the player stops it."),
+        INFO("menu.sd", "While it plays, a play icon shows in the top bar, and  in any folder of the SD card has Back to the player."),
+};
+
 static const coach_step updates_steps[] = {
         OPEN("menu.settings", "Open Settings.", "v:Settings"),
         REACH("settings.channel", "Go down to Update channel."),
@@ -191,6 +196,7 @@ static const guide_chapter chapters[] = {
         {"cleanup", GUIDE_VERSION(0, 2), false, "basics", ICON_STACK_2, "Cleanup and System", "Tickets, extra data, System and Advanced", cleanup_steps, COUNT_OF(cleanup_steps)},
         {"updates", GUIDE_VERSION(0, 3), false, "basics", ICON_REFRESH, "Updates and this guide", "New versions, and what each brings", updates_steps, COUNT_OF(updates_steps)},
         {"select", GUIDE_VERSION(0, 8), false, "files", ICON_SQUARE_CHECK, "Selecting several", "Copy, move or delete many at once", select_steps, COUNT_OF(select_steps)},
+        {"player", GUIDE_VERSION(0, 8), false, "files", ICON_MUSIC, "Music in the background", "Keep listening while you browse", player_steps, COUNT_OF(player_steps)},
         {"mods", GUIDE_VERSION(0, 8), false, "basics", ICON_FOLDER, "Game mods", "LayeredFS mods of games you deleted", mods_steps, COUNT_OF(mods_steps)},
 };
 

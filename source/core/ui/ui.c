@@ -184,6 +184,12 @@ static void ui_draw_top_bar() {
         screen_draw_icon(ICON_DEVICE_DESKTOP, x, (height - 14) / 2, 14, t->accent);
     }
 
+    // The audio player, left playing behind the other screens.
+    if(activity & UI_STATUS_PLAYER) {
+        x -= 15;
+        screen_draw_icon(ICON_PLAYER_PLAY, x, (height - 14) / 2, 14, t->accent);
+    }
+
     // While a song is being made for the background music, a note that breathes.
     bgmusic_status music;
     bgmusic_get_status(&music);

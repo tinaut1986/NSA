@@ -1090,6 +1090,12 @@ const i18n_entry i18n_ru[] = {
         {"FTP, sending", "FTP, отправка"},
         {"Web, receiving", "Веб, приём"},
         {"Web, sending", "Веб, отправка"},
+        {"\uE000 pause   \uE004 \uE005 track   \uE002 stop   \uE001 back", "\uE000 пауза   \uE004 \uE005 трек   \uE002 стоп   \uE001 назад"},
+        {"Back to the player", "Вернуться к плееру"},
+        {"Music you play from the SD card goes on when you leave the player with \uE001; \uE002 in the player stops it.", "Музыка с SD-карты продолжает играть, когда вы выходите из плеера кнопкой \uE001; \uE002 в плеере её останавливает."},
+        {"While it plays, a play icon shows in the top bar, and \uE002 in any folder of the SD card has Back to the player.", "Пока она играет, в верхней строке виден значок воспроизведения, а \uE002 в любой папке SD-карты предлагает Вернуться к плееру."},
+        {"Music in the background", "Музыка в фоне"},
+        {"Keep listening while you browse", "Слушайте, пока просматриваете"},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

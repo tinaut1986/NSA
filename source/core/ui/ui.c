@@ -349,7 +349,7 @@ static void ui_draw_bottom(ui_view* ui) {
         widget_text_centered(hint, 0, BOTTOM_SCREEN_WIDTH, contentBottom + (WIDGET_HINT_BAR_HEIGHT - widget_text_height(scale)) / 2, scale, t->palette->textMuted);
     }
 
-    char notice[128];
+    char notice[256];
     float progress = -1;
     if(ui_status_notice != NULL && ui_status_notice(notice, sizeof(notice), &progress)) {
         widget_toast(notice, progress, contentBottom);

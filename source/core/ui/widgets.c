@@ -9,6 +9,7 @@
 #include "../i18n.h"
 #include "../icons.h"
 #include "../screen.h"
+#include "../stringutil.h"
 #include "../theme.h"
 
 float widget_text_width(const char* text, float scale) {
@@ -564,8 +565,28 @@ void widget_scrollbar(float x, float y, float height, float offset, float visibl
 
 void widget_toast(const char* text, float progress, float bottom) {
     const theme_current* t = theme();
+
+    // Each line on its own, cut to the card's width when too long.
+    char buf[256];
+    string_copy(buf, text, sizeof(buf));
+    const char* lines[3];
+    int lineCount = 0;
+    char* line = buf;
+    while(line != NULL && lineCount < 3) {
+        lines[lineCount++] = line;
+        char* end = strchr(line, '\n');
+        if(end != NULL) {
+            *end = '\0';
+            line = end + 1;
+        } else {
+            line = NULL;
+        }
+    }
+
+    bool bar = progress >= 0 || progress == WIDGET_PROGRESS_UNKNOWN;
     float textHeight = widget_text_height(WIDGET_SMALL_SCALE);
-    float height = textHeight + (progress >= 0 ? 18 : 10);
+    float lineGap = 2;
+    float height = lineCount * textHeight + (lineCount - 1) * lineGap + (bar ? 18 : 10);
     float x = 8;
     float width = BOTTOM_SCREEN_WIDTH - 16;
     float y = bottom - 6 - height;
@@ -576,11 +597,27 @@ void widget_toast(const char* text, float progress, float bottom) {
         ink = t->palette->surface;
     }
 
-    widget_text_fit(text, x + 10, y + 5, WIDGET_SMALL_SCALE, ink, width - 20);
-    if(progress >= 0) {
+    for(int i = 0; i < lineCount; i++) {
+        widget_text_fit(lines[i], x + 10, y + 5 + i * (textHeight + lineGap), WIDGET_SMALL_SCALE, i == 0 ? ink : THEME_ALPHA(ink, 0xC0), width - 20);
+    }
+
+    if(bar) {
+        float barX = x + 10;
         float barY = y + height - 9;
-        screen_fill_round_rect(x + 10, barY, width - 20, 4, 2, THEME_ALPHA(ink, 0x50));
-        screen_fill_round_rect(x + 10, barY, (width - 20) * (progress > 1 ? 1 : progress), 4, 2, ink);
+        float barW = width - 20;
+        screen_fill_round_rect(barX, barY, barW, 4, 2, THEME_ALPHA(ink, 0x50));
+        if(progress >= 0) {
+            screen_fill_round_rect(barX, barY, barW * (progress > 1 ? 1 : progress), 4, 2, ink);
+        } else {
+            // A piece that crosses the bar every two seconds (drawn at the idle pace, a few times a second).
+            float piece = barW * 0.3f;
+            float start = (float) (osGetTime() % 2000) / 2000.0f * (barW + piece) - piece;
+            float from = start < 0 ? 0 : start;
+            float to = start + piece > barW ? barW : start + piece;
+            if(to - from >= 4) {
+                screen_fill_round_rect(barX + from, barY, to - from, 4, 2, ink);
+            }
+        }
     }
 }
 

@@ -30,6 +30,10 @@
 #define FTP_LINE_MAX 600
 #define FTP_IO_SIZE (64 * 1024)
 #define FTP_FILE_BUFFER (256 * 1024)
+// Writes to the SD card that start in the middle of a block are some 28 times slower (an upload picked up
+// at byte 3158073 ran at 34 KB/s, at 3145728 at 965): a STOR after REST or an APPE that starts there
+// first writes up to the next multiple of this, so that the buffer's writes after it all start on one.
+#define FTP_WRITE_ALIGN (64 * 1024)
 #define FTP_NAP_MS 10
 #define FTP_SEND_CHUNK (64 * 1024)
 // The most one send() offers, in bytes (SITE SENDCHUNK <KB>, DEBUG, to compare).
@@ -110,6 +114,7 @@ typedef struct {
     volatile int data;   // The data connection under way, -1 when none.
     u32 turn;  // The transfer turn (xferturn.h) its RETR or STOR holds, 0 when none.
     u64 allo;  // ALLO: the size of the next STOR.
+    u64 rest;  // REST: where the next RETR or STOR starts (a download or upload picked up where it stopped).
     char* io;  // Its transfers' buffer (FTP_IO_SIZE).
     char cwd[FTP_PATH_MAX];
     char rnfr[FTP_PATH_MAX];
@@ -705,11 +710,27 @@ static void ftp_cmd_retr(ftp_session* s, const char* arg) {
         }
     }
 
+    u64 rest = s->rest;
+    s->rest = 0;
+
     if(zero ? size == 0 : f == NULL) {
         ftp_close_pasv(s);
         ftp_reply(s, "550 Cannot open the file.");
         return;
     }
+
+    // REST: from there on. The turn, the toast and the trace count what is left to send.
+    if(rest > size || (f != NULL && rest > 0 && fseeko(f, (off_t) rest, SEEK_SET) != 0)) {
+        if(f != NULL) {
+            fclose(f);
+        }
+
+        ftp_close_pasv(s);
+        ftp_reply(s, "554 Cannot restart there.");
+        return;
+    }
+
+    size -= rest;
 
     // NSA's own speed traces are read while something transfers (tools/speed_tests.py): never the turn for them.
     bool traces = strcmp(vpath, APP_DATA_DIR "speed-log.txt") == 0;
@@ -780,19 +801,40 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
 
     bool null = strncmp(vpath, FTP_DEV_NULL, strlen(FTP_DEV_NULL)) == 0 && (vpath[strlen(FTP_DEV_NULL)] == '\0' || vpath[strlen(FTP_DEV_NULL)] == '/');
 
+    // REST before a STOR: the file is kept and written from there on (APPE goes to its end anyway).
+    u64 rest = append || null ? 0 : s->rest;
+    s->rest = 0;
+
     // Before opening: "wb" would empty a file that is not going to be written.
-    if(!ftp_take_turn(s, vpath, s->allo, true)) {
+    if(!ftp_take_turn(s, vpath, s->allo > rest ? s->allo - rest : 0, true)) {
         s->allo = 0;
         return;
     }
 
-    FILE* f = null ? NULL : fopen(rpath, append ? "ab" : "wb");
+    FILE* f = null ? NULL : fopen(rpath, append ? "ab" : rest > 0 ? "r+b" : "wb");
     if(!null && f == NULL) {
         ftp_release_turn(s);
         ftp_close_pasv(s);
-        ftp_reply(s, "553 Cannot create the file.");
+        ftp_reply(s, rest > 0 ? "554 Cannot restart there." : "553 Cannot create the file.");
         return;
     }
+
+    struct stat st;
+    if(rest > 0 && (fstat(fileno(f), &st) != 0 || (u64) st.st_size < rest || fseeko(f, (off_t) rest, SEEK_SET) != 0)) {
+        fclose(f);
+        ftp_release_turn(s);
+        ftp_close_pasv(s);
+        ftp_reply(s, "554 Cannot restart there.");
+        return;
+    }
+
+    // Where the writing starts, and how much to write before the first aligned offset (FTP_WRITE_ALIGN).
+    u64 at = rest;
+    if(append && f != NULL && fstat(fileno(f), &st) == 0) {
+        at = (u64) st.st_size;
+    }
+
+    u64 head = f != NULL && at % FTP_WRITE_ALIGN != 0 ? FTP_WRITE_ALIGN - at % FTP_WRITE_ALIGN : 0;
 
     // The network hands over a few KB at a time, and every write to the SD card costs a lot on its own:
     // gather them into big writes, as ftpd does.
@@ -804,12 +846,12 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
     size_t len = strlen(vpath);
     bool cia = len > 4 && strcasecmp(vpath + len - 4, ".cia") == 0;
     if(cia) {
-        ftp_done = 0;
+        ftp_done = rest;
         ftp_total = s->allo;
         ftp_set_phase(PHASE_RECEIVING, vpath);
     }
 
-    u64 allo = s->allo;
+    u64 allo = s->allo > rest ? s->allo - rest : 0;
     s->allo = 0;
 
     ftp_reply(s, "150 Receiving.");
@@ -854,7 +896,24 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
 
         if(f != NULL) {
             start = speedlog_ticks();
-            bool written = fwrite(s->io, 1, (size_t) r, f) == (size_t) r;
+            const char* from = s->io;
+            size_t n = (size_t) r;
+            bool written = true;
+            if(head > 0) {
+                size_t first = n < head ? n : (size_t) head;
+                written = fwrite(from, 1, first, f) == first;
+                head -= first;
+                from += first;
+                n -= first;
+                if(written && head == 0) {
+                    written = fflush(f) == 0;
+                }
+            }
+
+            if(written && n > 0) {
+                written = fwrite(from, 1, n, f) == n;
+            }
+
             speedlog_disk(log, (u64) r, speedlog_ticks() - start);
             if(!written) {
                 ok = false;
@@ -1387,9 +1446,18 @@ static void ftp_handle_session(ftp_session* s) {
         } else if(strcmp(line, "SYST") == 0) {
             ftp_reply(s, "215 UNIX Type: L8");
         } else if(strcmp(line, "FEAT") == 0) {
-            ftp_reply(s, "211-Features:\r\n SIZE\r\n MDTM\r\n MLSD\r\n EPSV\r\n PASV\r\n UTF8\r\n211 End");
+            ftp_reply(s, "211-Features:\r\n SIZE\r\n MDTM\r\n REST STREAM\r\n MLSD\r\n EPSV\r\n PASV\r\n UTF8\r\n211 End");
         } else if(strcmp(line, "OPTS") == 0 || strcmp(line, "TYPE") == 0 || strcmp(line, "MODE") == 0 || strcmp(line, "STRU") == 0 || strcmp(line, "NOOP") == 0) {
             ftp_reply(s, "200 OK.");
+        } else if(strcmp(line, "REST") == 0) {
+            char* end = NULL;
+            unsigned long long at = strtoull(arg, &end, 10);
+            if(end == arg || *end != '\0') {
+                ftp_reply(s, "501 REST takes a byte offset.");
+            } else {
+                s->rest = (u64) at;
+                ftp_reply(s, "350 Restarting at %llu.", at);
+            }
         } else if(strcmp(line, "ALLO") == 0) {
             // The size of the next STOR: the progress bar's total.
             s->allo = strtoull(arg, NULL, 10);

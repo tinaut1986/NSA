@@ -9,6 +9,7 @@
 
 #include <3ds.h>
 
+#include "../core/ui/keys.h"
 #include "viewers.h"
 #include "../core/core.h"
 
@@ -20,70 +21,9 @@
 
 // ---- the on-screen keyboard ----
 
-typedef enum {
-    K_CHAR,
-    K_SHIFT,
-    K_BACK,
-    K_PAGE_LETTERS,
-    K_PAGE_SYMBOLS,
-    K_PAGE_EXTRA,
-    K_SPACE,
-    K_ENTER,
-    K_LEFT,
-    K_RIGHT,
-    K_UP,
-    K_DOWN,
-    K_SAVE,
-    K_DONE
-} key_action;
-
-typedef struct {
-    const char* lower;
-    const char* upper;
-    float width;
-    key_action action;
-} key_def;
-
-#define KC(l, u) {l, u, 1, K_CHAR}
-#define KS(s) {s, s, 1, K_CHAR}
-#define KA(act, w) {"", "", w, act}
-
-#define KB_ROW_MAX 11
-
-typedef struct {
-    u32 count;
-    key_def keys[KB_ROW_MAX];
-} key_row;
-
 static const key_row kb_toolbar = {6, {KA(K_SAVE, 3), KA(K_DONE, 3), KA(K_LEFT, 1), KA(K_UP, 1), KA(K_DOWN, 1), KA(K_RIGHT, 1)}};
 
-static const key_row kb_letters[4] = {
-        {10, {KC("q", "Q"), KC("w", "W"), KC("e", "E"), KC("r", "R"), KC("t", "T"), KC("y", "Y"), KC("u", "U"), KC("i", "I"), KC("o", "O"), KC("p", "P")}},
-        {10, {KC("a", "A"), KC("s", "S"), KC("d", "D"), KC("f", "F"), KC("g", "G"), KC("h", "H"), KC("j", "J"), KC("k", "K"), KC("l", "L"), KC("ñ", "Ñ")}},
-        {9, {KA(K_SHIFT, 1.5f), KC("z", "Z"), KC("x", "X"), KC("c", "C"), KC("v", "V"), KC("b", "B"), KC("n", "N"), KC("m", "M"), KA(K_BACK, 1.5f)}},
-        {5, {KA(K_PAGE_SYMBOLS, 2), KS(","), KA(K_SPACE, 4), KS("."), KA(K_ENTER, 2)}}
-};
-
-static const key_row kb_symbols[4] = {
-        {10, {KS("1"), KS("2"), KS("3"), KS("4"), KS("5"), KS("6"), KS("7"), KS("8"), KS("9"), KS("0")}},
-        {10, {KS("@"), KS("#"), KS("$"), KS("%"), KS("&"), KS("*"), KS("-"), KS("+"), KS("("), KS(")")}},
-        {9, {KA(K_PAGE_EXTRA, 1.5f), KS("!"), KS("\""), KS("'"), KS(":"), KS(";"), KS("/"), KS("?"), KA(K_BACK, 1.5f)}},
-        {5, {KA(K_PAGE_LETTERS, 2), KS(","), KA(K_SPACE, 4), KS("."), KA(K_ENTER, 2)}}
-};
-
-static const key_row kb_extra[4] = {
-        {10, {KC("á", "Á"), KC("é", "É"), KC("í", "Í"), KC("ó", "Ó"), KC("ú", "Ú"), KC("ü", "Ü"), KC("ñ", "Ñ"), KS("¿"), KS("¡"), KS("€")}},
-        {10, {KS("="), KS("<"), KS(">"), KS("["), KS("]"), KS("{"), KS("}"), KS("\\"), KS("|"), KS("~")}},
-        {9, {KA(K_PAGE_SYMBOLS, 1.5f), KS("_"), KS("^"), KS("`"), KC("ç", "Ç"), KS("°"), KS("§"), KS("´"), KA(K_BACK, 1.5f)}},
-        {5, {KA(K_PAGE_LETTERS, 2), KS(","), KA(K_SPACE, 4), KS("."), KA(K_ENTER, 2)}}
-};
-
 #define KB_KEYS_MAX 48
-
-typedef struct {
-    float x, y, w, h;
-    const key_def* def;
-} key_rect;
 
 // ---- the viewer ----
 
@@ -727,65 +667,7 @@ static void tv_draw_top(ui_view* view, void* v, float x1, float y1, float x2, fl
 }
 
 static void tv_build_keys(text_data* d) {
-    const key_row* rows = d->page == 0 ? kb_letters : d->page == 1 ? kb_symbols : kb_extra;
-    float unit = (BOTTOM_SCREEN_WIDTH - 8) / 10.0f;
-    float y = WIDGET_TITLE_BAR_HEIGHT + 4;
-    d->keyCount = 0;
-
-    for(int r = -1; r < 4; r++) {
-        const key_row* row = r < 0 ? &kb_toolbar : &rows[r];
-        float h = r < 0 ? 28 : 34;
-        float x = 4;
-        for(u32 i = 0; i < row->count && d->keyCount < KB_KEYS_MAX; i++) {
-            const key_def* def = &row->keys[i];
-            float w = def->width * unit;
-            // The last two rows of keys are a little shorter than the others' unit grid: all rows share it.
-            d->keys[d->keyCount++] = (key_rect) {x + 1, y, w - 2, h, def};
-            x += w;
-        }
-
-        y += h + 3;
-    }
-}
-
-static void tv_draw_key(text_data* d, const key_rect* k, bool pressed) {
-    const theme_current* t = theme();
-    bool special = k->def->action != K_CHAR;
-    u32 fill = pressed ? t->accent : special ? t->palette->background : t->palette->surface;
-    u32 edge = pressed ? t->accent : t->palette->border;
-    u32 ink = pressed ? t->onAccent : t->palette->text;
-    screen_frame_round_rect(k->x, k->y, k->w, k->h, t->def->radiusSmall, t->def->border, edge, fill);
-
-    int icon = -1;
-    const char* label = NULL;
-    switch(k->def->action) {
-        case K_CHAR: label = d->shift != 0 ? k->def->upper : k->def->lower; break;
-        case K_SHIFT: icon = ICON_CHEVRON_UP; if(d->shift == 2) { ink = pressed ? t->onAccent : t->accent; } break;
-        case K_BACK: icon = ICON_ARROW_LEFT; break;
-        case K_PAGE_LETTERS: label = "abc"; break;
-        case K_PAGE_SYMBOLS: label = "123"; break;
-        case K_PAGE_EXTRA: label = "áé="; break;
-        case K_SPACE: break;
-        case K_ENTER: icon = ICON_ARROW_BACK_UP; break;
-        case K_LEFT: icon = ICON_CHEVRON_LEFT; break;
-        case K_RIGHT: icon = ICON_CHEVRON_RIGHT; break;
-        case K_UP: icon = ICON_CHEVRON_UP; break;
-        case K_DOWN: icon = ICON_CHEVRON_DOWN; break;
-        case K_SAVE: icon = ICON_DEVICE_FLOPPY; label = _("Save"); break;
-        case K_DONE: icon = ICON_CHECK; label = _("Done"); break;
-    }
-
-    if(icon >= 0 && label != NULL) {
-        float tw = widget_text_width(label, WIDGET_TEXT_SCALE);
-        float total = 16 + 6 + tw;
-        float x = k->x + (k->w - total) / 2;
-        screen_draw_icon((u32) icon, x, k->y + (k->h - 16) / 2, 16, ink);
-        screen_draw_text(label, x + 22, k->y + (k->h - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, ink);
-    } else if(icon >= 0) {
-        screen_draw_icon((u32) icon, k->x + (k->w - 16) / 2, k->y + (k->h - 16) / 2, 16, ink);
-    } else if(label != NULL) {
-        widget_text_centered(label, k->x, k->x + k->w, k->y + (k->h - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, ink);
-    }
+    d->keyCount = keys_build(d->keys, KB_KEYS_MAX, &kb_toolbar, d->page, K_ENTER);
 }
 
 #define TV_BUTTONS 3
@@ -796,7 +678,7 @@ static void tv_draw_bottom(ui_view* view, void* v, float x1, float y1, float x2,
 
     if(d->editing) {
         for(u32 i = 0; i < d->keyCount; i++) {
-            tv_draw_key(d, &d->keys[i], d->pressedKey == (int) i);
+            keys_draw(&d->keys[i], d->pressedKey == (int) i, d->shift);
         }
 
         return;
@@ -893,25 +775,7 @@ static bool tv_run_key(text_data* d, const key_def* def) {
         case K_DOWN: tv_move_vertical(d, 1); return true;
         case K_SAVE: tv_save(d); return false;
         case K_DONE: tv_leave_edit(d); return false;
-    }
-
-    return false;
-}
-
-// True on a press and, held, every so often after a pause.
-static bool tv_repeat(text_data* d, int slot, u32 mask) {
-    if(hidKeysDown() & mask) {
-        d->holdAt[slot] = osGetTime() + 400;
-        return true;
-    }
-
-    if((hidKeysHeld() & mask) && d->holdAt[slot] != 0 && osGetTime() >= d->holdAt[slot]) {
-        d->holdAt[slot] = osGetTime() + 60;
-        return true;
-    }
-
-    if(!(hidKeysHeld() & mask)) {
-        d->holdAt[slot] = 0;
+        default: break;   // The other keyboard's keys (keys.h).
     }
 
     return false;
@@ -964,11 +828,11 @@ static void tv_update(ui_view* view, void* v, float bx1, float by1, float bx2, f
             tv_save(d);
         }
 
-        if(tv_repeat(d, 0, KEY_DLEFT)) tv_move_horizontal(d, -1);
-        if(tv_repeat(d, 1, KEY_DRIGHT)) tv_move_horizontal(d, 1);
-        if(tv_repeat(d, 2, KEY_DUP)) tv_move_vertical(d, -1);
-        if(tv_repeat(d, 3, KEY_DDOWN)) tv_move_vertical(d, 1);
-        if(tv_repeat(d, 4, KEY_X)) tv_backspace(d);
+        if(keys_hold_repeat(&d->holdAt[0], KEY_DLEFT)) tv_move_horizontal(d, -1);
+        if(keys_hold_repeat(&d->holdAt[1], KEY_DRIGHT)) tv_move_horizontal(d, 1);
+        if(keys_hold_repeat(&d->holdAt[2], KEY_DUP)) tv_move_vertical(d, -1);
+        if(keys_hold_repeat(&d->holdAt[3], KEY_DDOWN)) tv_move_vertical(d, 1);
+        if(keys_hold_repeat(&d->holdAt[4], KEY_X)) tv_backspace(d);
         if(hidKeysDown() & KEY_Y) tv_insert(d, " ", 1);
         if(hidKeysDown() & KEY_A) tv_insert(d, "\n", 1);
         if(hidKeysDown() & KEY_SELECT) d->shift = (d->shift + 1) % 3;
@@ -1019,8 +883,8 @@ static void tv_update(ui_view* view, void* v, float bx1, float by1, float bx2, f
 
     // Viewing.
     u32 rows = tv_rows(d);
-    if(tv_repeat(d, 2, KEY_DUP) && d->top > 0) d->top--;
-    if(tv_repeat(d, 3, KEY_DDOWN)) { d->top++; tv_clamp_top(d); }
+    if(keys_hold_repeat(&d->holdAt[2], KEY_DUP) && d->top > 0) d->top--;
+    if(keys_hold_repeat(&d->holdAt[3], KEY_DDOWN)) { d->top++; tv_clamp_top(d); }
     if(hidKeysDown() & KEY_L) { d->top = d->top > rows - 1 ? d->top - (rows - 1) : 0; }
     if(hidKeysDown() & KEY_R) { d->top += rows - 1; tv_clamp_top(d); }
     if(hidKeysDown() & KEY_A) tv_enter_edit(d);

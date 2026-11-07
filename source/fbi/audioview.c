@@ -709,14 +709,6 @@ static void audio_draw_top(ui_view* view, void* v, float x1, float y1, float x2,
     }
 }
 
-static void audio_button_rect(int i, float* x, float* y, float* w, float* h) {
-    float gap = 6;
-    *w = (BOTTOM_SCREEN_WIDTH - 16 - gap * (AUDIO_BUTTONS - 1)) / AUDIO_BUTTONS;
-    *h = 40;
-    *x = 8 + i * (*w + gap);
-    *y = BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT - 8 - *h;
-}
-
 // The seek bar's touch area, then the volume bar's.
 static void audio_bar_rect(int which, float* x, float* y, float* w, float* h) {
     *x = 16;
@@ -753,7 +745,7 @@ static void audio_draw_bottom(ui_view* view, void* v, float x1, float y1, float 
     widget_progress(x + 24, y + 8, w - 24, 8, data->volume);
 
     for(int i = 0; i < AUDIO_BUTTONS; i++) {
-        audio_button_rect(i, &x, &y, &w, &h);
+        widget_button_row_rect(i, AUDIO_BUTTONS, &x, &y, &w, &h);
         bool pressed = data->pressed == i;
         bool disabled = (i == 0 || i == 4) && data->count < 2;
         u32 icon = i == 0 ? ICON_PLAYER_TRACK_PREV : i == 1 ? ICON_REWIND_BACKWARD_10 : i == 2 ? (data->paused || data->finished || data->player == NULL ? ICON_PLAYER_PLAY : ICON_PLAYER_PAUSE) : i == 3 ? ICON_REWIND_FORWARD_10 : ICON_PLAYER_TRACK_NEXT;
@@ -793,7 +785,7 @@ static void audio_update(ui_view* view, void* v, float bx1, float by1, float bx2
         data->dragging = 0;
         for(int i = 0; i < AUDIO_BUTTONS; i++) {
             float x, y, w, h;
-            audio_button_rect(i, &x, &y, &w, &h);
+            widget_button_row_rect(i, AUDIO_BUTTONS, &x, &y, &w, &h);
             if(widget_touched(&pos, x, y, w, h)) {
                 data->pressed = i;
             }
@@ -818,7 +810,7 @@ static void audio_update(ui_view* view, void* v, float bx1, float by1, float bx2
         audio_set_volume(data, (pos.px - (x + 24)) / (w - 24));
     } else if((hidKeysHeld() & KEY_TOUCH) && data->pressed >= 0) {
         float x, y, w, h;
-        audio_button_rect(data->pressed, &x, &y, &w, &h);
+        widget_button_row_rect(data->pressed, AUDIO_BUTTONS, &x, &y, &w, &h);
         if(!widget_touched(&pos, x, y, w, h)) {
             data->pressed = -1;
         }

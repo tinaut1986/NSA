@@ -9,6 +9,7 @@
 
 #include "error.h"
 #include "list.h"
+#include "osk.h"
 #include "coach.h"
 #include "ui.h"
 #include "../i18n.h"
@@ -74,6 +75,8 @@ typedef struct {
     list_tool tools[LIST_TOOLS_MAX];
     u32 toolCount;
     char search[LIST_SEARCH_MAX];
+    const char* searchPrompt;          // list_add_search_tool's.
+    void (*modeChanged)(void* data);   // list_add_view_tools'.
     // While items load: how many are ready of how many (0 total: the count).
     u32 progressDone;
     u32 progressTotal;
@@ -821,6 +824,90 @@ void list_set_search(ui_view* view, const char* text) {
 
 const char* list_get_search(ui_view* view) {
     return ((list_data*) view->data)->search;
+}
+
+// ---- the search and view tools ----
+
+static bool list_search_active(ui_view* view, void* data) {
+    return list_get_search(view)[0] != '\0';
+}
+
+static void list_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
+    if(button == SWKBD_BUTTON_CONFIRM) {
+        list_set_search((ui_view*) data, response);
+    }
+}
+
+void list_open_search(ui_view* view) {
+    osk_display(((list_data*) view->data)->searchPrompt, list_get_search(view), 64, 0, view, list_search_done);
+}
+
+static void list_search_press(ui_view* view, void* data) {
+    list_open_search(view);
+}
+
+void list_add_search_tool(ui_view* view, const char* prompt) {
+    ((list_data*) view->data)->searchPrompt = prompt;
+    list_add_tool(view, ICON_SEARCH, list_search_active, list_search_press);
+}
+
+bool list_clear_search(ui_view* view) {
+    if(list_get_search(view)[0] == '\0') {
+        return false;
+    }
+
+    list_set_search(view, "");
+    return true;
+}
+
+static void list_mode_to(ui_view* view, list_mode mode) {
+    list_data* listData = (list_data*) view->data;
+    list_set_mode(view, mode);
+    if(listData->modeChanged != NULL) {
+        listData->modeChanged(listData->data);
+    }
+}
+
+static bool list_is_grid(ui_view* view, void* data) {
+    return list_get_mode(view) == LIST_MODE_GRID;
+}
+
+static bool list_is_rows(ui_view* view, void* data) {
+    return list_get_mode(view) == LIST_MODE_ROWS;
+}
+
+static void list_show_grid(ui_view* view, void* data) {
+    list_mode_to(view, LIST_MODE_GRID);
+}
+
+static void list_show_rows(ui_view* view, void* data) {
+    list_mode_to(view, LIST_MODE_ROWS);
+}
+
+void list_add_view_tools(ui_view* view, void (*changed)(void* data)) {
+    ((list_data*) view->data)->modeChanged = changed;
+    list_add_tool(view, ICON_LAYOUT_GRID, list_is_grid, list_show_grid);
+    list_add_tool(view, ICON_LIST, list_is_rows, list_show_rows);
+}
+
+void list_toggle_mode(ui_view* view) {
+    list_mode_to(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
+}
+
+u32 list_count_progress(ui_view* view, linked_list* items, bool loading, bool (*ready)(list_item* item)) {
+    u32 done = 0;
+    u32 total = 0;
+    if(loading) {
+        linked_list_iter iter;
+        linked_list_iterate(items, &iter);
+        while(linked_list_iter_has_next(&iter)) {
+            total++;
+            done += ready((list_item*) linked_list_iter_next(&iter)) ? 1 : 0;
+        }
+    }
+
+    list_set_progress(view, done, total);
+    return done;
 }
 
 u32 list_visible_count(ui_view* view) {

@@ -8,6 +8,28 @@
 #include "../core.h"
 #include "../xferturn.h"
 
+void data_op_progress_items(const data_op_data* op, float* progress, char* text) {
+    *progress = op->total > 0 ? (float) op->processed / (float) op->total : 0;
+    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu"), op->processed, op->total);
+}
+
+void data_op_progress_bytes(const data_op_data* op, float* progress, char* text, bool items) {
+    *progress = op->currTotal != 0 ? (float) ((double) op->currProcessed / (double) op->currTotal) : 0;
+    if(items) {
+        snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), op->processed, op->total,
+                 ui_get_display_size(op->currProcessed), ui_get_display_size_units(op->currProcessed),
+                 ui_get_display_size(op->currTotal), ui_get_display_size_units(op->currTotal),
+                 ui_get_display_size(op->bytesPerSecond), ui_get_display_size_units(op->bytesPerSecond),
+                 ui_get_display_eta(op->estimatedRemainingSeconds));
+    } else {
+        snprintf(text, PROGRESS_TEXT_MAX, _("%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"),
+                 ui_get_display_size(op->currProcessed), ui_get_display_size_units(op->currProcessed),
+                 ui_get_display_size(op->currTotal), ui_get_display_size_units(op->currTotal),
+                 ui_get_display_size(op->bytesPerSecond), ui_get_display_size_units(op->bytesPerSecond),
+                 ui_get_display_eta(op->estimatedRemainingSeconds));
+    }
+}
+
 static Result task_data_op_check_running(data_op_data* data) {
     Result res = 0;
 

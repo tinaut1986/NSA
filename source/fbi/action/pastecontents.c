@@ -304,15 +304,7 @@ static void action_paste_contents_update(ui_view* view, void* data, float* progr
         svcSignalEvent(pasteData->pasteInfo.cancelEvent);
     }
 
-    *progress = pasteData->pasteInfo.currTotal != 0 ? (float) ((double) pasteData->pasteInfo.currProcessed / (double) pasteData->pasteInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), pasteData->pasteInfo.processed, pasteData->pasteInfo.total,
-             ui_get_display_size(pasteData->pasteInfo.currProcessed),
-             ui_get_display_size_units(pasteData->pasteInfo.currProcessed),
-             ui_get_display_size(pasteData->pasteInfo.currTotal),
-             ui_get_display_size_units(pasteData->pasteInfo.currTotal),
-             ui_get_display_size(pasteData->pasteInfo.bytesPerSecond),
-             ui_get_display_size_units(pasteData->pasteInfo.bytesPerSecond),
-             ui_get_display_eta(pasteData->pasteInfo.estimatedRemainingSeconds));
+    data_op_progress_bytes(&pasteData->pasteInfo, progress, text, true);
 }
 
 static void action_paste_contents_onresponse(ui_view* view, void* data, u32 response) {
@@ -344,10 +336,7 @@ static void action_paste_contents_loading_draw_top(ui_view* view, void* data, fl
 static void action_paste_contents_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     paste_contents_loading_data* loadingData = (paste_contents_loading_data*) data;
 
-    if(loadingData->popData.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &loadingData->popData.finished, loadingData->popData.cancelEvent)) {
         if(R_SUCCEEDED(loadingData->popData.result)) {
             loadingData->pasteData->pasteInfo.total = linked_list_size(&loadingData->pasteData->contents);
             loadingData->pasteData->pasteInfo.processed = loadingData->pasteData->pasteInfo.total;
@@ -364,10 +353,6 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
 
         free(loadingData);
         return;
-    }
-
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
     }
 
     snprintf(text, PROGRESS_TEXT_MAX, _("Fetching clipboard content list..."));

@@ -52,11 +52,9 @@ static void pendingtitles_draw_row(void* data, list_item* item, float x, float y
     const theme_current* t = theme();
     pending_title_info* info = (pending_title_info*) item->data;
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     float icon = height - 10;
     screen_fill_round_rect(x + 5, y + 5, icon, icon, icon / 6, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft);
@@ -67,8 +65,7 @@ static void pendingtitles_draw_row(void* data, list_item* item, float x, float y
 
     // Where it is, as a tag.
     const char* tag = info->mediaType == MEDIATYPE_SD ? "SD" : "NAND";
-    float tagW = widget_text_width(tag, WIDGET_SMALL_SCALE) + 12;
-    widget_badge(right - tagW, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
+    float tagW = widget_badge_right(right, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
 
     widget_text_fit(task_kind_name(info->titleId), tx, y + 4, WIDGET_TEXT_SCALE, ink, right - tagW - 6 - tx);
 
@@ -148,21 +145,6 @@ static void pendingtitles_filter_open(ui_view* view, void* data) {
     popover_display(&def, data);
 }
 
-static bool pendingtitles_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void pendingtitles_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    pendingtitles_data* listData = (pendingtitles_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
-}
-
-static void pendingtitles_search_open(ui_view* view, void* data) {
-    osk_display(_("Search titles"), list_get_search(view), 64, 0, data, pendingtitles_search_done);
-}
-
 // ---- the list ----
 
 // SD before NAND, then by title ID.
@@ -185,16 +167,12 @@ static void pendingtitles_update(ui_view* view, void* data, linked_list* items, 
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         ui_pop();
@@ -212,16 +190,13 @@ static void pendingtitles_update(ui_view* view, void* data, linked_list* items, 
     }
 
     if(hidKeysDown() & KEY_R) {
-        pendingtitles_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
     if(!listData->populated || (hidKeysDown() & KEY_X)) {
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         listData->populateData.items = items;
@@ -289,6 +264,6 @@ void pendingtitles_open() {
     list_set_long_press(view, pendingtitles_long_press);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, pendingtitles_search_active, pendingtitles_search_open);
+    list_add_search_tool(view, _("Search titles"));
     list_add_tool(view, ICON_FILTER, pendingtitles_filter_active, pendingtitles_filter_open);
 }

@@ -18,6 +18,19 @@ void task_draw_system_save_data_info(ui_view* view, void* data, float x1, float 
 void task_draw_ticket_info(ui_view* view, void* data, float x1, float y1, float x2, float y2);
 void task_draw_title_info(ui_view* view, void* data, float x1, float y1, float x2, float y2);
 
+// ---- loading a list on a thread (the list*.c tasks) ----
+
+typedef struct linked_list_s linked_list;
+typedef struct list_item_s list_item;
+
+// Takes every item out of `items` and frees it with `freeItem`.
+void task_clear_list(linked_list* items, void (*freeItem)(list_item* item));
+// Starts `thread` on `data`, with a new cancel event in *cancelEvent, *result 0 and *finished false. If it cannot start,
+// *finished is true and no event is left open.
+Result task_start_populate(ThreadFunc thread, void* data, Handle* cancelEvent, volatile bool* finished, Result* result);
+// Asks a running task to stop (its cancel event) and waits until it has.
+void task_stop_populate(Handle cancelEvent, volatile bool* finished);
+
 #include "listextsavedata.h"
 #include "listmods.h"
 #include "listpendingtitles.h"

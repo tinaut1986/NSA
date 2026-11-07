@@ -117,8 +117,7 @@ static void action_delete_update(ui_view* view, void* data, float* progress, cha
         svcSignalEvent(deleteData->deleteInfo.cancelEvent);
     }
 
-    *progress = deleteData->deleteInfo.total > 0 ? (float) deleteData->deleteInfo.processed / (float) deleteData->deleteInfo.total : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu"), deleteData->deleteInfo.processed, deleteData->deleteInfo.total);
+    data_op_progress_items(&deleteData->deleteInfo, progress, text);
 }
 
 static void action_delete_onresponse(ui_view* view, void* data, u32 response) {
@@ -153,10 +152,7 @@ static void action_delete_loading_draw_top(ui_view* view, void* data, float x1, 
 static void action_delete_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     delete_loading_data* loadingData = (delete_loading_data*) data;
 
-    if(loadingData->popData.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &loadingData->popData.finished, loadingData->popData.cancelEvent)) {
         if(R_SUCCEEDED(loadingData->popData.result)) {
             loadingData->deleteData->deleteInfo.total = linked_list_size(&loadingData->deleteData->contents);
             loadingData->deleteData->deleteInfo.processed = loadingData->deleteData->deleteInfo.total;
@@ -170,10 +166,6 @@ static void action_delete_loading_update(ui_view* view, void* data, float* progr
 
         free(loadingData);
         return;
-    }
-
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
     }
 
     snprintf(text, PROGRESS_TEXT_MAX, _("Fetching content list..."));

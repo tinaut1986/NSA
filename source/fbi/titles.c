@@ -5,6 +5,7 @@
 #include <3ds.h>
 
 #include "resources.h"
+#include "chain.h"
 #include "section.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -157,17 +158,6 @@ static bool titles_visible(void* data, list_item* item) {
     return !listData->group || !info->linked || !listData->showKind[TITLE_KIND_GAME];
 }
 
-static void titles_draw_count_badge(u32 count, float x, float y) {
-    const theme_current* t = theme();
-    char text[8];
-    snprintf(text, sizeof(text), "%lu", count);
-    float r = 8;
-    screen_fill_circle(x, y, r + 1.5f, t->palette->surface);
-    screen_fill_circle(x, y, r, t->accent);
-    float w = widget_text_width(text, WIDGET_SMALL_SCALE);
-    screen_draw_text(text, x - w / 2, y - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->onAccent);
-}
-
 // ---- items ----
 
 static void titles_draw_icon(title_info* info, float x, float y, float size) {
@@ -180,47 +170,27 @@ static void titles_draw_icon(title_info* info, float x, float y, float size) {
     }
 }
 
-// While a title loads: grey blocks where its icon and text will be.
-static void titles_draw_skeleton(float x, float y, float w, float h, float icon, bool selected) {
-    const theme_current* t = theme();
-    u32 block = selected ? THEME_ALPHA(t->onAccent, 0x40) : t->palette->border;
-    screen_fill_round_rect(x, y, icon, icon, icon / 6, block);
-    if(w > icon + 30) {
-        float tx = x + icon + 8;
-        screen_fill_round_rect(tx, y + 4, (w - icon - 8) * 0.55f, 8, 4, block);
-        screen_fill_round_rect(tx, y + h - 12, (w - icon - 8) * 0.35f, 6, 3, block);
-    }
-}
-
-// A title's contents fade in once it has loaded.
-static void titles_fade_in(title_info* info) {
-    float e = widget_ease(info->loadedTime, 250);
-    screen_set_content_motion(0, 0, (u8) (e * 0xFF));
-}
-
 static void titles_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     const theme_current* t = theme();
     title_info* info = (title_info*) item->data;
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     if(!info->loaded) {
-        titles_draw_skeleton(x + 5, y + 5, width - 18, height - 10, height - 10, selected);
+        widget_skeleton(x + 5, y + 5, width - 18, height - 10, height - 10, selected);
         return;
     }
 
-    titles_fade_in(info);
+    widget_fade_in(info->loadedTime);
 
     float icon = height - 10;
     titles_draw_icon(info, x + 5, y + 5, icon);
 
     titles_data* listData = (titles_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
-        titles_draw_count_badge(info->linkedCount, x + 5 + icon - 1, y + 7);
+        widget_count_badge(info->linkedCount, x + 5 + icon - 1, y + 7);
     }
 
     float tx = x + 5 + icon + 8;
@@ -231,8 +201,7 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
     float nameRight = right;
     if(kind != TITLE_KIND_GAME) {
         const char* tag = titles_kind_name(kind);
-        float tagW = widget_text_width(tag, WIDGET_SMALL_SCALE) + 12;
-        widget_badge(right - tagW, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
+        float tagW = widget_badge_right(right, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
         nameRight = right - tagW - 6;
     }
 
@@ -254,42 +223,27 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
 }
 
 static void titles_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
-    const theme_current* t = theme();
     title_info* info = (title_info*) item->data;
 
-    if(selected) {
-        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
-        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
-    } else {
-        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
-    }
+    widget_tile_frame(x, y, size, selected);
 
     float icon = size - 8;
     if(!info->loaded) {
-        titles_draw_skeleton(x + 4, y + 4, icon, icon, icon, selected);
+        widget_skeleton(x + 4, y + 4, icon, icon, icon, selected);
         return;
     }
 
-    titles_fade_in(info);
+    widget_fade_in(info->loadedTime);
     titles_draw_icon(info, x + 4, y + 4, icon);
     screen_set_content_motion(0, 0, 0xFF);
 
     titles_data* listData = (titles_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
-        titles_draw_count_badge(info->linkedCount, x + size - 4, y + 4);
+        widget_count_badge(info->linkedCount, x + size - 4, y + 4);
     }
 }
 
 // ---- top screen: the selected title ----
-
-static void titles_draw_cell(float x, float y, float w, const char* label, const char* value) {
-    const theme_current* t = theme();
-    float h = 34;
-    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
-    screen_draw_text(label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
-    float scale = widget_text_width(value, WIDGET_TEXT_SCALE) <= w - 14 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
-    widget_text_fit(value, x + 8, y + 3 + widget_text_height(WIDGET_SMALL_SCALE), scale, t->palette->text, w - 14);
-}
 
 // The updates and DLC of a game, as badges under its details.
 static void titles_draw_linked(linked_list* items, title_info* game, float x, float y, float right) {
@@ -347,7 +301,7 @@ static void titles_draw_details(linked_list* items, list_item* selected, float x
     // Not loaded yet: the card's place, with a word on why it is empty.
     if(!info->loaded) {
         widget_card(x1 + 10, y1 + 10, x2 - x1 - 20, 76);
-        titles_draw_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
+        widget_skeleton(x1 + 20, y1 + 20, x2 - x1 - 40, 56, 56, false);
         widget_text_centered(_("Loading..."), x1, x2, y1 + 110, WIDGET_TEXT_SCALE, t->palette->textMuted);
         return;
     }
@@ -400,12 +354,12 @@ static void titles_draw_details(linked_list* items, list_item* selected, float x
     // The ID needs more room than the version and size beside it.
     float idW = cellW * 1.4f;
     float smallW = (cardW - idW - 2 * gap) / 2;
-    titles_draw_cell(cardX, row1, idW, _("Title ID"), id);
-    titles_draw_cell(cardX + idW + gap, row1, smallW, _("Version"), version);
-    titles_draw_cell(cardX + idW + gap + smallW + gap, row1, smallW, _("Size"), size);
-    titles_draw_cell(cardX, row2, cellW, _("Product code"), info->productCode);
-    titles_draw_cell(cardX + cellW + gap, row2, cellW, _("Region"), region);
-    titles_draw_cell(cardX + 2 * (cellW + gap), row2, cellW, _("Type"), titles_kind_name(title_kind_of(info->titleId)));
+    widget_cell(cardX, row1, idW, _("Title ID"), id);
+    widget_cell(cardX + idW + gap, row1, smallW, _("Version"), version);
+    widget_cell(cardX + idW + gap + smallW + gap, row1, smallW, _("Size"), size);
+    widget_cell(cardX, row2, cellW, _("Product code"), info->productCode);
+    widget_cell(cardX + cellW + gap, row2, cellW, _("Region"), region);
+    widget_cell(cardX + 2 * (cellW + gap), row2, cellW, _("Type"), titles_kind_name(title_kind_of(info->titleId)));
 
     // Left: what hangs from the game; right: the space left on each medium.
     float half = cardW / 2;
@@ -782,14 +736,6 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
 
 // ---- tools: view, filter and sort, search ----
 
-static bool titles_is_rows(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_ROWS;
-}
-
-static bool titles_is_grid(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_GRID;
-}
-
 static void titles_store(titles_data* data);
 
 // The tiles of the grid in the next size (and the grid itself, when the rows were showing).
@@ -813,13 +759,8 @@ static void titles_tile_press(ui_view* view, void* data) {
     titles_next_tile_size(view);
 }
 
-static void titles_show_rows(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_ROWS);
-    titles_store((titles_data*) data);
-}
-
-static void titles_show_grid(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_GRID);
+// The grid / rows mode is kept in the settings.
+static void titles_view_changed(void* data) {
     titles_store((titles_data*) data);
 }
 
@@ -946,148 +887,46 @@ static void titles_filter_open(ui_view* view, void* data) {
     popover_display(&def, data);
 }
 
-static bool titles_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
+// ---- a game's chain: the game, its update and its DLC (chain.c) ----
+
+static u64 titles_chain_id(list_item* item) {
+    return ((title_info*) item->data)->titleId;
 }
 
-static void titles_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    titles_data* listData = (titles_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
+static void titles_chain_draw_row(list_item* item, float x, float y, float width, float height, bool selected) {
+    titles_draw_row(NULL, item, x, y, width, height, selected);
 }
 
-static void titles_search_open(ui_view* view, void* data) {
-    osk_display(_("Search titles"), list_get_search(view), 64, 0, data, titles_search_done);
-}
-
-// ---- a game's chain: the game, its update and its DLC ----
-
-typedef struct {
-    titles_data* parent;
-    linked_list* parentItems;
-    list_item* game;
-    char name[LIST_ITEM_NAME_MAX];   // The game's item may be deleted while this is open.
-} titles_chain_data;
-
-// Chain rows wrap the main list's items (item->data), which keep owning the titles.
-static list_item* titles_chain_target(list_item* wrapper) {
-    return (list_item*) wrapper->data;
-}
-
-static void titles_chain_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
-    titles_draw_row(NULL, titles_chain_target(item), x, y, width, height, selected);
-}
-
-static void titles_chain_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
-    titles_chain_data* chain = (titles_chain_data*) data;
+static void titles_chain_draw_top(ui_view* view, void* parent, linked_list* parentItems, list_item* item, float x1, float y1, float x2, float y2) {
     coach_anchor("titles.chain", x1, y1, x2 - x1, y2 - y1, false);   // A game's updates and DLC are open (guide.c).
-    titles_draw_details(chain->parentItems, selected != NULL ? titles_chain_target(selected) : NULL, x1, y1, x2, y2);
+    titles_draw_details(parentItems, item, x1, y1, x2, y2);
 }
 
-static void titles_chain_close(ui_view* view, linked_list* items, titles_chain_data* chain) {
-    ui_pop();
-
-    linked_list_iter iter;
-    linked_list_iterate(items, &iter);
-    while(linked_list_iter_has_next(&iter)) {
-        free(linked_list_iter_next(&iter));
-        linked_list_iter_remove(&iter);
-    }
-
-    list_destroy(view);
-    free(chain);
+static void titles_chain_actions(void* parent, linked_list* parentItems, list_item* item) {
+    titles_actions_open((titles_data*) parent, parentItems, item);
 }
 
-static void titles_chain_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
-    titles_chain_data* chain = (titles_chain_data*) data;
-
-    view->info = _("\uE000 actions   \uE001 back");
-
-    if(hidKeysDown() & KEY_B) {
-        titles_chain_close(view, items, chain);
-        return;
-    }
-
-    if(linked_list_size(items) == 0) {
-        // The game first, then its update, then its DLC.
-        title_info* game = (title_info*) chain->game->data;
-        for(int pass = 0; pass < 3; pass++) {
-            linked_list_iter iter;
-            linked_list_iterate(chain->parentItems, &iter);
-            while(linked_list_iter_has_next(&iter)) {
-                list_item* item = (list_item*) linked_list_iter_next(&iter);
-                title_info* info = (title_info*) item->data;
-                title_kind kind = title_kind_of(info->titleId);
-                bool wanted = pass == 0 ? item == chain->game : pass == 1 ? kind == TITLE_KIND_UPDATE : kind == TITLE_KIND_DLC;
-                if(!wanted || (u32) info->titleId != (u32) game->titleId) {
-                    continue;
-                }
-
-                list_item* wrapper = (list_item*) calloc(1, sizeof(list_item));
-                if(wrapper != NULL) {
-                    string_copy(wrapper->name, item->name, sizeof(wrapper->name));
-                    wrapper->color = item->color;
-                    wrapper->data = item;
-                    linked_list_add(items, wrapper);
-                }
-            }
-        }
-    } else {
-        // An action may have deleted titles from the main list: drop their rows.
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            list_item* wrapper = (list_item*) linked_list_iter_next(&iter);
-            if(linked_list_index_of(chain->parentItems, titles_chain_target(wrapper)) < 0) {
-                free(wrapper);
-                linked_list_iter_remove(&iter);
-            }
-        }
-
-        if(linked_list_size(items) == 0) {
-            titles_chain_close(view, items, chain);
-            return;
-        }
-
-        selected = selected != NULL && linked_list_index_of(items, selected) >= 0 ? selected : NULL;
-    }
-
-    if(selected != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
-        titles_actions_open(chain->parent, chain->parentItems, titles_chain_target(selected));
-    }
-}
+static const chain_def titles_chain = {
+        .rowHeight = ROW_HEIGHT,
+        .titleId = titles_chain_id,
+        .drawRow = titles_chain_draw_row,
+        .drawTop = titles_chain_draw_top,
+        .actions = titles_chain_actions,
+        .allocError = "Failed to allocate title chain."
+};
 
 static void titles_chain_open(titles_data* data, linked_list* items, list_item* game) {
-    titles_chain_data* chain = (titles_chain_data*) calloc(1, sizeof(titles_chain_data));
-    if(chain == NULL) {
-        error_display(NULL, NULL, "Failed to allocate title chain.");
-        return;
-    }
-
-    chain->parent = data;
-    chain->parentItems = items;
-    chain->game = game;
-    string_copy(chain->name, game->name, sizeof(chain->name));
-
-    ui_view* view = list_display(chain->name, _("\uE000 actions   \uE001 back"), chain, titles_chain_update, titles_chain_draw_top);
-    if(view == NULL) {
-        free(chain);
-        return;
-    }
-
-    list_style style = {
-            .rowHeight = ROW_HEIGHT,
-            .drawRow = titles_chain_draw_row
-    };
-    list_set_style(view, &style);
-    // The back arrow (and the count) of the other lists.
-    list_show_title_bar(view);
+    chain_open(&titles_chain, data, items, game);
 }
 
 // ---- the list ----
 
 static int titles_compare(void* data, const void* p1, const void* p2);
+
+// Loaded, for the count of the title bar.
+static bool titles_item_ready(list_item* item) {
+    return ((title_info*) item->data)->loaded;
+}
 
 static void titles_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     titles_data* listData = (titles_data*) data;
@@ -1097,32 +936,17 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
     titles_group(listData, items);
 
     // How many have loaded, for the title bar.
-    u32 loaded = 0;
-    u32 total = 0;
-    if(!listData->populateData.finished) {
-        linked_list_iter iter;
-        linked_list_iterate(items, &iter);
-        while(linked_list_iter_has_next(&iter)) {
-            total++;
-            loaded += ((title_info*) ((list_item*) linked_list_iter_next(&iter))->data)->loaded ? 1 : 0;
-        }
-    }
-
-    list_set_progress(view, loaded, total);
+    u32 loaded = list_count_progress(view, items, !listData->populateData.finished, titles_item_ready);
     view->info = _(" actions    view    filter    search    back");
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         ui_pop();
@@ -1139,8 +963,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
     }
 
     if(hidKeysDown() & KEY_Y) {
-        list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
-        titles_store(listData);
+        list_toggle_mode(view);
     }
 
     if(hidKeysDown() & (KEY_L | KEY_SELECT)) {
@@ -1149,16 +972,13 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
     }
 
     if(hidKeysDown() & KEY_R) {
-        titles_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
     if(!listData->populated || (hidKeysDown() & KEY_X)) {
         if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
+            task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
         }
 
         listData->populateData.items = items;
@@ -1308,9 +1128,8 @@ void titles_open() {
     list_set_long_press(view, titles_long_press);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, titles_search_active, titles_search_open);
+    list_add_search_tool(view, _("Search titles"));
     list_add_tool(view, ICON_FILTER, titles_filter_active, titles_filter_open);
     list_add_tool(view, ICON_ZOOM_IN, titles_tile_active, titles_tile_press);
-    list_add_tool(view, ICON_LAYOUT_GRID, titles_is_grid, titles_show_grid);
-    list_add_tool(view, ICON_LIST, titles_is_rows, titles_show_rows);
+    list_add_view_tools(view, titles_view_changed);
 }

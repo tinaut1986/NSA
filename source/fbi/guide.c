@@ -538,10 +538,8 @@ static void guide_draw_row(void* data, list_item* item, float x, float y, float 
     const theme_current* t = theme();
     u32 row = guide_row_of(item);
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, NULL);
 
     icon_id icon = row == ROW_UNSEEN ? ICON_PLAYER_PLAY : row == ROW_RESET ? ICON_REFRESH : chapters[row].icon;
     screen_draw_icon(icon, x + 9, y + (height - 16) / 2, 16, selected ? t->onAccent : t->accent);

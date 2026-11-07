@@ -463,11 +463,9 @@ static void mainmenu_draw_storage(const mainmenu_entry* entry, float x1, float y
 static void mainmenu_group_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     const theme_current* t = theme();
     const mainmenu_entry* entry = (const mainmenu_entry*) item->data;
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     screen_draw_icon(entry->icon, x + 9, y + (height - 16) / 2, 16, selected ? t->onAccent : t->accent);
     float tx = x + 33;

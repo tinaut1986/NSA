@@ -53,6 +53,18 @@ void list_show_title_bar(ui_view* view);
 // Hides items for which `visible` returns false (NULL shows all), on top of the search.
 void list_set_filter(ui_view* view, bool (*visible)(void* data, list_item* item));
 
+// The search tool: it opens the keyboard with `prompt` (already translated) and shows only what matches what is typed;
+// highlighted while there is a search. list_open_search opens it (R), list_clear_search empties it and says whether
+// there was one (B clears a search before it goes back).
+void list_add_search_tool(ui_view* view, const char* prompt);
+void list_open_search(ui_view* view);
+bool list_clear_search(ui_view* view);
+
+// The grid and rows tools, which switch the mode; list_toggle_mode switches it too (Y). `changed` (may be NULL) runs
+// with the list's data after each switch, to keep the mode in the settings.
+void list_add_view_tools(ui_view* view, void (*changed)(void* data));
+void list_toggle_mode(ui_view* view);
+
 // Shows only items whose name contains `text` (case-insensitive); "" for all.
 void list_set_search(ui_view* view, const char* text);
 const char* list_get_search(ui_view* view);
@@ -61,6 +73,9 @@ void list_select(ui_view* view, list_item* item);
 // While held, D-Pad, A and taps on items do nothing (the screen's update still runs):
 // for a selection still to come, so a press does not land on the wrong item.
 void list_hold(ui_view* view, bool held);
+// While items load (`loading`), the title bar shows how many of `items` are `ready` of how many; once loaded, the count.
+// Returns how many are ready (0 once loaded).
+u32 list_count_progress(ui_view* view, linked_list* items, bool loading, bool (*ready)(list_item* item));
 // While items load, the title bar shows "done/total" instead of the count.
 void list_set_progress(ui_view* view, u32 done, u32 total);
 // While the list is empty: a turning wheel in the middle with `text` (English, translated when drawn) under it; NULL

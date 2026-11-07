@@ -1582,14 +1582,11 @@ static void store_draw_app_icon(store_data* store, store_app* app, float x, floa
 
 static void store_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     store_data* store = (store_data*) data;
-    const theme_current* t = theme();
     store_app* app = store_of(item);
 
-    u32 fill = selected ? t->accent : t->palette->surface;
-    u32 edge = selected ? t->accent : t->palette->border;
-    u32 ink = selected ? t->onAccent : t->palette->text;
-    u32 muted = selected ? THEME_ALPHA(t->onAccent, 0xC0) : t->palette->textMuted;
-    screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, edge, fill);
+    u32 ink = 0;
+    u32 muted = 0;
+    widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
     float icon = height - 8;
     store_draw_app_icon(store, app, x + 6, y + 4, icon, selected);
@@ -1958,21 +1955,8 @@ static void store_tile_press(ui_view* view, void* data) {
     store_next_tile_size(view);
 }
 
-static bool store_is_rows(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_ROWS;
-}
-
-static bool store_is_grid(ui_view* view, void* data) {
-    return list_get_mode(view) == LIST_MODE_GRID;
-}
-
-static void store_show_rows(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_ROWS);
-    store_save((store_data*) data);
-}
-
-static void store_show_grid(ui_view* view, void* data) {
-    list_set_mode(view, LIST_MODE_GRID);
+// The grid / rows mode is kept in the settings.
+static void store_view_changed(void* data) {
     store_save((store_data*) data);
 }
 
@@ -2113,12 +2097,7 @@ static int store_compare_items(void* data, const void* p1, const void* p2) {
 static void store_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
     store_data* store = (store_data*) data;
     const theme_current* t = theme();
-    if(selected) {
-        screen_fill_round_rect(x - 3, y - 3, size + 6, size + 6, t->def->radius + 2, t->accent);
-        screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
-    } else {
-        screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
-    }
+    widget_tile_frame(x, y, size, selected);
 
     store_app* app = store_of(item);
     store_draw_app_icon(store, app, x + 4, y + 4, size - 8, false);
@@ -2136,21 +2115,6 @@ static void store_draw_tile(void* data, list_item* item, float x, float y, float
 }
 
 // ---- search ----
-
-static bool store_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void store_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    store_data* store = (store_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(store->view, response);
-    }
-}
-
-static void store_search_open(ui_view* view, void* data) {
-    osk_display(_("Search the Store"), list_get_search(view), 64, 0, data, store_search_done);
-}
 
 // ---- the screen ----
 
@@ -2361,8 +2325,7 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
     list_set_busy(view, store->haveCatalogue || store->done ? NULL : "Loading the catalogue...");
 
     if(hidKeysDown() & KEY_B) {
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
@@ -2404,8 +2367,7 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
     }
 
     if(hidKeysDown() & KEY_Y) {
-        list_set_mode(view, list_get_mode(view) == LIST_MODE_GRID ? LIST_MODE_ROWS : LIST_MODE_GRID);
-        store_save(store);
+        list_toggle_mode(view);
     }
 
     if(hidKeysDown() & KEY_L) {
@@ -2414,7 +2376,7 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
     }
 
     if(hidKeysDown() & KEY_R) {
-        store_search_open(view, store);
+        list_open_search(view);
     }
 }
 
@@ -2462,9 +2424,8 @@ void store_open_source(const store_source* source) {
     list_show_title_bar(view);
 
     // Right to left.
-    list_add_tool(view, ICON_SEARCH, store_search_active, store_search_open);
+    list_add_search_tool(view, _("Search the Store"));
     list_add_tool(view, ICON_FILTER, store_filter_active, store_filter_open);
     list_add_tool(view, ICON_ZOOM_IN, store_tile_active, store_tile_press);
-    list_add_tool(view, ICON_LAYOUT_GRID, store_is_grid, store_show_grid);
-    list_add_tool(view, ICON_LIST, store_is_rows, store_show_rows);
+    list_add_view_tools(view, store_view_changed);
 }

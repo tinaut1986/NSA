@@ -375,14 +375,6 @@ static void image_draw_top(ui_view* view, void* v, float x1, float y1, float x2,
     screen_clear_clip();
 }
 
-static void image_button_rect(int i, float* x, float* y, float* w, float* h) {
-    float gap = 6;
-    *w = (BOTTOM_SCREEN_WIDTH - 16 - gap * (IMAGE_BUTTONS - 1)) / IMAGE_BUTTONS;
-    *h = 40;
-    *x = 8 + i * (*w + gap);
-    *y = BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT - 8 - *h;
-}
-
 static const u32 image_button_icons[IMAGE_BUTTONS] = {ICON_CHEVRON_LEFT, ICON_ZOOM_OUT, ICON_ARROWS_MAXIMIZE, ICON_ZOOM_IN, ICON_CHEVRON_RIGHT};
 
 static void image_zoom_to(image_data* data, int zoom) {
@@ -446,7 +438,7 @@ static void image_draw_bottom(ui_view* view, void* v, float x1, float y1, float 
 
     for(int i = 0; i < IMAGE_BUTTONS; i++) {
         float x, y, w, h;
-        image_button_rect(i, &x, &y, &w, &h);
+        widget_button_row_rect(i, IMAGE_BUTTONS, &x, &y, &w, &h);
         bool pressed = data->pressed == i;
         bool disabled = (i == 0 || i == 4) && data->count < 2;
         u32 fill = pressed ? t->accent : t->palette->surface;
@@ -526,7 +518,7 @@ static void image_update(ui_view* view, void* v, float bx1, float by1, float bx2
         data->dragging = false;
         for(int i = 0; i < IMAGE_BUTTONS; i++) {
             float x, y, w, h;
-            image_button_rect(i, &x, &y, &w, &h);
+            widget_button_row_rect(i, IMAGE_BUTTONS, &x, &y, &w, &h);
             if(widget_touched(&pos, x, y, w, h)) {
                 data->pressed = i;
             }
@@ -545,7 +537,7 @@ static void image_update(ui_view* view, void* v, float bx1, float by1, float bx2
 
         if(data->pressed >= 0) {
             float x, y, w, h;
-            image_button_rect(data->pressed, &x, &y, &w, &h);
+            widget_button_row_rect(data->pressed, IMAGE_BUTTONS, &x, &y, &w, &h);
             if(!widget_touched(&pos, x, y, w, h)) {
                 data->pressed = -1;
             }

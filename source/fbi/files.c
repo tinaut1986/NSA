@@ -360,15 +360,6 @@ static void files_draw_row(void* data, list_item* item, float x, float y, float 
 
 // ---- top screen: the selected file, or the current folder ----
 
-static void files_draw_cell(float x, float y, float w, const char* label, const char* value) {
-    const theme_current* t = theme();
-    float h = 34;
-    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, t->palette->border, t->palette->surface);
-    screen_draw_text(label, x + 8, y + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
-    float scale = widget_text_width(value, WIDGET_TEXT_SCALE) <= w - 14 ? WIDGET_TEXT_SCALE : WIDGET_SMALL_SCALE;
-    widget_text_fit(value, x + 8, y + 3 + widget_text_height(WIDGET_SMALL_SCALE), scale, t->palette->text, w - 14);
-}
-
 // The card on top: icon, name, two muted lines and a badge.
 static void files_draw_card(file_info* info, const char* name, const char* line1, const char* line2, const char* badge,
                             float x, float y, float w, float h) {
@@ -443,7 +434,7 @@ static void files_draw_folder(files_data* data, linked_list* items, list_item* b
     float gap = 6;
     float cellW = (w - 2 * gap) / 3;
     for(u32 i = 0; i < 6; i++) {
-        files_draw_cell(x + (i % 3) * (cellW + gap), y + 76 + 8 + (i / 3) * (34 + gap), cellW, labels[i], values[i]);
+        widget_cell(x + (i % 3) * (cellW + gap), y + 76 + 8 + (i / 3) * (34 + gap), cellW, labels[i], values[i]);
     }
 }
 
@@ -506,14 +497,14 @@ static void files_draw_file(file_info* info, const char* name, float x, float y,
 
         float idW = cellW * 1.4f;
         float smallW = (w - idW - 2 * gap) / 2;
-        files_draw_cell(x, row1, idW, _("Title ID"), id);
-        files_draw_cell(x + idW + gap, row1, smallW, _("Version"), version);
-        files_draw_cell(x + idW + gap + smallW + gap, row1, smallW, _("Region"), region);
+        widget_cell(x, row1, idW, _("Title ID"), id);
+        widget_cell(x + idW + gap, row1, smallW, _("Version"), version);
+        widget_cell(x + idW + gap + smallW + gap, row1, smallW, _("Region"), region);
         // File size and what it takes once installed, in one cell.
         char sizes[80];
         snprintf(sizes, sizeof(sizes), "%s / %s", size, installed);
-        files_draw_cell(x, row2, 2 * cellW + gap, _("File / installed size"), sizes);
-        files_draw_cell(x + 2 * (cellW + gap), row2, cellW, modified[0] != '\0' ? _("Modified") : _("Type"), modified[0] != '\0' ? modified : "CIA");
+        widget_cell(x, row2, 2 * cellW + gap, _("File / installed size"), sizes);
+        widget_cell(x + 2 * (cellW + gap), row2, cellW, modified[0] != '\0' ? _("Modified") : _("Type"), modified[0] != '\0' ? modified : "CIA");
         return;
     }
 
@@ -526,19 +517,19 @@ static void files_draw_file(file_info* info, const char* name, float x, float y,
         files_draw_card(info, name, info->path, "", typeName, x, y, w, 76);
     }
 
-    files_draw_cell(x, row1, cellW, _("Size"), size);
-    files_draw_cell(x + cellW + gap, row1, cellW, _("Type"), typeName);
-    files_draw_cell(x + 2 * (cellW + gap), row1, cellW, _("Hidden file"), (info->attributes & FS_ATTRIBUTE_HIDDEN) ? _("Yes") : _("No"));
+    widget_cell(x, row1, cellW, _("Size"), size);
+    widget_cell(x + cellW + gap, row1, cellW, _("Type"), typeName);
+    widget_cell(x + 2 * (cellW + gap), row1, cellW, _("Hidden file"), (info->attributes & FS_ATTRIBUTE_HIDDEN) ? _("Yes") : _("No"));
     float modifiedX = x;
     if(ticket && info->ticketInfo.loaded) {
         char id[32];
         snprintf(id, sizeof(id), "%016llX", info->ticketInfo.titleId);
-        files_draw_cell(x, row2, cellW * 1.4f, _("Title ID"), id);
+        widget_cell(x, row2, cellW * 1.4f, _("Title ID"), id);
         modifiedX = x + cellW * 1.4f + gap;
     }
 
     if(modified[0] != '\0') {
-        files_draw_cell(modifiedX, row2, ticket && info->ticketInfo.loaded ? w - (modifiedX - x) : cellW * 1.4f, _("Modified"), modified);
+        widget_cell(modifiedX, row2, ticket && info->ticketInfo.loaded ? w - (modifiedX - x) : cellW * 1.4f, _("Modified"), modified);
     }
 }
 
@@ -625,7 +616,7 @@ static void files_draw_selection(files_data* data, float x, float y, float w) {
     float gap = 6;
     float cellW = (w - 2 * gap) / 3;
     for(u32 i = 0; i < 3; i++) {
-        files_draw_cell(x + i * (cellW + gap), y + 76 + 8, cellW, labels[i], values[i]);
+        widget_cell(x + i * (cellW + gap), y + 76 + 8, cellW, labels[i], values[i]);
     }
 
     screen_draw_text_wrap(_(" ticks or unticks an item,  ticks all or none,  acts on the ticked ones and  leaves. A ticked folder counts with everything in it."),
@@ -1262,21 +1253,6 @@ static void files_filter_open(ui_view* view, void* data) {
     popover_display(&def, data);
 }
 
-static bool files_search_active(ui_view* view, void* data) {
-    return list_get_search(view)[0] != '\0';
-}
-
-static void files_search_done(ui_view* kbdView, void* data, SwkbdButton button, const char* response) {
-    files_data* listData = (files_data*) data;
-    if(button == SWKBD_BUTTON_CONFIRM) {
-        list_set_search(listData->view, response);
-    }
-}
-
-static void files_search_open(ui_view* view, void* data) {
-    osk_display(_("Search files"), list_get_search(view), 64, 0, data, files_search_done);
-}
-
 static void files_folder_press(ui_view* view, void* data) {
     files_data* listData = (files_data*) data;
     files_folder_actions_open(listData, files_items(listData));
@@ -1354,10 +1330,7 @@ static void files_long_press(ui_view* view, void* data, linked_list* items, list
 
 static void files_repopulate(files_data* listData, linked_list* items) {
     if(!listData->populateData.finished) {
-        svcSignalEvent(listData->populateData.cancelEvent);
-        while(!listData->populateData.finished) {
-            svcSleepThread(1000000);
-        }
+        task_stop_populate(listData->populateData.cancelEvent, &listData->populateData.finished);
     }
 
     listData->populateData.items = items;
@@ -1385,10 +1358,7 @@ static void files_navigate(files_data* listData, linked_list* items, const char*
 
 static void files_free_data(files_data* data) {
     if(!data->populateData.finished) {
-        svcSignalEvent(data->populateData.cancelEvent);
-        while(!data->populateData.finished) {
-            svcSleepThread(1000000);
-        }
+        task_stop_populate(data->populateData.cancelEvent, &data->populateData.finished);
     }
 
     if(data->archive != 0) {
@@ -1439,8 +1409,7 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
-        if(list_get_search(view)[0] != '\0') {
-            list_set_search(view, "");
+        if(list_clear_search(view)) {
             return;
         }
 
@@ -1474,7 +1443,7 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
     }
 
     if(hidKeysDown() & KEY_R) {
-        files_search_open(view, listData);
+        list_open_search(view);
         return;
     }
 
@@ -1643,7 +1612,7 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
 
     // Right to left.
     list_add_tool(view, ICON_DOTS, NULL, files_folder_press);
-    list_add_tool(view, ICON_SEARCH, files_search_active, files_search_open);
+    list_add_search_tool(view, _("Search files"));
     list_add_tool(view, ICON_FILTER, files_filter_active, files_filter_open);
     list_add_tool(view, ICON_CLIPBOARD, files_clipboard_active, files_clipboard_press);
     list_add_tool(view, ICON_SQUARE_CHECK, files_select_active, files_select_press);

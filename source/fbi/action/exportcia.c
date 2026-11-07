@@ -635,10 +635,7 @@ static bool action_export_cia_error(void* data, u32 index, Result res, ui_view**
 static void action_export_cia_update(ui_view* view, void* data, float* progress, char* text) {
     export_cia_data* exportData = (export_cia_data*) data;
 
-    if(exportData->exportInfo.finished) {
-        ui_pop();
-        info_destroy(view);
-
+    if(info_task_finished(view, &exportData->exportInfo.finished, exportData->exportInfo.cancelEvent)) {
         FSFILE_Close(exportData->ciaHandle);
         exportData->ciaHandle = 0;
 
@@ -651,10 +648,6 @@ static void action_export_cia_update(ui_view* view, void* data, float* progress,
         action_export_cia_free(exportData);
 
         return;
-    }
-
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(exportData->exportInfo.cancelEvent);
     }
 
     *progress = exportData->exportInfo.currTotal != 0 ? (float) ((double) exportData->exportInfo.currProcessed / (double) exportData->exportInfo.currTotal) : 0;

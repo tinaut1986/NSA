@@ -1057,7 +1057,7 @@ const i18n_entry i18n_ca[] = {
         {"Failed to initiate mods list population.", "No s'ha pogut començar a llistar els mods."},
         {"Failed to populate mods list.", "No s'han pogut llistar els mods."},
         {"Title deleted", "Títol esborrat"},
-        {"This game had mods in /luma/titles (LayeredFS). Delete them too?", "Aquest joc tenia mods a /luma/titles (LayeredFS). Esborrar-los també?"},
+        {"This game has mods in /luma/titles (LayeredFS). Delete them too?", "Aquest joc té mods a /luma/titles (LayeredFS). Esborrar-los també?"},
         {"Title and mods deleted.", "Títol i mods esborrats."},
         {"Game mods, in Cleanup: the mods in /luma/titles, and which games are no longer installed.", "Mods de jocs, a Neteja: els mods de /luma/titles i quins jocs ja no estan instal·lats."},
         {"Deleting a game that has mods asks whether to delete them too.", "En esborrar un joc amb mods, NSA pregunta si esborrar-los també."},

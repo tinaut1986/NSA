@@ -1049,7 +1049,7 @@ const i18n_entry i18n_zh[] = {
         {"Failed to initiate mods list population.", "无法开始列出MOD。"},
         {"Failed to populate mods list.", "无法列出MOD。"},
         {"Title deleted", "软件已删除"},
-        {"This game had mods in /luma/titles (LayeredFS). Delete them too?", "此游戏在 /luma/titles 中有MOD（LayeredFS）。也要删除吗？"},
+        {"This game has mods in /luma/titles (LayeredFS). Delete them too?", "此游戏在 /luma/titles 中有MOD（LayeredFS）。也要删除吗？"},
         {"Title and mods deleted.", "软件和MOD已删除。"},
         {"Game mods, in Cleanup: the mods in /luma/titles, and which games are no longer installed.", "“清理”中的游戏MOD：/luma/titles 中的MOD，以及哪些游戏已不再安装。"},
         {"Deleting a game that has mods asks whether to delete them too.", "删除有MOD的游戏时，会询问是否一并删除MOD。"},

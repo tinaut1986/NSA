@@ -208,7 +208,9 @@ cut and pasted onto another medium, the web page's delete and a store script's `
 in `/luma/titles/<ID>/` has *Delete mods* in its sheet, right before *Delete* (a game card's too). To try it, a dummy CIA
 "NSA Test" (`000400000FB1AE00`, devkitPro's hello world) with a test mods folder.
 - [ ] Titles -> NSA Test -> *Delete mods*: asks, deletes, and the action is gone the next time.
-- [ ] Deleting NSA Test with mods asks whether to delete them too.
+- [x] Deleting NSA Test with mods asks whether to delete them too (the owner, 2026-11-07).
+- [ ] Now asked *before* deleting, right after *Delete the selected title?*, in red (`feat/title-mods-ask-first`; the
+  owner was unsure which order reads better): Yes deletes the title and then the mods; No keeps the mods.
 
 **Shorter filters, clearer sheets, D-Pad held** (2026-11-07, `feat/compact-overlays`; the owner: the filter card grew too long
 on the small screen, the folder's and the item's sheets looked alike, and a held D-Pad did not run through the actions):

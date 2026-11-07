@@ -160,7 +160,6 @@ static void action_delete_tickets_internal(linked_list* items, list_item* select
 
     data->deleteInfo.delete = action_delete_tickets_delete;
 
-
     data->deleteInfo.error = action_delete_tickets_error;
 
     data->deleteInfo.finished = false;

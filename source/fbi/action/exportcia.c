@@ -571,7 +571,6 @@ static Result action_export_cia_open_dst(void* data, u32 index, void* initialRea
 static Result action_export_cia_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
     export_cia_data* exportData = (export_cia_data*) data;
 
-
     Result res = action_export_cia_wait_job(exportData);
 
     mbedtls_sha256_finish_ret(&exportData->sha, exportData->hashes[index]);
@@ -716,7 +715,6 @@ void action_export_cia(linked_list* items, list_item* selected) {
     data->exportInfo.openDst = action_export_cia_open_dst;
     data->exportInfo.closeDst = action_export_cia_close_dst;
     data->exportInfo.writeDst = action_export_cia_write_dst;
-
 
     data->exportInfo.error = action_export_cia_error;
 

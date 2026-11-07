@@ -156,7 +156,6 @@ void action_export_twl_save(linked_list* items, list_item* selected) {
     data->exportInfo.closeDst = action_export_twl_save_close_dst;
     data->exportInfo.writeDst = action_export_twl_save_write_dst;
 
-
     data->exportInfo.error = action_export_twl_save_error;
 
     data->exportInfo.finished = true;

@@ -134,7 +134,6 @@ void action_erase_twl_save(linked_list* items, list_item* selected) {
     data->eraseInfo.closeDst = action_erase_twl_save_close_dst;
     data->eraseInfo.writeDst = action_erase_twl_save_write_dst;
 
-
     data->eraseInfo.error = action_erase_twl_save_error;
 
     data->eraseInfo.finished = true;

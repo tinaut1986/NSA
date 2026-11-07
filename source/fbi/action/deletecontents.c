@@ -191,7 +191,6 @@ static void action_delete_internal(linked_list* items, list_item* selected, cons
 
     data->deleteInfo.delete = action_delete_delete;
 
-
     data->deleteInfo.error = action_delete_error;
 
     data->deleteInfo.finished = false;

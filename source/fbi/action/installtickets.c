@@ -259,7 +259,6 @@ static void action_install_tickets_internal(linked_list* items, list_item* selec
     data->installInfo.closeDst = action_install_tickets_close_dst;
     data->installInfo.writeDst = action_install_tickets_write_dst;
 
-
     data->installInfo.error = action_install_tickets_error;
 
     data->installInfo.finished = true;

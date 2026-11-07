@@ -142,7 +142,6 @@ void action_import_twl_save(linked_list* items, list_item* selected) {
     data->importInfo.closeDst = action_import_twl_save_close_dst;
     data->importInfo.writeDst = action_import_twl_save_write_dst;
 
-
     data->importInfo.error = action_import_twl_save_error;
 
     data->importInfo.finished = true;

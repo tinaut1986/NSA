@@ -20,7 +20,6 @@ typedef enum content_type_e {
 // card's root is the owner's.
 #define INSTALL_URL_SAVE_DIR APP_DATA_DIR "received/"
 
-
 // What became of each URL, for the list on the install screen.
 typedef enum {
     URL_QUEUED,
@@ -944,7 +943,6 @@ static void action_install_url_start(const char* confirmMessage, const char* url
     data->installInfo.openDst = action_install_url_open_dst;
     data->installInfo.closeDst = action_install_url_close_dst;
     data->installInfo.writeDst = action_install_url_write_dst;
-
 
     data->installInfo.error = action_install_url_error;
 

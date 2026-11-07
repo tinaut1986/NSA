@@ -338,7 +338,6 @@ static void action_install_cias_internal(linked_list* items, list_item* selected
     data->installInfo.closeDst = action_install_cias_close_dst;
     data->installInfo.writeDst = action_install_cias_write_dst;
 
-
     data->installInfo.error = action_install_cias_error;
 
     data->installInfo.finished = true;

@@ -149,7 +149,6 @@ void dumpnand_open() {
     data->closeDst = dumpnand_close_dst;
     data->writeDst = dumpnand_write_dst;
 
-
     data->error = dumpnand_error;
 
     data->finished = true;

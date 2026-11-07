@@ -542,7 +542,6 @@ void action_paste_contents(linked_list* items, list_item* selected) {
     data->pasteInfo.closeDst = action_paste_contents_close_dst;
     data->pasteInfo.writeDst = action_paste_contents_write_dst;
 
-
     data->pasteInfo.error = action_paste_contents_error;
 
     data->pasteInfo.finished = true;

@@ -164,11 +164,14 @@ What `release` holds, in the order it was built:
 
 **The owner's tests of 2026-11-07, evening** (the items ticked below, all on `staging` 6760a75). Changed after them, on
 `staging` and tried on the New 3DS XL (DEBUG) unless said:
-- Store scripts (`fix/store-script-paths`, not tried on a console): ndsForwarder and YANBF (extract a pack to the card's
+- Store scripts (`fix/store-script-paths`; tried on the New 3DS XL on 2026-11-08 with `fix/store-empty-extract`): ndsForwarder and YANBF (extract a pack to the card's
   root) and Vapecord-ACNL/ACHHD (extract to `/luma/plugins`) were left out of Universal-DB's list; now they show and
   install. Every file an archive puts on the card must be where a script may write (one in `/Nintendo 3DS`, `/nsa`, a
   `.firm`... fails the extraction before anything is written), entries with `..` are refused, and an install or an
-  extraction only takes a file the script wrote. To try: install the four from the Store (r/3dshomebrew, After-Pop-2000).
+  extraction only takes a file the script wrote. Then (`fix/store-empty-extract`) an extraction that finds nothing is
+  not an error (ACHHD's `^VapecordACHHD`, which its zip lacks, failed the install), and apps that are neither a CIA nor a
+  3DSX show as installed (green badge) when one of the catalogue's `installed_files` is on the card, or the last file the
+  Store's run left. The four installed, showed as installed, and were removed again (the SD card compared equal).
 - Transfer toast (`feat/toast-two-lines`): two lines, "FTP, receiving: 3.2 / 12.0 MiB, 650 KiB/s" over the name (it was one line,
   cut at the edge), and a piece of the bar moves when the size is not known: FileZilla says no size before an upload (no
   ALLO), so there is no percentage then. Not seen on a console: the web page's screen view waits while a transfer runs.

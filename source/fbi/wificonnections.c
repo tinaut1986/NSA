@@ -537,6 +537,42 @@ static void wifi_delete_answer(ui_view* view, void* listData, u32 response) {
     prompt_display_notify("Success", "Copy deleted.", COLOR_TEXT, NULL, NULL, NULL);
 }
 
+// ---- deleting a connection ----
+
+static void wifi_remove_answer(ui_view* view, void* listData, u32 response) {
+    wifi_data* data = (wifi_data*) listData;
+    if(response != PROMPT_YES) {
+        return;
+    }
+
+    sheet_confirmed();
+    bool inUse = wifislots_in_use(data->target);
+    Result res = wifislots_remove(data->target);
+    data->populated = false;
+    if(R_FAILED(res)) {
+        error_display_res(NULL, NULL, res, "Failed to delete the connection.");
+        return;
+    }
+
+    char message[400];
+    int used = snprintf(message, sizeof(message), _("Connection %lu deleted."), data->target + 1);
+    if(inUse && used > 0 && (size_t) used < sizeof(message)) {
+        snprintf(message + used, sizeof(message) - (size_t) used, "\n\n%s", _("The console stays on the network it is connected to until it connects again: put it in sleep mode and wake it, or restart it."));
+    }
+
+    prompt_display_notify("Success", message, COLOR_TEXT, NULL, NULL, NULL);
+}
+
+static void wifi_remove(void* listData) {
+    wifi_data* data = (wifi_data*) listData;
+    data->target = ((wifi_entry*) data->actionSelected->data)->index;
+    char name[33];
+    wifislots_name(&data->slots[data->target], name, sizeof(name));
+    char message[200];
+    snprintf(message, sizeof(message), _("Delete connection %lu (%s)? A copy saved before can bring it back."), data->target + 1, name);
+    prompt_display_warning("Confirmation", message, COLOR_TEXT, data, NULL, wifi_remove_answer);
+}
+
 static void wifi_delete(void* listData) {
     wifi_data* data = (wifi_data*) listData;
     data->source = ((wifi_entry*) data->actionSelected->data)->index;
@@ -573,7 +609,7 @@ static void wifi_actions_open(wifi_data* data, list_item* selected) {
 
     static char labels[WIFISLOTS_COUNT][64];
     static char details[WIFISLOTS_COUNT][64];
-    sheet_action actions[9];
+    sheet_action actions[10];
     u32 count = 0;
     if(entry->kind == ENTRY_SLOT) {
         if(wifi_slot_used(data, entry->index) && !wifislots_online()) {
@@ -583,6 +619,7 @@ static void wifi_actions_open(wifi_data* data, list_item* selected) {
         if(wifi_slot_used(data, entry->index)) {
             actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save a copy"), false, wifi_save};
             actions[count++] = (sheet_action) {ICON_PENCIL, _("Edit"), false, wifi_edit};
+            actions[count++] = (sheet_action) {ICON_TRASH, _("Delete connection"), true, wifi_remove};
         } else {
             actions[count++] = (sheet_action) {ICON_PENCIL, _("Set up by hand"), false, wifi_edit};
         }

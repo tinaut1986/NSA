@@ -824,6 +824,9 @@ when that replaces one), delete it; Y shows the passwords (8 stars otherwise).
   actions while not connected, and in the background when NSA starts without a connection.
 - The FTP and web servers stop when the Wi-Fi goes while they serve (they looked on but answered nothing until HOME)
   and start again once it is back, as at a start without Wi-Fi.
+- Delete connection (`feat/wifi-delete`): ac:i RemoveNetworkSetting + FlushNetworkSetting, red and asked; the one in
+  use keeps the console connected until sleep mode (said). On the New 3DS XL: connection 2 saved, deleted (empty in the
+  config and in ac), restored from that copy: the three read as before, keys match.
 - [ ] Offline (out of reach, or the connection in use replaced and the console put to sleep): restore or edit a
   reachable connection, and Connect; open NSA with no connection (it connects by itself, the servers start); the Wi-Fi
   lost and back while NSA is open (the FTP and web icons go and come back).

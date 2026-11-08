@@ -146,6 +146,19 @@ static Result aci_set_network(u16 base, const wifislots_network* net) {
     return res;
 }
 
+Result wifislots_remove(u32 index) {
+    if(index >= WIFISLOTS_COUNT) {
+        return -1;
+    }
+
+    Result res = aci_call(IPC_MakeHeader(0x403, 1, 0), index);
+    if(R_SUCCEEDED(res)) {
+        res = aci_call(IPC_MakeHeader(0x404, 0, 0), 0);
+    }
+
+    return res;
+}
+
 Result wifislots_write(u32 index, const wifislots_slot* in, const char** step) {
     static const char* none = "";
     const char* dummy;

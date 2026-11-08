@@ -1219,6 +1219,14 @@ const i18n_entry i18n_ru[] = {
         {"The ticked items", "Отмеченное"},
         {"Root of the SD card", "Корень SD-карты"},
         {"Root", "Корень"},
+        // Files: extract a .zip or .7z (0.9.3)
+        {"Extract to a folder", "Распаковать в папку"},
+        {"Extract here", "Распаковать сюда"},
+        {"Extract", "Распаковать"},
+        {"Files with the same names in this folder are replaced.", "Файлы с такими же именами в этой папке будут заменены."},
+        {"%lu file extracted to %s", "Распаковано файлов: %lu, в %s"},
+        {"%lu files extracted to %s", "Распаковано файлов: %lu, в %s"},
+        {"The archive had no files.", "В архиве не было файлов."},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

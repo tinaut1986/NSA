@@ -1165,6 +1165,7 @@ const i18n_entry i18n_ru[] = {
         {"Saving rewrites the copy's file; its alias and date stay.", "При сохранении файл копии перезаписывается; псевдоним и дата остаются."},
         {"Not an address: four numbers from 0 to 255 with dots, as 192.168.1.50.", "Это не адрес: четыре числа от 0 до 255 через точку, например 192.168.1.50."},
         {"Changes saved.", "Изменения сохранены."},
+        {"The console stays on the network it is connected to until it connects again: close it and open it, or restart it.", "Консоль остаётся в текущей сети, пока не подключится заново: закройте и откройте её или перезапустите."},
         {"Edit Wi-Fi connection", "Изменить подключение Wi-Fi"},
         {" change     show password     back", " изменить     показать пароль     назад"},
         {" change     hide password     back", " изменить     скрыть пароль     назад"},

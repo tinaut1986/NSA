@@ -1186,6 +1186,7 @@ const i18n_entry i18n_es[] = {
         {"Saving rewrites the copy's file; its alias and date stay.", "Al guardar se reescribe el archivo de la copia; su alias y su fecha se mantienen."},
         {"Not an address: four numbers from 0 to 255 with dots, as 192.168.1.50.", "No es una dirección: cuatro números del 0 al 255 con puntos, como 192.168.1.50."},
         {"Changes saved.", "Cambios guardados."},
+        {"The console stays on the network it is connected to until it connects again: close it and open it, or restart it.", "La consola sigue conectada a la red que tiene hasta que vuelva a conectarse: ciérrala y ábrela, o reiníciala."},
         {"Edit Wi-Fi connection", "Editar conexión Wi-Fi"},
         {" change     show password     back", " cambiar     ver contraseña     volver"},
         {" change     hide password     back", " cambiar     ocultar contraseña     volver"},

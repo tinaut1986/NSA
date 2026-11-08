@@ -1164,6 +1164,7 @@ const i18n_entry i18n_ca[] = {
         {"Saving rewrites the copy's file; its alias and date stay.", "En desar es reescriu el fitxer de la còpia; l'àlies i la data es mantenen."},
         {"Not an address: four numbers from 0 to 255 with dots, as 192.168.1.50.", "No és una adreça: quatre números del 0 al 255 amb punts, com 192.168.1.50."},
         {"Changes saved.", "Canvis desats."},
+        {"The console stays on the network it is connected to until it connects again: close it and open it, or restart it.", "La consola continua connectada a la xarxa que té fins que es torni a connectar: tanca-la i obre-la, o reinicia-la."},
         {"Edit Wi-Fi connection", "Editar la connexió Wi-Fi"},
         {" change     show password     back", " canviar     veure la contrasenya     tornar"},
         {" change     hide password     back", " canviar     amagar la contrasenya     tornar"},

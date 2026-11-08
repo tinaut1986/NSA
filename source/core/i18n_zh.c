@@ -1156,6 +1156,7 @@ const i18n_entry i18n_zh[] = {
         {"Saving rewrites the copy's file; its alias and date stay.", "保存时会重写副本文件；别名和日期保持不变。"},
         {"Not an address: four numbers from 0 to 255 with dots, as 192.168.1.50.", "不是地址：四个 0 到 255 的数字，用点分隔，例如 192.168.1.50。"},
         {"Changes saved.", "更改已保存。"},
+        {"The console stays on the network it is connected to until it connects again: close it and open it, or restart it.", "主机会一直连接当前网络，直到重新连接：合上再打开，或重新启动。"},
         {"Edit Wi-Fi connection", "编辑 Wi-Fi 连接"},
         {" change     show password     back", " 更改     显示密码     返回"},
         {" change     hide password     back", " 更改     隐藏密码     返回"},

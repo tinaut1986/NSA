@@ -313,6 +313,7 @@ static void edit_save_answer(ui_view* view, void* data, u32 response) {
 
     Result res;
     const char* step = "";
+    bool inUse = e->connection >= 0 && wifislots_in_use((u32) e->connection);
     if(e->connection >= 0) {
         res = wifislots_write((u32) e->connection, &slot, &step);
     } else {
@@ -330,7 +331,13 @@ static void edit_save_answer(ui_view* view, void* data, u32 response) {
 
     sheet_confirmed();   // The sheet it was opened from goes too.
     edit_close(edit_view, e);
-    prompt_display_notify("Success", "Changes saved.", COLOR_TEXT, NULL, NULL, NULL);
+    if(inUse) {
+        char message[400];
+        snprintf(message, sizeof(message), "%s\n\n%s", _("Changes saved."), _("The console stays on the network it is connected to until it connects again: close it and open it, or restart it."));
+        prompt_display_notify("Success", message, COLOR_TEXT, NULL, NULL, NULL);
+    } else {
+        prompt_display_notify("Success", "Changes saved.", COLOR_TEXT, NULL, NULL, NULL);
+    }
 }
 
 static void edit_leave_answer(ui_view* view, void* data, u32 response) {

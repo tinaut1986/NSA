@@ -43,6 +43,20 @@ bool wifislots_empty(const wifislots_slot* slot) {
     return slot->version == 0;
 }
 
+bool wifislots_in_use(u32 index) {
+    char connected[33] = "";
+    u32 status = 0;
+    wifislots_slot slot;
+    if(R_FAILED(ACU_GetWifiStatus(&status)) || status == 0 || R_FAILED(ACU_GetSSID(connected)) || R_FAILED(wifislots_read(index, &slot))
+       || wifislots_empty(&slot)) {
+        return false;
+    }
+
+    char name[33];
+    wifislots_name(&slot, name, sizeof(name));
+    return strcmp(name, connected) == 0;
+}
+
 const wifislots_network* wifislots_network_of(const wifislots_slot* slot) {
     return slot->editableSecurity ? &slot->network : &slot->multiSsid[0];
 }

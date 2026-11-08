@@ -1158,6 +1158,7 @@ const i18n_entry i18n_tw[] = {
         {"Saving rewrites the copy's file; its alias and date stay.", "儲存時會重寫副本檔案；別名和日期保持不變。"},
         {"Not an address: four numbers from 0 to 255 with dots, as 192.168.1.50.", "不是位址：四個 0 到 255 的數字，用點分隔，例如 192.168.1.50。"},
         {"Changes saved.", "變更已儲存。"},
+        {"The console stays on the network it is connected to until it connects again: close it and open it, or restart it.", "主機會一直連線目前的網路，直到重新連線：闔上再打開，或重新啟動。"},
         {"Edit Wi-Fi connection", "編輯 Wi-Fi 連線"},
         {" change     show password     back", " 變更     顯示密碼     返回"},
         {" change     hide password     back", " 變更     隱藏密碼     返回"},

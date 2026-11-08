@@ -1170,6 +1170,7 @@ const i18n_entry i18n_ja[] = {
         {"Saving rewrites the copy's file; its alias and date stay.", "保存するとコピーのファイルを書き直します。別名と日付はそのままです。"},
         {"Not an address: four numbers from 0 to 255 with dots, as 192.168.1.50.", "アドレスではありません。0から255の数字4つを点で区切ります（例: 192.168.1.50）。"},
         {"Changes saved.", "変更を保存しました。"},
+        {"The console stays on the network it is connected to until it connects again: close it and open it, or restart it.", "本体は、次に接続し直すまで今のネットワークにつながったままです。閉じて開くか、再起動してください。"},
         {"Edit Wi-Fi connection", "Wi-Fi接続を編集"},
         {" change     show password     back", " 変更     パスワードを表示     戻る"},
         {" change     hide password     back", " 変更     パスワードを隠す     戻る"},

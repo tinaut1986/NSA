@@ -98,6 +98,9 @@ Result wifislots_read(u32 index, wifislots_slot* out);
 Result wifislots_write(u32 index, const wifislots_slot* in, const char** step);
 
 bool wifislots_empty(const wifislots_slot* slot);
+// Whether the console is connected with connection `index` now (by the network's name). Writing that one changes
+// nothing until the console connects again: the connection it holds stays up.
+bool wifislots_in_use(u32 index);
 // The network it connects to: the main one, or the first WPS/AOSS one.
 const wifislots_network* wifislots_network_of(const wifislots_slot* slot);
 void wifislots_name(const wifislots_slot* slot, char* out, size_t size);

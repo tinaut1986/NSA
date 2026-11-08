@@ -341,6 +341,7 @@ static void wifi_restore_answer(ui_view* view, void* listData, u32 response) {
 
     sheet_confirmed();
     wifislots_slot slot = data->backups[data->source].slot;
+    bool inUse = wifislots_in_use(data->target);
     const char* step = "";
     Result res = wifislots_write(data->target, &slot, &step);
     data->populated = false;
@@ -351,8 +352,12 @@ static void wifi_restore_answer(ui_view* view, void* listData, u32 response) {
 
     char name[33];
     wifislots_name(&slot, name, sizeof(name));
-    char message[160];
-    snprintf(message, sizeof(message), _("Connection %lu is now %s."), data->target + 1, name);
+    char message[400];
+    int used = snprintf(message, sizeof(message), _("Connection %lu is now %s."), data->target + 1, name);
+    if(inUse && used > 0 && (size_t) used < sizeof(message)) {
+        snprintf(message + used, sizeof(message) - (size_t) used, "\n\n%s", _("The console stays on the network it is connected to until it connects again: close it and open it, or restart it."));
+    }
+
     prompt_display_notify("Success", message, COLOR_TEXT, NULL, NULL, NULL);
 }
 

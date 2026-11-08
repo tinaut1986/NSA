@@ -706,4 +706,5 @@ void wificonnections_open() {
             .drawRow = wifi_draw_row,
     };
     list_set_style(view, &style);
+    list_show_title_bar(view);
 }

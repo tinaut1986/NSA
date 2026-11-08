@@ -438,4 +438,5 @@ void wifiedit_open(const wifislots_slot* start, int connection, wifislots_backup
     edit_view = view;
     list_style style = {.rowHeight = 38, .drawRow = edit_draw_row};
     list_set_style(view, &style);
+    list_show_title_bar(view);
 }

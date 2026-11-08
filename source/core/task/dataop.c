@@ -17,17 +17,15 @@ void data_op_progress_items(const data_op_data* op, float* progress, char* text)
 void data_op_progress_bytes(const data_op_data* op, float* progress, char* text, bool items) {
     *progress = op->currTotal != 0 ? (float) ((double) op->currProcessed / (double) op->currTotal) : 0;
     if(items) {
-        snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), op->processed, op->total,
+        snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s"), op->processed, op->total,
                  ui_get_display_size(op->currProcessed), ui_get_display_size_units(op->currProcessed),
                  ui_get_display_size(op->currTotal), ui_get_display_size_units(op->currTotal),
-                 ui_get_display_size(op->bytesPerSecond), ui_get_display_size_units(op->bytesPerSecond),
-                 ui_get_display_eta(op->estimatedRemainingSeconds));
+                 ui_get_display_size(op->bytesPerSecond), ui_get_display_size_units(op->bytesPerSecond));
     } else {
-        snprintf(text, PROGRESS_TEXT_MAX, _("%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"),
+        snprintf(text, PROGRESS_TEXT_MAX, _("%.2f %s / %.2f %s\n%.2f %s/s"),
                  ui_get_display_size(op->currProcessed), ui_get_display_size_units(op->currProcessed),
                  ui_get_display_size(op->currTotal), ui_get_display_size_units(op->currTotal),
-                 ui_get_display_size(op->bytesPerSecond), ui_get_display_size_units(op->bytesPerSecond),
-                 ui_get_display_eta(op->estimatedRemainingSeconds));
+                 ui_get_display_size(op->bytesPerSecond), ui_get_display_size_units(op->bytesPerSecond));
     }
 }
 
@@ -350,7 +348,7 @@ static void task_data_op_thread(void* arg) {
 
         if(R_FAILED(res)) {
             if(res == R_APP_CANCELLED) {
-                prompt_display_notify("Failure", "Operation cancelled.", COLOR_TEXT, NULL, NULL, NULL);
+                prompt_display_notify("Cancelled", "Operation cancelled.", COLOR_TEXT, NULL, NULL, NULL);
                 break;
             } else if(res != R_APP_SKIPPED) {
                 ui_view* errorView = NULL;

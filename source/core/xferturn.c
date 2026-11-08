@@ -186,8 +186,9 @@ bool xferturn_describe(char* out, size_t size) {
 }
 
 // A bottom screen toast for what comes in or goes out over FTP or the web page, which have no screen of their own
-// on the console, on two lines: "FTP, receiving: 3.2 / 12.0 MiB, 650 KiB/s", then the name. The bar shows how far
-// when the size is known; when it is not (FileZilla does not say it before an upload) a piece of it moves.
+// on the console, on two lines: "FTP, receiving: 3.2 / 12.0 MiB, 650 KiB/s", then "00:00:14 left · name" (the time
+// left only when the size is known, from the average speed since the start). The bar shows how far when the size is
+// known; when it is not (FileZilla does not say it before an upload) a piece of it moves.
 bool xferturn_notice(char* out, size_t size, float* progress) {
     xferturn_status status;
     xferturn_get(&status);
@@ -213,8 +214,19 @@ bool xferturn_notice(char* out, size_t size, float* progress) {
         snprintf(figures + used, sizeof(figures) - used, ", %.1f %s/s", ui_get_display_size(bps), ui_get_display_size_units(bps));
     }
 
+    // The time left, from the average since the start: the last seconds' speed would make it jump.
+    char eta[48] = {'\0'};
+    if(status.total > status.done && status.done > 0 && status.seconds >= 2) {
+        u64 seconds = (status.total - status.done) * status.seconds / status.done;
+        snprintf(eta, sizeof(eta), _("%s left"), ui_get_display_eta(seconds > 359999 ? 359999 : (u32) seconds));
+    }
+
     // The name last: a long one is what the buffer or the card cuts.
-    snprintf(out, size, "%s: %s\n%s", what, figures, name);
+    if(eta[0] != '\0') {
+        snprintf(out, size, "%s: %s\n%s \u00B7 %s", what, figures, eta, name);
+    } else {
+        snprintf(out, size, "%s: %s\n%s", what, figures, name);
+    }
     *progress = status.total > 0 ? (float) ((double) status.done / (double) status.total) : WIDGET_PROGRESS_UNKNOWN;
     return true;
 }

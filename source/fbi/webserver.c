@@ -2284,6 +2284,21 @@ static void web_shutdown() {
     snprintf(web_status, sizeof(web_status), "%s", _("Off"));
 }
 
+// Started now, or as soon as there is Wi-Fi (NSA opened without it): it tries every couple of seconds, with no end.
+void webserver_start_when_online() {
+    if(webserver_start()) {
+        return;
+    }
+
+    web_retry = true;
+    web_retry_next = osGetTime() + 2000;
+    web_retry_end = U64_MAX;
+}
+
+bool webserver_waiting() {
+    return web_retry && !webserver_running();
+}
+
 void webserver_stop() {
     web_retry = false;
     web_paused = false;
@@ -2311,7 +2326,28 @@ void webserver_resume_later() {
     }
 }
 
+// The Wi-Fi gone while serving: the server kept looking on but could not serve (its sockets dead) until HOME. It stops,
+// and starts again once the Wi-Fi is back (as webserver_start_when_online).
+static u64 web_watch_next = 0;
+
+static void web_watch_wifi() {
+    if(!web_run || web_paused || osGetTime() < web_watch_next) {
+        return;
+    }
+
+    web_watch_next = osGetTime() + 2000;
+    u32 wifi = 0;
+    if(R_FAILED(ACU_GetWifiStatus(&wifi)) || wifi == 0) {
+        web_shutdown();
+        web_retry = true;
+        web_retry_next = osGetTime() + 2000;
+        web_retry_end = U64_MAX;
+    }
+}
+
 void webserver_poll_main() {
+    web_watch_wifi();
+
     // A frame asked for by the page: both screens, now that this frame is drawn.
     if(web_frame_state == 1 && web_frame != NULL) {
         u32 w = 0;

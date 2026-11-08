@@ -969,6 +969,7 @@ static void action_install_url_start(const char* confirmMessage, const char* url
         return;
     }
 
+    list_show_title_bar(view);
     view->id = "Confirmation";
 }
 

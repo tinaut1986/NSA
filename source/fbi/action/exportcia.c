@@ -642,7 +642,7 @@ static void action_export_cia_update(ui_view* view, void* data, float* progress,
     }
 
     *progress = exportData->exportInfo.currTotal != 0 ? (float) ((double) exportData->exportInfo.currProcessed / (double) exportData->exportInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"),
+    snprintf(text, PROGRESS_TEXT_MAX, _("%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s"),
              exportData->exportInfo.processed + 1 > exportData->exportInfo.total ? exportData->exportInfo.total : exportData->exportInfo.processed + 1,
              exportData->exportInfo.total,
              ui_get_display_size(exportData->exportInfo.currProcessed),
@@ -650,8 +650,7 @@ static void action_export_cia_update(ui_view* view, void* data, float* progress,
              ui_get_display_size(exportData->exportInfo.currTotal),
              ui_get_display_size_units(exportData->exportInfo.currTotal),
              ui_get_display_size(exportData->exportInfo.bytesPerSecond),
-             ui_get_display_size_units(exportData->exportInfo.bytesPerSecond),
-             ui_get_display_eta(exportData->exportInfo.estimatedRemainingSeconds));
+             ui_get_display_size_units(exportData->exportInfo.bytesPerSecond));
 }
 
 static void action_export_cia_onresponse(ui_view* view, void* data, u32 response) {

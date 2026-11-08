@@ -140,16 +140,28 @@ static bool script_resolve(const char* in, char* out, size_t size) {
     return n > 1 && strstr(out, "..") == NULL;
 }
 
+// Where an extraction goes: a folder as above, or the card's root itself ("/" or "sdmc:/", as the packs made "for SD Card
+// root" ask). What comes out is checked file by file (script_extract_allowed).
+static bool script_resolve_folder(const char* in, char* out, size_t size) {
+    if(in != NULL && (strcmp(in, "/") == 0 || strcasecmp(in, "sdmc:/") == 0) && size > 1) {
+        string_copy(out, "/", size);
+        return true;
+    }
+
+    return script_resolve(in, out, size);
+}
+
 static bool script_under(const char* path, const char* folder) {
     size_t len = strlen(folder);
     return strncasecmp(path, folder, len) == 0 && (path[len] == '\0' || path[len] == '/');
 }
 
 // Where a script may write: not where the console starts from, not its system data, not NSA's own. Of /luma, only a
-// game's own folder in /luma/titles (its mods, which Luma loads into that game alone).
+// game's own folder in /luma/titles (its mods, which Luma loads into that game alone) and /luma/plugins (the .3gx
+// plugins Luma's plugin loader offers, such as Vapecord's).
 static bool script_writable(const char* path) {
     if(script_under(path, "/luma")) {
-        return script_under(path, "/luma/titles") && strlen(path) > strlen("/luma/titles/");
+        return (script_under(path, "/luma/titles") && strlen(path) > strlen("/luma/titles/")) || script_under(path, "/luma/plugins");
     }
 
     size_t len = strlen(path);
@@ -159,9 +171,9 @@ static bool script_writable(const char* path) {
 }
 
 // A folder a script may delete with everything in it (the user is asked first): one it may write to, and not a folder of
-// the card's root such as /3ds or /roms, nor /luma/titles itself.
+// the card's root such as /3ds or /roms, nor /luma/titles or /luma/plugins themselves (every game's, every plugin).
 static bool script_removable(const char* path) {
-    if(!script_writable(path)) {
+    if(!script_writable(path) || strcasecmp(path, "/luma/plugins") == 0) {
         return false;
     }
 
@@ -252,7 +264,7 @@ static bool script_parse(json_t* script, script_step* steps, u32* count) {
         } else if(strcmp(type, "extractFile") == 0) {
             const char* input = script_str(step, "input");
             if(input == NULL || strlen(input) >= sizeof(s->b) || !script_resolve(script_str(step, "file"), s->a, sizeof(s->a))
-               || !script_resolve(script_str(step, "output"), s->c, sizeof(s->c)) || !script_writable(s->c)
+               || !script_resolve_folder(script_str(step, "output"), s->c, sizeof(s->c)) || !script_writable(s->c)
                || !script_made_before(steps, *count, s->a)) {
                 return false;
             }
@@ -383,6 +395,10 @@ void storescript_dsx_name(json_t* script, char* out, size_t size) {
     }
 }
 
+bool storescript_resolve_path(const char* in, char* out, size_t size) {
+    return script_resolve(in, out, size);
+}
+
 // ---- running one ----
 
 static void script_next(script_run* run);
@@ -412,6 +428,12 @@ static void script_note_created(script_run* run, const char* path) {
 static void script_extracted(void* userData, const char* sdPath) {
     // "sdmc:/3ds/app.3dsx" as "/3ds/app.3dsx".
     script_note_created((script_run*) userData, strncmp(sdPath, "sdmc:", 5) == 0 ? sdPath + 5 : sdPath);
+}
+
+// Each file an archive would put on the card goes only where a script may write ("sdmc:/Nintendo 3DS/..." from a pack
+// extracted to the root is refused, and the extraction with it).
+static bool script_extract_allowed(void* userData, const char* sdPath) {
+    return script_writable(strncmp(sdPath, "sdmc:", 5) == 0 ? sdPath + 5 : sdPath);
 }
 
 static void script_finish(script_run* run, bool ok) {
@@ -455,8 +477,26 @@ static void script_abandon(script_run* run) {
     script_finish(run, false);
 }
 
+static char script_kept[SCRIPT_PATH_MAX];
+
+const char* storescript_kept_file(void) {
+    return script_kept;
+}
+
 // The end: the CIAs install (their screens say how it went), or it says where the files went.
 static void script_end(script_run* run) {
+    // What it leaves, for the Store to look for later.
+    script_kept[0] = '\0';
+    for(u32 i = run->createdCount; i > 0 && script_kept[0] == '\0'; i--) {
+        const char* path = run->created[i - 1];
+        char sd[SCRIPT_PATH_MAX + 8];
+        script_sd(sd, sizeof(sd), path);
+        struct stat st;
+        if(!script_has_ext(path, ".cia") && stat(sd, &st) == 0) {
+            string_copy(script_kept, path, sizeof(script_kept));
+        }
+    }
+
     if(run->installs[0] != '\0') {
         action_install_cia_paths_now(run->installs, run->deleteInstalled);
     } else if(run->last[0] != '\0') {
@@ -513,7 +553,9 @@ static void script_files_thread(void* arg) {
         script_step* s = &run->steps[run->pc];
         char from[SCRIPT_PATH_MAX + 8];
         char to[SCRIPT_PATH_MAX + 8];
-        if(s->type == STEP_EXTRACT) {
+        if(s->type == STEP_EXTRACT && !script_created(run, s->a)) {
+            res = R_APP_BAD_DATA;   // An archive this run did not write.
+        } else if(s->type == STEP_EXTRACT) {
             script_sd(from, sizeof(from), s->a);
             script_sd(to, sizeof(to), s->c);
             run->progress.done = 0;
@@ -523,10 +565,10 @@ static void script_files_thread(void* arg) {
             speedlog* trace = speedlog_begin("extract", s->c, 0);
             res = unarchive_extract(from, s->b, to, &run->progress, &extracted);
             speedlog_end(trace, R_SUCCEEDED(res));
-            // Nothing matched: the archive is not what the catalogue expects, and what should be installed is not there.
-            if(R_SUCCEEDED(res) && extracted == 0) {
-                res = R_APP_BAD_DATA;
-            }
+            // Nothing matched is not an error, as in Universal-Updater: Universal-DB has scripts with an extraction that finds
+            // nothing (Vapecord-ACHHD-Plugin's "^VapecordACHHD", its zip holding only luma/plugins). What a later step needs
+            // and did not come out fails that step (installs and extractions check that this run wrote their file).
+            (void) extracted;
         } else if(s->type == STEP_MOVE) {
             if(!script_created(run, s->a)) {
                 res = R_APP_BAD_DATA;   // Not written by this run (a step for it was skipped).
@@ -544,6 +586,10 @@ static void script_files_thread(void* arg) {
         } else if(s->type == STEP_MKDIR) {
             snprintf(to, sizeof(to), "sdmc:%s/", s->b);
             script_make_dirs(to);
+        } else if(s->type == STEP_INSTALL && !script_created(run, s->a)) {
+            // Only a CIA this run wrote: the parse lets anything under a folder it extracts to through (the card's root is
+            // one), and an install deletes its CIA afterwards.
+            res = R_APP_BAD_DATA;
         } else if(s->type == STEP_INSTALL) {
             size_t used = strlen(run->installs);
             snprintf(run->installs + used, sizeof(run->installs) - used, "%s%s", used > 0 ? "\n" : "", s->a);
@@ -804,6 +850,7 @@ void storescript_run(const char* scriptText, const char* question, void* userDat
     run->progress.cancel = &run->cancel;
     run->progress.userData = run;
     run->progress.created = script_extracted;
+    run->progress.allowed = script_extract_allowed;
 
     prompt_display_yes_no("Confirmation", question, COLOR_TEXT, run, NULL, script_question_answered);
 }

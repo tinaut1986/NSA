@@ -190,6 +190,17 @@ static const coach_step updates_steps[] = {
         BACK_TO_MENU("\uE001 goes back to the menu."),
 };
 
+static const coach_step wifi_steps[] = {
+        OPEN("menu.system", "Open System.", "v:System"),
+        OPEN("list.selected", "Go down to Network and open it with \uE000.", "v:Wi-Fi connections"),
+        INFO("list", "Your console's three connections, then the copies saved on the SD card: the same ones WifiManager keeps in /3ds/WifiManager."),
+        INFO("list.selected", "\uE000 on a connection: save a copy (with an alias, if you like), edit it, delete it, or write a saved copy there."),
+        INFO("list.selected", "\uE000 on a copy: write it to a connection, edit it, rename its alias or delete it."),
+        INFO("list.selected", "Not connected, NSA connects with what you write at once (or with Connect). The network the console is on changes only after sleep mode."),
+        INFO("hints", "\uE003 shows the passwords, to type one on another device."),
+        DO("back", "\uE001 goes back to System, and again to the menu.", KEY_B, true, "v:Main menu"),
+};
+
 static const guide_chapter chapters[] = {
         {"basics", GUIDE_VERSION(0, 2), true, NULL, ICON_DEVICE_GAMEPAD_2, "Getting around", "Screens, buttons and touch", basics_steps, COUNT_OF(basics_steps)},
         {"menu", GUIDE_VERSION(0, 8), true, "basics", ICON_LAYOUT_GRID, "Your main menu", "Tiles and icons, in your order", menu_steps, COUNT_OF(menu_steps)},
@@ -206,6 +217,9 @@ static const guide_chapter chapters[] = {
         {"select", GUIDE_VERSION(0, 9), false, "files", ICON_SQUARE_CHECK, "Selecting several", "Copy, move or delete many at once", select_steps, COUNT_OF(select_steps)},
         {"player", GUIDE_VERSION(0, 9), false, "files", ICON_MUSIC, "Music in the background", "Keep listening while you browse", player_steps, COUNT_OF(player_steps)},
         {"mods", GUIDE_VERSION(0, 9), false, "basics", ICON_FOLDER, "Game mods", "LayeredFS mods of games you deleted", mods_steps, COUNT_OF(mods_steps)},
+        // 0.10 although it may ship in a 0.9.x: the guide tells minor versions apart only, and a console on 0.9 has been
+        // offered everything marked 0.9 (a chapter marked so would never be offered to it, as happened with mods and 0.8).
+        {"wifi", GUIDE_VERSION(0, 10), false, "basics", ICON_WIFI, "Wi-Fi connections", "Save and restore your Wi-Fi settings", wifi_steps, COUNT_OF(wifi_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)

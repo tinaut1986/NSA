@@ -11,6 +11,9 @@ typedef struct {
     volatile u64 total;      // what the matching entries hold (known once the archive is read).
     void* userData;
     void (*created)(void* userData, const char* path);   // Each file written, as it is closed.
+    // Optional: whether a matching entry may go to `path` (asked for every one before any file is written; one refused
+    // fails the extraction with R_APP_BAD_DATA). An entry with a ".." in its path is always refused.
+    bool (*allowed)(void* userData, const char* path);
 } unarchive_progress;
 
 // The archive's kind from its first bytes: 'z' zip, '7' 7z, 0 neither.

@@ -1354,6 +1354,54 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    // Tests of installing over a title (issue #27): SITE TESTSAVE <title ID> FORMAT | WRITE <text> | READ, on its
+    // save data on the SD card.
+    if(NSA_DEBUG && strcmp(sub, "TESTSAVE") == 0) {
+        char op[16] = "";
+        char text[64] = "";
+        unsigned long long tid = 0;
+        if(sscanf(path != NULL ? path : "", "%llx %15s %63s", &tid, op, text) < 2) {
+            ftp_reply(s, "501 SITE TESTSAVE <title ID> FORMAT | WRITE <text> | READ");
+            return;
+        }
+
+        u32 archivePath[3] = {MEDIATYPE_SD, (u32) tid, (u32) (tid >> 32)};
+        FS_Path apath = {PATH_BINARY, sizeof(archivePath), archivePath};
+        Result res = 0;
+        char got[64] = "";
+        if(strcasecmp(op, "FORMAT") == 0) {
+            res = FSUSER_FormatSaveData(ARCHIVE_USER_SAVEDATA, apath, 0x200, 10, 10, 11, 11, false);
+        } else {
+            FS_Archive archive = 0;
+            if(R_SUCCEEDED(res = FSUSER_OpenArchive(&archive, ARCHIVE_USER_SAVEDATA, apath))) {
+                Handle file = 0;
+                bool write = strcasecmp(op, "WRITE") == 0;
+                if(R_SUCCEEDED(res = FSUSER_OpenFile(&file, archive, fsMakePath(PATH_ASCII, "/marker.txt"), write ? FS_OPEN_WRITE | FS_OPEN_CREATE : FS_OPEN_READ, 0))) {
+                    u32 n = 0;
+                    if(write) {
+                        if(R_SUCCEEDED(res = FSFILE_SetSize(file, 0))) {
+                            res = FSFILE_Write(file, &n, 0, text, strlen(text), FS_WRITE_FLUSH);
+                        }
+                    } else {
+                        res = FSFILE_Read(file, &n, 0, got, sizeof(got) - 1);
+                        got[n < sizeof(got) ? n : sizeof(got) - 1] = '\0';
+                    }
+
+                    FSFILE_Close(file);
+                }
+
+                if(write && R_SUCCEEDED(res)) {
+                    res = FSUSER_ControlArchive(archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
+                }
+
+                FSUSER_CloseArchive(archive);
+            }
+        }
+
+        ftp_reply(s, "200 TESTSAVE %s %08lX %s", op, (u32) res, got);
+        return;
+    }
+
     if(strcmp(sub, "SDBENCH") == 0) {
         unsigned mb = 0, bufferKb = FTP_FILE_BUFFER / 1024;
         char flag[8] = "";

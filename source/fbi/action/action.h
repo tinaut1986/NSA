@@ -37,6 +37,9 @@ void action_install_cia_delete_now(linked_list* items, list_item* selected);
 // Installs CIAs on the SD card one after another with no question (Remote Install's "Save and install"):
 // `paths` one a line; `delete` deletes each once it is installed.
 void action_install_cia_paths_now(const char* paths, bool delete);
+// Starts installing a CIA of `titleId` / `version` on `dest`: over the installed title when this is the same version or
+// a higher one (nothing deleted, the save kept), else deleting the installed one first.
+Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Handle* handle);
 void action_install_cias(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_cias_delete(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 // The CIAs of the folder `selected` that `filter` keeps (the Files screen's selection).

@@ -1862,18 +1862,17 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
     u8 status = store_status(store, app);
     float smallH = widget_text_height(WIDGET_SMALL_SCALE);
     float by = cardY + cardH - smallH - 14;
-    if(status & STATUS_ON) {
+    if(status & (STATUS_CIA | STATUS_DSX)) {
         char have[96] = "";
         size_t used = 0;
-        for(int kind = 0; kind < 3; kind++) {
-            u8 bit = kind == 0 ? STATUS_CIA : kind == 1 ? STATUS_DSX : STATUS_FILES;
+        for(int kind = 0; kind < 2; kind++) {
+            u8 bit = kind == 0 ? STATUS_CIA : STATUS_DSX;
             if(!(status & bit)) {
                 continue;
             }
 
             // No version: what the Store once installed may have been updated since, or installed another way.
-            const char* name = kind == 0 ? "CIA" : kind == 1 ? "3DSX" : _("its files");
-            used += snprintf(have + used, sizeof(have) - used, "%s%s", used > 0 ? ", " : "", name);
+            used += snprintf(have + used, sizeof(have) - used, "%s%s", used > 0 ? ", " : "", kind == 0 ? "CIA" : "3DSX");
         }
 
         char text[160];
@@ -1896,8 +1895,14 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
         bx = store_draw_kind_badge(bx, by, text, (status & STATUS_DSX) != 0);
     }
 
+    // Neither: one badge with the console it is for (as in its row), with the check when it is on the console.
+    bool neither = app->ciaUrl == NULL && app->dsxUrl == NULL;
+    if(neither) {
+        bx = store_draw_kind_badge(bx, by, app->console[0] != '\0' ? app->console : _("Other"), (status & STATUS_FILES) != 0);
+    }
+
     // The console, when it is not the 3DS.
-    if(app->console[0] != '\0' && strcasecmp(app->console, "3DS") != 0) {
+    if(!neither && app->console[0] != '\0' && strcasecmp(app->console, "3DS") != 0) {
         widget_badge(bx, by, app->console, t->palette->border, t->palette->text);
         bx += widget_text_width(app->console, WIDGET_SMALL_SCALE) + 18;
     }

@@ -793,6 +793,19 @@ when that replaces one), delete it; Y shows the passwords (8 stars otherwise).
   address), restored to its connection (the three read the same after, Wi-Fi stayed up), deleted; restore here -> No.
 - [ ] Restore a copy of another network into a connection and connect with it without opening System Settings;
   a WPS/AOSS connection; Old 3DS/2DS; the 10 languages.
+- Later the same day: saving asks for an optional alias (WifiManager's, up to 96 characters, in the trailer; empty = the
+  network), and a copy can have it renamed (same file and date) (`feat/wifi-alias`); the questions name a copy by it.
+  A guide chapter, `wifi` (marked 0.10: the guide tells minor versions apart only) (`feat/wifi-guide`). The list
+  crashed after a save when the top screen drew the selected item the reload had freed: `fix/list-freed-selection`
+  (list.c: the top screen no longer draws a selected item that is not in the list).
+- Editing by hand (`feat/wifi-edit`, wifiedit.c): Edit on a connection or a copy, Set up by hand on an empty
+  connection: the network's name, security, password, address (DHCP or typed: IP, netmask, gateway), DNS (automatic
+  or typed). The key is worked out as the console does (WPA: PBKDF2-HMAC-SHA1 of the password, the name as salt, 4096
+  rounds; checked on the New 3DS XL with SITE WIFIKEYCHECK against both connections set up in System Settings; copies
+  made by WifiManager's editor hold a zero key). A WPS/AOSS connection edited becomes a plain one.
+  - [x] Saving connection 2 untouched: the three read the same after, keys still match.
+  - [ ] Change a password and a typed address, and connect with them; set up an empty connection by hand.
+- [ ] Test a connection, as System Settings does (asked 2026-11-08): not done; it drops the Wi-Fi in use for a moment.
 
 **B asks before it stops** (2026-11-08, `feat/confirm-cancel`): under every progress bar that says how to stop it
 (installs, copies, pastes, deletes, imports, exports, console to console, Store files), B asks first, red: "Stop now?

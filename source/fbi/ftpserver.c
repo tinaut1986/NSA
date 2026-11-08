@@ -25,6 +25,7 @@
 #include "../core/xferturn.h"
 #include "action/action.h"
 #include "transferconn.h"
+#include "wifislots.h"
 
 #define FTP_PATH_MAX 512
 #define FTP_LINE_MAX 600
@@ -1294,6 +1295,23 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         }
 
         ftp_reply(s, "200 A send to another 3DS opens at most %lu connections (SITE CONNS 1-%d).", transfer_conn_get_limit(), TRANSFER_CONNECTIONS);
+        return;
+    }
+
+    // The Wi-Fi connections: what the config and ac say of them; a write through ac:i read back (wifislots.c).
+    if(NSA_DEBUG && strcmp(sub, "WIFIREAD") == 0) {
+        char reply[1024];
+        wifislots_debug_read(reply, sizeof(reply));
+        ftp_reply(s, "200 %s", reply);
+        return;
+    }
+
+    if(NSA_DEBUG && strcmp(sub, "WIFIROUNDTRIP") == 0) {
+        char reply[600];
+        unsigned slot = 1, change = 0;
+        sscanf(path != NULL ? path : "", "%u %u", &slot, &change);
+        bool done = wifislots_debug_roundtrip(slot, change, reply, sizeof(reply));
+        ftp_reply(s, "%s %s", done ? "200" : "550", reply);
         return;
     }
 

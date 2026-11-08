@@ -852,6 +852,14 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
         ftp_set_phase(PHASE_RECEIVING, vpath);
     }
 
+    // ALLO gave the file's size: set it first, the card writes faster so (issue #26: +26% on the New 3DS, +40%
+    // on the 2DS, and the 2DS's writes of over a second halve). Not for APPE, which writes at the end. Cut back
+    // to what came if less does, so that a REST resumes from there.
+    u64 presized = 0;
+    if(f != NULL && !append && s->allo > at && ftruncate(fileno(f), (off_t) s->allo) == 0) {
+        presized = s->allo;
+    }
+
     u64 allo = s->allo > rest ? s->allo - rest : 0;
     s->allo = 0;
 
@@ -928,6 +936,10 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
     }
 
     u64 start = speedlog_ticks();
+    if(f != NULL && presized > 0 && at + received < presized && (fflush(f) != 0 || ftruncate(fileno(f), (off_t) (at + received)) != 0)) {
+        ok = false;
+    }
+
     if(f != NULL && fclose(f) != 0) {
         ok = false;
     }

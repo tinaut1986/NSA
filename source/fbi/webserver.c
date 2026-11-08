@@ -613,6 +613,15 @@ static void web_api_put_file(web_request* r) {
     // Big writes to the SD card, not one per piece the network hands over (see the FTP server's STOR).
     setvbuf(f, NULL, _IOFBF, WEB_FILE_BUFFER);
 
+    // Its whole size first: the card writes faster so (issue #26), and a card without room says so at once.
+    if(r->contentLength > 0 && ftruncate(fileno(f), (off_t) r->contentLength) != 0) {
+        fclose(f);
+        remove(part);
+        web_release_turn();
+        web_send_error(r, 507, "not enough free space on the SD card");
+        return;
+    }
+
     // What came with the head, then the rest.
     u64 left = r->contentLength;
     u32 early = r->have - r->headLen;

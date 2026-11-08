@@ -98,6 +98,8 @@ Result wifislots_read(u32 index, wifislots_slot* out);
 Result wifislots_write(u32 index, const wifislots_slot* in, const char** step);
 
 bool wifislots_empty(const wifislots_slot* slot);
+// Empties connection `index` through ac:i (RemoveNetworkSetting, FlushNetworkSetting), as System Settings' Delete.
+Result wifislots_remove(u32 index);
 // Whether the console is connected with connection `index` now (by the network's name). Writing that one changes
 // nothing until the console connects again: the connection it holds stays up.
 bool wifislots_in_use(u32 index);

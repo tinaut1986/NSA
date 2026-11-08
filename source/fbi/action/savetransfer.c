@@ -1149,26 +1149,110 @@ void action_import_save_files(title_info* title, const char* name, save_kind kin
 
 // ---- extra data of a game ----
 
-// The ID of the extra data (or SpotPass data) a game has on the SD card, if it has any: under its own ID,
-// or under it without the last byte (Mario Kart 7, 00030700, keeps its data as 307).
+// The IDs a game's extra data (or SpotPass data) may have on the SD card, in order: the one its exheader
+// names (asked to AM; 0 when it names none), then the guesses for when it names none or AM can not say:
+// its own ID, and its own ID without the last byte (Mario Kart 7, 00030700, keeps its data as 307).
+// Returns how many, without zeros or repeats.
+static u32 save_data_candidates(title_info* info, u32* out, u64* fromExheader) {
+    u64 named = 0;
+    if(R_FAILED(AM_GetTitleExtDataId(&named, info->mediaType, info->titleId))) {
+        named = 0;
+    }
+
+    if(fromExheader != NULL) {
+        *fromExheader = named;
+    }
+
+    u32 all[3] = {(u32) named, (u32) info->titleId, (u32) info->titleId >> 8};
+    u32 count = 0;
+    for(u32 i = 0; i < 3; i++) {
+        bool seen = all[i] == 0;
+        for(u32 j = 0; j < count && !seen; j++) {
+            seen = out[j] == all[i];
+        }
+
+        if(!seen) {
+            out[count++] = all[i];
+        }
+    }
+
+    return count;
+}
+
+static bool save_data_exists(FS_ArchiveID archiveId, u32 id) {
+    u32 path[3] = {MEDIATYPE_SD, id, 0};
+    FS_Archive archive = 0;
+    if(R_FAILED(fs_open_archive(&archive, archiveId, fs_make_path_binary(path, sizeof(path))))) {
+        return false;
+    }
+
+    fs_close_archive(archive);
+    return true;
+}
+
+// The ID of the extra data (or SpotPass data) a game has on the SD card, if it has any (issue #13).
 static bool save_find_data(title_info* info, FS_ArchiveID archiveId, u32* extId) {
     title_kind kind = title_kind_of(info->titleId);
     if(info->twl || (kind != TITLE_KIND_GAME && kind != TITLE_KIND_DEMO)) {
         return false;
     }
 
-    u32 candidates[2] = {(u32) info->titleId, (u32) info->titleId >> 8};
-    for(u32 i = 0; i < 2; i++) {
-        u32 path[3] = {MEDIATYPE_SD, candidates[i], 0};
-        FS_Archive archive = 0;
-        if(R_SUCCEEDED(fs_open_archive(&archive, archiveId, fs_make_path_binary(path, sizeof(path))))) {
-            fs_close_archive(archive);
+    u32 candidates[3];
+    u32 count = save_data_candidates(info, candidates, NULL);
+    for(u32 i = 0; i < count; i++) {
+        if(save_data_exists(archiveId, candidates[i])) {
             *extId = candidates[i];
             return true;
         }
     }
 
     return false;
+}
+
+bool action_ext_data_debug(const char* path) {
+    FILE* out = fopen(path, "w");
+    if(out == NULL) {
+        return false;
+    }
+
+    u32 count = 0;
+    u64* ids = NULL;
+    if(R_FAILED(AM_GetTitleCount(MEDIATYPE_SD, &count)) || count == 0 || (ids = (u64*) calloc(count, sizeof(u64))) == NULL
+       || R_FAILED(AM_GetTitleList(&count, MEDIATYPE_SD, count, ids))) {
+        free(ids);
+        fprintf(out, "no title list\n");
+        fclose(out);
+        return true;
+    }
+
+    fprintf(out, "title,kind,exheader,own,own>>8,ext data,spotpass\n");
+    for(u32 i = 0; i < count; i++) {
+        title_kind kind = title_kind_of(ids[i]);
+        if(kind != TITLE_KIND_GAME && kind != TITLE_KIND_DEMO) {
+            continue;
+        }
+
+        title_info info;
+        memset(&info, 0, sizeof(info));
+        info.titleId = ids[i];
+        info.mediaType = MEDIATYPE_SD;
+
+        u32 candidates[3];
+        u64 named = 0;
+        save_data_candidates(&info, candidates, &named);
+
+        u32 ext = 0;
+        u32 boss = 0;
+        bool hasExt = save_find_data(&info, ARCHIVE_EXTDATA, &ext);
+        bool hasBoss = save_find_data(&info, ARCHIVE_BOSS_EXTDATA, &boss);
+        fprintf(out, "%016llX,%d,%llX,%d,%d,%lX,%lX\n", ids[i], (int) kind, named,
+                save_data_exists(ARCHIVE_EXTDATA, (u32) ids[i]), save_data_exists(ARCHIVE_EXTDATA, (u32) ids[i] >> 8),
+                hasExt ? ext : 0, hasBoss ? boss : 0);
+    }
+
+    free(ids);
+    fclose(out);
+    return true;
 }
 
 bool action_find_ext_data(title_info* info, u32* extId) {

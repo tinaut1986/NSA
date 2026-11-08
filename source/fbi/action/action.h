@@ -99,6 +99,8 @@ void action_send_save_files(title_info* title, const char* name, save_kind kind,
 // The same with one of the title's backups (as listed by action_save_backups) instead of the data on the console.
 void action_send_save_backup(title_info* title, const char* name, save_kind kind, const char* path);
 bool action_find_ext_data(title_info* info, u32* extId);
+// DEBUG (SITE EXTIDS): every game on the SD card, the ext data ID its exheader names against the guesses.
+bool action_ext_data_debug(const char* path);
 typedef struct {
     char path[512];      // The backup's folder, with the trailing slash.
     char label[96];      // "[NSA] 2026-10-31 14:25:30", "[Checkpoint] name", "[JKSM] name", "[PKSM] date".

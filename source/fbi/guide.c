@@ -198,7 +198,7 @@ static const coach_step wifi_steps[] = {
         INFO("list.selected", "\uE000 on a copy: write it to a connection, edit it, rename its alias or delete it."),
         INFO("list.selected", "Not connected, NSA connects with what you write at once (or with Connect). The network the console is on changes only after sleep mode."),
         INFO("hints", "\uE003 shows the passwords, to type one on another device."),
-        DO("back", "\uE001 goes back to System, and again to the menu.", KEY_B, true, "v:Main menu"),
+        DO(NULL, "\uE001 goes back to System, and again to the menu.", KEY_B, false, "v:Main menu"),
 };
 
 static const guide_chapter chapters[] = {

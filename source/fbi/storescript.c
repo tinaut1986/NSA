@@ -395,6 +395,10 @@ void storescript_dsx_name(json_t* script, char* out, size_t size) {
     }
 }
 
+bool storescript_resolve_path(const char* in, char* out, size_t size) {
+    return script_resolve(in, out, size);
+}
+
 // ---- running one ----
 
 static void script_next(script_run* run);
@@ -543,10 +547,10 @@ static void script_files_thread(void* arg) {
             speedlog* trace = speedlog_begin("extract", s->c, 0);
             res = unarchive_extract(from, s->b, to, &run->progress, &extracted);
             speedlog_end(trace, R_SUCCEEDED(res));
-            // Nothing matched: the archive is not what the catalogue expects, and what should be installed is not there.
-            if(R_SUCCEEDED(res) && extracted == 0) {
-                res = R_APP_BAD_DATA;
-            }
+            // Nothing matched is not an error, as in Universal-Updater: Universal-DB has scripts with an extraction that finds
+            // nothing (Vapecord-ACHHD-Plugin's "^VapecordACHHD", its zip holding only luma/plugins). What a later step needs
+            // and did not come out fails that step (installs and extractions check that this run wrote their file).
+            (void) extracted;
         } else if(s->type == STEP_MOVE) {
             if(!script_created(run, s->a)) {
                 res = R_APP_BAD_DATA;   // Not written by this run (a step for it was skipped).

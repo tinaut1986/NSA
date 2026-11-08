@@ -873,6 +873,7 @@ const i18n_entry i18n_ca[] = {
         {"Saves it in /nsa/received/ to install it later from Files.", "El desa a /nsa/received/ per instal·lar-lo després des de Fitxers."},
         {"Download the 3DSX again", "Baixar el 3DSX de nou"},
         {"On this console: %s", "En aquesta consola: %s"},
+        {"its files", "els seus fitxers"},
         {"\uE000 get   \uE003 view   \uE004 filter   \uE005 search   \uE001 back", "\uE000 obtenir   \uE003 vista   \uE004 filtre   \uE005 cercar   \uE001 tornar"},
         {"Category", "Categoria"},
         {"Apps", "Aplicacions"},

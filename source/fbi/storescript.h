@@ -17,6 +17,9 @@ bool storescript_plain_cia(json_t* script);
 const char* storescript_first_url(json_t* script);
 // The .3dsx the script leaves (its file name without the extension), or "" when none.
 void storescript_dsx_name(json_t* script, char* out, size_t size);
+// A path as the catalogue writes it ("%3DSX%/app.3dsx", "sdmc:/luma/plugins") as a path on the card ("/3ds/app.3dsx");
+// false for one NSA cannot place.
+bool storescript_resolve_path(const char* in, char* out, size_t size);
 
 // Runs a supported script, given as JSON text: asks `question` first, then the downloads (the usual progress screen), then
 // the rest (a progress bar), then installs the CIAs (the usual install screens). `done` runs at the end, `ok` when every

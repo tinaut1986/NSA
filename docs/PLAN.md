@@ -212,7 +212,8 @@ no DSP firmware (sdmc:/3ds/dspfirm.cdc comes from a console).
   turn, toast and trace count what is left. Tested with ftplib: an 8 MB file sent and fetched in two parts, SHA-256 equal.
 - An APPE or a STOR after REST from an offset that is not a multiple of 64 KB first writes up to one, then flushes:
   SD writes that start mid-block ran at 34 KB/s (APPE onto a 3,158,073-byte file), now 720-800 KB/s (930-1190 aligned).
-- [ ] FileZilla: a download and an upload cut and resumed.
+- [x] curl -C - on the 2DS (2026-11-08): an upload cut at 3.3 MB picked up with SIZE + APPE, a download cut at 2.4 MB
+  with REST + RETR; the 20 MB file came back with the same SHA-256. FileZilla sends the same commands; not tried itself.
 
 **Time left in the transfer toast** (2026-11-07, `feat/toast-eta`; built, not seen on a console):
 - The FTP and web page toast's second line starts with the time left when the size is known: "FTP, receiving: 3.2 / 12.0 MiB,
@@ -756,7 +757,11 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
 **Dump NAND screen** (branch `advanced`)
 - [x] On a New 3DS XL (2026-11-07): the raw NAND opens, size and free space are right, a dump runs to the end,
       the SHA-256 shown matches the file and the `.sha256` passes `sha256sum -c`.
-- [ ] Still to see: cancelling deletes the half file, a full SD card shows the red "not enough space" screen.
+- [x] On the 2DS (2026-11-08, 0.9.2-dev.112): B during the dump stops it at once; the half file (199 MB) is deleted
+      once the notice is closed and the screen is back at the start. With 859 MiB free (a filler plus a preallocated
+      SITE SDBENCH) the screen is red: "Faltan 84.75 MiB: libera espacio primero", only Back (A goes back too).
+- [ ] The cancel notice is titled "Failure" though the owner cancelled, and B cancels without asking: one stray press
+      throws a long dump away. Ask first, and title it as a cancel?
 
 **Dump NAND on three threads** (2026-11-07, `feat/dumpnand-pipeline`): read (core 1), write (core 0) and hash
 (core 2, or core 0 on an Old 3DS) in 1 MB blocks, four of them in flight, with `osSetSpeedupEnable`. On the New 3DS XL,
@@ -765,7 +770,7 @@ SHA-256 checked with `sha256sum -c`, and it differs from the earlier dumps only 
 is the limit now (slower while the NAND is read at the same time). The dump used to turn the clock and L2 off when it
 ended (`fix/dumpnand-speedup`: FTP fell from 1.3 MB/s to 0.46 after a dump).
 - [x] On the 2DS (2026-11-08, hash on core 0): 1.98 GB in 558 s against 1153 s on 0.8.5.
-- [ ] Cancelling and the full SD again on this build.
+- [x] Cancelling and the full SD again on this build (see above).
 
 **Dump NAND up to the last partition** (2026-11-08, `feat/dumpnand-trim`): the system says 1.84 GiB for the raw NAND on
 every model, but after the last NCSD partition only zeros come; the dump stops there, as GodMode9's SysNAND backups do

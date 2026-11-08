@@ -1218,6 +1218,13 @@ const i18n_entry i18n_zh[] = {
         {"%lu file extracted to %s", "已将 %lu 个文件解压到 %s"},
         {"%lu files extracted to %s", "已将 %lu 个文件解压到 %s"},
         {"The archive had no files.", "压缩包中没有文件。"},
+        // Installing an older version (0.9.3)
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.\nIts save data is backed up and put back.", "%s 已安装 (v%s)；此 CIA 为 v%s，版本更旧。\n要安装它，需先删除已安装的版本。\n存档会先备份，安装后再放回。"},
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.", "%s 已安装 (v%s)；此 CIA 为 v%s，版本更旧。\n要安装它，需先删除已安装的版本。"},
+        {"Older version", "更旧的版本"},
+        {"The install did not finish. The save data of the title that was deleted is kept in %s.", "安装未完成。已删除游戏的存档保存在 %s。"},
+        {"Save data kept", "存档已保留"},
+        {"Installed, but its save data could not be put back. It is kept in %s.", "已安装，但无法放回存档。存档保存在 %s。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

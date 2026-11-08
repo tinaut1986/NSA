@@ -1227,6 +1227,13 @@ const i18n_entry i18n_ru[] = {
         {"%lu file extracted to %s", "Распаковано файлов: %lu, в %s"},
         {"%lu files extracted to %s", "Распаковано файлов: %lu, в %s"},
         {"The archive had no files.", "В архиве не было файлов."},
+        // Installing an older version (0.9.3)
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.\nIts save data is backed up and put back.", "%s установлен (v%s); этот CIA — v%s, более старая.\nЧтобы установить её, установленная сначала удаляется.\nСохранение копируется и возвращается."},
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.", "%s установлен (v%s); этот CIA — v%s, более старая.\nЧтобы установить её, установленная сначала удаляется."},
+        {"Older version", "Более старая версия"},
+        {"The install did not finish. The save data of the title that was deleted is kept in %s.", "Установка не завершилась. Сохранение удалённой игры лежит в %s."},
+        {"Save data kept", "Сохранение сбережено"},
+        {"Installed, but its save data could not be put back. It is kept in %s.", "Установлено, но вернуть сохранение не удалось. Оно лежит в %s."},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

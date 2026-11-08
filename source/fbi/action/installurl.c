@@ -358,6 +358,8 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
                     res = AM_InstallFirm(installData->currTitleId);
                 }
             }
+
+            action_install_cia_ended(installData->currTitleId, R_SUCCEEDED(res));
         } else if(installData->contentType == CONTENT_TICKET) {
             res = AMNET_InstallTicketFinish(handle);
         } else if(installData->contentType == CONTENT_3DSX_SMDH || installData->contentType == CONTENT_SAVED) {
@@ -366,6 +368,7 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
     } else {
         if(installData->contentType == CONTENT_CIA) {
             res = AM_CancelCIAInstall(handle);
+            action_install_cia_ended(installData->currTitleId, false);
         } else if(installData->contentType == CONTENT_TICKET) {
             res = AMNET_InstallTicketAbort(handle);
         } else if(installData->contentType == CONTENT_3DSX_SMDH || installData->contentType == CONTENT_SAVED) {

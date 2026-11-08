@@ -1226,6 +1226,13 @@ const i18n_entry i18n_ca[] = {
         {"%lu file extracted to %s", "%lu fitxer extret a %s"},
         {"%lu files extracted to %s", "%lu fitxers extrets a %s"},
         {"The archive had no files.", "El comprimit no tenia fitxers."},
+        // Installing an older version (0.9.3)
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.\nIts save data is backed up and put back.", "%s està instal·lat (v%s); aquest CIA és la v%s, més antiga.\nPer instal·lar-lo, primer s'esborra l'instal·lat.\nLa partida es copia i es torna a posar."},
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.", "%s està instal·lat (v%s); aquest CIA és la v%s, més antiga.\nPer instal·lar-lo, primer s'esborra l'instal·lat."},
+        {"Older version", "Versió més antiga"},
+        {"The install did not finish. The save data of the title that was deleted is kept in %s.", "La instal·lació no ha acabat. La partida del títol esborrat està desada a %s."},
+        {"Save data kept", "Partida desada"},
+        {"Installed, but its save data could not be put back. It is kept in %s.", "Instal·lat, però no s'ha pogut tornar a posar la partida. Està desada a %s."},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

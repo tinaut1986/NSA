@@ -151,6 +151,13 @@ Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Han
     FS_MediaType currMediaType = MEDIATYPE_NAND;
 
     if(envIsHomebrew() || R_FAILED(APT_GetAppletInfo((NS_APPID) envGetAptAppId(), &currTitleId, (u8*) &currMediaType, NULL, NULL, NULL)) || titleId != currTitleId || dest != currMediaType) {
+        // A lower version: asked first, its save backed up (installsave.c), and put back once it is installed.
+        Result res = 0;
+        if(R_SUCCEEDED(AM_GetTitleInfo(dest, 1, &titleId, &installed)) && installed.titleID == titleId
+           && R_FAILED(res = action_install_cia_lower(dest, titleId, version, installed.version))) {
+            return res;
+        }
+
         AM_DeleteTitle(dest, titleId);
         AM_DeleteTicket(titleId);
 
@@ -159,7 +166,12 @@ Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Han
         }
     }
 
-    return AM_StartCiaInstall(dest, handle);
+    Result res = AM_StartCiaInstall(dest, handle);
+    if(R_FAILED(res)) {
+        action_install_cia_ended(titleId, false);
+    }
+
+    return res;
 }
 
 static Result action_install_cias_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
@@ -179,9 +191,14 @@ static Result action_install_cias_close_dst(void* data, u32 index, bool succeede
             }
         }
 
+        action_install_cia_ended(info->ciaInfo.titleId, R_SUCCEEDED(res));
         return res;
     } else {
-        return AM_CancelCIAInstall(handle);
+        install_cias_data* installData = (install_cias_data*) data;
+        file_info* info = (file_info*) ((list_item*) linked_list_get(&installData->contents, index))->data;
+        Result res = AM_CancelCIAInstall(handle);
+        action_install_cia_ended(info->ciaInfo.titleId, false);
+        return res;
     }
 }
 

@@ -40,6 +40,10 @@ void action_install_cia_paths_now(const char* paths, bool delete);
 // Starts installing a CIA of `titleId` / `version` on `dest`: over the installed title when this is the same version or
 // a higher one (nothing deleted, the save kept), else deleting the installed one first.
 Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Handle* handle);
+// installsave.c: a lower version than the installed one. Asks, backs up the save (an error, or R_APP_SKIPPED when the
+// user says no: nothing deleted then); `ended` once the install is over puts the save back, or says where it is kept.
+Result action_install_cia_lower(FS_MediaType dest, u64 titleId, u16 version, u16 installedVersion);
+void action_install_cia_ended(u64 titleId, bool installed);
 void action_install_cias(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_cias_delete(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 // The CIAs of the folder `selected` that `filter` keeps (the Files screen's selection).

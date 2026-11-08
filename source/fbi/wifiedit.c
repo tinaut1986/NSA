@@ -39,6 +39,7 @@ typedef struct {
     bool rebuild;
 
     int connection;           // The connection it goes to (0-2), or -1 for a copy.
+    bool inUse;               // The console is connected through it (when the screen opened).
     wifislots_backup* backup;
     void (*saved)(void* data);
     void* data;
@@ -149,7 +150,12 @@ static void edit_draw_top(ui_view* view, void* data, float x1, float y1, float x
     widget_text_fit(e->ssid[0] != '\0' ? e->ssid : _("Empty"), x + 54, y1 + 18, WIDGET_TITLE_SCALE, t->palette->text, w - 64);
     widget_text_fit(subtitle, x + 54, y1 + 20 + widget_text_height(WIDGET_TITLE_SCALE), WIDGET_SMALL_SCALE, t->palette->textMuted, w - 64);
 
-    const char* hint = e->connection >= 0 ? _("Saving writes the connection: the console uses it at once.") : _("Saving rewrites the copy's file; its alias and date stay.");
+    // When the console takes it up: the one it is on only after sleep mode, another one at its next connection; not
+    // connected, NSA connects with it on saving.
+    const char* hint = e->connection < 0 ? _("Saving rewrites the copy's file; its alias and date stay.")
+                       : e->inUse ? _("Saving writes the connection; the console stays on this network until it is put in sleep mode and woken.")
+                       : wifislots_online() ? _("Saving writes the connection; the console uses it the next time it connects.")
+                       : _("Saving writes the connection, and NSA connects with it.");
     screen_draw_text_wrap(hint, x + 2, y1 + 72, WIDGET_SMALL_SCALE + 0.04f, t->palette->textMuted, x + w - 2);
 }
 
@@ -408,6 +414,7 @@ void wifiedit_open(const wifislots_slot* start, int connection, wifislots_backup
     }
 
     e->connection = connection;
+    e->inUse = connection >= 0 && wifislots_in_use((u32) connection);
     e->backup = backup;
     e->saved = saved;
     e->data = data;

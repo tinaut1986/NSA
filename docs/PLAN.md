@@ -772,6 +772,28 @@ ended (`fix/dumpnand-speedup`: FTP fell from 1.3 MB/s to 0.46 after a dump).
 - [x] On the 2DS (2026-11-08, hash on core 0): 1.98 GB in 558 s against 1153 s on 0.8.5.
 - [x] Cancelling and the full SD again on this build (see above).
 
+**Wi-Fi connections** (2026-11-08, `feat/wifi-slots`; System -> Network, A): the console's three connections and the
+copies in /3ds/WifiManager (WifiManager's folder and format: 0xC00 bytes, then "\nWMB1\t<time>\t<alias>\n"; both apps see
+the same copies). A connection: save a copy, or restore one there; a copy: restore it to connection 1-3 (red, and asked,
+when that replaces one), delete it; Y shows the passwords (8 stars otherwise).
+- Why WifiManager's restores did nothing until System Settings: the ac service reads the connections from the config
+  once, at boot, and connects with its own copy; writing the config blocks (CFG_SetConfigInfoBlk8) does not reach it,
+  and ac's next flush can even write its old copy back. NSA writes through ac:i as System Settings does:
+  LoadNetworkSetting (or InitializeNetworkSetting when empty), one setter per field, UpdateNetworkSetting,
+  FlushNetworkSetting (ac saves the config itself). Checked: the block read back is byte for byte what was meant (0x4-0x414,
+  the CRC's range, ac computes the CRC), also with a changed passphrase and back.
+- The setters' static buffer numbers are not on 3dbrew; found by sending empty buffers (ac checks the number, not the
+  size): name 2, key 3, BSSID 4, passphrase 8, IP 9, gateway 10, netmask 11, DNS 12, proxy host 13, user 14, password
+  15. **A buffer larger than what ac set aside for that number crashes the console** (kernel prefetch abort while
+  serving ac; seen with 0x40 bytes to number 2): wifislots.c sends each field with its own size, never more.
+- NSA's RSF (buildtools' template) lists neither cfg:i nor ac:i; Luma3DS lets NSA open them anyway (libctru tries
+  them first). DEBUG: SITE WIFIREAD (names, CRCs, what ac says), SITE WIFIROUNDTRIP <slot> [1] (write through ac:i and
+  read back; refuses the connection in use).
+- [x] On the New 3DS XL: the list, a copy saved (same bytes as WifiManager's copy of that network, but the last DHCP
+  address), restored to its connection (the three read the same after, Wi-Fi stayed up), deleted; restore here -> No.
+- [ ] Restore a copy of another network into a connection and connect with it without opening System Settings;
+  a WPS/AOSS connection; Old 3DS/2DS; the 10 languages.
+
 **B asks before it stops** (2026-11-08, `feat/confirm-cancel`): under every progress bar that says how to stop it
 (installs, copies, pastes, deletes, imports, exports, console to console, Store files), B asks first, red: "Stop now?
 What is left is not done." No goes on; yes hands the update the B it reads (injected, as the web page's keys are). The

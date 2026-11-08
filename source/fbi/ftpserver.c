@@ -1343,6 +1343,17 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    // Each game's ext data ID from its exheader against the guesses (issue #13), into /nsa/extids.csv.
+    if(NSA_DEBUG && strcmp(sub, "EXTIDS") == 0) {
+        if(!action_ext_data_debug("sdmc:" APP_DATA_DIR "extids.csv")) {
+            ftp_reply(s, "550 Could not create " APP_DATA_DIR "extids.csv.");
+            return;
+        }
+
+        ftp_reply(s, "200 " APP_DATA_DIR "extids.csv written.");
+        return;
+    }
+
     if(strcmp(sub, "SDBENCH") == 0) {
         unsigned mb = 0, bufferKb = FTP_FILE_BUFFER / 1024;
         char flag[8] = "";

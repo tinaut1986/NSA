@@ -63,6 +63,17 @@ static bool unarchive_target(const char* name, const char* pattern, const char* 
     return (size_t) snprintf(out, size, "%s%s", output, rest) < size;
 }
 
+// Whether a matching entry may go to `target`: never out of `output` through a "..", and where the caller lets it.
+static bool unarchive_allowed(unarchive_progress* progress, const char* target) {
+    for(const char* p = strstr(target, ".."); p != NULL; p = strstr(p + 2, "..")) {
+        if((p == target || p[-1] == '/') && (p[2] == '/' || p[2] == 0)) {
+            return false;
+        }
+    }
+
+    return progress == NULL || progress->allowed == NULL || progress->allowed(progress->userData, target);
+}
+
 static bool unarchive_is_dir_name(const char* name) {
     size_t len = strlen(name);
     return len > 0 && name[len - 1] == '/';
@@ -350,6 +361,12 @@ static Result unarchive_zip(const char* archive, const char* pattern, const char
 
             if(!unarchive_target(name, pattern, output, target, sizeof(target))) {
                 continue;
+            }
+
+            // Pass 0 asks for every entry, so a refused one stops it before anything is written.
+            if(!unarchive_allowed(progress, target)) {
+                res = R_APP_BAD_DATA;
+                break;
             }
 
             if(unarchive_is_dir_name(name)) {
@@ -868,6 +885,12 @@ static Result unarchive_7z(const char* archive, const char* pattern, const char*
 
         if(!unarchive_target(name, pattern, output, target, sizeof(target))) {
             continue;
+        }
+
+        // Every entry is asked before the blocks are read, so a refused one stops it before any file is written.
+        if(!unarchive_allowed(progress, target)) {
+            res = R_APP_BAD_DATA;
+            break;
         }
 
         if(isDir) {

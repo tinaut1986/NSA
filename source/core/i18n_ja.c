@@ -1231,6 +1231,13 @@ const i18n_entry i18n_ja[] = {
         {"%lu file extracted to %s", "%lu個のファイルを%sに展開しました"},
         {"%lu files extracted to %s", "%lu個のファイルを%sに展開しました"},
         {"The archive had no files.", "アーカイブにファイルがありませんでした。"},
+        // Installing an older version (0.9.3)
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.\nIts save data is backed up and put back.", "%s はインストール済みです (v%s)。このCIAはv%sで、古いバージョンです。\nインストールするには、先にインストール済みのものを削除します。\nセーブデータはコピーして元に戻します。"},
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.", "%s はインストール済みです (v%s)。このCIAはv%sで、古いバージョンです。\nインストールするには、先にインストール済みのものを削除します。"},
+        {"Older version", "古いバージョン"},
+        {"The install did not finish. The save data of the title that was deleted is kept in %s.", "インストールが完了しませんでした。削除したタイトルのセーブデータは %s に残っています。"},
+        {"Save data kept", "セーブデータを保管"},
+        {"Installed, but its save data could not be put back. It is kept in %s.", "インストールしましたが、セーブデータを元に戻せませんでした。%s に残っています。"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

@@ -1219,6 +1219,13 @@ const i18n_entry i18n_tw[] = {
         {"%lu file extracted to %s", "已將 %lu 個檔案解凍到 %s"},
         {"%lu files extracted to %s", "已將 %lu 個檔案解凍到 %s"},
         {"The archive had no files.", "壓縮包中沒有檔案。"},
+        // Installing an older version (0.9.3)
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.\nIts save data is backed up and put back.", "%s 已安裝 (v%s)；此 CIA 為 v%s，版本較舊。\n要安裝它，需先刪除已安裝的版本。\n存檔會先備份，安裝後再放回。"},
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.", "%s 已安裝 (v%s)；此 CIA 為 v%s，版本較舊。\n要安裝它，需先刪除已安裝的版本。"},
+        {"Older version", "較舊的版本"},
+        {"The install did not finish. The save data of the title that was deleted is kept in %s.", "安裝未完成。已刪除遊戲的存檔保存在 %s。"},
+        {"Save data kept", "存檔已保留"},
+        {"Installed, but its save data could not be put back. It is kept in %s.", "已安裝，但無法放回存檔。存檔保存在 %s。"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

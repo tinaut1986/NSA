@@ -1226,6 +1226,13 @@ const i18n_entry i18n_fr[] = {
         {"%lu file extracted to %s", "%lu fichier extrait dans %s"},
         {"%lu files extracted to %s", "%lu fichiers extraits dans %s"},
         {"The archive had no files.", "L'archive ne contenait aucun fichier."},
+        // Installing an older version (0.9.3)
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.\nIts save data is backed up and put back.", "%s est installé (v%s) ; ce CIA est la v%s, plus ancienne.\nPour l'installer, le titre installé est d'abord supprimé.\nSa sauvegarde est copiée puis remise."},
+        {"%s is installed (v%s); this CIA is v%s, an older one.\nTo install it, the installed title is deleted first.", "%s est installé (v%s) ; ce CIA est la v%s, plus ancienne.\nPour l'installer, le titre installé est d'abord supprimé."},
+        {"Older version", "Version plus ancienne"},
+        {"The install did not finish. The save data of the title that was deleted is kept in %s.", "L'installation n'a pas abouti. La sauvegarde du titre supprimé est conservée dans %s."},
+        {"Save data kept", "Sauvegarde conservée"},
+        {"Installed, but its save data could not be put back. It is kept in %s.", "Installé, mais sa sauvegarde n'a pas pu être remise. Elle est conservée dans %s."},
 };
 
 const u32 i18n_fr_count = sizeof(i18n_fr) / sizeof(*i18n_fr);

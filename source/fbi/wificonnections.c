@@ -333,6 +333,74 @@ static void wifi_rename(void* listData) {
     osk_display(_("Alias (empty = network name)"), data->backups[entry->index].alias, 96, 0, listData, wifi_rename_typed);
 }
 
+// ---- connecting (the console not connected) ----
+
+typedef struct {
+    wifislots_job job;
+    char before[320];
+} wifi_connecting;
+
+static void wifi_connecting_update(ui_view* view, void* data, float* progress, char* text) {
+    wifi_connecting* c = (wifi_connecting*) data;
+    snprintf(text, PROGRESS_TEXT_MAX, _("Connecting with connection %lu..."), c->job.index + 1);
+    if(!c->job.done) {
+        return;
+    }
+
+    ui_pop();
+    info_destroy(view);
+
+    char message[600];
+    int used = 0;
+    if(c->before[0] != '\0') {
+        used = snprintf(message, sizeof(message), "%s\n\n", c->before);
+    }
+
+    if(used < 0 || (size_t) used >= sizeof(message)) {
+        used = 0;
+    }
+
+    bool ok = R_SUCCEEDED(c->job.result);
+    if(ok) {
+        snprintf(message + used, sizeof(message) - (size_t) used, _("Connected with connection %lu."), c->job.index + 1);
+    } else if(c->job.result == WIFISLOTS_TIMED_OUT) {
+        snprintf(message + used, sizeof(message) - (size_t) used, _("Connection %lu did not connect in time: check that the network is in reach and its password."),
+                 c->job.index + 1);
+    } else {
+        snprintf(message + used, sizeof(message) - (size_t) used, _("Could not connect with connection %lu (%08lX): check that the network is in reach and its password."),
+                 c->job.index + 1, (u32) c->job.result);
+    }
+
+    prompt_display_notify(ok ? "Success" : "Failure", message, COLOR_TEXT, NULL, NULL, NULL);
+    free(c);
+}
+
+void wificonnections_connect(u32 index, const char* before) {
+    wifi_connecting* c = (wifi_connecting*) calloc(1, sizeof(wifi_connecting));
+    if(c == NULL) {
+        error_display(NULL, NULL, "Failed to allocate Wi-Fi data.");
+        return;
+    }
+
+    c->job.index = index;
+    c->job.timeoutMs = 30000;
+    snprintf(c->before, sizeof(c->before), "%s", before != NULL ? before : "");
+    if(!wifislots_connect_start(&c->job)) {
+        error_display(NULL, NULL, "Failed to start connecting.");
+        free(c);
+        return;
+    }
+
+    info_display(_("Wi-Fi connections"), "", false, c, wifi_connecting_update, NULL);
+}
+
+static void wifi_connect_action(void* listData) {
+    wifi_data* data = (wifi_data*) listData;
+    wifi_entry* entry = (wifi_entry*) data->actionSelected->data;
+    data->populated = false;
+    wificonnections_connect(entry->index, NULL);
+}
+
 static void wifi_restore_answer(ui_view* view, void* listData, u32 response) {
     wifi_data* data = (wifi_data*) listData;
     if(response != PROMPT_YES) {
@@ -354,8 +422,14 @@ static void wifi_restore_answer(ui_view* view, void* listData, u32 response) {
     wifislots_name(&slot, name, sizeof(name));
     char message[400];
     int used = snprintf(message, sizeof(message), _("Connection %lu is now %s."), data->target + 1, name);
+    // Not connected: it connects with it now (the system would wait for the HOME Menu).
+    if(!wifislots_online()) {
+        wificonnections_connect(data->target, message);
+        return;
+    }
+
     if(inUse && used > 0 && (size_t) used < sizeof(message)) {
-        snprintf(message + used, sizeof(message) - (size_t) used, "\n\n%s", _("The console stays on the network it is connected to until it connects again: close it and open it, or restart it."));
+        snprintf(message + used, sizeof(message) - (size_t) used, "\n\n%s", _("The console stays on the network it is connected to until it connects again: put it in sleep mode and wake it, or restart it."));
     }
 
     prompt_display_notify("Success", message, COLOR_TEXT, NULL, NULL, NULL);
@@ -499,9 +573,13 @@ static void wifi_actions_open(wifi_data* data, list_item* selected) {
 
     static char labels[WIFISLOTS_COUNT][64];
     static char details[WIFISLOTS_COUNT][64];
-    sheet_action actions[8];
+    sheet_action actions[9];
     u32 count = 0;
     if(entry->kind == ENTRY_SLOT) {
+        if(wifi_slot_used(data, entry->index) && !wifislots_online()) {
+            actions[count++] = (sheet_action) {ICON_WIFI, _("Connect"), false, wifi_connect_action, false, _("The console is not connected: try this connection now.")};
+        }
+
         if(wifi_slot_used(data, entry->index)) {
             actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save a copy"), false, wifi_save};
             actions[count++] = (sheet_action) {ICON_PENCIL, _("Edit"), false, wifi_edit};

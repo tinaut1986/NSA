@@ -644,3 +644,81 @@ Result wifislots_update_backup(wifislots_backup* backup, const wifislots_slot* s
 
     return res;
 }
+
+// ---- connecting while the console is not connected ----
+//
+// With NSA in front, the system does not connect by itself (the HOME Menu does): NSA asks, as a game does (the sequence
+// read in a game for ac:u): ndm's infrastructure exclusive state, ConnectAsync with the connections allowed (AP types:
+// connection 1, 2, 3 = 1, 2, 4, as GetWifiStatus says them; libctru's AC_AP_TYPE_SLOT* are one bit off), its event,
+// GetConnectResult, leaving the exclusive state; the connection stays up. While the console is connected, asking for
+// another connection only fails (C8809FFA), and closing the system's connection from an app leaves the Wi-Fi half
+// dead until HOME (seen on a New 3DS XL): NSA never tries that.
+
+static Result acu_pid_call(u16 command) {
+    u32* cmdbuf = getThreadCommandBuffer();
+    cmdbuf[0] = IPC_MakeHeader(command, 0, 2);
+    cmdbuf[1] = IPC_Desc_CurProcessId();
+    cmdbuf[2] = 0;
+    Result res = svcSendSyncRequest(*acGetSessionHandle());
+    return R_FAILED(res) ? res : (Result) cmdbuf[1];
+}
+
+bool wifislots_online() {
+    u32 status = 0;
+    return R_SUCCEEDED(ACU_GetWifiStatus(&status)) && status != 0;
+}
+
+Result wifislots_connect(u32 index, u32 timeoutMs) {
+    u32 mask = index < WIFISLOTS_COUNT ? BIT(index) : 0;
+    u32 status = 0;
+    if(R_SUCCEEDED(ACU_GetWifiStatus(&status)) && status != 0) {
+        return mask == 0 || (status & mask) != 0 ? 0 : WIFISLOTS_CONNECTED_OTHER;
+    }
+
+    Result res = ndmuInit();
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    Result exclusive = NDMU_EnterExclusiveState(NDM_EXCLUSIVE_STATE_INFRASTRUCTURE);
+    acuConfig config;
+    Handle event = 0;
+    if(R_SUCCEEDED(res = ACU_CreateDefaultConfig(&config)) && (mask == 0 || R_SUCCEEDED(res = ACU_SetAllowApType(&config, (u8) mask)))
+       && R_SUCCEEDED(res = svcCreateEvent(&event, RESET_ONESHOT)) && R_SUCCEEDED(res = ACU_ConnectAsync(&config, event))) {
+        if(svcWaitSynchronization(event, (s64) timeoutMs * 1000000LL) == 0) {
+            res = acu_pid_call(0x5);   // GetConnectResult
+        } else {
+            acu_pid_call(0x7);         // CancelConnectAsync
+            res = WIFISLOTS_TIMED_OUT;
+        }
+    }
+
+    if(event != 0) {
+        svcCloseHandle(event);
+    }
+
+    if(R_SUCCEEDED(exclusive)) {
+        NDMU_LeaveExclusiveState();
+    }
+
+    ndmuExit();
+    return res;
+}
+
+static void wifislots_connect_thread(void* arg) {
+    wifislots_job* job = (wifislots_job*) arg;
+    job->result = wifislots_connect(job->index, job->timeoutMs);
+    job->done = true;
+}
+
+bool wifislots_connect_start(wifislots_job* job) {
+    job->done = false;
+    job->result = 0;
+    if(threadCreate(wifislots_connect_thread, job, 0x4000, 0x30, 0, true) == NULL) {
+        job->done = true;
+        job->result = -1;
+        return false;
+    }
+
+    return true;
+}

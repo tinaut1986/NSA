@@ -331,9 +331,11 @@ static void edit_save_answer(ui_view* view, void* data, u32 response) {
 
     sheet_confirmed();   // The sheet it was opened from goes too.
     edit_close(edit_view, e);
-    if(inUse) {
+    if(e->connection >= 0 && !wifislots_online()) {
+        wificonnections_connect((u32) e->connection, _("Changes saved."));
+    } else if(inUse) {
         char message[400];
-        snprintf(message, sizeof(message), "%s\n\n%s", _("Changes saved."), _("The console stays on the network it is connected to until it connects again: close it and open it, or restart it."));
+        snprintf(message, sizeof(message), "%s\n\n%s", _("Changes saved."), _("The console stays on the network it is connected to until it connects again: put it in sleep mode and wake it, or restart it."));
         prompt_display_notify("Success", message, COLOR_TEXT, NULL, NULL, NULL);
     } else {
         prompt_display_notify("Success", "Changes saved.", COLOR_TEXT, NULL, NULL, NULL);

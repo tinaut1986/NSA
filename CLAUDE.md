@@ -46,12 +46,13 @@ SendUserFile; installing it on a console still waits for them to ask (they usual
 
 ## Branches in use
 
-- **`staging`** (since 2026-11-07): what is finished but **not yet tried on a console**. While it exists, topic branches are
-  cut from `staging` and merged (`--no-ff`) into `staging`, not `release`; push both. Once the owner confirms the items of
-  "Pending tests on the console", `staging` is merged into `release` (then `release` into `advanced`).
-- `release`: the working line; `master`: stable (only moves by merging `release`).
-- `advanced`: the risky tools (Dump NAND, Pending titles, System save data, Advanced's red look). Merge `release`
-  into it after changing `release` (`git merge release`), and the owner's call decides when it goes into `release`.
+- **`staging`** (since 2026-11-07, kept for good): the owner's **internal** line, for work that is finished but **not to be
+  published yet, not even as a beta** (anything on `release` can be tagged and published). Topic branches are cut from
+  `staging` and merged (`--no-ff`) into `staging`, not `release`; push both. `staging` goes into `release` only when the
+  owner says so (after their console tests: "Pending tests on the console"). Never delete it, even when it equals `release`.
+- `release`: beta, what may be published (a tag on it publishes a Beta); `master`: stable (only moves by merging `release`).
+- `advanced` no longer exists (2026-11-08: its Dump NAND screen came into `staging`).
+- `feat/website` is the GitHub Pages source (`/docs` of that branch): do not delete it.
 - DEBUG builds for the owner's consoles: build with the **micro version of the latest tag** (after a `make clean`):
   `tools/version.sh` gives that tag's major and minor, so after `v0.6.1` that is `make DEBUG=1 VERSION_MICRO=1` (title
   0.6.1, what the consoles hold once they update). `SITE INSTALL` and the web page's install take the **same** version

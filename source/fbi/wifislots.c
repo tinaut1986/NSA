@@ -327,6 +327,39 @@ static void wifislots_file_base(const char* from, char* out, size_t size) {
     }
 }
 
+// The file: the connection, then the trailer with the date and the alias (no tab or line break in it: they end fields).
+static Result wifislots_write_file(const char* file, const wifislots_slot* slot, time_t saved, const char* alias) {
+    char clean[100];
+    size_t n = 0;
+    for(const char* c = alias != NULL ? alias : ""; *c != '\0' && n + 1 < sizeof(clean); c++) {
+        clean[n++] = (*c == '\t' || *c == '\n' || *c == '\r') ? ' ' : *c;
+    }
+
+    clean[n] = '\0';
+
+    FILE* f = fopen(file, "wb");
+    if(f == NULL) {
+        return -1;
+    }
+
+    wifislots_slot copy = *slot;
+    copy.crc = wifislots_crc16((const u8*) &copy + 4, 0x410);
+    char trailer[160];
+    int trailerLen = snprintf(trailer, sizeof(trailer), "\nWMB1\t%lld\t%s\n", (long long) saved, clean);
+    bool ok = fwrite(&copy, 1, WIFISLOTS_FILE_BYTES, f) == WIFISLOTS_FILE_BYTES && fwrite(trailer, 1, (size_t) trailerLen, f) == (size_t) trailerLen;
+    ok = fclose(f) == 0 && ok;
+    return ok ? 0 : -1;
+}
+
+Result wifislots_set_alias(wifislots_backup* backup, const char* alias) {
+    Result res = wifislots_write_file(backup->path, &backup->slot, backup->saved != 0 ? backup->saved : time(NULL), alias);
+    if(R_SUCCEEDED(res)) {
+        snprintf(backup->alias, sizeof(backup->alias), "%s", alias != NULL ? alias : "");
+    }
+
+    return res;
+}
+
 Result wifislots_save_backup(const wifislots_slot* slot, const char* alias, char* path, size_t pathSize) {
     mkdir("sdmc:/3ds", 0777);
     mkdir("sdmc:" WIFISLOTS_BACKUP_DIR, 0777);
@@ -343,18 +376,7 @@ Result wifislots_save_backup(const wifislots_slot* slot, const char* alias, char
         snprintf(file, sizeof(file), "sdmc:" WIFISLOTS_BACKUP_DIR "/%s_%lu.bin", base, i);
     }
 
-    FILE* f = fopen(file, "wb");
-    if(f == NULL) {
-        return -1;
-    }
-
-    wifislots_slot copy = *slot;
-    copy.crc = wifislots_crc16((const u8*) &copy + 4, 0x410);
-    char trailer[128];
-    int trailerLen = snprintf(trailer, sizeof(trailer), "\nWMB1\t%lld\t%s\n", (long long) time(NULL), alias != NULL ? alias : "");
-    bool ok = fwrite(&copy, 1, WIFISLOTS_FILE_BYTES, f) == WIFISLOTS_FILE_BYTES && fwrite(trailer, 1, (size_t) trailerLen, f) == (size_t) trailerLen;
-    ok = fclose(f) == 0 && ok;
-    if(!ok) {
+    if(R_FAILED(wifislots_write_file(file, slot, time(NULL), alias))) {
         remove(file);
         return -1;
     }

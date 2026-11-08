@@ -1774,6 +1774,21 @@ static void ftp_shutdown() {
 
 // Off for good (Settings, leaving NSA): a start still waiting for the Wi-Fi is
 // dropped too, or it would turn the server back on.
+// Started now, or as soon as there is Wi-Fi (NSA opened without it): it tries every couple of seconds, with no end.
+void ftpserver_start_when_online() {
+    if(ftpserver_start()) {
+        return;
+    }
+
+    ftp_retry = true;
+    ftp_retry_next = osGetTime() + 2000;
+    ftp_retry_end = U64_MAX;
+}
+
+bool ftpserver_waiting() {
+    return ftp_retry && !ftpserver_running();
+}
+
 void ftpserver_stop() {
     ftp_retry = false;
     ftp_paused = false;

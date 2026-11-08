@@ -128,9 +128,9 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_MUSIC: return settings->music == BGMUSIC_LIFT ? _("Lift") : settings->music == BGMUSIC_CALM ? _("Calm") : settings->music == BGMUSIC_SHOP ? _("Shop") : _("Off");
         case OPTION_CHANNEL: return settings->channel == UPDATE_CHANNEL_BETA ? _("Beta") : _("Stable");
         case OPTION_AUTO_UPDATE: return settingsmenu_on_off(settings->autoUpdate);
-        case OPTION_FTP: return settingsmenu_on_off(ftpserver_running());
+        case OPTION_FTP: return ftpserver_running() ? _("On") : ftpserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
         case OPTION_FTP_MUSIC: return settingsmenu_on_off(settings->ftpPausesMusic);
-        case OPTION_WEB: return settingsmenu_on_off(webserver_running());
+        case OPTION_WEB: return webserver_running() ? _("On") : webserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
         default: return NULL;
     }
 }
@@ -181,12 +181,12 @@ static void settingsmenu_change(settings_option option, int direction) {
             settings->autoUpdate = !settings->autoUpdate;
             break;
         case OPTION_FTP:
-            if(ftpserver_running()) {
+            // On, or waiting for the Wi-Fi to start: off. Off: on now, or once there is Wi-Fi.
+            if(ftpserver_running() || ftpserver_waiting()) {
                 ftpserver_stop();
                 settings->ftpServer = false;
             } else {
-                // Saved on even when it cannot start now (no Wi-Fi): it starts next time.
-                ftpserver_start();
+                ftpserver_start_when_online();
                 settings->ftpServer = true;
             }
             break;
@@ -194,11 +194,11 @@ static void settingsmenu_change(settings_option option, int direction) {
             settings->ftpPausesMusic = !settings->ftpPausesMusic;
             break;
         case OPTION_WEB:
-            if(webserver_running()) {
+            if(webserver_running() || webserver_waiting()) {
                 webserver_stop();
                 settings->webServer = false;
             } else {
-                webserver_start();
+                webserver_start_when_online();
                 settings->webServer = true;
             }
             break;

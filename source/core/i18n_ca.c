@@ -117,6 +117,7 @@ const i18n_entry i18n_ca[] = {
         {"FTP: receiving %s", "FTP: rebent %s"},
         {"FTP: installing %s", "FTP: instal·lant %s"},
         {"No Wi-Fi", "Sense Wi-Fi"},
+        {"Waiting for Wi-Fi", "Esperant Wi-Fi"},
         {"Port %d busy", "Port %d ocupat"},
         {"No thread", "Sense fil"},
 

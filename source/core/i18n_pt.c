@@ -1117,6 +1117,8 @@ const i18n_entry i18n_pt[] = {
         {"%s left", "Faltam %s"},
         {"Stop the NAND dump? What was copied is deleted.", "Parar a cópia da NAND? O que foi copiado é apagado."},
         {"NAND dump cancelled.", "Cópia da NAND cancelada."},
+        {"Stop now? What is left is not done.", "Parar agora? O que falta não será feito."},
+        {"Cancelled", "Cancelado"},
         {"FTP, sending", "FTP, enviando"},
         {"Web, receiving", "Web, recebendo"},
         {"Web, sending", "Web, enviando"},

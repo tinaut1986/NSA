@@ -1105,6 +1105,8 @@ const i18n_entry i18n_tw[] = {
         {"%s left", "剩餘 %s"},
         {"Stop the NAND dump? What was copied is deleted.", "停止複製 NAND？已複製的部分將被刪除。"},
         {"NAND dump cancelled.", "已取消複製 NAND。"},
+        {"Stop now? What is left is not done.", "現在停止嗎？剩下的部分將不會完成。"},
+        {"Cancelled", "已取消"},
         {"FTP, sending", "FTP 傳送中"},
         {"Web, receiving", "網頁接收中"},
         {"Web, sending", "網頁傳送中"},

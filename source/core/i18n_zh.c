@@ -1104,6 +1104,8 @@ const i18n_entry i18n_zh[] = {
         {"%s left", "剩余 %s"},
         {"Stop the NAND dump? What was copied is deleted.", "停止复制 NAND？已复制的部分将被删除。"},
         {"NAND dump cancelled.", "已取消复制 NAND。"},
+        {"Stop now? What is left is not done.", "现在停止吗？剩下的部分将不会完成。"},
+        {"Cancelled", "已取消"},
         {"FTP, sending", "FTP 发送中"},
         {"Web, receiving", "网页接收中"},
         {"Web, sending", "网页发送中"},

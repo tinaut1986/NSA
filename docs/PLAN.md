@@ -772,6 +772,15 @@ ended (`fix/dumpnand-speedup`: FTP fell from 1.3 MB/s to 0.46 after a dump).
 - [x] On the 2DS (2026-11-08, hash on core 0): 1.98 GB in 558 s against 1153 s on 0.8.5.
 - [x] Cancelling and the full SD again on this build (see above).
 
+**B asks before it stops** (2026-11-08, `feat/confirm-cancel`): under every progress bar that says how to stop it
+(installs, copies, pastes, deletes, imports, exports, console to console, Store files), B asks first, red: "Stop now?
+What is left is not done." No goes on; yes hands the update the B it reads (injected, as the web page's keys are). The
+notice after is titled "Cancelled", not "Failure" (data_op and the save packer). A paste stopped half way deleted
+nothing: the file it was writing stayed, at its full size (the copy sets it first) but partly written; now it goes.
+- [x] On the New 3DS XL: a 150 MB paste, B -> No went on (38 %, "Quedan 00:00:30"), B -> Yes stopped it, "Cancelado",
+      the half file gone.
+- [ ] A CIA install and console to console: B asks, No goes on, Yes stops.
+
 **Time left under every progress bar** (2026-11-08, `feat/progress-eta`): the progress view (info.c, every copy,
 paste, install, delete, import, export, console to console, Store files) shows "00:01:23 left" under its bar, from
 the average since the bar started to move (it starts again when the bar goes back, as at each file of a copy; none in

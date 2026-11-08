@@ -1117,6 +1117,8 @@ const i18n_entry i18n_ja[] = {
         {"%s left", "残り%s"},
         {"Stop the NAND dump? What was copied is deleted.", "NANDのコピーを中止しますか？コピーした分は削除されます。"},
         {"NAND dump cancelled.", "NANDのコピーを中止しました。"},
+        {"Stop now? What is left is not done.", "今すぐ中止しますか？残りは行われません。"},
+        {"Cancelled", "中止しました"},
         {"FTP, sending", "FTP 送信中"},
         {"Web, receiving", "Web 受信中"},
         {"Web, sending", "Web 送信中"},

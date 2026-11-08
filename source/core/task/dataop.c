@@ -348,7 +348,7 @@ static void task_data_op_thread(void* arg) {
 
         if(R_FAILED(res)) {
             if(res == R_APP_CANCELLED) {
-                prompt_display_notify("Failure", "Operation cancelled.", COLOR_TEXT, NULL, NULL, NULL);
+                prompt_display_notify("Cancelled", "Operation cancelled.", COLOR_TEXT, NULL, NULL, NULL);
                 break;
             } else if(res != R_APP_SKIPPED) {
                 ui_view* errorView = NULL;

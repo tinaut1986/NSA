@@ -1532,7 +1532,7 @@ static void pack_finished(worker* w, Result res) {
     } else if(res != R_APP_CANCELLED) {
         error_display_res(&job->title, task_draw_title_info, res, "Failed to pack the data.");
     } else {
-        prompt_display_notify("Failure", "Operation cancelled.", COLOR_TEXT, NULL, NULL, NULL);
+        prompt_display_notify("Cancelled", "Operation cancelled.", COLOR_TEXT, NULL, NULL, NULL);
     }
 
     free(job);

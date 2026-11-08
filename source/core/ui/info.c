@@ -6,6 +6,7 @@
 
 #include "error.h"
 #include "info.h"
+#include "prompt.h"
 #include "ui.h"
 #include "../screen.h"
 #include "../i18n.h"
@@ -30,6 +31,10 @@ typedef struct {
     u64 etaSince;
     float etaFrom;
     float etaLast;
+
+    // B asks before it stops what runs (see info_update): yes passes a B on to the update.
+    bool passB;
+    u32 letB;   // Frames the injected B may take to arrive; a real one after that asks again.
 } info_data;
 
 #define INFO_BUTTON_HEIGHT 28
@@ -63,8 +68,36 @@ static void info_layout(info_data* infoData, float x1, float y1, float x2, float
     *btnY = *cardY + height + INFO_BUTTON_GAP;
 }
 
+static void info_cancel_onresponse(ui_view* view, void* data, u32 response) {
+    info_data* infoData = (info_data*) data;
+    if(response == PROMPT_YES) {
+        infoData->passB = true;
+    }
+}
+
 static void info_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     info_data* infoData = (info_data*) data;
+
+    // Under a bar that says how to stop it (installs, copies, deletes, console to console...), B asks first: a
+    // stray press must not throw minutes of work away. The updates read B themselves, so a yes hands them one.
+    if(infoData->bar && view->info != NULL && view->info[0] != '\0') {
+        if(infoData->passB) {
+            infoData->passB = false;
+            infoData->letB = 10;
+            input_inject_keys(KEY_B, 1);
+        } else if(infoData->letB > 0) {
+            infoData->letB--;
+        }
+
+        if(hidKeysDown() & KEY_B) {
+            if(infoData->letB > 0) {
+                infoData->letB = 0;
+            } else {
+                prompt_display_warning(view->name, "Stop now? What is left is not done.", COLOR_TEXT, infoData, NULL, info_cancel_onresponse);
+                return;
+            }
+        }
+    }
 
     if(infoData->onButton != NULL) {
         float cx, cy, cw, ch, bx, by, bw;

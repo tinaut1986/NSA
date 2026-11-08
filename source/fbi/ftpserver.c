@@ -1322,6 +1322,15 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    // The notification LED: SITE LED <ok 0/1> <delay> <smoothing> <loop delay> <blink speed> <blinks> <on> <off>.
+    if(NSA_DEBUG && strcmp(sub, "LED") == 0) {
+        unsigned v[8] = {1, 3, 0, 0xFF, 0, 3, 1, 1};
+        sscanf(path != NULL ? path : "", "%u %u %u %u %u %u %u %u", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7]);
+        Result res = led_pattern(v[0] != 0, (u8) v[1], (u8) v[2], (u8) v[3], (u8) v[4], v[5], v[6], v[7]);
+        ftp_reply(s, "200 LED %08lX", (u32) res);
+        return;
+    }
+
     if(strcmp(sub, "SDBENCH") == 0) {
         unsigned mb = 0, bufferKb = FTP_FILE_BUFFER / 1024;
         char flag[8] = "";

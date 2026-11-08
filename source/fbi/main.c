@@ -10,6 +10,7 @@
 #include "../core/fs.h"
 #include <jansson.h>
 #include "../core/http.h"
+#include "../core/led.h"
 #include "../core/screen.h"
 #include "../core/sound.h"
 #include "../core/bgmusic.h"
@@ -295,6 +296,7 @@ void cleanup() {
     bgmusic_exit();
     sleeplog("cleanup: bgmusic_exit done");
     sound_exit();
+    led_exit();
     sleeplog("cleanup: sound_exit done");
     ui_exit();
     sleeplog("cleanup: ui_exit done");

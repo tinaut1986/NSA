@@ -1210,6 +1210,14 @@ const i18n_entry i18n_zh[] = {
         {"The ticked items", "已选的项目"},
         {"Root of the SD card", "SD 卡主目录"},
         {"Root", "主目录"},
+        // Files: extract a .zip or .7z (0.9.3)
+        {"Extract to a folder", "解压到文件夹"},
+        {"Extract here", "解压到此处"},
+        {"Extract", "解压"},
+        {"Files with the same names in this folder are replaced.", "此文件夹中同名的文件将被替换。"},
+        {"%lu file extracted to %s", "已将 %lu 个文件解压到 %s"},
+        {"%lu files extracted to %s", "已将 %lu 个文件解压到 %s"},
+        {"The archive had no files.", "压缩包中没有文件。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

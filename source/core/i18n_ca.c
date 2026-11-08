@@ -1218,6 +1218,14 @@ const i18n_entry i18n_ca[] = {
         {"The ticked items", "El que has marcat"},
         {"Root of the SD card", "Arrel de la targeta SD"},
         {"Root", "Arrel"},
+        // Files: extract a .zip or .7z (0.9.3)
+        {"Extract to a folder", "Extreure en una carpeta"},
+        {"Extract here", "Extreure aquí"},
+        {"Extract", "Extreure"},
+        {"Files with the same names in this folder are replaced.", "Els fitxers d'aquesta carpeta amb el mateix nom se substituiran."},
+        {"%lu file extracted to %s", "%lu fitxer extret a %s"},
+        {"%lu files extracted to %s", "%lu fitxers extrets a %s"},
+        {"The archive had no files.", "El comprimit no tenia fitxers."},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

@@ -1223,6 +1223,14 @@ const i18n_entry i18n_ja[] = {
         {"The ticked items", "チェックした項目"},
         {"Root of the SD card", "SDカードのルート"},
         {"Root", "ルート"},
+        // Files: extract a .zip or .7z (0.9.3)
+        {"Extract to a folder", "フォルダに展開"},
+        {"Extract here", "ここに展開"},
+        {"Extract", "展開"},
+        {"Files with the same names in this folder are replaced.", "このフォルダ内の同じ名前のファイルは置き換えられます。"},
+        {"%lu file extracted to %s", "%lu個のファイルを%sに展開しました"},
+        {"%lu files extracted to %s", "%lu個のファイルを%sに展開しました"},
+        {"The archive had no files.", "アーカイブにファイルがありませんでした。"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

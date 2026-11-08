@@ -53,6 +53,9 @@ void action_delete_dir_tickets(linked_list* items, list_item* selected);
 // The items of the folder `selected` that `filter` keeps (the Files screen's selection), folders with all they hold.
 void action_delete_selected(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_new_folder(linked_list* items, list_item* selected);
+// Everything in the .zip or .7z at `path` (on the SD card) into its folder, or into a new folder named after it;
+// `done` once it ends (to list the folder again), before the message.
+void action_extract_archive(const char* path, bool intoFolder, void (*done)(void* userData), void* userData);
 void action_paste_contents(linked_list* items, list_item* selected);
 // Like it, but a cut item on the same medium (`archiveId`) is renamed into the folder instead of copied.
 void action_paste_contents_in(linked_list* items, list_item* selected, FS_ArchiveID archiveId);

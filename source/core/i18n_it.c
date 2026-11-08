@@ -1223,6 +1223,14 @@ const i18n_entry i18n_it[] = {
         {"The ticked items", "Gli elementi spuntati"},
         {"Root of the SD card", "Radice della scheda SD"},
         {"Root", "Radice"},
+        // Files: extract a .zip or .7z (0.9.3)
+        {"Extract to a folder", "Estrai in una cartella"},
+        {"Extract here", "Estrai qui"},
+        {"Extract", "Estrai"},
+        {"Files with the same names in this folder are replaced.", "I file con lo stesso nome in questa cartella verranno sostituiti."},
+        {"%lu file extracted to %s", "%lu file estratto in %s"},
+        {"%lu files extracted to %s", "%lu file estratti in %s"},
+        {"The archive had no files.", "L'archivio non conteneva file."},
 };
 
 const u32 i18n_it_count = sizeof(i18n_it) / sizeof(*i18n_it);

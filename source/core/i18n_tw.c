@@ -1211,6 +1211,14 @@ const i18n_entry i18n_tw[] = {
         {"The ticked items", "已勾選的項目"},
         {"Root of the SD card", "SD 卡根目錄"},
         {"Root", "根目錄"},
+        // Files: extract a .zip or .7z (0.9.3)
+        {"Extract to a folder", "解凍到資料夾"},
+        {"Extract here", "解凍到這裡"},
+        {"Extract", "解凍"},
+        {"Files with the same names in this folder are replaced.", "此資料夾中同名的檔案將被取代。"},
+        {"%lu file extracted to %s", "已將 %lu 個檔案解凍到 %s"},
+        {"%lu files extracted to %s", "已將 %lu 個檔案解凍到 %s"},
+        {"The archive had no files.", "壓縮包中沒有檔案。"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

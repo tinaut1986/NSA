@@ -662,6 +662,12 @@ static void list_draw_top(ui_view* view, void* data, float x1, float y1, float x
     list_data* listData = (list_data*) data;
 
     if(listData->drawTop != NULL) {
+        // The screen's update may have freed the selected item (a list loaded again, an item deleted): the top screen
+        // waits for list_validate (in the bottom screen's drawing) to choose again rather than read freed memory.
+        if(listData->selectedItem != NULL && linked_list_index_of(&listData->items, listData->selectedItem) < 0) {
+            listData->selectedItem = NULL;
+        }
+
         if(listData->selectedItem != listData->shownItem) {
             listData->leavingItem = listData->shownItem;
             listData->shownItem = listData->selectedItem;

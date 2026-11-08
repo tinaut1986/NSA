@@ -192,7 +192,7 @@ static const coach_step updates_steps[] = {
 
 static const coach_step wifi_steps[] = {
         OPEN("menu.system", "Open System.", "v:System"),
-        OPEN("list", "Go down to Network and open it with \uE000.", "v:Wi-Fi connections"),
+        OPEN("list.selected", "Go down to Network and open it with \uE000.", "v:Wi-Fi connections"),
         INFO("list", "Your console's three connections, then the copies saved on the SD card: the same ones WifiManager keeps in /3ds/WifiManager."),
         INFO("list.selected", "\uE000 on a connection: save a copy (with an alias, if you like), edit it, delete it, or write a saved copy there."),
         INFO("list.selected", "\uE000 on a copy: write it to a connection, edit it, rename its alias or delete it."),

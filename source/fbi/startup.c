@@ -10,6 +10,7 @@
 #include "resources.h"
 #include "section.h"
 #include "ftpserver.h"
+#include "wifislots.h"
 #include "guide.h"
 #include "webserver.h"
 #include "settings.h"
@@ -266,6 +267,13 @@ void startup_run() {
 
     if(settings_get()->webServer) {
         webserver_start_when_online();
+    }
+
+    // Opened without a connection, the system does not connect while NSA is in front (the HOME Menu does it): NSA asks,
+    // as a game does, and the servers start once it is up.
+    if(!wifislots_online()) {
+        static wifislots_job job = {.index = WIFISLOTS_COUNT, .timeoutMs = 30000};
+        wifislots_connect_start(&job);
     }
 
     if(startup_is_dir(LEGACY_ROOT) && !startup_is_dir(DATA_ROOT)) {

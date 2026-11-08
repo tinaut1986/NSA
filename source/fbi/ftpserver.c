@@ -1818,7 +1818,28 @@ void ftpserver_resume_later() {
     }
 }
 
+// The Wi-Fi gone while serving: the server kept looking on but could not serve (its sockets dead) until HOME. It stops,
+// and starts again once the Wi-Fi is back (as ftpserver_start_when_online).
+static u64 ftp_watch_next = 0;
+
+static void ftp_watch_wifi() {
+    if(!ftp_run || ftp_paused || osGetTime() < ftp_watch_next) {
+        return;
+    }
+
+    ftp_watch_next = osGetTime() + 2000;
+    u32 wifi = 0;
+    if(R_FAILED(ACU_GetWifiStatus(&wifi)) || wifi == 0) {
+        ftp_shutdown();
+        ftp_retry = true;
+        ftp_retry_next = osGetTime() + 2000;
+        ftp_retry_end = U64_MAX;
+    }
+}
+
 void ftpserver_poll_main() {
+    ftp_watch_wifi();
+
     if(ftp_retry && osGetTime() >= ftp_retry_next) {
         if(ftpserver_start() || osGetTime() > ftp_retry_end) {
             ftp_retry = false;

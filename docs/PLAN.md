@@ -810,7 +810,23 @@ when that replaces one), delete it; Y shows the passwords (8 stars otherwise).
   made by WifiManager's editor hold a zero key). A WPS/AOSS connection edited becomes a plain one.
   - [x] Saving connection 2 untouched: the three read the same after, keys still match.
   - [ ] Change a password and a typed address, and connect with them; set up an empty connection by hand.
-- [ ] Test a connection, as System Settings does (asked 2026-11-08): not done; it drops the Wi-Fi in use for a moment.
+- Connecting (`feat/wifi-connect`, 2026-11-08). Tried on the New 3DS XL with SITE WIFICONNECT (`feat/wifi-test`, not
+  merged): while the console is connected, ac:u ConnectAsync with the connection in use answers 0 and with another one
+  C8809FFA; CloseAllAsync answers 0 but the connection stays (the system's own, ndm), and handing the Wi-Fi back after
+  that left it half dead (no signal strength, the FTP server not answering) until HOME. So NSA never switches or tests
+  a connection while connected; writing the one in use changes nothing until the console connects again, which the
+  owner found only sleep mode does (not HOME, not reopening NSA): the notice says so. ac's AP types are 1, 2, 4 for
+  connections 1-3 (as GetWifiStatus; libctru's AC_AP_TYPE_SLOT* are one bit off): mask 4 connected through connection 3.
+- With NSA in front the system does not connect by itself (the HOME Menu does: the owner saw a connection restored
+  while offline taken up only after HOME). NSA now connects as a game does (ndm infrastructure exclusive state,
+  ConnectAsync, GetConnectResult, leave; the connection stays): after restoring, editing or setting up a connection
+  while not connected ("Connecting with connection N...", then connected or why not), with Connect in a connection's
+  actions while not connected, and in the background when NSA starts without a connection.
+- The FTP and web servers stop when the Wi-Fi goes while they serve (they looked on but answered nothing until HOME)
+  and start again once it is back, as at a start without Wi-Fi.
+- [ ] Offline (out of reach, or the connection in use replaced and the console put to sleep): restore or edit a
+  reachable connection, and Connect; open NSA with no connection (it connects by itself, the servers start); the Wi-Fi
+  lost and back while NSA is open (the FTP and web icons go and come back).
 
 **B asks before it stops** (2026-11-08, `feat/confirm-cancel`): under every progress bar that says how to stop it
 (installs, copies, pastes, deletes, imports, exports, console to console, Store files), B asks first, red: "Stop now?

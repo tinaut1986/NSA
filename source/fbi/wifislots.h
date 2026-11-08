@@ -124,6 +124,25 @@ const char* wifislots_set_network(wifislots_slot* slot, const char* ssid, u8 sec
 bool wifislots_parse_ip(const char* text, u8* out);
 Result wifislots_update_backup(wifislots_backup* backup, const wifislots_slot* slot);
 
+// Connecting while the console is not connected (NSA in front: the system waits for the HOME Menu to do it), as a game
+// does; the connection stays up after. `index` 0-2 tries that connection only, WIFISLOTS_COUNT any of them. While the
+// console is connected it changes nothing: 0 when it is through that connection (or any is asked for), else
+// WIFISLOTS_CONNECTED_OTHER (an app cannot make the system drop the connection it holds: sleep mode does).
+#define WIFISLOTS_TIMED_OUT ((Result) 0xD8E0F0A1)
+#define WIFISLOTS_CONNECTED_OTHER ((Result) 0xD8E0F0A2)
+
+typedef struct {
+    u32 index;
+    u32 timeoutMs;
+    volatile bool done;
+    Result result;
+} wifislots_job;
+
+bool wifislots_online();
+Result wifislots_connect(u32 index, u32 timeoutMs);
+// The same on a thread of its own: `done` once `result` is set.
+bool wifislots_connect_start(wifislots_job* job);
+
 // DEBUG: SITE WIFIREAD and SITE WIFIROUNDTRIP (ftpserver.c).
 void wifislots_debug_read(char* out, size_t size);
 void wifislots_debug_keycheck(char* out, size_t size);

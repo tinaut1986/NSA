@@ -866,6 +866,7 @@ const i18n_entry i18n_tw[] = {
         {"Saves it in /nsa/received/ to install it later from Files.", "儲存到 /nsa/received/，之後再從文件畫面安裝。"},
         {"Download the 3DSX again", "再次下載3DSX"},
         {"On this console: %s", "這台主機：%s"},
+        {"its files", "其檔案"},
         {"\uE000 get   \uE003 view   \uE004 filter   \uE005 search   \uE001 back", "\uE000 取得   \uE003 檢視   \uE004 篩選   \uE005 搜尋   \uE001 返回"},
         {"Category", "類別"},
         {"Apps", "應用程式"},

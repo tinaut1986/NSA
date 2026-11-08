@@ -471,11 +471,11 @@ static void wifi_actions_open(wifi_data* data, list_item* selected) {
     u32 count = 0;
     if(entry->kind == ENTRY_SLOT) {
         if(wifi_slot_used(data, entry->index)) {
-            actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save a copy"), false, wifi_save, true};
+            actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save a copy"), false, wifi_save};
         }
 
         if(data->backupCount > 0) {
-            actions[count++] = (sheet_action) {ICON_ARROW_BACK_UP, _("Restore a copy here"), false, wifi_restore_here, true};
+            actions[count++] = (sheet_action) {ICON_ARROW_BACK_UP, _("Restore a copy here"), false, wifi_restore_here};
         }
 
         if(count == 0) {
@@ -500,7 +500,7 @@ static void wifi_actions_open(wifi_data* data, list_item* selected) {
         actions[count++] = (sheet_action) {ICON_ARROW_BACK_UP, labels[i], wifi_slot_used(data, i), restore[i], false, details[i]};
     }
 
-    actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename alias"), false, wifi_rename, true};
+    actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename alias"), false, wifi_rename};
     actions[count++] = (sheet_action) {ICON_TRASH, _("Delete this copy"), true, wifi_delete};
     sheet_display_list_for(_("Saved copy"), selected->name, ICON_DEVICE_FLOPPY, actions, count, data);
 }

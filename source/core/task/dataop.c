@@ -191,6 +191,7 @@ typedef struct {
     u64 writeOffset;
 
     u32 turn;   // The transfer turn (xferturn.h) the download holds.
+    u64 from;   // Where it starts in the file: set by the download before the first bytes.
 } data_op_download_data;
 
 static Result task_data_op_download_callback(void* userData, void* buffer, size_t size) {
@@ -199,6 +200,8 @@ static Result task_data_op_download_callback(void* userData, void* buffer, size_
 
     if(downloadData->firstRun) {
         downloadData->firstRun = false;
+        downloadData->writeOffset = downloadData->from;
+        data->currResumeFrom = downloadData->from;
 
         Result res = data->openDst(data->data, downloadData->index, buffer, data->currTotal, &downloadData->dstHandle);
         if(R_FAILED(res)) {
@@ -209,6 +212,7 @@ static Result task_data_op_download_callback(void* userData, void* buffer, size_
     u32 bytesWritten = 0;
     Result res = data->writeDst(data->data, downloadData->dstHandle, &bytesWritten, buffer, downloadData->writeOffset, size);
     downloadData->writeOffset += bytesWritten;
+    data->currWritten = downloadData->writeOffset;
 
     return res;
 }
@@ -243,7 +247,12 @@ static Result task_data_op_download_progress(void* userData, u64 total, u64 curr
 
     data->connections = connections;
 
-    downloadData->bytesSinceUpdate += curr - data->currProcessed;
+    // A download that resumes counts from where it started.
+    if(data->currProcessed < downloadData->from) {
+        data->currProcessed = downloadData->from;
+    }
+
+    downloadData->bytesSinceUpdate += curr > data->currProcessed ? curr - data->currProcessed : 0;
 
     data->currTotal = total;
     data->currProcessed = curr;
@@ -259,12 +268,13 @@ static Result task_data_op_download_progress(void* userData, u64 total, u64 curr
         data->bytesPerSecond = data->bytesPerSecond == 0 ? now : (u32) (data->bytesPerSecond * 0.75f + now * 0.25f);
 
         if(downloadData->ioStartTime != 0) {
-            data->estimatedRemainingSeconds = (u32) ((data->currTotal - data->currProcessed) / (data->currProcessed / ((time - downloadData->ioStartTime) / 1000.0f)));
+            u64 done = data->currProcessed > downloadData->from ? data->currProcessed - downloadData->from : 0;
+            data->estimatedRemainingSeconds = done > 0 ? (u32) ((data->currTotal - data->currProcessed) / (done / ((time - downloadData->ioStartTime) / 1000.0f))) : 0;
         } else {
             data->estimatedRemainingSeconds = 0;
         }
 
-        if(downloadData->ioStartTime == 0 && data->currProcessed > 0) {
+        if(downloadData->ioStartTime == 0 && data->currProcessed > downloadData->from) {
             downloadData->ioStartTime = time;
         }
 
@@ -282,20 +292,33 @@ static Result task_data_op_download(data_op_data* data, u32 index) {
     data->bytesPerSecond = 0;
     data->estimatedRemainingSeconds = 0;
     data->connections = 0;
+    data->currResumeFrom = 0;
+    data->currWritten = 0;
 
     Result res = 0;
 
     char url[DOWNLOAD_URL_MAX];
     if(R_SUCCEEDED(res = data->getSrcUrl(data->data, index, url, DOWNLOAD_URL_MAX))) {
-        data_op_download_data downloadData = {data, index, 0, true, 0, osGetTime(), 0, 0};
+        data_op_download_data downloadData = {data, index, 0, true, 0, osGetTime(), 0, 0, 0, 0};
         // One transfer at a time: an FTP, web page or console to console transfer under way is let finish.
         if((downloadData.turn = xferturn_take(XFER_DOWNLOAD, url, 0)) == 0) {
             return R_APP_BUSY;
         }
 
+        // What an earlier try left (saving, in order): from there when the server allows.
+        u64 from = 0;
+        u64 expected = 0;
+        if(!data->dstAnyOrder && data->resumeFrom != NULL) {
+            data->resumeFrom(data->data, index, &from, &expected);
+        }
+
         if(data->dstAnyOrder) {
             res = http_download_file(url, data->bufferSize, &downloadData, task_data_op_download_open, task_data_op_download_write_at,
                                      task_data_op_download_check_running, task_data_op_download_progress);
+        } else if(from > 0) {
+            downloadData.from = from;
+            res = http_download_callback_from(url, data->bufferSize, &downloadData.from, expected, &downloadData, task_data_op_download_callback,
+                                              task_data_op_download_check_running, task_data_op_download_progress);
         } else {
             res = http_download_callback(url, data->bufferSize, &downloadData, task_data_op_download_callback, task_data_op_download_check_running, task_data_op_download_progress);
         }

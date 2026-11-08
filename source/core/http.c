@@ -1110,7 +1110,7 @@ static void http_worker_thread(void* arg) {
 }
 
 // `*handed` is what the caller got, in order.
-static Result http_parallel_download(const char* url, const char* original, u64 size, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
+static Result http_parallel_download(const char* url, const char* original, u64 size, u32 first, void* userData, Result (*callback)(void* userData, void* buffer, size_t size),
                                      Result (*checkRunning)(void* userData), Result (*progress)(void* userData, u64 total, u64 curr, u32 connections),
                                      http_shared* shared, u64* handed) {
     http_parallel* p = (http_parallel*) calloc(1, sizeof(http_parallel));
@@ -1135,6 +1135,9 @@ static Result http_parallel_download(const char* url, const char* original, u64 
     p->window = p->workerCount * HTTP_WINDOW_PER_CONNECTION;
     p->window = p->window < HTTP_WINDOW_MIN ? HTTP_WINDOW_MIN : p->window;
     p->window = p->window > p->segments ? p->segments : p->window;
+    // A download that resumes starts at segment `first` (what is before it came in an earlier try).
+    p->nextAssign = first;
+    p->nextDeliver = first;
     LightLock_Init(&p->lock);
 
     Result res = 0;
@@ -1197,7 +1200,7 @@ static Result http_parallel_download(const char* url, const char* original, u64 
     // and the segments ahead as the gauge.
     speedlog* trace = speedlog_begin("url", url, p->size);
     u64 traced = 0;
-    for(u32 segment = 0; segment < p->segments && R_SUCCEEDED(res);) {
+    for(u32 segment = first; segment < p->segments && R_SUCCEEDED(res);) {
         u64 got = http_parallel_received(p);
         if(got > traced) {
             speedlog_net(trace, got - traced, 0);
@@ -1253,7 +1256,7 @@ static Result http_parallel_download(const char* url, const char* original, u64 
         if(progress != NULL) {
             u64 received = http_parallel_received(p);
             shown = received > shown ? received : shown;
-            progress(userData, p->size, shown, p->ramp.level);
+            progress(userData, p->size, (u64) first * HTTP_SEGMENT + shown, p->ramp.level);
         }
     }
 
@@ -1356,7 +1359,7 @@ static Result http_download_callback_probe(const char* givenUrl, u32 bufferSize,
     u64 size = 0;
     if(effective != NULL && http_probe(url, effective, 1024, &size, NULL, NULL, shared) && size >= HTTP_PARALLEL_MIN) {
         u64 handed = 0;
-        Result res = http_parallel_download(effective, url, size, userData, callback, checkRunning, progress, shared, &handed);
+        Result res = http_parallel_download(effective, url, size, 0, userData, callback, checkRunning, progress, shared, &handed);
         if(res == HTTP_RES_ONE_LINK) {
             // A server that said "Too Many Requests" gets a moment first.
             svcSleepThread(2000000000LL);
@@ -1971,6 +1974,65 @@ Result http_download_callback(const char* givenUrl, u32 bufferSize, void* userDa
                                                                                Result (*checkRunning)(void* userData),
                                                                                Result (*progress)(void* userData, u64 total, u64 curr, u32 connections)) {
     return http_download_callback_probe(givenUrl, bufferSize, userData, callback, checkRunning, progress, true);
+}
+
+Result http_download_callback_from(const char* givenUrl, u32 bufferSize, u64* from, u64 expected, void* userData,
+                                   Result (*callback)(void* userData, void* buffer, size_t size), Result (*checkRunning)(void* userData),
+                                   Result (*progress)(void* userData, u64 total, u64 curr, u32 connections)) {
+    u64 want = *from;
+    *from = 0;
+
+    char direct[256];
+    const char* url = http_direct_url(givenUrl, direct, sizeof(direct));
+    http_disposition[0] = '\0';
+
+    http_shared* shared = (http_shared*) calloc(1, sizeof(http_shared));
+    char* effective = (char*) malloc(1024);
+    if(shared == NULL || effective == NULL) {
+        free(shared);
+        free(effective);
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    http_shared_open(shared);
+
+    u64 size = 0;
+    if(http_probe(url, effective, 1024, &size, NULL, NULL, shared) && size >= HTTP_PARALLEL_MIN) {
+        // The same file (its size) from a server that serves ranges: from the segment `want` falls in.
+        u32 first = 0;
+        if(want > 0 && want < size && (expected == 0 || expected == size)) {
+            first = (u32) (want / HTTP_SEGMENT);
+            *from = (u64) first * HTTP_SEGMENT;
+        }
+
+        if(http_log != NULL) {
+            http_log("http: resume %s at %llu of %llu (asked %llu, expected %llu)\n", url, *from, size, want, expected);
+        }
+
+        u64 handed = 0;
+        Result res = http_parallel_download(effective, url, size, first, userData, callback, checkRunning, progress, shared, &handed);
+        if(res == HTTP_RES_ONE_LINK) {
+            svcSleepThread(2000000000LL);
+            bool connected = false;
+            res = http_curl_download(url, *from + handed, bufferSize, userData, callback, checkRunning, progress, &connected, shared);
+        }
+
+        free(effective);
+        http_shared_close(shared);
+        free(shared);
+        return res;
+    }
+
+    free(effective);
+    http_shared_close(shared);
+    free(shared);
+
+    // Not resumable there (no ranges, or small): from the start, as any download.
+    if(http_log != NULL) {
+        http_log("http: resume %s: no ranges or a small file, from the start\n", url);
+    }
+
+    return http_download_callback_probe(givenUrl, bufferSize, userData, callback, checkRunning, progress, false);
 }
 
 typedef struct {

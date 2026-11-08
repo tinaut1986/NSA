@@ -24,11 +24,23 @@ typedef struct {
     char buttonLabel[64];
     void (*onButton)(ui_view* view, void* data);
     widget_press press;
+
+    // The time left under the bar, from the average since the bar started to move (or went back, as a
+    // copy of several files does at each one): when, and from where.
+    u64 etaSince;
+    float etaFrom;
+    float etaLast;
 } info_data;
 
 #define INFO_BUTTON_HEIGHT 28
 #define INFO_BUTTON_GAP 10
 #define INFO_WHEEL_RADIUS 11   // The wheel shown when there is no bar.
+#define INFO_ETA_AFTER_MS 2000  // No time left before this: the first seconds' speed says little.
+
+// The bar, the line of time left under it, and the gap to the text.
+static float info_bar_height(const info_data* infoData) {
+    return infoData->bar ? 10 + 5 + widget_text_height(WIDGET_SMALL_SCALE) + 8 : INFO_WHEEL_RADIUS * 2 + 4 + 10;
+}
 
 // Where the card and the button go on the bottom screen.
 static void info_layout(info_data* infoData, float x1, float y1, float x2, float y2, float* cardX, float* cardY, float* cardW, float* cardH,
@@ -38,7 +50,7 @@ static void info_layout(info_data* infoData, float x1, float y1, float x2, float
     float textHeight = 0;
     screen_get_string_size_wrap(&textWidth, &textHeight, infoData->text, WIDGET_TEXT_SCALE, WIDGET_TEXT_SCALE, width - 24);
 
-    float barHeight = infoData->bar ? 10 + 12 : INFO_WHEEL_RADIUS * 2 + 4 + 10;
+    float barHeight = info_bar_height(infoData);
     float height = 14 + barHeight + textHeight + 14;
     float total = height + (infoData->onButton != NULL ? INFO_BUTTON_GAP + INFO_BUTTON_HEIGHT : 0);
 
@@ -86,6 +98,16 @@ static void info_update(ui_view* view, void* data, float bx1, float by1, float b
     if(infoData->update != NULL) {
         infoData->update(view, infoData->data, &infoData->progress, infoData->text);
     }
+
+    if(infoData->bar) {
+        float progress = infoData->progress;
+        if(infoData->etaSince == 0 || progress < infoData->etaLast - 0.001f) {
+            infoData->etaSince = osGetTime();
+            infoData->etaFrom = progress;
+        }
+
+        infoData->etaLast = progress;
+    }
 }
 
 static void info_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -102,7 +124,7 @@ static void info_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
 
     float x, y, width, height, btnX, btnY, btnW;
     info_layout(infoData, x1, y1, x2, y2, &x, &y, &width, &height, &btnX, &btnY, &btnW);
-    float barHeight = infoData->bar ? 10 + 12 : INFO_WHEEL_RADIUS * 2 + 4 + 10;
+    float barHeight = info_bar_height(infoData);
     widget_card(x, y, width, height);
 
     if(infoData->onButton != NULL) {
@@ -121,6 +143,17 @@ static void info_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
         float percentW = widget_text_width(percent, WIDGET_SMALL_SCALE);
         widget_progress(x + 12, cy, width - 24 - percentW - 8, 10, infoData->progress);
         screen_draw_text(percent, x + width - 12 - percentW, cy + 5 - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
+
+        // The time left, once there is something to go by; its line is kept empty until then.
+        u64 elapsed = infoData->etaSince != 0 ? osGetTime() - infoData->etaSince : 0;
+        float moved = shown - infoData->etaFrom;
+        if(elapsed >= INFO_ETA_AFTER_MS && moved > 0.0001f && shown < 1) {
+            double seconds = (double) elapsed / 1000.0 * (1.0 - shown) / moved;
+            char eta[48];
+            snprintf(eta, sizeof(eta), _("%s left"), ui_get_display_eta(seconds > 359999 ? 359999 : (u32) seconds));
+            widget_text_centered(eta, x, x + width, cy + 10 + 5, WIDGET_SMALL_SCALE, t->palette->textMuted);
+        }
+
         cy += barHeight;
     } else {
         // No measure: a turning wheel.

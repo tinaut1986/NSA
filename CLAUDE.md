@@ -50,6 +50,9 @@ SendUserFile; installing it on a console still waits for them to ask (they usual
   published yet, not even as a beta** (anything on `release` can be tagged and published). Topic branches are cut from
   `staging` and merged (`--no-ff`) into `staging`, not `release`; push both. `staging` goes into `release` only when the
   owner says so (after their console tests: "Pending tests on the console"). Never delete it, even when it equals `release`.
+  **Once a version is published, merge `master` back into `staging`** (`--no-ff`; only merge commits, no file changes):
+  the tag must be in `staging`'s history, or `tools/version.sh` counts from the previous tag and a staging build
+  calls itself the published version plus `-dev` (0.9.2-dev.N after v0.9.2 instead of 0.9.3-dev.N).
 - `release`: beta, what may be published (a tag on it publishes a Beta); `master`: stable (only moves by merging `release`).
 - `advanced` no longer exists (2026-11-08: its Dump NAND screen came into `staging`).
 - `feat/website` is the GitHub Pages source (`/docs` of that branch): do not delete it.

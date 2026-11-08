@@ -88,7 +88,7 @@ _Static_assert(sizeof(wifislots_slot) == WIFISLOTS_SIZE, "a connection is 0xC00 
 // A copy on the SD card.
 typedef struct {
     char path[256];      // sdmc:/3ds/WifiManager/<name>.bin
-    char alias[64];      // The name it was given, or empty.
+    char alias[100];     // The name it was given (up to 96 characters, as WifiManager), or empty.
     time_t saved;        // 0 when the file does not say.
     wifislots_slot slot;
 } wifislots_backup;
@@ -110,6 +110,8 @@ u32 wifislots_list_backups(wifislots_backup** out);
 // Saves `slot` as a new copy named after `alias` or the network; `path` gets where (when not NULL).
 Result wifislots_save_backup(const wifislots_slot* slot, const char* alias, char* path, size_t pathSize);
 Result wifislots_delete_backup(const wifislots_backup* backup);
+// Gives a copy another alias (empty: none), in the same file and with the same date, as WifiManager's rename.
+Result wifislots_set_alias(wifislots_backup* backup, const char* alias);
 
 // DEBUG: SITE WIFIREAD and SITE WIFIROUNDTRIP (ftpserver.c).
 void wifislots_debug_read(char* out, size_t size);

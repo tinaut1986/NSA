@@ -282,11 +282,17 @@ static void wifi_draw_top(ui_view* view, void* listData, float x1, float y1, flo
 
 // ---- actions ----
 
-static void wifi_save(void* listData) {
+// Saving asks for an alias first, as WifiManager does: it names the copy in the list (and its file); empty, the network does.
+static void wifi_save_typed(ui_view* view, void* listData, SwkbdButton button, const char* response) {
+    if(button != SWKBD_BUTTON_CONFIRM) {
+        return;
+    }
+
+    sheet_confirmed();
     wifi_data* data = (wifi_data*) listData;
     wifi_entry* entry = (wifi_entry*) data->actionSelected->data;
     char path[256];
-    Result res = wifislots_save_backup(&data->slots[entry->index], NULL, path, sizeof(path));
+    Result res = wifislots_save_backup(&data->slots[entry->index], response, path, sizeof(path));
     if(R_FAILED(res)) {
         error_display_res(NULL, NULL, res, "Failed to save the copy.");
         return;
@@ -296,6 +302,34 @@ static void wifi_save(void* listData) {
     char message[320];
     snprintf(message, sizeof(message), _("Saved as %s."), path);
     prompt_display_notify("Success", message, COLOR_TEXT, NULL, NULL, NULL);
+}
+
+static void wifi_save(void* listData) {
+    osk_display(_("Optional alias (empty = network name)"), "", 96, 0, listData, wifi_save_typed);
+}
+
+static void wifi_rename_typed(ui_view* view, void* listData, SwkbdButton button, const char* response) {
+    if(button != SWKBD_BUTTON_CONFIRM) {
+        return;
+    }
+
+    sheet_confirmed();
+    wifi_data* data = (wifi_data*) listData;
+    wifi_entry* entry = (wifi_entry*) data->actionSelected->data;
+    Result res = wifislots_set_alias(&data->backups[entry->index], response);
+    data->populated = false;
+    if(R_FAILED(res)) {
+        error_display_res(NULL, NULL, res, "Failed to change the alias.");
+        return;
+    }
+
+    prompt_display_notify("Success", "Alias changed.", COLOR_TEXT, NULL, NULL, NULL);
+}
+
+static void wifi_rename(void* listData) {
+    wifi_data* data = (wifi_data*) listData;
+    wifi_entry* entry = (wifi_entry*) data->actionSelected->data;
+    osk_display(_("Alias (empty = network name)"), data->backups[entry->index].alias, 96, 0, listData, wifi_rename_typed);
 }
 
 static void wifi_restore_answer(ui_view* view, void* listData, u32 response) {
@@ -433,11 +467,11 @@ static void wifi_actions_open(wifi_data* data, list_item* selected) {
 
     static char labels[WIFISLOTS_COUNT][64];
     static char details[WIFISLOTS_COUNT][64];
-    sheet_action actions[6];
+    sheet_action actions[7];
     u32 count = 0;
     if(entry->kind == ENTRY_SLOT) {
         if(wifi_slot_used(data, entry->index)) {
-            actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save a copy"), false, wifi_save};
+            actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save a copy"), false, wifi_save, true};
         }
 
         if(data->backupCount > 0) {
@@ -466,6 +500,7 @@ static void wifi_actions_open(wifi_data* data, list_item* selected) {
         actions[count++] = (sheet_action) {ICON_ARROW_BACK_UP, labels[i], wifi_slot_used(data, i), restore[i], false, details[i]};
     }
 
+    actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename alias"), false, wifi_rename, true};
     actions[count++] = (sheet_action) {ICON_TRASH, _("Delete this copy"), true, wifi_delete};
     sheet_display_list_for(_("Saved copy"), selected->name, ICON_DEVICE_FLOPPY, actions, count, data);
 }

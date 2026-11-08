@@ -420,6 +420,7 @@ static void transfer_send_failed(ui_view* view, transfer_send_session* session, 
 
     // The second one pushed is the one on top.
     prompt_display_yes_no("Confirmation", "Retry?", COLOR_TEXT, session, NULL, transfer_send_retry_onresponse);
+    led_blink(false);
     error_display_res(NULL, NULL, res, "Failed to send the file.");
 }
 
@@ -556,6 +557,7 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
             if(ok) {
                 transfer_send_finish(view, session);
 
+                led_blink(true);
                 prompt_display_notify("Success", "File sent.", COLOR_TEXT, NULL, NULL, NULL);
             } else {
                 transfer_send_failed(view, session, R_APP_IO_ERROR);
@@ -2058,6 +2060,11 @@ static void transfer_receive_progress_update(ui_view* view, void* data, float* p
         receive->haveLast = false;
     }
 
+    // A title to install lights it once installed (installcias.c).
+    if(ok ? receive->isSave || !receive->install : res != R_APP_CANCELLED) {
+        led_blink(ok);
+    }
+
     if(ok) {
         if(receive->isSave) {
             action_save_package_received(receive->dst, receive->install && receive->canImport);
@@ -2195,6 +2202,7 @@ static void transfer_receive_start(transfer_receive_data* data) {
     transfer_receive_answer(data, 0, 0, 0);
     transfer_receive_reset(data);
 
+    led_blink(false);
     error_display_res(NULL, NULL, res, "Failed to receive the file.");
 }
 

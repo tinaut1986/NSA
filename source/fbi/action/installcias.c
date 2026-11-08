@@ -178,6 +178,7 @@ static Result action_install_cias_write_dst(void* data, u32 handle, u32* bytesWr
 }
 
 bool action_install_cias_error(void* data, u32 index, Result res, ui_view** errorView) {
+    led_blink(false);
     *errorView = error_display_res(data, action_install_cias_draw_top, res, "Failed to install CIA file.");
     return true;
 }
@@ -212,6 +213,7 @@ static void action_install_cias_update(ui_view* view, void* data, float* progres
         installData->queue = NULL;
         bool next = queue != NULL && queue[0] != '\0' && installData->installInfo.result != R_APP_CANCELLED;
         if(R_SUCCEEDED(installData->installInfo.result) && !next) {
+            led_blink(true);
             prompt_display_notify("Success", "Install finished.", COLOR_TEXT, NULL, NULL, NULL);
         }
 

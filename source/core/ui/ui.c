@@ -10,6 +10,7 @@
 #include "../error.h"
 #include "../screen.h"
 #include "../sound.h"
+#include "../led.h"
 #include "../speedlog.h"
 #include "../bgmusic.h"
 #include "../appinfo.h"
@@ -412,6 +413,7 @@ bool ui_update() {
     }
 
     sound_update();
+    led_update();
     bgmusic_update();
     coach_update();
 

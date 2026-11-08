@@ -14,6 +14,7 @@
 #include "fs.h"
 #include "http.h"
 #include "netpoll.h"
+#include "led.h"
 #include "linkedlist.h"
 #include "screen.h"
 #include "sound.h"

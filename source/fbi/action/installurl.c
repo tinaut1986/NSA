@@ -423,6 +423,7 @@ static Result action_install_url_write_dst(void* data, u32 handle, u32* bytesWri
 static bool action_install_url_error(void* data, u32 index, Result res, ui_view** errorView) {
     install_url_data* installData = (install_url_data*) data;
     installData->states[index] = URL_FAILED;
+    led_blink(false);
 
     char* url = installData->urls[index];
     if(installData->saveOnly) {
@@ -499,6 +500,15 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
         u32 failed = action_install_url_count(installData, URL_FAILED);
         u32 skipped = action_install_url_count(installData, URL_SKIPPED);
         bool installAfter = installData->toInstall != NULL && installData->installInfo.result != R_APP_CANCELLED;
+        // A failure lit it as its error showed; the summary of several URLs lights it again. Saved to install
+        // next: the install says when it is done.
+        if(installData->installInfo.result != R_APP_CANCELLED) {
+            if(failed == 0 && skipped == 0 && (installed > 0 || (saved > 0 && !installAfter))) {
+                led_blink(true);
+            } else if(failed > 0 && installData->installInfo.total > 1) {
+                led_blink(false);
+            }
+        }
         if(installData->installInfo.result != R_APP_CANCELLED && !installData->quiet) {
             if(failed == 0 && skipped == 0) {
                 if(saved > 0 && installAfter) {

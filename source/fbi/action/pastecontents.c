@@ -176,6 +176,22 @@ static Result action_paste_contents_close_dst(void* data, u32 index, bool succee
 
     Result res = 0;
 
+    // Stopped or failed half way: the file has its full size (the copy sets it first) but not its data. It goes,
+    // so that nothing looks whole that is not.
+    if(!succeeded) {
+        res = FSFILE_Close(handle);
+
+        char dstPath[FILE_PATH_MAX];
+        action_paste_contents_get_dst_path(pasteData, index, dstPath);
+        FS_Path* fsPath = fs_make_path_utf8(dstPath);
+        if(fsPath != NULL) {
+            FSUSER_DeleteFile(pasteData->target->archive, *fsPath);
+            fs_free_path_utf8(fsPath);
+        }
+
+        return res;
+    }
+
     if(R_SUCCEEDED(res = FSFILE_Close(handle))) {
         char dstPath[FILE_PATH_MAX];
         action_paste_contents_get_dst_path(pasteData, index, dstPath);

@@ -53,7 +53,7 @@ static const mainmenu_entry advanced[] = {
 // System's details: nothing to open, each draws its page on the top screen.
 static const mainmenu_entry details[] = {
         {ICON_3DS, "Console", "", "Model, serial and versions", NULL, -1, -1, systeminfo_draw_console},
-        {ICON_WIFI, "Network", "", "Wi-Fi, addresses and servers", NULL, -1, -1, systeminfo_draw_network},
+        {ICON_WIFI, "Network", "", "Wi-Fi, addresses and servers", wificonnections_open, -1, -1, systeminfo_draw_network},
         {ICON_DEVICE_SD_CARD, "Storage", "", "SD card and system memories", NULL, -1, -1, systeminfo_draw_storage},
         {ICON_BATTERY_CHARGING, "Battery", "", "Charge, voltage, temperature, rate", NULL, -1, -1, systeminfo_draw_battery},
 };

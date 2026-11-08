@@ -31,6 +31,9 @@
 bool ftpserver_start();
 void ftpserver_stop();
 bool ftpserver_running();
+// The saved setting is on: starts now, or once there is Wi-Fi; waiting says it is still waiting for it.
+void ftpserver_start_when_online();
+bool ftpserver_waiting();
 
 // While the radio is taken by the local wireless: the server stops, and
 // resume_later starts it again only if it was running (or about to) when paused.

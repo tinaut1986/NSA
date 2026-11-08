@@ -62,6 +62,9 @@
 bool webserver_start();
 void webserver_stop();
 bool webserver_running();
+// As the FTP server's: starts now, or once there is Wi-Fi.
+void webserver_start_when_online();
+bool webserver_waiting();
 
 // As the FTP server's: the radio is taken by the local wireless, and comes back later.
 void webserver_pause();

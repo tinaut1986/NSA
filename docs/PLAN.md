@@ -164,6 +164,11 @@ What `release` holds, in the order it was built:
 
 **The owner's tests of 2026-11-07, evening** (the items ticked below, all on `staging` 6760a75). Changed after them, on
 `staging` and tried on the New 3DS XL (DEBUG) unless said:
+- Store scripts (`fix/store-script-paths`, not tried on a console): ndsForwarder and YANBF (extract a pack to the card's
+  root) and Vapecord-ACNL/ACHHD (extract to `/luma/plugins`) were left out of Universal-DB's list; now they show and
+  install. Every file an archive puts on the card must be where a script may write (one in `/Nintendo 3DS`, `/nsa`, a
+  `.firm`... fails the extraction before anything is written), entries with `..` are refused, and an install or an
+  extraction only takes a file the script wrote. To try: install the four from the Store (r/3dshomebrew, After-Pop-2000).
 - Transfer toast (`feat/toast-two-lines`): two lines, "FTP, receiving: 3.2 / 12.0 MiB, 650 KiB/s" over the name (it was one line,
   cut at the edge), and a piece of the bar moves when the size is not known: FileZilla says no size before an upload (no
   ALLO), so there is no percentage then. Not seen on a console: the web page's screen view waits while a transfer runs.
@@ -205,6 +210,23 @@ no DSP firmware (sdmc:/3ds/dspfirm.cdc comes from a console).
 - [x] *Back to the player* in a folder's sheet opens it where it is; X there stops it and the icon goes.
 - [ ] On the **2DS / Old 3DS**: an FTP upload and a URL download with music in the background against without (`tools/speed_tests.py`,
       back to back). If it costs much, pause the background player while a transfer holds the turn (`xferturn_get`) on an Old 3DS.
+
+**FTP: REST, and appends that start mid-block** (2026-11-08, `feat/ftp-rest`; tested on the New 3DS XL):
+- `REST <offset>` (in FEAT as `REST STREAM`): the next RETR starts there, the next STOR keeps the file and writes from
+  there (554 past the end, 501 for a bad offset). A cut download picks up with `curl -C -`, FileZilla resumes too; the
+  turn, toast and trace count what is left. Tested with ftplib: an 8 MB file sent and fetched in two parts, SHA-256 equal.
+- An APPE or a STOR after REST from an offset that is not a multiple of 64 KB first writes up to one, then flushes:
+  SD writes that start mid-block ran at 34 KB/s (APPE onto a 3,158,073-byte file), now 720-800 KB/s (930-1190 aligned).
+- [x] curl -C - on the 2DS (2026-11-08): an upload cut at 3.3 MB picked up with SIZE + APPE, a download cut at 2.4 MB
+  with REST + RETR; the 20 MB file came back with the same SHA-256. FileZilla sends the same commands; not tried itself.
+
+**Time left in the transfer toast** (2026-11-07, `feat/toast-eta`; built, not seen on a console):
+- The FTP and web page toast's second line starts with the time left when the size is known: "FTP, receiving: 3.2 / 12.0 MiB,
+  650 KiB/s", then "00:00:14 left · game.cia" (from the average speed since the start, so it does not jump; none in the
+  first 2 s). The other ways already showed it on their own screens: console to console, URL and QR downloads and installs,
+  copies (data_op), Export CIA and Dump NAND.
+- [ ] On the console: the time left in the toast during an FTP upload with ALLO (curl), an FTP download and a web page upload,
+  in Spanish and in Japanese or Chinese; a FileZilla upload (no size) shows none.
 
 **Transfer toast and the web page's QR code** (2026-11-07, `feat/transfer-toast`; asked on Reddit: a progress bar while files
 come in or go out, and an easier way than an FTP app to reach the console from a phone):
@@ -517,6 +539,7 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Chinese: **Traditional** (繁體中文) draws completely with the console's font on the New 3DS XL (an EUR console), because its table only uses characters of JIS X 0208 (checked with `shift_jis`; a few Taiwan forms are written as their Japanese variants, 内 録 緑 ...). **Simplified** (简体中文) needs its own font: about a quarter of its characters (设 软 单 远 请 ...) are not in that console's Japanese character set, so while it is the language `screen.c` draws all of its Chinese from `romfs/hanfont.png` (Noto Sans CJK SC, 528 characters at one size, scaled like the system font; seen working on the New 3DS XL, Pixel theme not looked at). In any other language that font only fills in what the console's font lacks (the name 简体中文 in the language list). Check how it reads at the small sizes and in the Pixel theme.
 - [ ] Japanese lines break between characters (dialogs, the top screen's descriptions, the update changelog) and never leave 、 。 」 at the start of a line.
 - [ ] System follows the console's language (Settings of the console in French, German, Italian, Portuguese, Russian or Japanese); a console in Korean or Dutch shows English (Catalan is never picked by System: the 3DS has no Catalan).
+- [ ] Advanced -> Dump NAND (only on `advanced`): its texts in every language (21 strings: sizes, time left, "Fits, with ... left over", "Saved as", the hints); built, not looked at on a console.
 - [ ] The web page's Language drop-down lists all twelve and changes the console; the page itself is still English or Spanish.
 
 **PKSM backups** (2026-11-05, branch `feat/pksm-import`, builds; not tried on a console)
@@ -735,6 +758,101 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
       confirmation in the red warning. Azahar crashes on this screen (also on the previous
       `release`, before this change): not seen even once; readable names of the modules were not
       added (no source found for the IDs).
+
+**Dump NAND screen** (branch `advanced`)
+- [x] On a New 3DS XL (2026-11-07): the raw NAND opens, size and free space are right, a dump runs to the end,
+      the SHA-256 shown matches the file and the `.sha256` passes `sha256sum -c`.
+- [x] On the 2DS (2026-11-08, 0.9.2-dev.112): B during the dump stops it at once; the half file (199 MB) is deleted
+      once the notice is closed and the screen is back at the start. With 859 MiB free (a filler plus a preallocated
+      SITE SDBENCH) the screen is red: "Faltan 84.75 MiB: libera espacio primero", only Back (A goes back too).
+- [x] B (or the button) asks first, red: "Stop the NAND dump? What was copied is deleted." (No goes on, Yes stops);
+      the notice after is titled "Dump NAND": "NAND dump cancelled." (`feat/progress-eta`; seen on the 2DS 2026-11-08).
+
+**Dump NAND on three threads** (2026-11-07, `feat/dumpnand-pipeline`): read (core 1), write (core 0) and hash
+(core 2, or core 0 on an Old 3DS) in 1 MB blocks, four of them in flight, with `osSetSpeedupEnable`. On the New 3DS XL,
+1.98 GB: 0.8.5 without a hash 647 s, 0.9.1 hashing on the copy thread 1105 s, this 557 s (3.4 MB/s); the dump's
+SHA-256 checked with `sha256sum -c`, and it differs from the earlier dumps only in a few CTRNAND sectors. The SD write
+is the limit now (slower while the NAND is read at the same time). The dump used to turn the clock and L2 off when it
+ended (`fix/dumpnand-speedup`: FTP fell from 1.3 MB/s to 0.46 after a dump).
+- [x] On the 2DS (2026-11-08, hash on core 0): 1.98 GB in 558 s against 1153 s on 0.8.5.
+- [x] Cancelling and the full SD again on this build (see above).
+
+**Wi-Fi connections** (2026-11-08, `feat/wifi-slots`; System -> Network, A): the console's three connections and the
+copies in /3ds/WifiManager (WifiManager's folder and format: 0xC00 bytes, then "\nWMB1\t<time>\t<alias>\n"; both apps see
+the same copies). A connection: save a copy, or restore one there; a copy: restore it to connection 1-3 (red, and asked,
+when that replaces one), delete it; Y shows the passwords (8 stars otherwise).
+- Why WifiManager's restores did nothing until System Settings: the ac service reads the connections from the config
+  once, at boot, and connects with its own copy; writing the config blocks (CFG_SetConfigInfoBlk8) does not reach it,
+  and ac's next flush can even write its old copy back. NSA writes through ac:i as System Settings does:
+  LoadNetworkSetting (or InitializeNetworkSetting when empty), one setter per field, UpdateNetworkSetting,
+  FlushNetworkSetting (ac saves the config itself). Checked: the block read back is byte for byte what was meant (0x4-0x414,
+  the CRC's range, ac computes the CRC), also with a changed passphrase and back.
+- The setters' static buffer numbers are not on 3dbrew; found by sending empty buffers (ac checks the number, not the
+  size): name 2, key 3, BSSID 4, passphrase 8, IP 9, gateway 10, netmask 11, DNS 12, proxy host 13, user 14, password
+  15. **A buffer larger than what ac set aside for that number crashes the console** (kernel prefetch abort while
+  serving ac; seen with 0x40 bytes to number 2): wifislots.c sends each field with its own size, never more.
+- NSA's RSF (buildtools' template) lists neither cfg:i nor ac:i; Luma3DS lets NSA open them anyway (libctru tries
+  them first). DEBUG: SITE WIFIREAD (names, CRCs, what ac says), SITE WIFIROUNDTRIP <slot> [1] (write through ac:i and
+  read back; refuses the connection in use).
+- [x] On the New 3DS XL: the list, a copy saved (same bytes as WifiManager's copy of that network, but the last DHCP
+  address), restored to its connection (the three read the same after, Wi-Fi stayed up), deleted; restore here -> No.
+- [ ] Restore a copy of another network into a connection and connect with it without opening System Settings;
+  a WPS/AOSS connection; Old 3DS/2DS; the 10 languages.
+- Later the same day: saving asks for an optional alias (WifiManager's, up to 96 characters, in the trailer; empty = the
+  network), and a copy can have it renamed (same file and date) (`feat/wifi-alias`); the questions name a copy by it.
+  A guide chapter, `wifi` (marked 0.10: the guide tells minor versions apart only) (`feat/wifi-guide`). The list
+  crashed after a save when the top screen drew the selected item the reload had freed: `fix/list-freed-selection`
+  (list.c: the top screen no longer draws a selected item that is not in the list).
+- Editing by hand (`feat/wifi-edit`, wifiedit.c): Edit on a connection or a copy, Set up by hand on an empty
+  connection: the network's name, security, password, address (DHCP or typed: IP, netmask, gateway), DNS (automatic
+  or typed). The key is worked out as the console does (WPA: PBKDF2-HMAC-SHA1 of the password, the name as salt, 4096
+  rounds; checked on the New 3DS XL with SITE WIFIKEYCHECK against both connections set up in System Settings; copies
+  made by WifiManager's editor hold a zero key). A WPS/AOSS connection edited becomes a plain one.
+  - [x] Saving connection 2 untouched: the three read the same after, keys still match.
+  - [ ] Change a password and a typed address, and connect with them; set up an empty connection by hand.
+- Connecting (`feat/wifi-connect`, 2026-11-08). Tried on the New 3DS XL with SITE WIFICONNECT (`feat/wifi-test`, not
+  merged): while the console is connected, ac:u ConnectAsync with the connection in use answers 0 and with another one
+  C8809FFA; CloseAllAsync answers 0 but the connection stays (the system's own, ndm), and handing the Wi-Fi back after
+  that left it half dead (no signal strength, the FTP server not answering) until HOME. So NSA never switches or tests
+  a connection while connected; writing the one in use changes nothing until the console connects again, which the
+  owner found only sleep mode does (not HOME, not reopening NSA): the notice says so. ac's AP types are 1, 2, 4 for
+  connections 1-3 (as GetWifiStatus; libctru's AC_AP_TYPE_SLOT* are one bit off): mask 4 connected through connection 3.
+- With NSA in front the system does not connect by itself (the HOME Menu does: the owner saw a connection restored
+  while offline taken up only after HOME). NSA now connects as a game does (ndm infrastructure exclusive state,
+  ConnectAsync, GetConnectResult, leave; the connection stays): after restoring, editing or setting up a connection
+  while not connected ("Connecting with connection N...", then connected or why not), with Connect in a connection's
+  actions while not connected, and in the background when NSA starts without a connection.
+- The FTP and web servers stop when the Wi-Fi goes while they serve (they looked on but answered nothing until HOME)
+  and start again once it is back, as at a start without Wi-Fi.
+- Delete connection (`feat/wifi-delete`): ac:i RemoveNetworkSetting + FlushNetworkSetting, red and asked; the one in
+  use keeps the console connected until sleep mode (said). On the New 3DS XL: connection 2 saved, deleted (empty in the
+  config and in ac), restored from that copy: the three read as before, keys match.
+- [ ] Offline (out of reach, or the connection in use replaced and the console put to sleep): restore or edit a
+  reachable connection, and Connect; open NSA with no connection (it connects by itself, the servers start); the Wi-Fi
+  lost and back while NSA is open (the FTP and web icons go and come back).
+
+**B asks before it stops** (2026-11-08, `feat/confirm-cancel`): under every progress bar that says how to stop it
+(installs, copies, pastes, deletes, imports, exports, console to console, Store files), B asks first, red: "Stop now?
+What is left is not done." No goes on; yes hands the update the B it reads (injected, as the web page's keys are). The
+notice after is titled "Cancelled", not "Failure" (data_op and the save packer). A paste stopped half way deleted
+nothing: the file it was writing stayed, at its full size (the copy sets it first) but partly written; now it goes.
+- [x] On the New 3DS XL: a 150 MB paste, B -> No went on (38 %, "Quedan 00:00:30"), B -> Yes stopped it, "Cancelado",
+      the half file gone.
+- [ ] A CIA install and console to console: B asks, No goes on, Yes stops.
+
+**Time left under every progress bar** (2026-11-08, `feat/progress-eta`): the progress view (info.c, every copy,
+paste, install, delete, import, export, console to console, Store files) shows "00:01:23 left" under its bar, from
+the average since the bar started to move (it starts again when the bar goes back, as at each file of a copy; none in
+the first 2 s). The texts that had their own ETA (data_op, Export CIA, console to console) lost it, so it is not twice.
+Dump NAND's bar has "00:03:29 left · 3.76 MiB/s" under it too. The URL download screen kept its own.
+- [x] On the 2DS: the dump's line; a 40 MB paste ("Quedan 00:00:07" under the bar).
+- [ ] A long install, Export CIA and console to console: the time left under the bar, in Japanese or Chinese too.
+
+**Dump NAND up to the last partition** (2026-11-08, `feat/dumpnand-trim`): the system says 1.84 GiB for the raw NAND on
+every model, but after the last NCSD partition only zeros come; the dump stops there, as GodMode9's SysNAND backups do
+(943 MiB on the 2DS, 1.21 GiB on the New 3DS XL). Tested on both: 2DS 254 s (from 558), New 3DS XL 366 s (from 557);
+`.sha256` passes, same size as the owner's GodMode9 backups of 2026-09-27, which differ only in CTRNAND and TWL sectors
+the system wrote since (header and FIRMs equal).
 
 **Pixel theme** (Settings -> Theme, `tools/make_pixelfont.py`)
 - [ ] On a console: the pixel font (Pixelify Sans 10/12/16 px, `romfs/pixelfont.png`) is readable on

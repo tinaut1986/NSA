@@ -523,14 +523,11 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
         }
 
         u64 total = session->size;
-        u32 eta = session->speed > 0 ? (u32) ((total - at) / session->speed) : 0;
-
         *progress = total != 0 ? (float) ((double) at / (double) total) : 0;
-        snprintf(text, PROGRESS_TEXT_MAX, _("To %s\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), session->peerName,
+        snprintf(text, PROGRESS_TEXT_MAX, _("To %s\n%.2f %s / %.2f %s\n%.2f %s/s"), session->peerName,
                  ui_get_display_size(at), ui_get_display_size_units(at),
                  ui_get_display_size(total), ui_get_display_size_units(total),
-                 ui_get_display_size(session->speed), ui_get_display_size_units(session->speed),
-                 ui_get_display_eta(eta));
+                 ui_get_display_size(session->speed), ui_get_display_size_units(session->speed));
         return;
     }
 
@@ -2011,14 +2008,11 @@ static void transfer_receive_progress_update(ui_view* view, void* data, float* p
         }
 
         u64 total = receive->size;
-        u32 eta = receive->speed > 0 ? (u32) ((total - at) / receive->speed) : 0;
-
         *progress = total != 0 ? (float) ((double) at / (double) total) : 0;
-        snprintf(text, PROGRESS_TEXT_MAX, _("From %s\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s"), receive->sender,
+        snprintf(text, PROGRESS_TEXT_MAX, _("From %s\n%.2f %s / %.2f %s\n%.2f %s/s"), receive->sender,
                  ui_get_display_size(at), ui_get_display_size_units(at),
                  ui_get_display_size(total), ui_get_display_size_units(total),
-                 ui_get_display_size(receive->speed), ui_get_display_size_units(receive->speed),
-                 ui_get_display_eta(eta));
+                 ui_get_display_size(receive->speed), ui_get_display_size_units(receive->speed));
         return;
     }
 

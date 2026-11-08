@@ -760,8 +760,8 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
 - [x] On the 2DS (2026-11-08, 0.9.2-dev.112): B during the dump stops it at once; the half file (199 MB) is deleted
       once the notice is closed and the screen is back at the start. With 859 MiB free (a filler plus a preallocated
       SITE SDBENCH) the screen is red: "Faltan 84.75 MiB: libera espacio primero", only Back (A goes back too).
-- [ ] The cancel notice is titled "Failure" though the owner cancelled, and B cancels without asking: one stray press
-      throws a long dump away. Ask first, and title it as a cancel?
+- [x] B (or the button) asks first, red: "Stop the NAND dump? What was copied is deleted." (No goes on, Yes stops);
+      the notice after is titled "Dump NAND": "NAND dump cancelled." (`feat/progress-eta`; seen on the 2DS 2026-11-08).
 
 **Dump NAND on three threads** (2026-11-07, `feat/dumpnand-pipeline`): read (core 1), write (core 0) and hash
 (core 2, or core 0 on an Old 3DS) in 1 MB blocks, four of them in flight, with `osSetSpeedupEnable`. On the New 3DS XL,
@@ -771,6 +771,14 @@ is the limit now (slower while the NAND is read at the same time). The dump used
 ended (`fix/dumpnand-speedup`: FTP fell from 1.3 MB/s to 0.46 after a dump).
 - [x] On the 2DS (2026-11-08, hash on core 0): 1.98 GB in 558 s against 1153 s on 0.8.5.
 - [x] Cancelling and the full SD again on this build (see above).
+
+**Time left under every progress bar** (2026-11-08, `feat/progress-eta`): the progress view (info.c, every copy,
+paste, install, delete, import, export, console to console, Store files) shows "00:01:23 left" under its bar, from
+the average since the bar started to move (it starts again when the bar goes back, as at each file of a copy; none in
+the first 2 s). The texts that had their own ETA (data_op, Export CIA, console to console) lost it, so it is not twice.
+Dump NAND's bar has "00:03:29 left · 3.76 MiB/s" under it too. The URL download screen kept its own.
+- [x] On the 2DS: the dump's line; a 40 MB paste ("Quedan 00:00:07" under the bar).
+- [ ] A long install, Export CIA and console to console: the time left under the bar, in Japanese or Chinese too.
 
 **Dump NAND up to the last partition** (2026-11-08, `feat/dumpnand-trim`): the system says 1.84 GiB for the raw NAND on
 every model, but after the last NCSD partition only zeros come; the dump stops there, as GodMode9's SysNAND backups do

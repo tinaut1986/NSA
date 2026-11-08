@@ -336,7 +336,7 @@ static void dumpnand_reader(void* arg) {
     dumpnand_free_resources(dump);
 
     if(res == R_APP_CANCELLED) {
-        prompt_display_notify("Failure", "Operation cancelled.", COLOR_TEXT, NULL, NULL, NULL);
+        prompt_display_notify("Dump NAND", "NAND dump cancelled.", COLOR_TEXT, NULL, NULL, NULL);
     } else if(R_FAILED(res)) {
         error_display_res(NULL, NULL, res, "Failed to dump NAND.");
     }
@@ -639,6 +639,15 @@ static void dumpnand_draw_bottom(ui_view* view, void* data, float x1, float y1, 
         snprintf(text, sizeof(text), "%s / %s", done, total);
         screen_draw_text(text, right - widget_text_width(text, WIDGET_SMALL_SCALE), lineY + 1, WIDGET_SMALL_SCALE, t->palette->textMuted);
 
+        // The time left and the speed, as the top screen has them, here too: one look at the bar is enough.
+        if(dump->op.bytesPerSecond > 0) {
+            char eta[48];
+            snprintf(eta, sizeof(eta), _("%s left"), ui_get_display_eta(dump->op.estimatedRemainingSeconds));
+            dumpnand_size_text(done, sizeof(done), dump->op.bytesPerSecond);
+            snprintf(text, sizeof(text), "%s \u00B7 %s/s", eta, done);
+            screen_draw_text(text, tx, lineY + widget_text_height(WIDGET_TEXT_SCALE) + 4, WIDGET_SMALL_SCALE, t->palette->textMuted);
+        }
+
         widget_text_fit(_("Keep the console awake and the SD card in."), tx, y + cardH - 12 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, t->palette->textMuted, right - tx);
     } else {
         float cardH = 128;
@@ -693,6 +702,14 @@ static void dumpnand_close(ui_view* view, dumpnand_data* dump) {
     free(dump);
 }
 
+// "Stop the dump?": yes stops it, if it is still running (it may have ended while the question was up).
+static void dumpnand_cancel_onresponse(ui_view* view, void* data, u32 response) {
+    dumpnand_data* dump = (dumpnand_data*) data;
+    if(response == PROMPT_YES && !dump->op.finished && dump->op.cancelEvent != 0) {
+        svcSignalEvent(dump->op.cancelEvent);
+    }
+}
+
 // What a button press does, by state: 0 the main button, 1 the other one.
 static bool dumpnand_act(ui_view* view, dumpnand_data* dump, u32 button) {
     switch(dump->state) {
@@ -709,7 +726,8 @@ static bool dumpnand_act(ui_view* view, dumpnand_data* dump, u32 button) {
             dumpnand_close(view, dump);
             return true;
         case DUMP_WORKING:
-            svcSignalEvent(dump->op.cancelEvent);
+            // A stray press must not throw minutes of copying away: ask first.
+            prompt_display_warning("Dump NAND", "Stop the NAND dump? What was copied is deleted.", COLOR_TEXT, dump, NULL, dumpnand_cancel_onresponse);
             return false;
     }
 

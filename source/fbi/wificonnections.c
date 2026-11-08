@@ -357,8 +357,14 @@ static void wifi_restore_answer(ui_view* view, void* listData, u32 response) {
 
 // Copy `data->source` to connection `data->target`, after asking.
 static void wifi_restore_ask(wifi_data* data) {
-    char name[33];
-    wifislots_name(&data->backups[data->source].slot, name, sizeof(name));
+    char name[100];
+    // A copy is called by its alias, as in the list.
+    if(data->backups[data->source].alias[0] != '\0') {
+        snprintf(name, sizeof(name), "%s", data->backups[data->source].alias);
+    } else {
+        wifislots_name(&data->backups[data->source].slot, name, sizeof(name));
+    }
+
     char message[256];
     if(wifi_slot_used(data, data->target)) {
         char current[33];
@@ -454,8 +460,14 @@ static void wifi_delete_answer(ui_view* view, void* listData, u32 response) {
 static void wifi_delete(void* listData) {
     wifi_data* data = (wifi_data*) listData;
     data->source = ((wifi_entry*) data->actionSelected->data)->index;
-    char name[33];
-    wifislots_name(&data->backups[data->source].slot, name, sizeof(name));
+    char name[100];
+    // A copy is called by its alias, as in the list.
+    if(data->backups[data->source].alias[0] != '\0') {
+        snprintf(name, sizeof(name), "%s", data->backups[data->source].alias);
+    } else {
+        wifislots_name(&data->backups[data->source].slot, name, sizeof(name));
+    }
+
     char message[160];
     snprintf(message, sizeof(message), _("Delete the copy of %s? It cannot be undone."), name);
     prompt_display_warning("Confirmation", message, COLOR_TEXT, data, NULL, wifi_delete_answer);

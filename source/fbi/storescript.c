@@ -477,8 +477,26 @@ static void script_abandon(script_run* run) {
     script_finish(run, false);
 }
 
+static char script_kept[SCRIPT_PATH_MAX];
+
+const char* storescript_kept_file(void) {
+    return script_kept;
+}
+
 // The end: the CIAs install (their screens say how it went), or it says where the files went.
 static void script_end(script_run* run) {
+    // What it leaves, for the Store to look for later.
+    script_kept[0] = '\0';
+    for(u32 i = run->createdCount; i > 0 && script_kept[0] == '\0'; i--) {
+        const char* path = run->created[i - 1];
+        char sd[SCRIPT_PATH_MAX + 8];
+        script_sd(sd, sizeof(sd), path);
+        struct stat st;
+        if(!script_has_ext(path, ".cia") && stat(sd, &st) == 0) {
+            string_copy(script_kept, path, sizeof(script_kept));
+        }
+    }
+
     if(run->installs[0] != '\0') {
         action_install_cia_paths_now(run->installs, run->deleteInstalled);
     } else if(run->last[0] != '\0') {

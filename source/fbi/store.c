@@ -127,7 +127,7 @@ typedef struct {
     char slug[64];
     char cia[24];
     char dsx[24];
-    char other[24];   // One of its other downloads went through (an app with neither a CIA nor a .3dsx).
+    char other[128];  // A file one of its other downloads left (an app with neither a CIA nor a .3dsx).
 } store_record;
 
 // What the background scan needs about an app (copied, so the scan never reads the apps that the screen owns).
@@ -139,7 +139,7 @@ typedef struct {
     char dsxName[96];
     char recCia[24];     // The Store installed its CIA (an app without a unique ID).
     char files[160];     // store_app's `files` (whole lines only).
-    bool recOther;       // The Store got one of its other downloads.
+    char recOther[128];  // A file one of its other downloads left (store_record's `other`).
 } store_scan_entry;
 
 // Bits of an app's status.
@@ -1136,26 +1136,31 @@ static u8 store_compute_status(const store_scan_entry* entry, const u64* install
         }
     }
 
-    // Neither: what it leaves on the card (any of it), or, when the catalogue does not say, what the Store got for it.
+    // Neither: what it leaves on the card (any of it, as the catalogue says), or a file the Store got for it (the
+    // catalogue's list is missing or wrong, as Vapecord-ACHHD-Plugin's "/VapecordACHHD", which its zip does not hold).
     if(!entry->hasCia && !entry->hasDsx) {
-        if(entry->files[0] != '\0') {
-            const char* p = entry->files;
-            while(*p != '\0' && (bits & STATUS_FILES) == 0) {
-                const char* end = strchr(p, '\n');
-                int len = end != NULL ? (int) (end - p) : (int) strlen(p);
-                char path[FILE_PATH_MAX];
-                snprintf(path, sizeof(path), "sdmc:%.*s", len, p);
-                if(store_file_exists(path)) {
-                    bits |= STATUS_FILES;
-                }
-
-                p += len;
-                if(*p == '\n') {
-                    p++;
-                }
+        const char* p = entry->files;
+        while(*p != '\0' && (bits & STATUS_FILES) == 0) {
+            const char* end = strchr(p, '\n');
+            int len = end != NULL ? (int) (end - p) : (int) strlen(p);
+            char path[FILE_PATH_MAX];
+            snprintf(path, sizeof(path), "sdmc:%.*s", len, p);
+            if(store_file_exists(path)) {
+                bits |= STATUS_FILES;
             }
-        } else if(entry->recOther) {
-            bits |= STATUS_FILES;
+
+            p += len;
+            if(*p == '\n') {
+                p++;
+            }
+        }
+
+        if((bits & STATUS_FILES) == 0 && entry->recOther[0] != '\0') {
+            char path[FILE_PATH_MAX];
+            snprintf(path, sizeof(path), "sdmc:%s", entry->recOther);
+            if(store_file_exists(path)) {
+                bits |= STATUS_FILES;
+            }
         }
     }
 
@@ -1932,7 +1937,10 @@ static void store_install_finished_all(void* data) {
 
         if(record != NULL) {
             if(ctx->other) {
-                string_copy(record->other, ctx->version[0] != '\0' ? ctx->version : "-", sizeof(record->other));
+                // Kept when the run left nothing (a CIA it installed): the older one may still be there.
+                if(storescript_kept_file()[0] != '\0') {
+                    string_copy(record->other, storescript_kept_file(), sizeof(record->other));
+                }
             } else {
                 string_copy(ctx->cia ? record->cia : record->dsx, ctx->version, sizeof(record->cia));
             }
@@ -1947,7 +1955,7 @@ static void store_install_finished_all(void* data) {
                 LightLock_Lock(&store->lock);
                 if(store->scan != NULL && i < store->scanCount) {
                     string_copy(store->scan[i].recCia, record->cia, sizeof(store->scan[i].recCia));
-                    store->scan[i].recOther = record->other[0] != '\0';
+                    string_copy(store->scan[i].recOther, record->other, sizeof(store->scan[i].recOther));
                 }
 
                 store_scan_entry entry = store->scan != NULL && i < store->scanCount ? store->scan[i] : (store_scan_entry) {{0}};
@@ -2440,7 +2448,7 @@ static void store_take(store_data* store, ui_view* view, linked_list* items, lis
             store_record* record = store_record_find(store, app->slug);
             if(record != NULL) {
                 string_copy(scan[i].recCia, record->cia, sizeof(scan[i].recCia));
-                scan[i].recOther = record->other[0] != '\0';
+                string_copy(scan[i].recOther, record->other, sizeof(scan[i].recOther));
             }
         }
     }

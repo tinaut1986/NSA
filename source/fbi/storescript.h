@@ -24,4 +24,7 @@ bool storescript_resolve_path(const char* in, char* out, size_t size);
 // Runs a supported script, given as JSON text: asks `question` first, then the downloads (the usual progress screen), then
 // the rest (a progress bar), then installs the CIAs (the usual install screens). `done` runs at the end, `ok` when every
 // step went through (the CIAs' install says for itself how it went).
+// After a run that went through: the last file it wrote that is still on the card (not a CIA it installs), as
+// "/luma/plugins/.../plugin.3gx", or "" when none. Kept until the next run ends.
+const char* storescript_kept_file(void);
 void storescript_run(const char* scriptText, const char* question, void* userData, void (*done)(void* userData, bool ok));

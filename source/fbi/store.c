@@ -48,7 +48,7 @@
 #define STORE_ICON_SIDE 48   // The icons are kept as textures this many pixels square, for as long as the Store is open.
 #define STORE_PREFETCH_PAUSE 4000   // ms between the icons fetched in the background, when no row is waiting for one.
 #define STORE_RECORDS_MAX 512
-#define STORE_CACHE_FORMAT 7   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
+#define STORE_CACHE_FORMAT 8   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
 
 typedef enum {
     ICON_NONE,      // Not asked for yet.
@@ -81,6 +81,7 @@ typedef struct {
     char* ciaScript;
     char* dsxScript;
     char dsxName[64];   // The .3dsx it leaves, without the extension, to look for it in /3ds/.
+    char* files;        // Universal-DB's "installed_files": what it leaves on the card, one path per line (NULL: none).
     char* iconUrl;      // Where the icon is: "sheet:index" in the catalogue's sprite sheets.
     char* preMessage;   // What the author asks to be read before installing (NULL: nothing).
     char console[16];   // The first console it is for, as the store says ("3DS", "NDS", "GBA"...).
@@ -126,6 +127,7 @@ typedef struct {
     char slug[64];
     char cia[24];
     char dsx[24];
+    char other[128];  // A file one of its other downloads left (an app with neither a CIA nor a .3dsx).
 } store_record;
 
 // What the background scan needs about an app (copied, so the scan never reads the apps that the screen owns).
@@ -136,11 +138,15 @@ typedef struct {
     bool hasDsx;
     char dsxName[96];
     char recCia[24];     // The Store installed its CIA (an app without a unique ID).
+    char files[160];     // store_app's `files` (whole lines only).
+    char recOther[128];  // A file one of its other downloads left (store_record's `other`).
 } store_scan_entry;
 
 // Bits of an app's status.
 #define STATUS_CIA 1           // The title is installed.
 #define STATUS_DSX 2           // The .3dsx is in /3ds/.
+#define STATUS_FILES 4         // Neither a CIA nor a .3dsx, and what it leaves is on the card (a Luma plugin, data...).
+#define STATUS_ON (STATUS_CIA | STATUS_DSX | STATUS_FILES)
 
 // An icon nobody has asked for yet: fetched slowly in the background so that scrolling finds it there.
 typedef struct {
@@ -288,6 +294,7 @@ static void store_free_apps(store_app* apps, u32 count) {
         free(apps[i].dsxScript);
         free(apps[i].iconUrl);
         free(apps[i].preMessage);
+        free(apps[i].files);
         for(u32 j = 0; j < apps[i].otherCount; j++) {
             free(apps[i].others[j].script);
         }
@@ -558,6 +565,28 @@ static int store_parse_full(const char* text, size_t size, const char* baseUrl, 
             app->preMessage = strdup(message);
         }
 
+        // What it leaves on the card, as Universal-Updater looks for it.
+        json_t* files = json_object_get(info, "installed_files");
+        if(json_is_array(files)) {
+            char joined[512] = "";
+            size_t used = 0;
+            size_t fileIndex;
+            json_t* file;
+            json_array_foreach(files, fileIndex, file) {
+                char path[256];
+                if(!json_is_string(file) || !storescript_resolve_path(json_string_value(file), path, sizeof(path))
+                   || used + strlen(path) + 2 > sizeof(joined)) {
+                    continue;
+                }
+
+                used += snprintf(joined + used, sizeof(joined) - used, "%s%s", used > 0 ? "\n" : "", path);
+            }
+
+            if(used > 0) {
+                app->files = strdup(joined);
+            }
+        }
+
         count++;
     }
 
@@ -603,6 +632,10 @@ static json_t* store_app_to_json(const store_app* app) {
 
     if(app->preMessage != NULL) {
         json_object_set_new(object, "pm", json_string(app->preMessage));
+    }
+
+    if(app->files != NULL) {
+        json_object_set_new(object, "f", json_string(app->files));
     }
 
     json_object_set_new(object, "co", json_string(app->console));
@@ -707,6 +740,10 @@ static int store_read_cache(const store_data* store, store_app** out, store_meta
 
         if(store_str(entry, "pm")[0] != '\0') {
             app->preMessage = strdup(store_str(entry, "pm"));
+        }
+
+        if(store_str(entry, "f")[0] != '\0') {
+            app->files = strdup(store_str(entry, "f"));
         }
 
         string_copy(app->console, store_str(entry, "co"), sizeof(app->console));
@@ -893,6 +930,7 @@ static void store_records_load(store_data* store) {
             string_copy(record->slug, key, sizeof(record->slug));
             string_copy(record->cia, store_str(value, "c"), sizeof(record->cia));
             string_copy(record->dsx, store_str(value, "d"), sizeof(record->dsx));
+            string_copy(record->other, store_str(value, "o"), sizeof(record->other));
         }
     }
 
@@ -909,6 +947,10 @@ static void store_records_save(store_data* store) {
 
         if(store->records[i].dsx[0] != '\0') {
             json_object_set_new(entry, "d", json_string(store->records[i].dsx));
+        }
+
+        if(store->records[i].other[0] != '\0') {
+            json_object_set_new(entry, "o", json_string(store->records[i].other));
         }
 
         json_object_set_new(root, store->records[i].slug, entry);
@@ -1091,6 +1133,34 @@ static u8 store_compute_status(const store_scan_entry* entry, const u64* install
 
         if(present) {
             bits |= STATUS_DSX;
+        }
+    }
+
+    // Neither: what it leaves on the card (any of it, as the catalogue says), or a file the Store got for it (the
+    // catalogue's list is missing or wrong, as Vapecord-ACHHD-Plugin's "/VapecordACHHD", which its zip does not hold).
+    if(!entry->hasCia && !entry->hasDsx) {
+        const char* p = entry->files;
+        while(*p != '\0' && (bits & STATUS_FILES) == 0) {
+            const char* end = strchr(p, '\n');
+            int len = end != NULL ? (int) (end - p) : (int) strlen(p);
+            char path[FILE_PATH_MAX];
+            snprintf(path, sizeof(path), "sdmc:%.*s", len, p);
+            if(store_file_exists(path)) {
+                bits |= STATUS_FILES;
+            }
+
+            p += len;
+            if(*p == '\n') {
+                p++;
+            }
+        }
+
+        if((bits & STATUS_FILES) == 0 && entry->recOther[0] != '\0') {
+            char path[FILE_PATH_MAX];
+            snprintf(path, sizeof(path), "sdmc:%s", entry->recOther);
+            if(store_file_exists(path)) {
+                bits |= STATUS_FILES;
+            }
         }
     }
 
@@ -1628,7 +1698,7 @@ static u8 store_status(store_data* store, const store_app* app) {
     }
 
     u32 index = (u32) (app - store->apps);
-    return index < store->scanCount ? store->status[index] & (STATUS_CIA | STATUS_DSX) : 0;
+    return index < store->scanCount ? store->status[index] & STATUS_ON : 0;
 }
 
 // A small pill for a kind that is on the console. Drawn ending at `right`; returns where it starts.
@@ -1698,9 +1768,13 @@ static void store_draw_row(void* data, list_item* item, float x, float y, float 
     u8 status = store_status(store, app);
     if(app->ciaUrl == NULL && app->dsxUrl == NULL) {
         const char* label = app->console[0] != '\0' ? app->console : _("Other");
-        float labelW = widget_text_width(label, WIDGET_SMALL_SCALE);
-        screen_draw_text(label, right - labelW, y + (height - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, muted);
-        right -= labelW + 8;
+        if(status & STATUS_FILES) {
+            right = store_draw_pill(label, right, y, height, selected) - 5;
+        } else {
+            float labelW = widget_text_width(label, WIDGET_SMALL_SCALE);
+            screen_draw_text(label, right - labelW, y + (height - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, muted);
+            right -= labelW + 8;
+        }
     }
 
     for(int kind = 1; kind >= 0; kind--) {
@@ -1821,8 +1895,14 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
         bx = store_draw_kind_badge(bx, by, text, (status & STATUS_DSX) != 0);
     }
 
+    // Neither: one badge with the console it is for (as in its row), with the check when it is on the console.
+    bool neither = app->ciaUrl == NULL && app->dsxUrl == NULL;
+    if(neither) {
+        bx = store_draw_kind_badge(bx, by, app->console[0] != '\0' ? app->console : _("Other"), (status & STATUS_FILES) != 0);
+    }
+
     // The console, when it is not the 3DS.
-    if(app->console[0] != '\0' && strcasecmp(app->console, "3DS") != 0) {
+    if(!neither && app->console[0] != '\0' && strcasecmp(app->console, "3DS") != 0) {
         widget_badge(bx, by, app->console, t->palette->border, t->palette->text);
         bx += widget_text_width(app->console, WIDGET_SMALL_SCALE) + 18;
     }
@@ -1852,7 +1932,7 @@ static void store_install_finished_url(void* data, u32 index) {
 static void store_install_finished_all(void* data) {
     store_install_ctx* ctx = (store_install_ctx*) data;
     store_data* store = ctx->store;
-    if(ctx->ok && !ctx->other) {
+    if(ctx->ok) {
         store_record* record = store_record_find(store, ctx->slug);
         if(record == NULL && store->recordCount < STORE_RECORDS_MAX) {
             record = &store->records[store->recordCount++];
@@ -1861,7 +1941,15 @@ static void store_install_finished_all(void* data) {
         }
 
         if(record != NULL) {
-            string_copy(ctx->cia ? record->cia : record->dsx, ctx->version, sizeof(record->cia));
+            if(ctx->other) {
+                // Kept when the run left nothing (a CIA it installed): the older one may still be there.
+                if(storescript_kept_file()[0] != '\0') {
+                    string_copy(record->other, storescript_kept_file(), sizeof(record->other));
+                }
+            } else {
+                string_copy(ctx->cia ? record->cia : record->dsx, ctx->version, sizeof(record->cia));
+            }
+
             store_records_save(store);
 
             for(u32 i = 0; i < store->count; i++) {
@@ -1872,6 +1960,7 @@ static void store_install_finished_all(void* data) {
                 LightLock_Lock(&store->lock);
                 if(store->scan != NULL && i < store->scanCount) {
                     string_copy(store->scan[i].recCia, record->cia, sizeof(store->scan[i].recCia));
+                    string_copy(store->scan[i].recOther, record->other, sizeof(store->scan[i].recOther));
                 }
 
                 store_scan_entry entry = store->scan != NULL && i < store->scanCount ? store->scan[i] : (store_scan_entry) {{0}};
@@ -1922,7 +2011,7 @@ static void store_recheck_step(store_data* store) {
 
     LightLock_Unlock(&store->lock);
 
-    bool wanted = (entry.hasCia && (bits & STATUS_CIA)) || (entry.hasDsx && (bits & STATUS_DSX));
+    bool wanted = (entry.hasCia && (bits & STATUS_CIA)) || (entry.hasDsx && (bits & STATUS_DSX)) || (bits & STATUS_FILES);
     if(wanted || ++store->recheckTries >= 10) {
         store->recheck = -1;
     } else {
@@ -2001,6 +2090,7 @@ static void store_get_other(u32 index) {
     ctx->store = store_sheet_store;
     ctx->other = true;
     string_copy(ctx->slug, app->slug, sizeof(ctx->slug));
+    string_copy(ctx->version, app->version, sizeof(ctx->version));
     char message[700];
     store_ask_text(message, sizeof(message), app, _("Get \"%s\"?"), app->others[index].name);
     storescript_run(app->others[index].script, message, ctx, store_script_done);
@@ -2088,7 +2178,7 @@ static bool store_visible(void* data, list_item* item) {
     }
 
     if(store->shown != 0) {
-        bool onConsole = (store_status(store, app) & (STATUS_CIA | STATUS_DSX)) != 0;
+        bool onConsole = (store_status(store, app) & STATUS_ON) != 0;
         return onConsole == (store->shown == 1);
     }
 
@@ -2217,7 +2307,7 @@ static void store_draw_tile(void* data, list_item* item, float x, float y, float
 
     // A mark in the corner when something of it is on the console.
     u8 status = store_status(store, app);
-    if(status & (STATUS_CIA | STATUS_DSX)) {
+    if(status & STATUS_ON) {
         float r = size >= 64 ? 20 : 16;
         float mx = x + size - r - 1;
         float my = y + size - r - 1;
@@ -2351,9 +2441,19 @@ static void store_take(store_data* store, ui_view* view, linked_list* items, lis
                 store_dsx_name(app->dsxUrl, scan[i].dsxName, sizeof(scan[i].dsxName));
             }
 
+            if(app->files != NULL) {
+                // Whole lines only: a path cut short would never be found.
+                string_copy(scan[i].files, app->files, sizeof(scan[i].files));
+                if(strlen(app->files) >= sizeof(scan[i].files)) {
+                    char* cut = strrchr(scan[i].files, '\n');
+                    *(cut != NULL ? cut : scan[i].files) = '\0';
+                }
+            }
+
             store_record* record = store_record_find(store, app->slug);
             if(record != NULL) {
                 string_copy(scan[i].recCia, record->cia, sizeof(scan[i].recCia));
+                string_copy(scan[i].recOther, record->other, sizeof(scan[i].recOther));
             }
         }
     }

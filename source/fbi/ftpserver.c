@@ -1306,6 +1306,13 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    if(NSA_DEBUG && strcmp(sub, "WIFIKEYCHECK") == 0) {
+        char reply[600];
+        wifislots_debug_keycheck(reply, sizeof(reply));
+        ftp_reply(s, "200 %s", reply);
+        return;
+    }
+
     if(NSA_DEBUG && strcmp(sub, "WIFIROUNDTRIP") == 0) {
         char reply[600];
         unsigned slot = 1, change = 0;

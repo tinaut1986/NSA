@@ -113,6 +113,15 @@ Result wifislots_delete_backup(const wifislots_backup* backup);
 // Gives a copy another alias (empty: none), in the same file and with the same date, as WifiManager's rename.
 Result wifislots_set_alias(wifislots_backup* backup, const char* alias);
 
+// Editing: a new, empty connection (DHCP, automatic DNS); the network typed by hand (its key worked out: the WPA PSK,
+// or the WEP key), or the reason it cannot be (a text to translate); an address "a.b.c.d"; a copy's file rewritten
+// with the same alias and date.
+void wifislots_new(wifislots_slot* slot);
+const char* wifislots_set_network(wifislots_slot* slot, const char* ssid, u8 security, const char* password);
+bool wifislots_parse_ip(const char* text, u8* out);
+Result wifislots_update_backup(wifislots_backup* backup, const wifislots_slot* slot);
+
 // DEBUG: SITE WIFIREAD and SITE WIFIROUNDTRIP (ftpserver.c).
 void wifislots_debug_read(char* out, size_t size);
+void wifislots_debug_keycheck(char* out, size_t size);
 bool wifislots_debug_roundtrip(u32 index, u32 change, char* out, size_t size);

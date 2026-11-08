@@ -7,6 +7,8 @@
 #include <sys/stat.h>
 
 #include <3ds.h>
+#include <mbedtls/md.h>
+#include <mbedtls/pkcs5.h>
 
 #include "wifislots.h"
 
@@ -418,6 +420,34 @@ void wifislots_debug_read(char* out, size_t size) {
     }
 }
 
+// SITE WIFIKEYCHECK: for each connection, whether the key worked out from its name and password is the one it holds
+// (it says yes or no, never the key or the password).
+void wifislots_debug_keycheck(char* out, size_t size) {
+    size_t used = 0;
+    for(u32 i = 0; i < WIFISLOTS_COUNT && used < size; i++) {
+        wifislots_slot slot;
+        if(R_FAILED(wifislots_read(i, &slot)) || wifislots_empty(&slot)) {
+            used += (size_t) snprintf(out + used, size - used, "slot %lu: empty; ", i);
+            continue;
+        }
+
+        char name[33];
+        char password[65];
+        wifislots_name(&slot, name, sizeof(name));
+        wifislots_password(&slot, password, sizeof(password));
+        const wifislots_network* held = wifislots_network_of(&slot);
+        wifislots_slot made = slot;
+        const char* problem = wifislots_set_network(&made, name, held->security, password);
+        bool zero = true;
+        for(u32 b = 0; b < sizeof(held->key); b++) {
+            zero = zero && held->key[b] == 0;
+        }
+
+        used += (size_t) snprintf(out + used, size - used, "slot %lu: sec %u, %s; ", i, held->security,
+                                  problem != NULL ? problem : memcmp(made.network.key, held->key, sizeof(held->key)) == 0 ? "key matches" : zero ? "held key is zero" : "KEY DIFFERS");
+    }
+}
+
 // The bytes 0x4..0x414 (what the CRC covers) that differ between two connections, as ranges.
 static u32 wifislots_diff(const wifislots_slot* a, const wifislots_slot* b, char* out, size_t size) {
     const u8* x = (const u8*) a;
@@ -495,4 +525,108 @@ bool wifislots_debug_roundtrip(u32 index, u32 change, char* out, size_t size) {
     }
 
     return true;
+}
+
+// ---- editing ----
+
+void wifislots_new(wifislots_slot* slot) {
+    memset(slot, 0, sizeof(*slot));
+    slot->version = 1;
+    slot->enabled = 1;
+    slot->editableSecurity = 1;
+    slot->settings.dhcp = 1;
+    slot->settings.autoDns = 1;
+    slot->settings.mtu = 1400;
+}
+
+// The key the system connects with: for WPA the PSK (PBKDF2-HMAC-SHA1 of the password, salted with the network's name,
+// 4096 rounds, as the console stores it: checked against connections set up in System Settings), for WEP the password's
+// own bytes.
+static bool wifislots_make_key(wifislots_network* net, u8 ssidLength) {
+    memset(net->key, 0, sizeof(net->key));
+    size_t len = strnlen(net->password, sizeof(net->password));
+    if(net->security == WIFISLOTS_OPEN) {
+        return true;
+    }
+
+    if(net->security <= WIFISLOTS_WEP_152) {
+        memcpy(net->key, net->password, len < sizeof(net->key) ? len : sizeof(net->key));
+        return true;
+    }
+
+    mbedtls_md_context_t md;
+    mbedtls_md_init(&md);
+    bool ok = mbedtls_md_setup(&md, mbedtls_md_info_from_type(MBEDTLS_MD_SHA1), 1) == 0
+              && mbedtls_pkcs5_pbkdf2_hmac(&md, (const unsigned char*) net->password, len, (const unsigned char*) net->ssid, ssidLength, 4096,
+                                           sizeof(net->key), net->key) == 0;
+    mbedtls_md_free(&md);
+    return ok;
+}
+
+const char* wifislots_set_network(wifislots_slot* slot, const char* ssid, u8 security, const char* password) {
+    size_t ssidLength = strlen(ssid);
+    size_t passwordLength = strlen(password);
+    if(ssidLength == 0 || ssidLength > sizeof(slot->network.ssid)) {
+        return "The network's name takes 1 to 32 characters.";
+    }
+
+    if(security >= WIFISLOTS_WPA_TKIP && (passwordLength < 8 || passwordLength > 63)) {
+        return "A WPA password takes 8 to 63 characters.";
+    }
+
+    if(security >= WIFISLOTS_WEP_64 && security <= WIFISLOTS_WEP_152 && passwordLength != 5 && passwordLength != 13 && passwordLength != 16) {
+        return "A WEP password takes 5, 13 or 16 characters.";
+    }
+
+    // Typed by hand: a plain network (one set up with WPS or AOSS becomes one), as System Settings' manual setup.
+    slot->enabled = 1;
+    slot->editableSecurity = 1;
+    slot->multiSsidEnabled = 0;
+    slot->multiSsidType = 0;
+    slot->multiSsidCount = 0;
+    memset(slot->multiSsid, 0, sizeof(slot->multiSsid));
+
+    wifislots_network before = slot->network;
+    wifislots_network* net = &slot->network;
+    memset(net, 0, sizeof(*net));
+    memcpy(net->ssid, ssid, ssidLength);
+    net->ssidLength = (u8) ssidLength;
+    net->security = security;
+    if(security != WIFISLOTS_OPEN) {
+        memcpy(net->password, password, passwordLength);
+    }
+
+    if(!wifislots_make_key(net, net->ssidLength)) {
+        return "Failed to work out the network's key.";
+    }
+
+    // The connection test passed for another network, not for this one.
+    if(memcmp(&before, net, sizeof(before)) != 0) {
+        slot->settings.tested = 0;
+    }
+
+    return NULL;
+}
+
+bool wifislots_parse_ip(const char* text, u8* out) {
+    unsigned a, b, c, d;
+    char rest;
+    if(sscanf(text, "%u.%u.%u.%u%c", &a, &b, &c, &d, &rest) != 4 || a > 255 || b > 255 || c > 255 || d > 255) {
+        return false;
+    }
+
+    out[0] = (u8) a;
+    out[1] = (u8) b;
+    out[2] = (u8) c;
+    out[3] = (u8) d;
+    return true;
+}
+
+Result wifislots_update_backup(wifislots_backup* backup, const wifislots_slot* slot) {
+    Result res = wifislots_write_file(backup->path, slot, backup->saved != 0 ? backup->saved : time(NULL), backup->alias);
+    if(R_SUCCEEDED(res)) {
+        backup->slot = *slot;
+    }
+
+    return res;
 }

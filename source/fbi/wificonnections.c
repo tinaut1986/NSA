@@ -7,6 +7,7 @@
 
 #include "resources.h"
 #include "section.h"
+#include "wifiedit.h"
 #include "wifislots.h"
 #include "../core/core.h"
 
@@ -473,17 +474,34 @@ static void wifi_delete(void* listData) {
     prompt_display_warning("Confirmation", message, COLOR_TEXT, data, NULL, wifi_delete_answer);
 }
 
+static void wifi_edit_saved(void* listData) {
+    ((wifi_data*) listData)->populated = false;
+}
+
+static void wifi_edit(void* listData) {
+    wifi_data* data = (wifi_data*) listData;
+    wifi_entry* entry = (wifi_entry*) data->actionSelected->data;
+    if(entry->kind == ENTRY_SLOT) {
+        wifiedit_open(&data->slots[entry->index], (int) entry->index, NULL, wifi_edit_saved, data);
+    } else {
+        wifiedit_open(&data->backups[entry->index].slot, -1, &data->backups[entry->index], wifi_edit_saved, data);
+    }
+}
+
 static void wifi_actions_open(wifi_data* data, list_item* selected) {
     data->actionSelected = selected;
     wifi_entry* entry = (wifi_entry*) selected->data;
 
     static char labels[WIFISLOTS_COUNT][64];
     static char details[WIFISLOTS_COUNT][64];
-    sheet_action actions[7];
+    sheet_action actions[8];
     u32 count = 0;
     if(entry->kind == ENTRY_SLOT) {
         if(wifi_slot_used(data, entry->index)) {
             actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save a copy"), false, wifi_save};
+            actions[count++] = (sheet_action) {ICON_PENCIL, _("Edit"), false, wifi_edit};
+        } else {
+            actions[count++] = (sheet_action) {ICON_PENCIL, _("Set up by hand"), false, wifi_edit};
         }
 
         if(data->backupCount > 0) {
@@ -512,6 +530,7 @@ static void wifi_actions_open(wifi_data* data, list_item* selected) {
         actions[count++] = (sheet_action) {ICON_ARROW_BACK_UP, labels[i], wifi_slot_used(data, i), restore[i], false, details[i]};
     }
 
+    actions[count++] = (sheet_action) {ICON_PENCIL, _("Edit"), false, wifi_edit};
     actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename alias"), false, wifi_rename};
     actions[count++] = (sheet_action) {ICON_TRASH, _("Delete this copy"), true, wifi_delete};
     sheet_display_list_for(_("Saved copy"), selected->name, ICON_DEVICE_FLOPPY, actions, count, data);

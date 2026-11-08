@@ -284,20 +284,10 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
                 }
             }
 
-            // Deleting FBI before it reinstalls itself causes issues.
-            u64 currTitleId = 0;
-            FS_MediaType currMediaType = MEDIATYPE_NAND;
+            u16 version = 0;
+            cia_get_title_version(&version, (u8*) initialReadBlock, installData->installInfo.bufferSize);
 
-            if(envIsHomebrew() || R_FAILED(APT_GetAppletInfo((NS_APPID) envGetAptAppId(), &currTitleId, (u8*) &currMediaType, NULL, NULL, NULL)) || titleId != currTitleId || dest != currMediaType) {
-                AM_DeleteTitle(dest, titleId);
-                AM_DeleteTicket(titleId);
-
-                if(dest == MEDIATYPE_SD) {
-                    AM_QueryAvailableExternalTitleDatabase(NULL);
-                }
-            }
-
-            if(R_SUCCEEDED(res = AM_StartCiaInstall(dest, handle))) {
+            if(R_SUCCEEDED(res = action_install_cia_start(dest, titleId, version, handle))) {
                 installData->currTitleId = titleId;
                 cia_seed_watch_start(&installData->seedWatch, (u8*) initialReadBlock, installData->installInfo.bufferSize);
             }

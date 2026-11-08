@@ -878,7 +878,6 @@ const i18n_entry i18n_ja[] = {
         {"Saves it in /nsa/received/ to install it later from Files.", "/nsa/received/ に保存し、あとでファイル画面からインストールします。"},
         {"Download the 3DSX again", "3DSXをもう一度ダウンロード"},
         {"On this console: %s", "この本体: %s"},
-        {"its files", "ファイル"},
         {"\uE000 get   \uE003 view   \uE004 filter   \uE005 search   \uE001 back", "\uE000 入手   \uE003 表示   \uE004 絞り込み   \uE005 検索   \uE001 戻る"},
         {"Category", "カテゴリー"},
         {"Apps", "アプリ"},

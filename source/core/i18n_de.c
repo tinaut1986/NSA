@@ -878,7 +878,6 @@ const i18n_entry i18n_de[] = {
         {"Saves it in /nsa/received/ to install it later from Files.", "Speichert es in /nsa/received/, um es später unter Dateien zu installieren."},
         {"Download the 3DSX again", "3DSX erneut herunterladen"},
         {"On this console: %s", "Auf dieser Konsole: %s"},
-        {"its files", "seine Dateien"},
         {"\uE000 get   \uE003 view   \uE004 filter   \uE005 search   \uE001 back", "\uE000 holen   \uE003 Ansicht   \uE004 Filter   \uE005 Suche   \uE001 zurück"},
         {"Category", "Kategorie"},
         {"Apps", "Apps"},

@@ -117,6 +117,7 @@ const i18n_entry i18n_ja[] = {
         {"FTP: receiving %s", "FTP: %s を受信中"},
         {"FTP: installing %s", "FTP: %s をインストール中"},
         {"No Wi-Fi", "Wi-Fiなし"},
+        {"Waiting for Wi-Fi", "Wi-Fiを待っています"},
         {"Port %d busy", "ポート%dは使用中"},
         {"No thread", "スレッドなし"},
 

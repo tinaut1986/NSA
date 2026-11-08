@@ -2284,6 +2284,21 @@ static void web_shutdown() {
     snprintf(web_status, sizeof(web_status), "%s", _("Off"));
 }
 
+// Started now, or as soon as there is Wi-Fi (NSA opened without it): it tries every couple of seconds, with no end.
+void webserver_start_when_online() {
+    if(webserver_start()) {
+        return;
+    }
+
+    web_retry = true;
+    web_retry_next = osGetTime() + 2000;
+    web_retry_end = U64_MAX;
+}
+
+bool webserver_waiting() {
+    return web_retry && !webserver_running();
+}
+
 void webserver_stop() {
     web_retry = false;
     web_paused = false;

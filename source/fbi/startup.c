@@ -259,12 +259,13 @@ static void startup_import_onresponse(ui_view* view, void* data, u32 response) {
 
 void startup_run() {
     // Debug builds always serve, whatever the saved setting says.
+    // Without Wi-Fi now, they start once it comes (they used to stay off until set again).
     if(settings_get()->ftpServer || NSA_DEBUG) {
-        ftpserver_start();
+        ftpserver_start_when_online();
     }
 
     if(settings_get()->webServer) {
-        webserver_start();
+        webserver_start_when_online();
     }
 
     if(startup_is_dir(LEGACY_ROOT) && !startup_is_dir(DATA_ROOT)) {

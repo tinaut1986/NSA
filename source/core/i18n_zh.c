@@ -113,6 +113,7 @@ const i18n_entry i18n_zh[] = {
         {"FTP: receiving %s", "FTP: 正在接收 %s"},
         {"FTP: installing %s", "FTP: 正在安装 %s"},
         {"No Wi-Fi", "无 Wi-Fi"},
+        {"Waiting for Wi-Fi", "正在等待 Wi-Fi"},
         {"Port %d busy", "端口 %d 被占用"},
         {"No thread", "无线程"},
         // Import of FBI's folder

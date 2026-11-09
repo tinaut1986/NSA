@@ -13,6 +13,7 @@
 #include <3ds.h>
 
 #include "datetime.h"
+#include "datepicker.h"
 #include "resources.h"
 #include "section.h"
 #include "settings.h"
@@ -562,75 +563,8 @@ static void dt_changed() {
 
 // ---- changing a field ----
 
-// Typed in the order the screen writes dates ("09/11/2026 14:05"); hours 0-23, or 1-12 with AM / PM.
-static bool dt_parse(const char* text, struct tm* out) {
-    int n[5] = {0};
-    int count = 0;
-    bool pm = false;
-    bool am = false;
-    const char* c = text;
-    while(*c != '\0' && count < 5) {
-        if(*c >= '0' && *c <= '9') {
-            n[count++] = (int) strtol(c, (char**) &c, 10);
-        } else {
-            c++;
-        }
-    }
-
-    for(const char* l = text; *l != '\0'; l++) {
-        if((l[0] == 'p' || l[0] == 'P') && (l[1] == 'm' || l[1] == 'M')) {
-            pm = true;
-        } else if((l[0] == 'a' || l[0] == 'A') && (l[1] == 'm' || l[1] == 'M')) {
-            am = true;
-        }
-    }
-
-    if(count < 5) {
-        return false;
-    }
-
-    int day = datefmt_month_first() ? n[1] : n[0];
-    int month = datefmt_month_first() ? n[0] : n[1];
-    int year = n[2] < 100 ? 2000 + n[2] : n[2];
-    int hour = n[3];
-    if(pm || am) {
-        if(hour < 1 || hour > 12) {
-            return false;
-        }
-
-        hour = hour % 12 + (pm ? 12 : 0);
-    }
-
-    if(year < 2000 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || n[4] > 59) {
-        return false;
-    }
-
-    s64 days = datetime_days(year, month, day);
-    time_t check = (time_t) (days * 86400);
-    struct tm* back = gmtime(&check);
-    if(back == NULL || back->tm_mday != day) {
-        return false;   // 31/02 and the like.
-    }
-
-    *out = *back;
-    out->tm_hour = hour;
-    out->tm_min = n[4];
-    return true;
-}
-
-static void dt_typed(ui_view* view, void* data, SwkbdButton button, const char* response) {
-    if(button != SWKBD_BUTTON_CONFIRM) {
-        return;
-    }
-
-    struct tm tm;
-    if(!dt_parse(response, &tm)) {
-        error_display(NULL, NULL, datefmt_month_first() ? "Not a date and time: type it as 11/09/2026 14:05 (month/day/year hours:minutes)."
-                                                       : "Not a date and time: type it as 09/11/2026 14:05 (day/month/year hours:minutes).");
-        return;
-    }
-
-    s64 seconds = datetime_days(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday) * 86400 + tm.tm_hour * 3600 + tm.tm_min * 60;
+static void dt_picked(void* data, const struct tm* tm) {
+    s64 seconds = datetime_days(tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday) * 86400 + tm->tm_hour * 3600 + tm->tm_min * 60 + tm->tm_sec;
     Result res = datetime_set_clock(seconds * 1000);
     if(R_FAILED(res)) {
         error_display_res(NULL, NULL, res, "The console did not take the new time.");
@@ -712,14 +646,10 @@ static void dt_open_field(dt_field field) {
         case FIELD_NOW: {
             time_t now = time(NULL);
             struct tm* tm = gmtime(&now);
-            char value[32] = "";
             if(tm != NULL) {
-                // Always 24 hours here (AM / PM may be typed too).
-                snprintf(value, sizeof(value), "%02d/%02d/%04d %02d:%02d", datefmt_month_first() ? tm->tm_mon + 1 : tm->tm_mday,
-                         datefmt_month_first() ? tm->tm_mday : tm->tm_mon + 1, tm->tm_year + 1900, tm->tm_hour, tm->tm_min);
+                datepicker_display(_("Date and time"), tm, NULL, dt_picked);
             }
 
-            osk_display(datefmt_month_first() ? _("Month/day/year hours:minutes") : _("Day/month/year hours:minutes"), value, 24, OSK_NOT_BLANK, NULL, dt_typed);
             break;
         }
         case FIELD_SYNC:

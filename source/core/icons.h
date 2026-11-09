@@ -123,5 +123,6 @@ typedef enum {
     ICON_REPEAT,
     ICON_REPEAT_ONCE,
     ICON_REPEAT_OFF,
+    ICON_CALENDAR,
     ICON_COUNT
 } icon_id;

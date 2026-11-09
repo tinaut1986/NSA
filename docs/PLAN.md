@@ -606,6 +606,7 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Settings -> Web server: On/Off; the row's top screen shows `http://IP:8080  PIN nnnnnn`; the PIN changes each time it starts; it starts at launch when it was left on.
   Claude on the New 3DS XL, 2026-11-09: the row shows http://192.168.1.135:8080, the PIN and the QR code; the PIN changed at every start of the day's builds and the server started with them. On/Off not toggled.
 - [ ] From the PC: open the address, the PIN screen, wrong PIN (and the lock after 10), browse the SD card, download, upload (a big file, several at once), new folder, rename, delete.
+  Claude, 2026-11-09 (0.9.3-dev.38): web_tests.py passes on both consoles (52 checks: no / wrong PIN 401, mkdir, copy, rename, delete, upload, settings, titles, tickets, extra data, screens, input); it needed volume 101 for "out of range" (5 is valid now: it had set the music to 5 %) and to wait out the import still pending (409). The page in a browser and the lock after 10 not tried.
 - [ ] Files tab: copy a big folder (the page waits; the console stays usable?), move to another folder, edit and save a text file (UTF-8, CRLF kept as typed).
 - [ ] Tickets and Extra data tabs on a real console: counts, names and icons arrive (hundreds of tickets: how long), the text filter.
 - [ ] Install a `.cia` from the page (an SD title; NSA itself restarts); the toast on the bottom screen shows it.
@@ -658,10 +659,12 @@ dates). The owner will go through them one by one; tick each only when they say 
 - [ ] Console to console with the turn (New 3DS XL <-> 2DS, `tools/console_tests.py`): sending and receiving still work; a send
       while the receiver downloads something is refused with "Another transfer is in progress"; the retry question frees it.
   Claude, New 3DS XL -> 2DS, 2026-11-09: console_tests (A New 3DS XL, B 2DS): all 33 pass, so sending and receiving work with the turn; a send while the receiver downloads not tried.
+  Claude, 2026-11-09 (0.9.3-dev.38): turn_tests.py on both: all pass but, once each, reset-down on the New 3DS XL (the turn freed after 31-32 s, one answer 3.2 s: the reset not seen, as in Decisions) and web-vanish on the 2DS (one request failed, the page back at 10-14.7 s, close to the 15 s limit). Rerun twice each: both passed.
 - [ ] Settings -> FTP server (and Web server) off and on again with a transfer under way: nothing freezes, the turn is free.
 - [ ] The page: the top bar shows a transfer (name, %, KB/s) of FTP or a download; an upload while one runs says so and sends
       nothing; the live screens say they are paused; browsing Titles and Files keeps working.
 - [ ] A QR / URL install while an FTP upload runs: the console says another transfer is in progress; after it ends it works.
+  Claude, 2026-11-09 (0.9.3-dev.38): turn_tests busy-ftp on both consoles: /api/install-url gets 503 while an FTP upload holds the turn, the upload ends and the turn is free at once. The console's own message (QR) not seen.
 - [x] The 2DS: the same speed tests (`speed_tests.py --wait-mode poll|nap`) to see whether the short poll helps there too.
   Claude on the 2DS, 2026-11-09: 64 MB, music off: poll 921 up / 619 down KB/s, nap 930 / 637, hybrid 849 / 627: no difference beyond noise (left on POLL).
 

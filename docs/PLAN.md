@@ -274,9 +274,11 @@ a card that is out looks uninstalled, which the question says). Deleting a game 
 that has a folder there asks whether to delete its mods too. Guide chapter `mods` (since 0.8: a console already on 0.8 is not offered it at start, it is in Settings -> Guide). Translated into the 10 languages
 (zh only with characters already in `hanfont.png`).
 - [ ] The list on a console with mods: names and icons, sizes, the states (install a game, delete it, take a card out).
-- [ ] *Delete mods* and *Delete mods of games not installed* delete only those folders; the list updates.
+- [x] *Delete mods* and *Delete mods of games not installed* delete only those folders; the list updates.
+  Claude on the New 3DS XL, 2026-11-09: *Delete mods* on a test mod (romfs/ + code.ips) and *Delete mods of games not installed* deleted only that folder, the empty ones stayed; the list updated. Its question says "los mods de 1 juegos" (plural for one).
 - [x] Deleting a game with mods from Titles asks, and Yes deletes `/luma/titles/<ID>/`; a game without mods asks nothing.
-- [ ] No `/luma/titles` (or empty): the screen says "No mods in /luma/titles." and nothing breaks.
+- [x] No `/luma/titles` (or empty): the screen says "No mods in /luma/titles." and nothing breaks.
+  Claude on the New 3DS XL, 2026-11-09: /luma/titles empty: "No hay mods en /luma/titles.", nothing broke.
 
 **Empty mods folders** (2026-11-07, `feat/mods-empty-folders`; the owner's New 3DS XL has 22 folders in `/luma/titles`, all
 empty, so every game seemed to have mods): a folder with no files is no mods. They are hidden by default and one row at the top
@@ -284,15 +286,18 @@ stands for them all ("22 empty folders", folder-off icon; its sheet: *Show empty
 Show has a third chip, *Empty folders* (settings `mods.states` bit 4). Shown, they carry the tag *Empty* and the sheet of any
 row has *Hide* / *Delete empty folders*. *Delete mods of games not installed* leaves the empty ones out, and deleting a game
 from Titles no longer asks about an empty folder. The owner decides whether hidden or shown reads better.
-- [ ] The New 3DS XL: the list shows only the summary row (or the real mods); A on it: show them, delete them all.
-- [ ] Filter -> Empty folders on and off; the setting is kept when the screen opens again.
+- [x] The New 3DS XL: the list shows only the summary row (or the real mods); A on it: show them, delete them all.
+  Claude on the New 3DS XL, 2026-11-09: two empty test folders and one mod: the row "2 carpetas vacías" on top; A on it, *Delete empty folders* deleted both.
+- [x] Filter -> Empty folders on and off; the setting is kept when the screen opens again.
+  Claude on the New 3DS XL, 2026-11-09: off, the summary row; on, the folders tagged *Vacío*; kept after reopening.
 
 **Deleting a folder that holds folders** (2026-11-07, `fix/delete-dir-trailing-slash`; the owner, deleting the mods of a
 game not installed: "Failed to delete the mods", C8804478 not found): the console's FS refuses
 `FSUSER_DeleteDirectoryRecursively` on a path that ends in `/` once the folder holds another (an empty one or one with only
 files goes; tried on the New 3DS XL through the web API). `fs_delete_dir_recursively` drops the slash; the mods, a folder
 cut and pasted onto another medium, the web page's delete and a store script's `rmdir` use it.
-- [ ] Mods: delete the test mods of 0004000000FFFF00 (romfs/ and code.ips), alone and with *Delete mods of games not installed*.
+- [x] Mods: delete the test mods of 0004000000FFFF00 (romfs/ and code.ips), alone and with *Delete mods of games not installed*.
+  Claude on the New 3DS XL, 2026-11-09: 0004000000FFFF00 (romfs/ with a file, code.ips) deleted alone and, made again, with *Delete mods of games not installed*.
 - [ ] Files: cut a folder with folders in it and paste it onto another medium (the NAND, a save): the source goes.
 
 **Shared UI pieces** (2026-11-07, `refactor/ui-structure`; the owner: screens, dialogs and bars each re-implemented the
@@ -442,8 +447,9 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] The 0.8 texts (Store, guide, menu editing, receive choices...) in the nine other languages (2026-11-06, translated in one go; only
   Simplified Chinese seen in Azahar: the guide's offer and a bubble). Simplified Chinese's font now has 587 characters in a 512x924 atlas
   (cells of 28 px: `tools/make_hanfont.py` must keep it within 1024 high, or NSA freezes at start in that language).
-- [ ] Settings -> Guide: "Everything not seen yet (N)", every chapter with New or a tick, "Start again" (asks); the top screen shows the
+- [x] Settings -> Guide: "Everything not seen yet (N)", every chapter with New or a tick, "Start again" (asks); the top screen shows the
   summary, steps and the version it came with. The Settings row shows "N of 12 chapters seen".
+  Claude on the New 3DS XL, 2026-11-09: "Todo lo que no has visto (15)", New on each chapter and a tick on the one seen, the top screen's summary, steps and "desde NSA 0.8"; "Empezar de nuevo" asks; the Settings row says "1 de 16 capítulos vistos" (16 now).
 - [ ] Every dialog whose message is taller than its card scrolls it above the buttons (D-Pad / Circle Pad up and down, a finger
   dragging the text, or its scrollbar); short ones look as before. Check a sheet (HOME theme) and the Pixel theme.
 - [ ] The texts of the chapters fit their card on the console's own font, in English and Spanish (only Spanish has the new strings).
@@ -562,12 +568,18 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Files: B in a folder selects that folder in the parent at once, also in a big folder full of CIAs; a D-Pad or A pressed meanwhile does nothing until it is selected.
 
 **System's details** (issue #23; `source/fbi/systeminfo.c`; only the layout was checked, in Azahar, whose data is fake)
-- [ ] Main menu -> System opens a list (Console, Network, Storage, Battery); each row shows its page on the top screen; B goes back.
+- [x] Main menu -> System opens a list (Console, Network, Storage, Battery); each row shows its page on the top screen; B goes back.
+  Claude on the New 3DS XL, 2026-11-09: Consola, Red, Almacenamiento, Batería; each page on the top screen; B back.
 - [ ] Console: serial number (read from `SecureInfo_A` on the CTR NAND) matches the sticker; device ID, country, system and kernel versions, MCU firmware (shown as major - 0x10 . minor: check it is plausible), Luma3DS version and commit, "Running as" CIA / 3DSX.
+  Claude on the New 3DS XL, 2026-11-09: QEF10498537, device ID, ES, 11.17.0-50E, kernel 2.58-0, MCU 3.65, Luma 13.4.0 (b3282131), running as CIA: all plausible; the sticker was not compared.
 - [ ] Console on the New 3DS XL: the screen types (IPS / TN from `GSPLCD_GetVendors`: vendor 1 = IPS, 0xC = TN is a guess to confirm).
+  Claude on the New 3DS XL, 2026-11-09: it says top IPS, bottom IPS: to check against the console.
 - [ ] Network: MAC, gateway, DNS, DHCP lease and proxy have real values (all empty in Azahar).
+  Claude on the New 3DS XL, 2026-11-09: **wrong**: gateway 127.0.0.1 and DNS "-" (the router is 192.168.1.1); MAC (as the router's ARP table), netmask, DHCP lease 23 h 42 min and proxy No are right.
 - [ ] Storage: the SD card's maker, product name and date from its CID (the byte order is guessed: both are tried), speed, writable, cluster size.
+  Claude on the New 3DS XL, 2026-11-09: **wrong**: "0x15 a8h0T", made 2049-11 (the CID read in the wrong order); speed (high), writable, cluster 32 KiB and the four media's space are right.
 - [ ] Battery: percent with a decimal, voltage and temperature from MCU registers 0x0A-0x0D (plausible: about 3.6-4.2 V, room temperature); charging / on the charger / on battery; after 2 minutes on the page the rate and the time left appear and the graph fills; plugging or unplugging restarts the measure.
+  Claude on the New 3DS XL, 2026-11-09: 100.0 %, 4.06 V, 23 °C, on the charger and not charging; after 2 min "+0.0 %/h" and the graph starting. Plugging and unplugging not tried.
 
 **Web server** (item 10; `source/fbi/webserver.c`; tested only in Azahar with `tools/web_tests.py` and the page in a browser)
 - [ ] Screen tab on a real console: frames per second over the Wi-Fi on the New 3DS XL and the 2DS (and what it costs the console: UI, music, a transfer meanwhile); if too slow, try a smaller frame.
@@ -579,6 +591,7 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Titles tab on a real console: the list, names and icons arrive (a console has many more titles than Azahar: how long, and does the console stay usable), filters.
 - [ ] Download a save, extra data and SpotPass data of a game as a package; send that package back from the page: the console unpacks it and asks about the import (red) there.
 - [ ] Settings -> Web server: On/Off; the row's top screen shows `http://IP:8080  PIN nnnnnn`; the PIN changes each time it starts; it starts at launch when it was left on.
+  Claude on the New 3DS XL, 2026-11-09: the row shows http://192.168.1.135:8080, the PIN and the QR code; the PIN changed at every start of the day's builds and the server started with them. On/Off not toggled.
 - [ ] From the PC: open the address, the PIN screen, wrong PIN (and the lock after 10), browse the SD card, download, upload (a big file, several at once), new folder, rename, delete.
 - [ ] Files tab: copy a big folder (the page waits; the console stays usable?), move to another folder, edit and save a text file (UTF-8, CRLF kept as typed).
 - [ ] Tickets and Extra data tabs on a real console: counts, names and icons arrive (hundreds of tickets: how long), the text filter.
@@ -757,6 +770,7 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
 **Pending titles and System save data on the Titles pattern**
 - [ ] Pending titles: rows (kind, ID, SD/NAND tag, version), SD/NAND filter remembered, search, sheet
       with both deletes in red, long press, X refreshes. Only seen empty in Azahar (no pending titles).
+  Claude on the New 3DS XL, 2026-11-09: seen only empty (0) on the New 3DS XL too.
 - [ ] System save data: rows with the ID, search, sheet (browse, delete in red), the delete
       confirmation in the red warning. Azahar crashes on this screen (also on the previous
       `release`, before this change): not seen even once; readable names of the modules were not
@@ -905,26 +919,34 @@ the system wrote since (header and FIRMs equal).
       cannot be heard there.
 
 **Remote install history**
-- [ ] History list: install again, forget, long-press sheet, top card with the links.
+- [x] History list: install again, forget, long-press sheet, top card with the links.
+  Claude on the New 3DS XL, 2026-11-09: rows and top card with the whole link; A asks Install / Save... ; held A: Install / Forget; Forget removes the row (42 -> 41).
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.
 
 **Files: cut / move**
 - [ ] Cut a file and a folder, paste on the same medium (instant rename) and on another one
       (SD to NAND: copy then delete the source); same folder; folder into itself; name taken.
-- [ ] Cut, then paste after the source's list was left (clipboard survives navigating).
+  Claude on the New 3DS XL, 2026-11-09: a file cut in /nsa/ptest and pasted in /nsa: "Movido", gone from the source. Copying a folder and pasting it inside itself is not refused: it made one copy inside (no loop). Cut into itself, name taken and SD -> NAND not tried.
+- [x] Cut, then paste after the source's list was left (clipboard survives navigating).
+  Claude on the New 3DS XL, 2026-11-09: cut in /nsa/ptest, pasted from /nsa's sheet (the clipboard row showed it).
 
 **Files: pictures**
 - [ ] PNG, JPEG, BMP, GIF, TGA open; L/R through the folder; zoom, drag, D-Pad/Circle Pad pan.
+  Claude on the New 3DS XL, 2026-11-09: all five open, L/R and Left/Right go through the folder ("4 / 7"), zoom 200 % and the D-Pad pans. A GIF crashed NSA until the main stack was raised (c5e0637). Dragging and the Circle Pad not tried.
 - [ ] A camera's **MPO in 3D** (pair order, depth, slider at 0 shows the left picture): not
       tried even in Azahar (no sample).
-- [ ] More than 5 megapixels / 12 MB refuses with a message; a 1024+ px picture is shrunk.
+- [x] More than 5 megapixels / 12 MB refuses with a message; a 1024+ px picture is shrunk.
+  Claude on the New 3DS XL, 2026-11-09: a 3000x2000 JPEG: "Demasiado grande (5 megapíxeles como máximo)."; a 1600x1200 PNG shown shrunk to fit.
 - [ ] Memory on an Old 3DS with a 4-5 megapixel JPEG.
 
 **Files: text**
-- [ ] Open `.txt`/`.json`/...; "Open as text" on a file with no known extension; binary files refuse.
+- [x] Open `.txt`/`.json`/...; "Open as text" on a file with no known extension; binary files refuse.
+  Claude on the New 3DS XL, 2026-11-09: .txt (accents, ñ) and .json open; README (no extension) opens as text; a binary file with no extension: "Esto no parece un archivo de texto."
 - [ ] Edit with the custom keyboard: letters, shift/caps, symbols, accents, backspace/arrows
       repeat, D-Pad cursor, X/Y/A shortcuts, START saves, close with changes asks.
-- [ ] CRLF kept; a Latin-1 file is read and saved as UTF-8; a file over 256 KB is read only.
+  Claude on the New 3DS XL, 2026-11-09: a letter typed, START saves ("Guardado."), closing with a change asks Guardar / Descartar / Cancelar and Descartar keeps the file. Shift, symbols, accents and repeats not tried.
+- [x] CRLF kept; a Latin-1 file is read and saved as UTF-8; a file over 256 KB is read only.
+  Claude on the New 3DS XL, 2026-11-09: CRLF kept byte for byte; a Latin-1 file shown right ("No es UTF-8...") and saved as UTF-8; 293 KB: "Solo se muestra el principio (solo lectura)", Editar greyed.
 - [ ] Saving on the NAND / save-data archives (commit).
 
 **Files: audio**
@@ -948,11 +970,13 @@ the owner: folder icons, the CIA size cell and the Modified cell)
 - [ ] Picture previews in the rows and on the card: speed while scrolling a big folder, nothing
       freezes, Old 3DS memory.
 - [ ] A .3dsx's preview, name and author on both consoles; a .3dsx without SMDH keeps the generic icon.
+  Claude on the New 3DS XL, 2026-11-09: New 3DS XL: boot.3dsx shows its icon, "Homebrew Menu v2.4.3", "hbmenu team". 2DS and a .3dsx without SMDH not tried.
 - [ ] **Run program** on a real .3dsx: the owner's NSA is a CIA and they have a Homebrew Launcher CIA.
       Possible failures: its title ID is not `000400000D921E00` (write it in `sdmc:/nsa/hbl_title.txt`),
       or NSA's exheader does not allow `svcConnectToPort` ("hb:ldr", error shown). Also from a 3DSX build.
-- [ ] File type names and icons on files of each kind; "Open as text" is now offered only on
+- [x] File type names and icons on files of each kind; "Open as text" is now offered only on
       files with no known extension (README...), not on programs, ROMs, pictures, archives.
+  Claude on the New 3DS XL, 2026-11-09: Imagen, Texto, Archivo, Comprimido, Programa, ROM de juego, Carpeta with their icons; a picture's sheet has *Ver imagen* and no *Open as text*, a file with no extension has it.
 
 **Next, item 3 (Pending titles, System save data, Dump NAND on the Titles pattern)**
 - [ ] The owner thinks they tried it once but does not remember. The code on `release` still

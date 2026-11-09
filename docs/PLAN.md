@@ -523,14 +523,17 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [x] History: names and links on its rows and on the top card are decoded and the top card shows each link whole, over several lines (the stored address keeps its escapes, so "install again" asks for the real one); the summary on Remote install keeps its lines inside the card. Seen on the New 3DS XL; the 2DS still has the build before this.
 - [x] Wrapped text: a word that fills a whole line (an address with no spaces) is cut where the line ends; before it left an empty first line, so a link with no spaces started one line lower than one with spaces (`screen_wrap_string`, used by every wrapped text). Seen on the New 3DS XL in History; other wrapped texts were not compared.
 - [ ] The install progress screen shows the decoded name.
-- [ ] `tools/console_tests.py`: its rules answer "Incoming file" / "Existing files" as prompts; they are list sheets now (named after the screen under them), so the rules need updating before the next run.
+- [x] `tools/console_tests.py`: its rules answer "Incoming file" / "Existing files" as prompts; they are list sheets now (named after the screen under them), so the rules need updating before the next run.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: SITE TEST UI now describes sheets (kind "sheet"; sheet_set_id names the two), the script picks the row with the D-Pad and A and reads buttons and texts through the i18n tables (the consoles are in Spanish). All 33 tests pass.
 - [ ] Not done: a preview of the icon of an incoming CIA / .3dsx. A CIA keeps its icon at the end and a .3dsx near it, so the sender has to send it: a protocol 9 (hello + icon) that both consoles must run.
 - [ ] A 15 s "io: nothing for 15 s" stall killed one send while two screenshots were fetched over FTP mid-transfer; it did not come back in the reruns. Watch for it.
 
 **Receive menus as lists** (2026-11-04, `feat/receive-list`; DEBUG 0.7.0 installed on the New 3DS XL only, the 2DS was off the network; the screen itself was not seen: `fake_peer.py send` got its connection reset before NSA logged anything):
 - [ ] An incoming file / CIA / folder / save from another console shows a list sheet ("Install now", "Save", "Reject", "Import now", "Save in a folder", "Original path") with a detail line per row, the file name and size as its title, and the transfer card on the top screen; A or a tap chooses.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: through console_tests: the sheet for a file (Guardar / Ruta original / Rechazar, each with its detail line, title "payload.bin (16.00 MiB)", the card on the top screen), a folder and a title package (.cia, saved). Install now and the save package not tried.
 - [ ] B or a tap above the list rejects: the sender sees "declined" and NSA goes back to waiting.
-- [ ] "Existing files" (Original path with files already there) is a list too: Overwrite, Skip existing (folders), Cancel (= reject).
+- [x] "Existing files" (Original path with files already there) is a list too: Overwrite, Skip existing (folders), Cancel (= reject).
+  Claude, New 3DS XL -> 2DS, 2026-11-09: origin_folder_overwrite / skip / cancel and origin_file: the sheet comes up and each answer does what it says.
 - [ ] Only Spanish has the new strings (the other ten languages show the English ones until translated).
 
 **Web System tab** (2026-11-04, `feat/web-system`; DEBUG build on the New 3DS XL, page opened in the browser: the four cards showed the console's real data):
@@ -616,12 +619,14 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 
 **Original path** (`feat/keep-original-path`, issue #24; `tools/console_tests.py --only origin` (8 tests: new, overwrite, skip, cancel, cut and resumed, a single file, unsafe paths not offered) pass on the New 3DS XL <-> 2DS over the Wi-Fi; the owner has not tried it by hand)
 - [ ] Files -> a folder's ⋯ -> *Send to another 3DS*; on the receiver *Original path*: with nothing there the folder appears at the same path; with files there it asks "N of M files already exist" and Overwrite / Skip existing / Cancel do what they say; try it with PKSM's folder.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: the 8 origin tests pass (sent with SITE TEST SENDDIR, not from Files); PKSM's folder not tried.
 - [ ] The same with a single file, and a CIA or a save package (they must not offer *Original path*).
 
 **Sending folders** (`feat/send-folders`; code in `transferfolder.c` and `foldermanifest.c`; `tests/foldermanifest_test.c` on the host and `tools/console_tests.py --only send_folder` (10 tests: clean, name taken, cuts on both sides, write and read failures, 250 small files, no files, unsafe paths, another destination) pass on the New 3DS XL <-> 2DS over the Wi-Fi; the owner has not tried it by hand)
 - [ ] Files -> a folder's ⋯ (or the open folder's sheet) -> *Send to another 3DS*: a small folder (a few files, subfolders, an empty file, an empty subfolder) arrives in `sdmc:/nsa/received/<name>/` with the same tree; the receiver is asked *Save* / *Reject* and picks the destination folder.
 - [ ] A folder with several CIAs (hundreds of MB): speed like a single file, nothing duplicated on the sender's card; cancel with B on each side; a name that already exists arrives as `<name> (2)`.
 - [ ] A cut transfer of a folder goes on from where it stopped (the `<name>.part` folder and `.part.pos` stay on the receiver); an empty folder and one with only empty subfolders are refused by the sender ("no files"); a folder with thousands of small files.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: send_folder_cut_sender / cut_receiver / write_fails / read_fails, the empty folder refused and 250 small files in 20 folders pass; thousands of files not tried.
 - [ ] Wi-Fi and the local wireless (no router); an older NSA (protocol 5) on the other console must refuse cleanly.
 
 **Saves, extra data and SpotPass data** (item 3b; code in `source/fbi/action/savetransfer.c`; none of it tried on a console)
@@ -652,6 +657,7 @@ dates). The owner will go through them one by one; tick each only when they say 
 **One transfer at a time** (`feat/one-transfer`; on the New 3DS XL `tools/turn_tests.py` passes and the speed is above)
 - [ ] Console to console with the turn (New 3DS XL <-> 2DS, `tools/console_tests.py`): sending and receiving still work; a send
       while the receiver downloads something is refused with "Another transfer is in progress"; the retry question frees it.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: console_tests (A New 3DS XL, B 2DS): all 33 pass, so sending and receiving work with the turn; a send while the receiver downloads not tried.
 - [ ] Settings -> FTP server (and Web server) off and on again with a transfer under way: nothing freezes, the turn is free.
 - [ ] The page: the top bar shows a transfer (name, %, KB/s) of FTP or a download; an upload while one runs says so and sends
       nothing; the live screens say they are paused; browsing Titles and Files keeps working.
@@ -869,6 +875,7 @@ nothing: the file it was writing stayed, at its full size (the copy sets it firs
 - [x] On the New 3DS XL: a 150 MB paste, B -> No went on (38 %, "Quedan 00:00:30"), B -> Yes stopped it, "Cancelado",
       the half file gone.
 - [ ] A CIA install and console to console: B asks, No goes on, Yes stops.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: receiving: B -> "¿Parar ahora? Lo que falta no se hará.", Sí stops and the sender says the other console cancelled (receiver_cancels). No, and a CIA install, not tried.
 
 **Time left under every progress bar** (2026-11-08, `feat/progress-eta`): the progress view (info.c, every copy,
 paste, install, delete, import, export, console to console, Store files) shows "00:01:23 left" under its bar, from

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A stand-in for the other console, to test NSA's console to console transfer (protocol 7,
+"""A stand-in for the other console, to test NSA's console to console transfer (protocol 8,
 see docs/PLAN.md, "Console to console") against Azahar or a console, with no second console.
 
   fake_peer.py send HOST FILE        send a file to NSA's Receive (HOST: 127.0.0.1 for Azahar)
@@ -17,10 +17,11 @@ import hashlib, os, socket, struct, sys, threading, time, zlib
 
 CHUNK = 256 * 1024
 PORT = 5002
+PROTOCOL = 8   # TRANSFER_PROTOCOL in source/fbi/transfer.c: NSA refuses any other.
 
 
 def hello(name, size, check, kind, head, origin=b''):
-    return (b'NSAT' + struct.pack('>I', 7) + b'fake peer'.ljust(32, b'\0') + name.ljust(256, b'\0')
+    return (b'NSAT' + struct.pack('>I', PROTOCOL) + b'fake peer'.ljust(32, b'\0') + name.ljust(256, b'\0')
             + struct.pack('>IIIII', size >> 32, size & 0xFFFFFFFF, check, kind, head) + origin.ljust(512, b'\0'))
 
 

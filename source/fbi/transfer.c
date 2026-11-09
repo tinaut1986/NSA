@@ -2441,6 +2441,7 @@ static void transfer_receive_keep_path(void* data) {
     actions[count++] = (sheet_action) {.icon = ICON_X, .label = _("Cancel"), .run = transfer_receive_reject,
                                        .detail = _("Nothing is received")};
     sheet_display_choice(receive->message, actions, count, receive, transfer_receive_draw_top, transfer_receive_reject);
+    sheet_set_id("Existing files");
 }
 
 // Answers of the "Incoming file" question (see transfer_receive_ask_action).
@@ -2513,6 +2514,7 @@ static void transfer_receive_ask_action(transfer_receive_data* receive) {
     actions[count++] = (sheet_action) {.icon = ICON_X, .label = _("Reject"), .run = transfer_receive_reject,
                                        .detail = _("Tells the other console no")};
     sheet_display_choice(receive->message, actions, count, receive, transfer_receive_draw_top, transfer_receive_reject);
+    sheet_set_id("Incoming file");
 }
 
 static void transfer_receive_allow_onresponse(ui_view* view, void* data, u32 response) {

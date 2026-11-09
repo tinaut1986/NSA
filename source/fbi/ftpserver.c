@@ -45,6 +45,8 @@ static u32 ftp_send_chunk = FTP_SEND_CHUNK;
 #define FTP_SESSION_STACK 0x10000
 #define FTP_DATA_ACCEPT_MS 15000
 #define FTP_IDLE_MS (10 * 60 * 1000)
+// A session that has waited this long for a command may be sent away when a new client finds every place taken.
+#define FTP_EVICT_MIN_IDLE_MS 3000
 #define FTP_PASV_FIRST (FTP_SERVER_PORT + 1)
 #define FTP_PASV_COUNT 64
 
@@ -121,6 +123,9 @@ typedef struct {
     char rnfr[FTP_PATH_MAX];
     char in[FTP_LINE_MAX * 2];
     unsigned inUsed;
+    volatile bool waiting;  // Parked waiting for the client's next command (nothing under way): it may be sent away.
+    volatile bool evict;    // Asked to leave to make room for a new client (see ftp_evict_idlest).
+    volatile u64 idleSince; // osGetTime() when it began waiting.
 } ftp_session;
 
 static ftp_session* ftp_sessions[FTP_MAX_SESSIONS];
@@ -242,9 +247,9 @@ static bool ftp_reply(ftp_session* s, const char* fmt, ...) {
 
 // Waits for the client's next command. Each session has its thread, so a silent one keeps no one else out; one
 // silent for FTP_IDLE_MS (a client that vanished with the Wi-Fi) is closed, which frees its place.
-static bool ftp_wait_command(ftp_session* s) {
+static bool ftp_wait_command_poll(ftp_session* s) {
     u32 waited = 0;
-    while(ftp_run) {
+    while(ftp_run && !s->evict) {
         struct pollfd p = {.fd = s->ctrl, .events = POLLIN, .revents = 0};
         int r = poll(&p, 1, 0);
         if(r < 0 || (p.revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
@@ -260,6 +265,15 @@ static bool ftp_wait_command(ftp_session* s) {
     }
 
     return false;
+}
+
+// While it waits, the session counts as idle: a new client may take its place (ftp_evict_idlest).
+static bool ftp_wait_command(ftp_session* s) {
+    s->idleSince = osGetTime();
+    s->waiting = true;
+    bool ok = ftp_wait_command_poll(s);
+    s->waiting = false;
+    return ok && !s->evict;
 }
 
 // One command line, CR/LF stripped. False when the client left or we stop.
@@ -1711,7 +1725,13 @@ static void ftp_session_free(ftp_session* s) {
 static void ftp_session_thread(void* arg) {
     ftp_session* s = (ftp_session*) arg;
     ftp_handle_session(s);
-    net_close_gently(s->ctrl);
+    if(s->evict) {
+        // Idle, nothing unsent: closing gently would wait (up to 2 s) for a client that has left its side open,
+        // and the new client is waiting for this place.
+        ftp_close_socket(&s->ctrl);
+    } else {
+        net_close_gently(s->ctrl);
+    }
 
     LightLock_Lock(&ftp_lock);
     for(u32 i = 0; i < FTP_MAX_SESSIONS; i++) {
@@ -1739,6 +1759,43 @@ static bool ftp_start_session_thread(ftp_session* s) {
     return thread != NULL;
 }
 
+// A client that connects and then idles (a file manager keeps several connections open) does not release its place
+// until it closes or FTP_IDLE_MS passes, and the console may not notice it left. When every place is taken, the one
+// that has waited longest for a command (and for at least FTP_EVICT_MIN_IDLE_MS) is sent away. One under way, or
+// that spoke a moment ago, is never touched.
+static bool ftp_evict_idlest() {
+    u64 now = osGetTime();
+    ftp_session* best = NULL;
+    LightLock_Lock(&ftp_lock);
+    for(u32 i = 0; i < FTP_MAX_SESSIONS; i++) {
+        ftp_session* s = ftp_sessions[i];
+        if(s != NULL && s->waiting && !s->evict && now - s->idleSince >= FTP_EVICT_MIN_IDLE_MS && (best == NULL || s->idleSince < best->idleSince)) {
+            best = s;
+        }
+    }
+
+    if(best != NULL) {
+        best->evict = true;
+    }
+
+    LightLock_Unlock(&ftp_lock);
+    return best != NULL;
+}
+
+static int ftp_take_slot(ftp_session* s) {
+    int slot = -1;
+    LightLock_Lock(&ftp_lock);
+    for(int i = 0; i < FTP_MAX_SESSIONS && slot < 0; i++) {
+        if(ftp_sessions[i] == NULL) {
+            slot = i;
+            ftp_sessions[i] = s;
+        }
+    }
+
+    LightLock_Unlock(&ftp_lock);
+    return slot;
+}
+
 // A new client: a session and its thread, or "421" when all places are taken (never left waiting for the greeting).
 static void ftp_accept_session(int fd) {
     ftp_session* s = (ftp_session*) calloc(1, sizeof(ftp_session));
@@ -1752,15 +1809,14 @@ static void ftp_accept_session(int fd) {
 
     int slot = -1;
     if(s != NULL && s->io != NULL) {
-        LightLock_Lock(&ftp_lock);
-        for(int i = 0; i < FTP_MAX_SESSIONS && slot < 0; i++) {
-            if(ftp_sessions[i] == NULL) {
-                slot = i;
-                ftp_sessions[i] = s;
+        slot = ftp_take_slot(s);
+        if(slot < 0 && ftp_evict_idlest()) {
+            // The idle one notices within a nap or two, closes and frees its place.
+            for(int tries = 0; tries < 40 && slot < 0; tries++) {
+                svcSleepThread(50 * 1000000LL);
+                slot = ftp_take_slot(s);
             }
         }
-
-        LightLock_Unlock(&ftp_lock);
     }
 
     if(slot >= 0 && ftp_start_session_thread(s)) {

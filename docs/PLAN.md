@@ -162,6 +162,7 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Web server and FTP sessions (2026-11-09, `fix/web-tls-hang`; issues #37 and #36 by Phibonacci): (1) forcing `https://` on port 8080 closes at once (a TLS hello is dropped) and a plain `http://` in another tab loads without waiting; a silent connection gives up after 4 s (was 30 s). (2) When all 3 FTP places are taken and one has waited 3 s or more for a command, a 4th client takes its place (the idlest is closed); one under way is never closed, and a 4th within 3 s still gets 421. To try from Dolphin on Linux (browsing a folder opens several connections) and on an Old 3DS, where the owner thinks the real problem is the console saturating with open connections. Claude, 2026-11-09, New 3DS XL: https refused in 0.08 s; with 3 idle FTP connections, a 4th to 7th each got the greeting in 0.1-0.4 s and the server closed the evicted ones.
 - [ ] Scrollbars (2026-11-09, after v0.9.4; the owner: taps near a list's right end did not press the row or button): the bar is grabbed only 4 px to its left (the gap to the rows; it was 16) and 14 px to its right. Every list, sheet, popover, prompt and Settings.
 
 **Date and time** (2026-11-09, `feat/date-time`, `source/fbi/datetime.c`, `source/core/datefmt.c`; issue #33 asks for it,

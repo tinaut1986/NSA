@@ -214,12 +214,27 @@ typedef struct {
     int clientSocket;
 } remoteinstall_network_data;
 
+// These run on the UI thread, where the keys are not read again: a client that connects and sends nothing (FileZilla
+// on port 5000 waits for an FTP welcome, #35) used to wait here forever and freeze NSA. Give up after
+// REMOTEINSTALL_NETWORK_IDLE_MS without a byte moved.
+#define REMOTEINSTALL_NETWORK_IDLE_MS 5000
+
 static int remoteinstall_network_recvwait(int sockfd, void* buf, size_t len, int flags) {
     errno = 0;
 
     int ret = 0;
     size_t read = 0;
+    u64 last = osGetTime();
     while((((ret = recv(sockfd, buf + read, len - read, flags)) > 0 && (read += ret) < len) || errno == EAGAIN) && !(hidKeysDown() & KEY_B)) {
+        if(ret > 0) {
+            last = osGetTime();
+        } else if(osGetTime() - last >= REMOTEINSTALL_NETWORK_IDLE_MS) {
+            errno = ETIMEDOUT;
+            return -1;
+        } else {
+            svcSleepThread(1000000);
+        }
+
         errno = 0;
     }
 
@@ -231,7 +246,17 @@ static int remoteinstall_network_sendwait(int sockfd, void* buf, size_t len, int
 
     int ret = 0;
     size_t written = 0;
+    u64 last = osGetTime();
     while((((ret = send(sockfd, buf + written, len - written, flags)) > 0 && (written += ret) < len) || errno == EAGAIN) && !(hidKeysDown() & KEY_B)) {
+        if(ret > 0) {
+            last = osGetTime();
+        } else if(osGetTime() - last >= REMOTEINSTALL_NETWORK_IDLE_MS) {
+            errno = ETIMEDOUT;
+            return -1;
+        } else {
+            svcSleepThread(1000000);
+        }
+
         errno = 0;
     }
 

@@ -1182,6 +1182,21 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    // Tests of "Extract ExeFS" without the menus: "SITE EXEFS <title ID in hex> <media type>" (0 NAND, 1 SD, 2 card).
+    if(NSA_DEBUG && strcmp(sub, "EXEFS") == 0) {
+        unsigned long long tid = 0;
+        unsigned media = 0;
+        if(sscanf(path != NULL ? path : "", "%llx %u", &tid, &media) != 2) {
+            ftp_reply(s, "501 SITE EXEFS titleid mediatype");
+            return;
+        }
+
+        u32 count = 0;
+        Result res = action_extract_exefs_to_sd(tid, (FS_MediaType) media, &count);
+        ftp_reply(s, "200 res %08lX files %lu", res, count);
+        return;
+    }
+
     if(NSA_DEBUG && strcmp(sub, "FAULT") == 0) {
         char point[32] = "";
         unsigned skip = 0, count = 1;

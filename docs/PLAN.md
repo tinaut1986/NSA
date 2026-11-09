@@ -162,6 +162,8 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Scrollbars (2026-11-09, after v0.9.4; the owner: taps near a list's right end did not press the row or button): the bar is grabbed only 4 px to its left (the gap to the rows; it was 16) and 14 px to its right. Every list, sheet, popover, prompt and Settings.
+
 **Date and time** (2026-11-09, `feat/date-time`, `source/fbi/datetime.c`, `source/core/datefmt.c`; issue #33 asks for it,
 left open until Cosmosx007 says whether the format was the problem). System -> Console opens it (A):
 - [ ] The format: Clock (by region / 24 h / 12 h) and Date order (by region / day/month / month/day); by region is

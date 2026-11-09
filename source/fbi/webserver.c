@@ -1893,13 +1893,14 @@ static json_t* web_settings_json() {
         json_array_append_new(accents, json_pack("{s:s,s:s,s:s,s:s}", "id", a->id, "name", a->name, "day", day, "night", night));
     }
 
-    return json_pack("{s:b,s:s,s:o,s:s,s:o,s:s,s:s,s:i,s:i,s:i,s:i}", "ok", 1,
+    return json_pack("{s:b,s:s,s:o,s:s,s:o,s:s,s:s,s:i,s:i,s:i,s:i,s:b,s:b}", "ok", 1,
                      "theme", theme_get(s->theme)->id, "themes", themes,
                      "accent", theme_accent_get(s->accent)->id, "accents", accents,
                      "night", web_night_ids[s->night < 3 ? s->night : 0],
                      "language", i18n_language_code(s->language),
                      "sounds", (int) s->sounds, "soundVolume", (int) s->soundVolume,
-                     "music", (int) s->music, "musicVolume", (int) s->musicVolume);
+                     "music", (int) s->music, "musicVolume", (int) s->musicVolume,
+                     "clock24", datefmt_clock24(), "monthFirst", datefmt_month_first());
 }
 
 static void web_api_settings(web_request* r) {

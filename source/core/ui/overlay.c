@@ -1036,6 +1036,17 @@ void sheet_set_id(const char* id) {
     }
 }
 
+void sheet_set_selected(u32 index) {
+    ui_view* view = ui_top();
+    if(view != NULL && view->update == sheet_update) {
+        sheet_data* s = (sheet_data*) view->data;
+        if(index < s->count) {
+            s->selected = index;
+            sheet_reveal(s);
+        }
+    }
+}
+
 bool sheet_describe(ui_view* view, ui_description* out) {
     if(view == NULL || view->update != sheet_update) {
         return false;

@@ -463,7 +463,12 @@ const pksmBadge = () => { const e = h('span', {class:'nsab', title:'PKSM'}); e.i
 const nsaBadge = () => { const e = h('span', {class:'nsab', title:'NSA'}); e.innerHTML = '<svg viewBox="0 0 20 20" shape-rendering="crispEdges"><rect width="20" height="20" rx="4" fill="#185FA5"/><rect x="2" y="2" width="16" height="4" fill="#378ADD"/><rect x="2" y="6" width="16" height="12" fill="#fff"/><path fill="#fff" d="M4 3h1v2h-1zM7 3h1v2h-1zM10 3h1v2h-1z"/><path fill="#185FA5" d="M6 7h2v7h-2zM12 7h2v7h-2zM8 8h1v2h-1zM9 9h1v2h-1zM10 10h1v2h-1zM11 11h1v2h-1z"/><rect x="4" y="15" width="12" height="1" fill="#378ADD"/></svg>'; return e; };
 document.querySelectorAll('[data-ic]').forEach(e => setIcon(e, e.dataset.ic));
 function fmtSize(n){ if(n<1024) return n+' B'; const u=['KB','MB','GB','TB']; let i=-1; do { n/=1024; i++; } while(n>=1024 && i<3); return n.toFixed(n<10?2:n<100?1:0)+' '+u[i]; }
-function fmtDate(s){ if(!s) return ''; const d = new Date(s*1000); return d.toLocaleDateString(L,{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString(L,{hour:'2-digit',minute:'2-digit'}); }
+// The console's times are its clock's (local, no zone): read as UTC, never converted; written as the console writes them.
+function fmtDate(s){ if(!s) return ''; const d = new Date(s*1000), p = n => String(n).padStart(2,'0');
+  const day = p(d.getUTCDate()), mon = p(d.getUTCMonth()+1), mf = settings && settings.monthFirst;
+  let hr = d.getUTCHours(), time;
+  if(settings && settings.clock24 === false){ time = (hr%12||12)+':'+p(d.getUTCMinutes())+(hr<12?' AM':' PM'); } else { time = p(hr)+':'+p(d.getUTCMinutes()); }
+  return (mf ? mon+'/'+day : day+'/'+mon)+'/'+d.getUTCFullYear()+' '+time; }
 const fmtVer = v => ((v>>10)&63)+'.'+((v>>4)&63)+'.'+(v&15);
 const q = o => Object.entries(o).filter(([,v]) => v!=null).map(([k,v]) => k+'='+encodeURIComponent(v)).join('&');
 const sleep = ms => new Promise(r => setTimeout(r, ms));

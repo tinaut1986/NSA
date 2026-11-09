@@ -457,7 +457,7 @@ static void files_modified_text(file_info* info, bool onSd, char* out, size_t si
     if(cachedKnown) {
         time_t when = (time_t) cachedTime;
         struct tm* t = gmtime(&when);
-        snprintf(out, size, "%02d/%02d/%02d %02d:%02d", t->tm_mday, t->tm_mon + 1, t->tm_year % 100, t->tm_hour, t->tm_min);
+        datefmt_date_time(out, size, t);
     }
 }
 

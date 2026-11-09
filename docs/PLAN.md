@@ -173,12 +173,19 @@ left open until Cosmosx007 says whether the format was the problem). System -> C
 - [ ] Set the time from the Internet (pool.ntp.org, UTC + the zone + summer time; PTMSYSM_SetUserTime as Rosalina; ptm:sets
   is not in the service list and is not needed: time() follows). Claude, 2026-11-09: the New 3DS XL was 93 s slow, set
   right ("El reloj se ha movido +93 segundos"), and it stayed right after NSA restarted.
-- [ ] "From the Internet when NSA opens" (off by default): once the Wi-Fi is up (up to 2 minutes), one try. Not tried.
+- [ ] "From the Internet when NSA opens" (off by default): once the Wi-Fi is up (up to 2 minutes), one try.
 - [ ] Time zone (31, by country by default: ES -> Madrid) and summer time (by the zone's dates: EU, US, south-east
   Australia, New Zealand rules; never; always). Claude: Auckland in November showed +1 h (right: NZ summer); the
   zone list opens on the zone chosen (the sheets held 24 actions at most: now 40). Each choice list opens with the focus
   on the choice made (the owner's request).
-- [ ] Date and time typed by hand (the keyboard, in the date order; AM/PM may be typed): not tried.
+- [ ] Date and time picked by hand (`source/fbi/datepicker.c`, the owner's idea instead of typing): a Date tab with the
+  month's calendar (D-Pad a day / a week, L / R or the arrows the month, a tap a day; weeks start on Monday with
+  day/month, Sunday with month/day; Sundays in red) and a Time tab with wheels for hours, minutes and seconds (+ AM/PM on
+  12 h): drag, tap above / below, or Up / Down; Left / Right pick a wheel; A or Save saves, B goes back. The wheels follow
+  the clock until one is turned. New icon `calendar` (only its cell added to the atlases: tools/make_icons.py renders
+  with Linux Chrome). Claude on the 2DS, 2026-11-09: calendar and wheels drawn right, a drag of 48 px moved the minutes
+  two, the time ticks, the hour turned down and saved gave 15:44, set back from the Internet (+3602 s).
+- [ ] "From the Internet when NSA opens" ran on the 2DS at a start (on by a stray press, then off): "moved +0 s".
 **The owner's tests of 2026-11-07, evening** (the items ticked below, all on `staging` 6760a75). Changed after them, on
 `staging` and tried on the New 3DS XL (DEBUG) unless said:
 - Store scripts (`fix/store-script-paths`; tried on the New 3DS XL on 2026-11-08 with `fix/store-empty-extract`): ndsForwarder and YANBF (extract a pack to the card's

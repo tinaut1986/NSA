@@ -1298,6 +1298,17 @@ const i18n_entry i18n_ru[] = {
         {"Drag a wheel or turn it with Up / Down; Left / Right pick another. A saves.", "Тяните колесо или крутите его Вверх / Вниз; Влево / Вправо выбирают другое. A сохраняет."},
         {" time     month    cancel", " время     месяц    отмена"},
         {" save    date", " сохранить    дата"},
+        // The guide: what 0.9.4 added
+        {"A .zip or a .7z can be extracted from its actions, on the SD card itself.", ".zip или .7z можно распаковать через их действия, прямо на SD-карте."},
+        {"A download you chose to save goes on where it stopped if it was cut: Retry, or the same link again.", "Загрузка, которую вы решили сохранить, продолжится с места обрыва: Повторить или та же ссылка ещё раз."},
+        {"Installing a game that is already there keeps its save. An older version asks first, and NSA backs up the save and puts it back.", "Установка уже имеющейся игры сохраняет её сохранение. Более старая версия сначала спросит, а NSA сделает копию сохранения и вернёт его."},
+        {"When a download, an install or a transfer ends, the notification light blinks. Any button turns it off.", "Когда заканчивается загрузка, установка или передача, мигает индикатор уведомлений. Любая кнопка его гасит."},
+        {"Inside,  on Console opens Date and time, and on Network your Wi-Fi connections.", "Внутри  на «Консоль» открывает «Дата и время», а на «Сеть» — ваши подключения Wi-Fi."},
+        {"Console has the focus: open it with .", "«Консоль» в фокусе: откройте её кнопкой ."},
+        {" here opens a calendar, then wheels for the hours, minutes and seconds: drag them or turn them with the D-Pad.", " здесь открывает календарь, затем колёса для часов, минут и секунд: тяните их или крутите крестовиной."},
+        {"Set the time from the Internet puts the clock right, now or each time NSA opens. The console's clock has no time zone: NSA adds yours and summer time.", "«Установить время из интернета» выставляет часы, сейчас или при каждом запуске NSA. У часов консоли нет пояса: NSA прибавляет ваш пояс и летнее время."},
+        {"Clock and Date order: 24 or 12 hours, day or month first. By region, they follow your console's region.", "«Часы» и «Порядок даты»: 24 или 12 часов, сначала день или месяц. «По региону» следуют региону консоли."},
+        {"Its format, and the clock from the Internet", "Формат и часы из интернета"},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

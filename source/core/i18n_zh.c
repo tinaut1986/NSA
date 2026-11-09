@@ -1289,6 +1289,17 @@ const i18n_entry i18n_zh[] = {
         {"Drag a wheel or turn it with Up / Down; Left / Right pick another. A saves.", "拖动滚轮或用上 / 下转动；左 / 右选择其他滚轮。A保存。"},
         {" time     month    cancel", " 时间     月份    取消"},
         {" save    date", " 保存    日期"},
+        // The guide: what 0.9.4 added
+        {"A .zip or a .7z can be extracted from its actions, on the SD card itself.", ".zip 或 .7z 可以在其操作中直接解压到SD卡上。"},
+        {"A download you chose to save goes on where it stopped if it was cut: Retry, or the same link again.", "选择保存的下载如果中断，会从中断处继续：重试，或再次使用同一链接。"},
+        {"Installing a game that is already there keeps its save. An older version asks first, and NSA backs up the save and puts it back.", "安装已经存在的游戏会保留存档。旧版本会先询问，NSA 会备份存档并放回去。"},
+        {"When a download, an install or a transfer ends, the notification light blinks. Any button turns it off.", "下载、安装或传输结束时，通知灯会闪烁。按任意键即可熄灭。"},
+        {"Inside,  on Console opens Date and time, and on Network your Wi-Fi connections.", "在里面，于“主机”按打开日期和时间，于“网络”打开Wi-Fi连接。"},
+        {"Console has the focus: open it with .", "焦点在“主机”上：按打开。"},
+        {" here opens a calendar, then wheels for the hours, minutes and seconds: drag them or turn them with the D-Pad.", "在这里按打开日历，然后是时、分、秒的滚轮：拖动或用十字键转动。"},
+        {"Set the time from the Internet puts the clock right, now or each time NSA opens. The console's clock has no time zone: NSA adds yours and summer time.", "通过互联网校准时间会校准时钟，现在或每次打开NSA时。主机时钟没有时区：NSA 会加上你的时区和夏令时。"},
+        {"Clock and Date order: 24 or 12 hours, day or month first. By region, they follow your console's region.", "时钟和日期顺序：24或12小时，日或月在前。按地区时跟随主机的地区。"},
+        {"Its format, and the clock from the Internet", "它的格式，以及通过互联网校准时钟"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

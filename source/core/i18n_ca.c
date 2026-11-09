@@ -1297,6 +1297,17 @@ const i18n_entry i18n_ca[] = {
         {"Drag a wheel or turn it with Up / Down; Left / Right pick another. A saves.", "Arrossega una roda o gira-la amb Amunt / Avall; Esquerra / Dreta en trien una altra. A desa."},
         {" time     month    cancel", " hora     mes    cancel·lar"},
         {" save    date", " desar    data"},
+        // The guide: what 0.9.4 added
+        {"A .zip or a .7z can be extracted from its actions, on the SD card itself.", "Un .zip o un .7z es pot extreure des de les seves accions, a la mateixa targeta SD."},
+        {"A download you chose to save goes on where it stopped if it was cut: Retry, or the same link again.", "Una baixada que vas triar desar continua on es va quedar si es talla: Torna-ho a provar, o el mateix enllaç un altre cop."},
+        {"Installing a game that is already there keeps its save. An older version asks first, and NSA backs up the save and puts it back.", "Instal·lar un joc que ja hi és en conserva la partida. Una versió més antiga pregunta abans, i NSA copia la partida i la torna a posar."},
+        {"When a download, an install or a transfer ends, the notification light blinks. Any button turns it off.", "Quan acaba una baixada, una instal·lació o una transferència, parpelleja el llum de notificacions. Qualsevol botó l'apaga."},
+        {"Inside,  on Console opens Date and time, and on Network your Wi-Fi connections.", "A dins,  a Consola obre Data i hora, i a Xarxa les teves connexions Wi-Fi."},
+        {"Console has the focus: open it with .", "Consola té el focus: obre-la amb ."},
+        {" here opens a calendar, then wheels for the hours, minutes and seconds: drag them or turn them with the D-Pad.", " aquí obre un calendari i després rodes per a les hores, minuts i segons: arrossega-les o gira-les amb la creueta."},
+        {"Set the time from the Internet puts the clock right, now or each time NSA opens. The console's clock has no time zone: NSA adds yours and summer time.", "Posar en hora per Internet deixa el rellotge en hora, ara o cada cop que s'obre NSA. El rellotge de la consola no té fus horari: NSA hi suma el teu i l'horari d'estiu."},
+        {"Clock and Date order: 24 or 12 hours, day or month first. By region, they follow your console's region.", "Rellotge i Ordre de la data: 24 o 12 hores, el dia o el mes primer. Segons la regió, segueixen la regió de la consola."},
+        {"Its format, and the clock from the Internet", "El seu format, i el rellotge per Internet"},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

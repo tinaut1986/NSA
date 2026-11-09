@@ -78,6 +78,9 @@ void action_delete_title(linked_list* items, list_item* selected);
 void action_delete_title_ticket(linked_list* items, list_item* selected);
 void action_launch_title(linked_list* items, list_item* selected);
 void action_extract_smdh(linked_list* items, list_item* selected);
+void action_extract_exefs(linked_list* items, list_item* selected);
+// The same without the UI: how many files it copied in *extracted.
+Result action_extract_exefs_to_sd(u64 titleId, FS_MediaType mediaType, u32* extracted);
 void action_export_cia(linked_list* items, list_item* selected);
 void action_export_cia_send(linked_list* items, list_item* selected);
 

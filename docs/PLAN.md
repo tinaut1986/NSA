@@ -213,6 +213,7 @@ no DSP firmware (sdmc:/3ds/dspfirm.cdc comes from a console).
 - [x] *Back to the player* in a folder's sheet opens it where it is; X there stops it and the icon goes.
 - [ ] On the **2DS / Old 3DS**: an FTP upload and a URL download with music in the background against without (`tools/speed_tests.py`,
       back to back). If it costs much, pause the background player while a transfer holds the turn (`xferturn_get`) on an Old 3DS.
+  Claude on the 2DS, 2026-11-09: with Settings -> Background music (Shop) on and off, not the audio player: FTP up 64 MB 782 / 946 KB/s (16 MB 859 / 856), down 637 / 624 (608 / 643), URL save 32 MB 961 / 847 (noise). Only the big upload lost (~17 %).
 
 **FTP: REST, and appends that start mid-block** (2026-11-08, `feat/ftp-rest`; tested on the New 3DS XL):
 - `REST <offset>` (in FEAT as `REST STREAM`): the next RETR starts there, the next STOR keeps the file and writes from
@@ -378,7 +379,8 @@ hint, the reversed name sort and Left/Right in the viewer seen in Azahar):
 **Delete a title's mods from Titles** (2026-11-07, `feat/title-delete-mods`; the owner asked for it): a title with something
 in `/luma/titles/<ID>/` has *Delete mods* in its sheet, right before *Delete* (a game card's too). To try it, a dummy CIA
 "NSA Test" (`000400000FB1AE00`, devkitPro's hello world) with a test mods folder.
-- [ ] Titles -> NSA Test -> *Delete mods*: asks, deletes, and the action is gone the next time.
+- [x] Titles -> NSA Test -> *Delete mods*: asks, deletes, and the action is gone the next time.
+  Claude on the 2DS, 2026-11-09: on the test title 000400000FB1AF00 (installed by URL; NSA Test is not on the 2DS): "¿Borrar estos mods? El juego se queda, sin ellos." with the folder, "Mods borrados.", /luma/titles empty, the title kept; the sheet no longer has it.
 - [x] Deleting NSA Test with mods asks whether to delete them too (the owner, 2026-11-07).
 - [x] Now asked *before* deleting, right after *Delete the selected title?*, in red (`feat/title-mods-ask-first`; the
   owner was unsure which order reads better): Yes deletes the title and then the mods; No keeps the mods.
@@ -409,7 +411,8 @@ on the app's core, as the fetches do, and the update check too. Measured on the 
 "Yes" to the CIA downloaded 44 s -> 10 s (the probe 36 s -> 2.5 s); the check 6.3 s -> 4.7 s (reading the releases 1.1 s ->
 0.36 s). `transfer-log.txt` now says how long each probe took and the update check's times.
 - [ ] On the New 3DS XL: an update from Settings and an install from a URL start as before (no slower).
-- [ ] An install from a URL on the 2DS starts within a few seconds too (the same probe).
+- [x] An install from a URL on the 2DS starts within a few seconds too (the same probe).
+  Claude on the 2DS, 2026-11-09: a 2.5 MB CIA from this PC (`speed_tests.py --only url --cia`): probe 40 ms, downloaded and installed in 5.8 s.
 
 **No seed lookup for titles without one, no probe for small downloads** (2026-11-06, `fix/seed-probe`): after installing a CIA,
 NSA asked Nintendo's server for its seed whatever it was (as FBI did: a 404 for anything not from the eShop, 2.4 s on the 2DS);
@@ -425,6 +428,7 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] A console that ran NSA before (settings.json without `guide_known`) is asked once at start "New in this version": Your
   main menu and Store, with Getting around chained before them while not seen; the top screen lists what it will play with the steps
   of each, and X "Everything" adds every other chapter not seen. Any answer, Later too, is not asked again.
+  Claude on the 2DS, 2026-11-09: 2DS (from 0.9.2-dev.116 with guide_known 9): at start "Novedades de esta versión: - Conexiones Wi-Fi" with Verlo / Todo / Luego; the top card lists Moverse por NSA (10 steps, not seen) before Conexiones Wi-Fi (8) and "X Todo: también los otros 14"; Luego moved guide_known to 10 (a console with `guide_known`, not one without).
 - [ ] A first start (no settings.json) is welcomed with the five essential chapters (Getting around, Your main menu, Titles, SD card,
   Remote install).
 - [ ] The tours: each chapter first goes back to the main menu by itself (B until only it is open); the rest of the screen is dimmed
@@ -465,7 +469,8 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 **Store** (2026-11-05, branch `feat/store`, `source/fbi/store.c`; builds, not run in Azahar or on a console)
 - [ ] Main menu -> Store downloads Universal-DB's UniStore (`https://db.universal-team.net/unistore/universal-db.unistore`, ~0.9 MB, kept as `sdmc:/nsa/store.unistore` and used when there is no connection) and lists the 3DS apps that publish a CIA or a .3dsx with a plain "downloadFile" first step (about 320 of 447 on 2026-11-05: 260 CIA, 280 .3dsx). Zips and multi-step scripts are left out. The top screen shows the selected app (author, version, description, sizes, category); R or the tool searches.
 - [ ] A opens it: a CIA only -> asks and installs through the Remote install screens (`action_install_url`); a .3dsx only -> downloads to `/3ds/<name>/<name>.3dsx`; both -> a sheet to choose.
-- [ ] Memory: parsing ~1 MB of JSON on an Old 3DS / 2DS; leaving the screen while it loads (B).
+- [x] Memory: parsing ~1 MB of JSON on an Old 3DS / 2DS; leaving the screen while it loads (B).
+  Claude on the 2DS, 2026-11-09: Universal-DB, 426 apps: downloaded and read in 8.4 s, on screen at 18 s with the icon sheets built; B while "Cargando el catálogo..." leaves at once, memory as before. Next time the SD copy: 4.6 s. The first copy read gave -1 (written by 0.9.2-dev.116, older STORE_CACHE_FORMAT: expected).
 - Not done: DS apps, `downloadRelease` (the latest GitHub release: 13 apps, left out).
 - [ ] **Universal-DB's scripts** (2026-11-06, `feat/store-scripts`, `source/fbi/storescript.c`, `source/core/unarchive.c`): the
   Store follows each file's steps as Universal-Updater does (downloadFile, extractFile from a .zip through zlib or a .7z through the
@@ -572,14 +577,19 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
   Claude on the New 3DS XL, 2026-11-09: Consola, Red, Almacenamiento, Batería; each page on the top screen; B back.
 - [ ] Console: serial number (read from `SecureInfo_A` on the CTR NAND) matches the sticker; device ID, country, system and kernel versions, MCU firmware (shown as major - 0x10 . minor: check it is plausible), Luma3DS version and commit, "Running as" CIA / 3DSX.
   Claude on the New 3DS XL, 2026-11-09: QEF10498537, device ID, ES, 11.17.0-50E, kernel 2.58-0, MCU 3.65, Luma 13.4.0 (b3282131), running as CIA: all plausible; the sticker was not compared.
+  Claude on the 2DS, 2026-11-09: 2DS: AEM12193646, ES, 11.17.0-50E, kernel 2.58-0, MCU 2.37, Luma 13.4.0, CIA: plausible; sticker not compared.
 - [ ] Console on the New 3DS XL: the screen types (IPS / TN from `GSPLCD_GetVendors`: vendor 1 = IPS, 0xC = TN is a guess to confirm).
   Claude on the New 3DS XL, 2026-11-09: it says top IPS, bottom IPS: to check against the console.
+  Claude on the 2DS, 2026-11-09: 2DS: TN (plausible for a 2DS).
 - [ ] Network: MAC, gateway, DNS, DHCP lease and proxy have real values (all empty in Azahar).
   Claude on the New 3DS XL, 2026-11-09: **wrong**: gateway 127.0.0.1 and DNS "-" (the router is 192.168.1.1); MAC (as the router's ARP table), netmask, DHCP lease 23 h 42 min and proxy No are right.
+  Claude on the 2DS, 2026-11-09: 2DS: the same **wrong** gateway 127.0.0.1 and DNS "-"; IP, mask, MAC, lease and the servers' ports right.
 - [ ] Storage: the SD card's maker, product name and date from its CID (the byte order is guessed: both are tried), speed, writable, cluster size.
   Claude on the New 3DS XL, 2026-11-09: **wrong**: "0x15 a8h0T", made 2049-11 (the CID read in the wrong order); speed (high), writable, cluster 32 KiB and the four media's space are right.
+  Claude on the 2DS, 2026-11-09: 2DS: "Kingston SD32G", made 2016-07, right; so the guessed byte order fails only for the New 3DS XL's card.
 - [ ] Battery: percent with a decimal, voltage and temperature from MCU registers 0x0A-0x0D (plausible: about 3.6-4.2 V, room temperature); charging / on the charger / on battery; after 2 minutes on the page the rate and the time left appear and the graph fills; plugging or unplugging restarts the measure.
   Claude on the New 3DS XL, 2026-11-09: 100.0 %, 4.06 V, 23 °C, on the charger and not charging; after 2 min "+0.0 %/h" and the graph starting. Plugging and unplugging not tried.
+  Claude on the 2DS, 2026-11-09: 2DS: 100.0 %, 4.04 V, 28 °C, plugged in, level 5/5, "Midiendo...". Plugging and unplugging not tried.
 
 **Web server** (item 10; `source/fbi/webserver.c`; tested only in Azahar with `tools/web_tests.py` and the page in a browser)
 - [ ] Screen tab on a real console: frames per second over the Wi-Fi on the New 3DS XL and the 2DS (and what it costs the console: UI, music, a transfer meanwhile); if too slow, try a smaller frame.
@@ -646,7 +656,8 @@ dates). The owner will go through them one by one; tick each only when they say 
 - [ ] The page: the top bar shows a transfer (name, %, KB/s) of FTP or a download; an upload while one runs says so and sends
       nothing; the live screens say they are paused; browsing Titles and Files keeps working.
 - [ ] A QR / URL install while an FTP upload runs: the console says another transfer is in progress; after it ends it works.
-- [ ] The 2DS: the same speed tests (`speed_tests.py --wait-mode poll|nap`) to see whether the short poll helps there too.
+- [x] The 2DS: the same speed tests (`speed_tests.py --wait-mode poll|nap`) to see whether the short poll helps there too.
+  Claude on the 2DS, 2026-11-09: 64 MB, music off: poll 921 up / 619 down KB/s, nap 930 / 637, hybrid 849 / 627: no difference beyond noise (left on POLL).
 
 **Downloads from Dropbox and in long pieces** (Decisions, "Saving comes in long pieces"; the New 3DS XL passed Save from
 Dropbox, catbox and the LAN, byte for byte, and an install by URL of an 8 MB CIA over 8 connections)
@@ -738,6 +749,7 @@ the log says what it chose ("sender: N KB/s over M connections...").
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
 - [ ] The 2DS stays smooth during a download and an FTP transfer (menus, music; FTP threads now on the app core).
+  Claude on the 2DS, 2026-11-09: the traces say the UI draws 10 frames/s during FTP and 11-12 during a URL download (with or without music); how it feels is for the owner.
 - [x] Console to console: the speed on screen no longer jumps between 0 and twice the real one (bytes counted every 32 KB,
       not per 256 KB chunk, and averaged over the last seconds); the owner saw it steady (2026-11-02).
 - [ ] Remote Install's confirmation (QR, typed URL, history, received URLs, the web page's install from URL): Install /
@@ -753,6 +765,7 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
 - [ ] Music during transfers on an Old 3DS: off made the 2DS's FTP 10-25% faster (New 3DS: 3-6%); a URL install on the
       2DS 520 -> 530 KB/s (2%, the install is its limit); a 16 MB send New 3DS -> 2DS 29.0 / 35.7 s with music on both,
       29.8 / 30.8 s off (~6%, noisy). Owner to decide whether NSA pauses it during FTP transfers on an Old 3DS.
+  Claude on the 2DS, 2026-11-09: 2026-11-09 again: FTP up 64 MB 782 KB/s with music, 946 without; down and URL the same (see the 2DS item above).
 - [ ] FTP and web after the non-blocking change: FileZilla and a browser on a real console (big files both ways, several
       at once, a client that disappears mid-transfer, turning the servers off mid-transfer).
 
@@ -914,6 +927,7 @@ the system wrote since (header and FIRMs equal).
       `sdmc:/nsa/music-cache-N.pcm`, 1.3 to 1.6 MB each), a new one is made meanwhile (about 15 s on the 2DS) and it
       replaces it with a 3.5 s fade-out/fade-in; the new one is what is kept. Changing style fades the old one out
       and plays the cache of the new one if there is one. Turning it off cancels a song being made.
+  Claude on the 2DS, 2026-11-09: 2DS: songs of Shop take 14.8-29 s to make (music-log); turning it off while Calm was being made (going from Shop to No passes Calm and Lift): "style 2: stopped in 3196 ms" and the note left the status bar. Not heard.
 - [ ] The animation: a note blinks in the status bar while a song is made, and Settings shows the progress,
       a progress bar and an equalizer (quick while making, slow while playing). Seen in Azahar only; the fade
       cannot be heard there.
@@ -937,7 +951,8 @@ the system wrote since (header and FIRMs equal).
       tried even in Azahar (no sample).
 - [x] More than 5 megapixels / 12 MB refuses with a message; a 1024+ px picture is shrunk.
   Claude on the New 3DS XL, 2026-11-09: a 3000x2000 JPEG: "Demasiado grande (5 megapíxeles como máximo)."; a 1600x1200 PNG shown shrunk to fit.
-- [ ] Memory on an Old 3DS with a 4-5 megapixel JPEG.
+- [x] Memory on an Old 3DS with a 4-5 megapixel JPEG.
+  Claude on the 2DS, 2026-11-09: 2DS: a 2520x1900 JPEG (4.8 MP, 382 KB) shown fitted after 6-9 s of "Cargando..."; SITE MEM the same before and after.
 
 **Files: text**
 - [x] Open `.txt`/`.json`/...; "Open as text" on a file with no known extension; binary files refuse.
@@ -969,8 +984,9 @@ the system wrote since (header and FIRMs equal).
 the owner: folder icons, the CIA size cell and the Modified cell)
 - [ ] Picture previews in the rows and on the card: speed while scrolling a big folder, nothing
       freezes, Old 3DS memory.
-- [ ] A .3dsx's preview, name and author on both consoles; a .3dsx without SMDH keeps the generic icon.
+- [x] A .3dsx's preview, name and author on both consoles; a .3dsx without SMDH keeps the generic icon.
   Claude on the New 3DS XL, 2026-11-09: New 3DS XL: boot.3dsx shows its icon, "Homebrew Menu v2.4.3", "hbmenu team". 2DS and a .3dsx without SMDH not tried.
+  Claude on the 2DS, 2026-11-09: 2DS: boot.3dsx with its icon, "Homebrew Menu v2.4.3", "hbmenu team"; a .3dsx with no SMDH: the generic program icon, its file name, "Programa".
 - [ ] **Run program** on a real .3dsx: the owner's NSA is a CIA and they have a Homebrew Launcher CIA.
       Possible failures: its title ID is not `000400000D921E00` (write it in `sdmc:/nsa/hbl_title.txt`),
       or NSA's exheader does not allow `svcConnectToPort` ("hb:ldr", error shown). Also from a 3DSX build.

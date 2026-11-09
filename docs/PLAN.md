@@ -162,6 +162,13 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Boot logo (2026-11-10, `feat/boot-logo`, `tools/make_logo.py`; issue #15): NSA's own logo while the HOME menu
+  starts it, signed with the HOME menu's HMAC key (kept out of the repository, `~/.3ds/logo_hmackey_text`). The owner
+  saw it on the 2DS and the New 3DS XL: the square fades in, day turns to night with the app's bars. Left to look at:
+  the 3D depth with the slider up on the New 3DS XL (the square comes from Z -80 and rests at +8).
+- [ ] "Extract ExeFS" in a title's sheet (2026-11-10, `feat/extract-exefs`): files in `sdmc:/nsa/exefs/<title ID>/`.
+  Claude, 2026-11-10: the HOME menu's `.code` (1393164 bytes) through `SITE EXEFS` on the 2DS; the sheet's action and a
+  game (with icon, banner and logo) not tried after the fix (one whole read per file).
 - [ ] Web server and FTP sessions (2026-11-09, `fix/web-tls-hang`; issues #37 and #36 by Phibonacci): (1) forcing `https://` on port 8080 closes at once (a TLS hello is dropped) and a plain `http://` in another tab loads without waiting; a silent connection gives up after 4 s (was 30 s). (2) When all 3 FTP places are taken and one has waited 3 s or more for a command, a 4th client takes its place (the idlest is closed); one under way is never closed, and a 4th within 3 s still gets 421. To try from Dolphin on Linux (browsing a folder opens several connections) and on an Old 3DS, where the owner thinks the real problem is the console saturating with open connections. Claude, 2026-11-09, New 3DS XL: https refused in 0.08 s; with 3 idle FTP connections, a 4th to 7th each got the greeting in 0.1-0.4 s and the server closed the evicted ones.
 - [ ] Scrollbars (2026-11-09, after v0.9.4; the owner: taps near a list's right end did not press the row or button): the bar is grabbed only 4 px to its left (the gap to the rows; it was 16) and 14 px to its right. Every list, sheet, popover, prompt and Settings.
 

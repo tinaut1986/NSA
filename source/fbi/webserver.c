@@ -38,6 +38,8 @@
 #define WEB_FILE_BUFFER (256 * 1024)
 #define WEB_NAP_MS 10
 #define WEB_SEND_CHUNK (64 * 1024)
+// SO_RCVBUF / SO_SNDBUF of the listening socket (0: the system's); see webserver_start.
+#define WEB_SOCKET_BUFFER (32 * 1024)
 #define WEB_IDLE_MS 30000
 // A file transfer stalled this long gives up when another request is waiting: the page is served one
 // request at a time, and the 3DS does not always see a client's reset.
@@ -2229,6 +2231,13 @@ bool webserver_start() {
     if(web_listen >= 0) {
         int yes = 1;
         setsockopt(web_listen, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        // The listening socket's buffers, which the accepted connections inherit, as the FTP server's passive socket
+        // (ftp_pasv_buffer_kb): the system's are small and each send()/recv() moved 5-6 KB.
+        if(WEB_SOCKET_BUFFER > 0) {
+            int size = WEB_SOCKET_BUFFER;
+            setsockopt(web_listen, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+            setsockopt(web_listen, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
+        }
         net_set_nonblocking(web_listen);
     }
 

@@ -208,12 +208,40 @@ class Rule:
             return False
         if self.kind is not None and ui['kind'] != self.kind:
             return False
-        return self.text is None or (ui['text'] or '').find(self.text) >= 0
+        return self.text is None or any((ui['text'] or '').find(t) >= 0 for t in texts_like(self.text))
+
+
+_TRANSLATIONS = None
+
+
+def translations(english):
+    """Every language's text for an English string, from source/core/i18n_*.c ({"English", "translation"})."""
+    global _TRANSLATIONS
+    if _TRANSLATIONS is None:
+        import glob, re
+        _TRANSLATIONS = {}
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'source', 'core')
+        pair = re.compile(r'\{\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}')
+        for path in glob.glob(os.path.join(root, 'i18n_*.c')):
+            with open(path, encoding='utf-8') as f:
+                for en, tr in pair.findall(f.read()):
+                    _TRANSLATIONS.setdefault(en, []).append(tr)
+    return _TRANSLATIONS.get(english, [])
+
+
+def texts_like(part):
+    """`part` and, in every language, the strings whose English contains it (a rule's text in any language)."""
+    translations('')
+    return [part] + [t for en, ts in _TRANSLATIONS.items() if part in en for t in ts]
+
+
+def has_option(options, english):
+    return english in options or any(t in options for t in translations(english))
 
 
 def answer(console, ui, choice):
     if choice == 'PEER':
-        if ui['kind'] != 'list' or ui['count'] < 1 or ui['selectedName'] in (None, HINT_ROW):
+        if ui['kind'] != 'list' or ui['count'] < 1 or ui['selectedName'] in [None, HINT_ROW] + translations(HINT_ROW):
             return False
         console.press('A')
         return True
@@ -234,8 +262,22 @@ def answer(console, ui, choice):
             return False
         console.press('A')
         return True
-    if choice in ui['options']:
-        button = ui['buttons'][ui['options'].index(choice)]
+    options = ui['options']
+    if choice not in options:
+        # The buttons come in the console's language: find the translation of the English choice.
+        choice = next((t for t in translations(choice) if t in options), choice)
+    if ui['kind'] == 'sheet':
+        # A list of answers: move the selection to the row, then A.
+        if choice not in options:
+            return False
+        steps = options.index(choice) - ui['selected']
+        for _ in range(abs(steps)):
+            console.press('DOWN' if steps > 0 else 'UP')
+            time.sleep(0.3)
+        console.press('A')
+        return True
+    if choice in options:
+        button = ui['buttons'][options.index(choice)]
         console.press('A' if button == 'ANY' else button)
         return True
     console.press(choice)
@@ -270,7 +312,7 @@ class Driver:
                 key = (ui['depth'], ui['name'], ui['kind'], ui['text'] if ui['kind'] != 'info' else None)
                 if self.seen.get(c.label) != key:
                     self.seen[c.label] = key
-                    if ui['kind'] in ('prompt', 'list') or ui['name'] in ('Sending', 'Receiving', 'Exporting CIA'):
+                    if ui['kind'] in ('prompt', 'list', 'sheet') or ui['name'] in ('Sending', 'Receiving', 'Exporting CIA'):
                         self.events.append((c.label, ui['name'], ui['text']))
                         print(f'      {c.label}: {describe(ui)}')
                     pressed.pop(c.label, None)
@@ -278,14 +320,14 @@ class Driver:
                 if self.done(self):
                     return self
 
-                if ui['kind'] not in ('prompt', 'list'):
+                if ui['kind'] not in ('prompt', 'list', 'sheet'):
                     continue
                 # Pressed already: give the screen time to change before pressing again.
                 if c.label in pressed and time.time() - pressed[c.label] < 2.5:
                     continue
                 rule = next((r for r in self.rules if r.matches(c, ui)), None)
                 if rule is None:
-                    if ui['kind'] == 'prompt' and self.stop_on_unknown:
+                    if ui['kind'] in ('prompt', 'sheet') and self.stop_on_unknown:
                         raise TestFailed(f'{c.label} asks something the test did not expect: {describe(ui)}')
                     continue
                 if answer(c, ui, rule.choice):
@@ -1064,7 +1106,7 @@ def origin_unsafe_not_offered(ctx):
         thread.start()
         d = Driver([b], [Rule(b, 'Receive', 'Yes')], lambda d: d.saw('B', 'Incoming file'), timeout=60).run()
         options = b.ui()['options']
-        check(('Original path' in options) == good, f'origin "{origin}": the options were {options}')
+        check(has_option(options, 'Original path') == good, f'origin "{origin}": the options were {options}')
         b.press('B')   # Reject.
         thread.join(timeout=10)
         b.home()

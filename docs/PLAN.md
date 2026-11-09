@@ -610,8 +610,9 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Files tab: copy a big folder (the page waits; the console stays usable?), move to another folder, edit and save a text file (UTF-8, CRLF kept as typed).
 - [ ] Tickets and Extra data tabs on a real console: counts, names and icons arrive (hundreds of tickets: how long), the text filter.
 - [ ] Install a `.cia` from the page (an SD title; NSA itself restarts); the toast on the bottom screen shows it.
-- [ ] Speed of a big download and upload on the New 3DS XL and the 2DS (the FTP server's for comparison); the console stays usable meanwhile (UI, music).
+- [x] Speed of a big download and upload on the New 3DS XL and the 2DS (the FTP server's for comparison); the console stays usable meanwhile (UI, music).
   Claude, 2026-11-09: 64 MB with speed_tests.py, FTP and the page back to back (byte for byte). The page went 64-85 % of FTP (each send()/recv() moved 5-6 KB): New 3DS XL up/down 797/780 KB/s (FTP 1155/921), 2DS 554/427 (FTP 869/629). With 32 KB SO_RCVBUF/SO_SNDBUF on the listening socket (WEB_SOCKET_BUFFER, as the FTP's passive socket): New 3DS XL 1029/1289 (FTP 1001/1007), 2DS 892/633 (FTP 901/633), 15-20 KB per call on the 2DS; web_tests pass on both. Whether the console stays usable meanwhile is for the owner.
+  The owner and Claude on the 2DS, 2026-11-09: 256 MB up 900 KB/s, down 623 KB/s through the page (byte for byte) while the owner went through the menus: no delay, the UI drew 10-13 frames/s in the traces and the music played throughout.
 - [ ] The local wireless (Send / Receive without a router) stops the web server and brings it back after; nothing else breaks while it serves.
 - [ ] The page in a phone's browser and in Firefox / Chrome (dark and light).
 - [ ] Download a save / extra data / SpotPass package from the page on the 2DS: the console shows "Packing for the web page" with its bar, B there cancels and the page says so, the page's card shows packing then downloading, and NSA closes normally afterwards.

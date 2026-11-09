@@ -531,8 +531,14 @@ void widget_progress(float x, float y, float width, float height, float progress
     }
 }
 
+// The bar is thin, so a finger may land a little off it; but rows and buttons end 4 px to its left, and 16 px there took
+// taps on their right end as a grab of the bar. Only that gap on the left, more room on the right (the screen's edge).
+#define SCROLLBAR_GRAB_LEFT 4
+#define SCROLLBAR_GRAB_RIGHT 14
+
 bool widget_scrollbar_touched(const touchPosition* pos, float x, float y, float height, float visible, float total) {
-    return total > visible && total > 0 && pos->px >= x - 16 && pos->px <= x + WIDGET_SCROLLBAR_WIDTH + 10 && pos->py >= y - 4 && pos->py <= y + height + 4;
+    return total > visible && total > 0 && pos->px >= x - SCROLLBAR_GRAB_LEFT && pos->px <= x + WIDGET_SCROLLBAR_WIDTH + SCROLLBAR_GRAB_RIGHT &&
+           pos->py >= y - 4 && pos->py <= y + height + 4;
 }
 
 float widget_scrollbar_offset(float y, float height, float visible, float total, float py) {

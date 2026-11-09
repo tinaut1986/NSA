@@ -153,18 +153,22 @@ class Console:
         return out.getvalue()
 
     def log_size(self):
+        """A mark in the transfer log: its size and how it began (to tell when it started over)."""
         try:
-            return len(self.get('/nsa/transfer-log.txt'))
+            data = self.get('/nsa/transfer-log.txt')
         except ftplib.error_perm:
-            return 0
+            data = b''
+        return len(data), data[:256]
 
     def log_since(self, mark):
+        size, head = mark
         try:
             data = self.get('/nsa/transfer-log.txt')
         except ftplib.error_perm:
             return ''
-        # The log starts over at 96 KB: then all of it is new.
-        return (data[mark:] if len(data) >= mark else data).decode('utf-8', 'replace')
+        # The log starts over at 96 KB: then all of it is new (even when it has grown past the mark again).
+        restarted = len(data) < size or data[:len(head)] != head
+        return (data if restarted else data[size:]).decode('utf-8', 'replace')
 
     def home(self):
         """Back to the main menu: B on everything (No, Reject, back)."""
@@ -705,7 +709,9 @@ def receiver_cancels(ctx):
             cancelled.append(True)
         return d.saw('A', 'Failure')
 
-    d = run_send(ctx, f'SITE TEST SEND {path}', done=cancel, timeout=180)
+    # B asks before stopping ("Stop now? What is left is not done."): yes.
+    rules = send_rules(ctx) + [Rule(ctx.b, None, 'Yes', text='Stop now?')]
+    d = run_send(ctx, f'SITE TEST SEND {path}', rules=rules, done=cancel, timeout=180)
     check(not d.saw('A', 'Confirmation', 'Retry?'), 'A offered to retry a cancelled transfer')
 
 

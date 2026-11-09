@@ -2,6 +2,7 @@
 
 #include <3ds.h>
 
+#include "input.h"   // hidKeysDown with the presses of the web page and SITE PRESS too.
 #include "led.h"
 
 // Slots of 75 ms (the 32 last 38 / 16 s): short 0.3 s, a gap, long 0.9 s, a gap, short 0.3 s, then dark

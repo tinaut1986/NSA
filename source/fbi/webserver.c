@@ -44,6 +44,9 @@
 // A file transfer stalled this long gives up when another request is waiting: the page is served one
 // request at a time, and the 3DS does not always see a client's reset.
 #define WEB_STALL_MS 10000
+// A new connection that sends nothing (a browser's speculative preconnect) gives up after this: the page is served
+// one request at a time, so it would keep every real request waiting.
+#define WEB_FIRST_BYTE_MS 4000
 #define WEB_PIN_DIGITS 6
 #define WEB_FAILS_MAX 10
 #define WEB_LOCK_MS 60000
@@ -326,12 +329,19 @@ static bool web_query_get(const char* query, const char* key, char* out, size_t 
 static bool web_read_head(web_request* r) {
     r->have = 0;
     for(;;) {
-        if(r->have >= WEB_HEAD_MAX || !web_wait_fd(r->fd, POLLIN, WEB_IDLE_MS)) {
+        int waitMs = r->have == 0 ? WEB_FIRST_BYTE_MS : WEB_IDLE_MS;
+        if(r->have >= WEB_HEAD_MAX || !web_wait_fd(r->fd, POLLIN, waitMs)) {
             return false;
         }
 
-        ssize_t n = net_recv(r->fd, r->head + r->have, WEB_HEAD_MAX - r->have, WEB_IDLE_MS);
+        ssize_t n = net_recv(r->fd, r->head + r->have, WEB_HEAD_MAX - r->have, waitMs);
         if(n <= 0) {
+            return false;
+        }
+
+        // A TLS handshake (0x16) or an SSLv2 hello (0x80): the browser is forcing https:// on this plain HTTP port.
+        // Closing at once lets it fall back to http://; waiting for a head that never comes would hold the server.
+        if(r->have == 0 && ((unsigned char) r->head[0] == 0x16 || (unsigned char) r->head[0] == 0x80)) {
             return false;
         }
 

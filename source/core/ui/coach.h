@@ -24,6 +24,8 @@ typedef struct {
     const char* only;
     bool home;           // Before it, go back to the main menu (B until only it is open).
     u32 tag;             // For the caller (the chapter).
+    u32 since;           // For the caller: the version that brought the step (the guide's), 0 for its chapter's.
+    bool fresh;          // A "New" badge by the title: what the step says came in the last version.
 } coach_step;
 
 // Plays `steps` (copied). `onStep` runs as each one is done (`last`: the last of its tag), `onEnd` when the tour ends,

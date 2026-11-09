@@ -20,6 +20,11 @@
 //
 // A chapter that a release changes enough to show again (a feature it explains changed): set `updated` to that release.
 // It is offered as new again, also to whoever saw it, and keeps its `since` for Settings -> Guide.
+//
+// Better, when a release only adds to a chapter: give the new steps their own version (the *_SINCE macros). The chapter
+// is offered again with only what someone who saw it needs: the new steps, marked "New", and the steps that move between
+// screens to reach them (any step that waits for a key, a tap or a screen; old explanations are left out). Settings ->
+// Guide plays it whole, with "New" on the steps of the newest version.
 
 #define GUIDE_VERSION(major, minor) (((major) << 8) | (minor))
 
@@ -47,6 +52,8 @@ typedef struct {
 // Open an entry of the main menu (a tap, or the D-Pad and A) and wait for its screen.
 #define OPEN(a_, t_, u_) {.anchor = (a_), .text = (t_), .keys = KEY_A, .tap = true, .pass = COACH_PASS_DPAD, .until = (u_)}
 #define BACK_TO_MENU(t_) {.anchor = NULL, .text = (t_), .keys = KEY_B, .until = "v:Main menu"}
+// The same, for a step a later release added to its chapter.
+#define INFO_SINCE(v_, a_, t_) {.anchor = (a_), .text = (t_), .since = (v_)}
 
 // A game with updates or DLC opens their list first (titles.c draws "titles.chain" there): these steps run only then.
 #define CHAIN_OPEN_GAME {.anchor = "list.selected", .text = "This game has updates or DLC: they wait here, under it. Open the game itself, the first one, with \uE000.", \
@@ -89,6 +96,7 @@ static const coach_step files_steps[] = {
         OPEN("menu.sd", "Open SD card.", "tool.clipboard"),
         INFO("top", "The top screen shows the file with the focus: a CIA with its icon and sizes."),
         INFO("list.selected", "\uE000 opens a folder, and a picture, a text or a song in its viewer. Hold \uE000 on a file (or keep your finger on it) to open its actions: install, copy, cut, rename, delete, send."),
+        INFO_SINCE(GUIDE_VERSION(0, 11), "list.selected", "A .zip or a .7z can be extracted from its actions, on the SD card itself."),
         DO("tool.more", "\uE002 has the actions of the folder itself, such as installing all its CIAs. Open them.", KEY_X, true, "sheet"),
         DO("sheet", "Close them with \uE001.", KEY_B, false, "!sheet"),
         INFO("tool.clipboard", "What you copy or cut waits here until you paste it, even if you leave the SD card: you can paste it somewhere else, such as the CTR NAND."),
@@ -101,6 +109,9 @@ static const coach_step remote_steps[] = {
         INFO("remote.url", "Or type the links. NSA asks how: install, save it first, or only save it."),
         INFO("remote.pc", "Receive the CIAs a computer sends with servefiles.py or any tool made for FBI."),
         INFO("remote.history", "Every link is kept here, to install it again. \uE003 repeats the last one."),
+        INFO_SINCE(GUIDE_VERSION(0, 11), "remote.url", "A download you chose to save goes on where it stopped if it was cut: Retry, or the same link again."),
+        INFO_SINCE(GUIDE_VERSION(0, 11), NULL, "Installing a game that is already there keeps its save. An older version asks first, and NSA backs up the save and puts it back."),
+        INFO_SINCE(GUIDE_VERSION(0, 11), NULL, "When a download, an install or a transfer ends, the notification light blinks. Any button turns it off."),
         DO("back", "\uE001 goes back to the menu.", KEY_B, true, "v:Main menu"),
 };
 
@@ -158,6 +169,7 @@ static const coach_step look_steps[] = {
 static const coach_step cleanup_steps[] = {
         INFO("menu.cleanup", "Tickets, half-finished installs and the games' extra data: free space or back it up."),
         INFO("menu.system", "The console at a glance: model, versions, network, storage and battery."),
+        INFO_SINCE(GUIDE_VERSION(0, 11), "menu.system", "Inside, \uE000 on Console opens Date and time, and on Network your Wi-Fi connections."),
         INFO("menu.advanced", "The console's own memories. NSA asks before going in: a wrong change there can stop the console from starting."),
 };
 
@@ -201,6 +213,15 @@ static const coach_step wifi_steps[] = {
         DO("back", "\uE001 goes back to System, and again to the menu.", KEY_B, true, "v:Main menu"),
 };
 
+static const coach_step datetime_steps[] = {
+        OPEN("menu.system", "Open System.", "v:System"),
+        OPEN("list.selected", "Console has the focus: open it with \uE000.", "v:Date and time"),
+        INFO("list.selected", "\uE000 here opens a calendar, then wheels for the hours, minutes and seconds: drag them or turn them with the D-Pad."),
+        INFO("list", "Set the time from the Internet puts the clock right, now or each time NSA opens. The console's clock has no time zone: NSA adds yours and summer time."),
+        INFO("list", "Clock and Date order: 24 or 12 hours, day or month first. By region, they follow your console's region."),
+        DO("back", "\uE001 goes back to System, and again to the menu.", KEY_B, true, "v:Main menu"),
+};
+
 static const guide_chapter chapters[] = {
         {"basics", GUIDE_VERSION(0, 2), true, NULL, ICON_DEVICE_GAMEPAD_2, "Getting around", "Screens, buttons and touch", basics_steps, COUNT_OF(basics_steps)},
         {"menu", GUIDE_VERSION(0, 8), true, "basics", ICON_LAYOUT_GRID, "Your main menu", "Tiles and icons, in your order", menu_steps, COUNT_OF(menu_steps)},
@@ -220,6 +241,7 @@ static const guide_chapter chapters[] = {
         // 0.10 although it may ship in a 0.9.x: the guide tells minor versions apart only, and a console on 0.9 has been
         // offered everything marked 0.9 (a chapter marked so would never be offered to it, as happened with mods and 0.8).
         {"wifi", GUIDE_VERSION(0, 10), false, "basics", ICON_WIFI, "Wi-Fi connections", "Save and restore your Wi-Fi settings", wifi_steps, COUNT_OF(wifi_steps)},
+        {"datetime", GUIDE_VERSION(0, 11), false, "basics", ICON_CALENDAR, "Date and time", "Its format, and the clock from the Internet", datetime_steps, COUNT_OF(datetime_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)
@@ -296,6 +318,18 @@ void guide_progress(u32* seen, u32* total) {
     *total = CHAPTER_COUNT;
 }
 
+// The newest of a chapter's own steps (0: none newer than the chapter).
+static u32 guide_steps_newest(u32 chapter) {
+    u32 newest = 0;
+    for(u32 s = 0; s < chapters[chapter].stepCount; s++) {
+        if(chapters[chapter].steps[s].since > newest) {
+            newest = chapters[chapter].steps[s].since;
+        }
+    }
+
+    return newest;
+}
+
 static u32 guide_newest() {
     u32 newest = 0;
     for(u32 i = 0; i < CHAPTER_COUNT; i++) {
@@ -306,14 +340,45 @@ static u32 guide_newest() {
         if(chapters[i].updated > newest) {
             newest = chapters[i].updated;
         }
+
+        if(guide_steps_newest(i) > newest) {
+            newest = guide_steps_newest(i);
+        }
     }
 
     return newest;
 }
 
-// New to someone who knew the guide up to `known`: a chapter that came after (unless seen already), or one changed after.
+// New to someone who knew the guide up to `known`: a chapter that came after (unless seen already), one changed after,
+// or one that has steps added after.
 static bool guide_is_new(u32 chapter, u32 known) {
-    return (chapters[chapter].since > known && !guide_seen(chapter)) || chapters[chapter].updated > known;
+    return (chapters[chapter].since > known && !guide_seen(chapter)) || chapters[chapter].updated > known || guide_steps_newest(chapter) > known;
+}
+
+// Only its new steps are played to someone who saw the chapter: steps added after `known` were, it was not changed whole.
+static bool guide_only_new(u32 chapter, u32 known) {
+    return known > 0 && guide_seen(chapter) && chapters[chapter].since <= known && chapters[chapter].updated <= known && guide_steps_newest(chapter) > known;
+}
+
+// A step kept for someone who saw its chapter: a new one, or one that moves between screens (it waits for something).
+static bool guide_step_kept(const coach_step* step, u32 known) {
+    return step->since > known || step->keys != 0 || step->tap || step->until != NULL;
+}
+
+// How many steps a chapter plays.
+static u32 guide_step_count(u32 chapter, u32 known) {
+    if(!guide_only_new(chapter, known)) {
+        return chapters[chapter].stepCount;
+    }
+
+    u32 count = 0;
+    for(u32 s = 0; s < chapters[chapter].stepCount; s++) {
+        if(guide_step_kept(&chapters[chapter].steps[s], known)) {
+            count++;
+        }
+    }
+
+    return count;
 }
 
 // ---- a queue of chapters to play ----
@@ -385,7 +450,10 @@ static void guide_on_end(bool finished) {
     }
 }
 
-static void guide_play(const guide_queue* queue, void (*onDone)()) {
+// `known`: the version the user knew (the offer after an update), whose seen chapters play only what is new; 0 plays
+// every step (Settings -> Guide), marking those of the newest version.
+static void guide_play(const guide_queue* queue, u32 known, void (*onDone)()) {
+    u32 newest = guide_newest();
     u32 total = 0;
     for(u32 i = 0; i < queue->count; i++) {
         total += chapters[queue->items[i]].stepCount;
@@ -403,12 +471,21 @@ static void guide_play(const guide_queue* queue, void (*onDone)()) {
     u32 n = 0;
     for(u32 i = 0; i < queue->count; i++) {
         u32 c = queue->items[i];
+        bool onlyNew = guide_only_new(c, known);
+        u32 first = n;
         for(u32 s = 0; s < chapters[c].stepCount; s++) {
+            const coach_step* from = &chapters[c].steps[s];
+            if(onlyNew && !guide_step_kept(from, known)) {
+                continue;
+            }
+
             coach_step* step = &steps[n++];
-            *step = chapters[c].steps[s];
+            *step = *from;
             step->title = _(chapters[c].name);
-            step->home = s == 0;
+            step->home = n - 1 == first;
             step->tag = c;
+            // New: added after what the user knew, or (playing everything) in the newest version, after its chapter.
+            step->fresh = from->since > chapters[c].since && (known > 0 ? from->since > known : from->since >= newest);
         }
     }
 
@@ -423,6 +500,7 @@ static struct {
     guide_queue queue;     // What "Start" / "Show me" plays.
     guide_queue all;       // What "Everything" plays.
     bool everything;       // The question has an "Everything" option (the second).
+    u32 known;             // The version the user knew, for what plays.
     void (*next)();
     char text[512];
 } guide_offer;
@@ -452,7 +530,7 @@ static void guide_offer_draw_top(ui_view* view, void* data, float x1, float y1, 
         screen_draw_icon(chapter->icon, x, y + (rowH - 16) / 2, 16, t->accent);
 
         char steps[32];
-        snprintf(steps, sizeof(steps), _("%lu steps"), chapter->stepCount);
+        snprintf(steps, sizeof(steps), _("%lu steps"), guide_step_count(guide_offer.queue.items[i], settings_get()->guideKnown));
         float stepsW = widget_text_width(steps, WIDGET_SMALL_SCALE);
         screen_draw_text(steps, right - stepsW, y + (rowH - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
         widget_text_fit(_(chapter->name), x + 24, y + (rowH - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, t->palette->text, right - stepsW - 12 - (x + 24));
@@ -468,14 +546,15 @@ static void guide_offer_draw_top(ui_view* view, void* data, float x1, float y1, 
 }
 
 static void guide_offer_onresponse(ui_view* view, void* data, u32 response) {
+    guide_offer.known = settings_get()->guideKnown;
     settings_get()->guideKnown = guide_newest();
     guide_save();
 
     // Option 0 plays the offer, the second (when there are three) everything not seen; the last one is "Later".
     if(response == 0) {
-        guide_play(&guide_offer.queue, guide_offer.next);
+        guide_play(&guide_offer.queue, guide_offer.known, guide_offer.next);
     } else if(response == 1 && guide_offer.everything) {
-        guide_play(&guide_offer.all, guide_offer.next);
+        guide_play(&guide_offer.all, guide_offer.known, guide_offer.next);
     } else if(guide_offer.next != NULL) {
         guide_offer.next();
     }
@@ -724,7 +803,7 @@ static void guide_list_update(ui_view* view, void* data, linked_list* items, lis
     }
 
     // The tour goes back to the main menu first (it closes this list and Settings).
-    guide_play(&queue, NULL);
+    guide_play(&queue, 0, NULL);
 }
 
 void guide_open() {

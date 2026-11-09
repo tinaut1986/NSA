@@ -186,6 +186,11 @@ left open until Cosmosx007 says whether the format was the problem). System -> C
   with Linux Chrome). Claude on the 2DS, 2026-11-09: calendar and wheels drawn right, a drag of 48 px moved the minutes
   two, the time ticks, the hour turned down and saved gave 15:44, set back from the Internet (+3602 s).
 - [ ] "From the Internet when NSA opens" ran on the 2DS at a start (on by a stray press, then off): "moved +0 s".
+- [ ] The guide (2026-11-09, `feat/guide-whats-new`): steps carry their own version (INFO_SINCE); a chapter seen before
+  plays only its new steps (marked "New" in the bubble) and the steps that move between screens; Settings -> Guide plays
+  it whole with "New" on the newest version's steps. New chapter Date and time (0.11); new steps: extract .zip/.7z (SD
+  card), resume a saved download, install over keeping the save, the notification light (Remote install), Console opens
+  Date and time (Cleanup and System). The owner saw the offer on the New 3DS XL (17 steps: 5 + 5 + 1 + 6).
 **The owner's tests of 2026-11-07, evening** (the items ticked below, all on `staging` 6760a75). Changed after them, on
 `staging` and tried on the New 3DS XL (DEBUG) unless said:
 - Store scripts (`fix/store-script-paths`; tried on the New 3DS XL on 2026-11-08 with `fix/store-empty-extract`): ndsForwarder and YANBF (extract a pack to the card's

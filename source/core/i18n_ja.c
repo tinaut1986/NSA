@@ -1302,6 +1302,17 @@ const i18n_entry i18n_ja[] = {
         {"Drag a wheel or turn it with Up / Down; Left / Right pick another. A saves.", "ホイールをドラッグするか上 / 下で回します。左 / 右で別のホイール。Aで保存。"},
         {" time     month    cancel", " 時刻     月    キャンセル"},
         {" save    date", " 保存    日付"},
+        // The guide: what 0.9.4 added
+        {"A .zip or a .7z can be extracted from its actions, on the SD card itself.", ".zip や .7z は、その操作からSDカード上で展開できます。"},
+        {"A download you chose to save goes on where it stopped if it was cut: Retry, or the same link again.", "保存を選んだダウンロードは、途切れても続きから再開します：再試行、または同じリンクをもう一度。"},
+        {"Installing a game that is already there keeps its save. An older version asks first, and NSA backs up the save and puts it back.", "すでにあるゲームをインストールしてもセーブは残ります。古いバージョンは先に確認し、NSAがセーブをコピーして戻します。"},
+        {"When a download, an install or a transfer ends, the notification light blinks. Any button turns it off.", "ダウンロード、インストール、転送が終わると通知ランプが点滅します。どのボタンでも消えます。"},
+        {"Inside,  on Console opens Date and time, and on Network your Wi-Fi connections.", "中では、本体でを押すと日付と時刻、ネットワークでWi-Fi接続が開きます。"},
+        {"Console has the focus: open it with .", "本体にフォーカスがあります：で開いてください。"},
+        {" here opens a calendar, then wheels for the hours, minutes and seconds: drag them or turn them with the D-Pad.", "ここでを押すとカレンダー、次に時・分・秒のホイールが開きます。ドラッグするか十字ボタンで回します。"},
+        {"Set the time from the Internet puts the clock right, now or each time NSA opens. The console's clock has no time zone: NSA adds yours and summer time.", "インターネットで時刻を合わせると、今またはNSAを開くたびに時計を合わせます。本体の時計にはタイムゾーンがないため、NSAがゾーンとサマータイムを加えます。"},
+        {"Clock and Date order: 24 or 12 hours, day or month first. By region, they follow your console's region.", "時計と日付の順序：24時間か12時間、日か月が先か。地域に合わせると本体の地域に従います。"},
+        {"Its format, and the clock from the Internet", "表示形式と、インターネットでの時刻合わせ"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

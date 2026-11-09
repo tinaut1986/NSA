@@ -1319,6 +1319,17 @@ const i18n_entry i18n_es[] = {
         {"Drag a wheel or turn it with Up / Down; Left / Right pick another. A saves.", "Arrastra una rueda o gírala con Arriba / Abajo; Izquierda / Derecha eligen otra. A guarda."},
         {" time     month    cancel", " hora     mes    cancelar"},
         {" save    date", " guardar    fecha"},
+        // The guide: what 0.9.4 added
+        {"A .zip or a .7z can be extracted from its actions, on the SD card itself.", "Un .zip o un .7z se puede extraer desde sus acciones, en la propia tarjeta SD."},
+        {"A download you chose to save goes on where it stopped if it was cut: Retry, or the same link again.", "Una descarga que elegiste guardar sigue donde se quedó si se corta: Reintentar, o el mismo enlace otra vez."},
+        {"Installing a game that is already there keeps its save. An older version asks first, and NSA backs up the save and puts it back.", "Instalar un juego que ya está conserva su partida. Una versión más antigua pregunta antes, y NSA copia la partida y la vuelve a poner."},
+        {"When a download, an install or a transfer ends, the notification light blinks. Any button turns it off.", "Cuando termina una descarga, una instalación o una transferencia, parpadea la luz de notificaciones. Cualquier botón la apaga."},
+        {"Inside,  on Console opens Date and time, and on Network your Wi-Fi connections.", "Dentro,  en Consola abre Fecha y hora, y en Red tus conexiones Wi-Fi."},
+        {"Console has the focus: open it with .", "Consola tiene el foco: ábrela con ."},
+        {" here opens a calendar, then wheels for the hours, minutes and seconds: drag them or turn them with the D-Pad.", " aquí abre un calendario y después ruedas para las horas, minutos y segundos: arrástralas o gíralas con la cruceta."},
+        {"Set the time from the Internet puts the clock right, now or each time NSA opens. The console's clock has no time zone: NSA adds yours and summer time.", "Poner en hora por Internet deja el reloj en hora, ahora o cada vez que se abre NSA. El reloj de la consola no tiene zona horaria: NSA suma la tuya y el horario de verano."},
+        {"Clock and Date order: 24 or 12 hours, day or month first. By region, they follow your console's region.", "Reloj y Orden de la fecha: 24 o 12 horas, el día o el mes primero. Según la región, siguen la región de tu consola."},
+        {"Its format, and the clock from the Internet", "Su formato, y el reloj por Internet"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

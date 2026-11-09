@@ -1302,6 +1302,17 @@ const i18n_entry i18n_de[] = {
         {"Drag a wheel or turn it with Up / Down; Left / Right pick another. A saves.", "Ziehe ein Rad oder drehe es mit Oben / Unten; Links / Rechts wählen ein anderes. A speichert."},
         {" time     month    cancel", " Uhrzeit     Monat    abbrechen"},
         {" save    date", " speichern    Datum"},
+        // The guide: what 0.9.4 added
+        {"A .zip or a .7z can be extracted from its actions, on the SD card itself.", "Eine .zip oder .7z lässt sich über ihre Aktionen entpacken, direkt auf der SD-Karte."},
+        {"A download you chose to save goes on where it stopped if it was cut: Retry, or the same link again.", "Ein Download, den du speichern wolltest, macht nach einem Abbruch dort weiter: Erneut versuchen, oder derselbe Link noch einmal."},
+        {"Installing a game that is already there keeps its save. An older version asks first, and NSA backs up the save and puts it back.", "Ein bereits vorhandenes Spiel zu installieren behält seinen Spielstand. Eine ältere Version fragt zuerst, und NSA sichert den Spielstand und spielt ihn zurück."},
+        {"When a download, an install or a transfer ends, the notification light blinks. Any button turns it off.", "Wenn ein Download, eine Installation oder eine Übertragung endet, blinkt die Benachrichtigungsleuchte. Jede Taste schaltet sie aus."},
+        {"Inside,  on Console opens Date and time, and on Network your Wi-Fi connections.", "Darin öffnet  auf Konsole Datum und Uhrzeit, und auf Netzwerk deine WLAN-Verbindungen."},
+        {"Console has the focus: open it with .", "Konsole hat den Fokus: öffne sie mit ."},
+        {" here opens a calendar, then wheels for the hours, minutes and seconds: drag them or turn them with the D-Pad.", " öffnet hier einen Kalender, dann Räder für Stunden, Minuten und Sekunden: zieh sie oder dreh sie mit dem Steuerkreuz."},
+        {"Set the time from the Internet puts the clock right, now or each time NSA opens. The console's clock has no time zone: NSA adds yours and summer time.", "Uhrzeit aus dem Internet stellen stellt die Uhr richtig, jetzt oder bei jedem Start von NSA. Die Uhr der Konsole hat keine Zeitzone: NSA rechnet deine und die Sommerzeit hinzu."},
+        {"Clock and Date order: 24 or 12 hours, day or month first. By region, they follow your console's region.", "Uhr und Datumsreihenfolge: 24 oder 12 Stunden, Tag oder Monat zuerst. Nach Region folgen sie der Region deiner Konsole."},
+        {"Its format, and the clock from the Internet", "Sein Format, und die Uhr aus dem Internet"},
 };
 
 const u32 i18n_de_count = sizeof(i18n_de) / sizeof(*i18n_de);

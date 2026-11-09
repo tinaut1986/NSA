@@ -39,6 +39,11 @@
 // The share of the system core (core 1) the app keeps for its threads there; see XFERTURN_CPU_LIMIT for transfers.
 #define MAIN_CPU_LIMIT 30
 
+// The main thread's stack, which libctru makes at the start of the heap (initSystem). Its default, 32 KB, is less than
+// stb_image keeps on the stack for a GIF (stbi__gif, ~34 KB): the picture viewer decodes on this thread and a GIF ran
+// past the stack's end (a data abort just under 0x08000000, 2026-11-09). 256 KB, as the RSF's StackSize.
+u32 __stacksize__ = 256 * 1024;
+
 static bool backdoor_ran = false;
 static bool n3ds = false;
 static u32 old_pid = 0;

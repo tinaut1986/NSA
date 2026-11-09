@@ -117,3 +117,4 @@ flag-jp
 repeat
 repeat-once
 repeat-off
+calendar

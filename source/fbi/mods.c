@@ -439,7 +439,9 @@ static void mods_delete_unused(void* data) {
         }
     }
 
-    snprintf(deleteData->message, sizeof(deleteData->message), i18n_translate_text("Delete the mods of %lu games that are not installed (%.2f %s)?\nA game card's mods are among them while the card is out of the slot."),
+    snprintf(deleteData->message, sizeof(deleteData->message),
+             deleteData->count == 1 ? i18n_translate_text("Delete the mods of %lu game that is not installed (%.2f %s)?\nA game card's mods are among them while the card is out of the slot.")
+                                    : i18n_translate_text("Delete the mods of %lu games that are not installed (%.2f %s)?\nA game card's mods are among them while the card is out of the slot."),
              deleteData->count, ui_get_display_size(size), ui_get_display_size_units(size));
     mods_delete_ask(deleteData);
 }

@@ -10,10 +10,12 @@
 #include "theme.h"
 
 #include "clipboard.h"
+#include "datefmt.h"
 #include "error.h"
 #include "fs.h"
 #include "http.h"
 #include "netpoll.h"
+#include "led.h"
 #include "linkedlist.h"
 #include "screen.h"
 #include "sound.h"

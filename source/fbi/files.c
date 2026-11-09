@@ -457,7 +457,7 @@ static void files_modified_text(file_info* info, bool onSd, char* out, size_t si
     if(cachedKnown) {
         time_t when = (time_t) cachedTime;
         struct tm* t = gmtime(&when);
-        snprintf(out, size, "%02d/%02d/%02d %02d:%02d", t->tm_mday, t->tm_mon + 1, t->tm_year % 100, t->tm_hour, t->tm_min);
+        datefmt_date_time(out, size, t);
     }
 }
 
@@ -805,6 +805,14 @@ static void files_launch(void* data) {
 }
 
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
+
+static void files_extract(files_data* data, bool intoFolder) {
+    file_info* info = (file_info*) data->actionSelected->data;
+    action_extract_archive(info->path, intoFolder, files_refresh, data);
+}
+
+static void files_extract_folder(void* data) { files_extract((files_data*) data, true); }
+static void files_extract_here(void* data) { files_extract((files_data*) data, false); }
 static void files_player(void* data) { audioview_resume(); }
 
 // The last part of a folder's path ("/3ds/NSA/" -> "NSA"), or "/" for the root.
@@ -861,6 +869,11 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
     if(info->isCia) {
         actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Install"), false, files_install_cia};
         actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Install and delete"), false, files_install_cia_delete};
+    }
+
+    if(data->archiveId == ARCHIVE_SDMC && viewers_has_ext(info->name, "zip 7z")) {
+        actions[count++] = (sheet_action) {ICON_FILE_ZIP, _("Extract to a folder"), false, files_extract_folder};
+        actions[count++] = (sheet_action) {ICON_FILE_ZIP, _("Extract here"), false, files_extract_here};
     }
 
     if(info->isTicket) {

@@ -205,7 +205,7 @@ static void history_date(const history_entry* entry, char* out, size_t size) {
     if(entry->time > 0) {
         time_t when = (time_t) entry->time;
         struct tm* t = gmtime(&when);
-        snprintf(out, size, "%02d/%02d %02d:%02d", t->tm_mday, t->tm_mon + 1, t->tm_hour, t->tm_min);
+        datefmt_day_month_time(out, size, t);
     }
 }
 

@@ -1,6 +1,10 @@
+#include <dirent.h>
 #include <malloc.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <sys/stat.h>
 
 #include <3ds.h>
 
@@ -53,6 +57,8 @@ typedef struct {
     volatile bool n3dsContinue;
     ticket_info ticketInfo;
     char currPath[FILE_PATH_MAX];
+    bool currIsPart;                  // Saving to /nsa/received/: currPath + ".part" is written, renamed once whole.
+    char resumePath[FILE_PATH_MAX];   // An earlier try of this URL left resumePath + ".part" (issue #28), or empty.
 
     data_op_data installInfo;
 } install_url_data;
@@ -172,9 +178,144 @@ static bool action_install_url_exists(FS_Archive archive, const char* path) {
 }
 
 // "Save": opens INSTALL_URL_SAVE_DIR's file for the download; a name in use gets " (2)", " (3)"...
+// ---- a saved download that failed halfway, kept to resume (issue #28) ----
+//
+// Saving to /nsa/received/ writes <name>.part; once whole it becomes <name>. A try that fails (or is cancelled) after
+// some bytes keeps <name>.part and writes <name>.part.info: the URL, the file's size and how much of it is whole (a
+// download in order: everything before that). Retry, or a later download of the same URL, finds it and asks the
+// server for the rest (http_download_callback_from); a server without ranges, or a file of another size, starts again.
+
+#define INSTALL_URL_PART_INFO ".part.info"
+
+static void action_install_url_part_paths(const char* path, char* part, char* info, size_t size) {
+    snprintf(part, size, "%s.part", path);
+    snprintf(info, size, "%s" INSTALL_URL_PART_INFO, path);
+}
+
+static void action_install_url_forget_part(const char* path, bool keepPart) {
+    char part[FILE_PATH_MAX + 16];
+    char info[FILE_PATH_MAX + 16];
+    action_install_url_part_paths(path, part, info, sizeof(part));
+    char local[FILE_PATH_MAX + 24];
+    if(!keepPart) {
+        snprintf(local, sizeof(local), "sdmc:%s", part);
+        remove(local);
+    }
+
+    snprintf(local, sizeof(local), "sdmc:%s", info);
+    remove(local);
+}
+
+static void action_install_url_keep_part(const char* path, const char* url, u64 size, u64 whole) {
+    char part[FILE_PATH_MAX + 16];
+    char info[FILE_PATH_MAX + 16];
+    action_install_url_part_paths(path, part, info, sizeof(part));
+    char local[FILE_PATH_MAX + 24];
+    snprintf(local, sizeof(local), "sdmc:%s", info);
+    FILE* f = fopen(local, "wb");
+    if(f != NULL) {
+        fprintf(f, "url=%s\nsize=%llu\nwhole=%llu\n", url, (unsigned long long) size, (unsigned long long) whole);
+        fclose(f);
+    }
+}
+
+static Result action_install_url_resume_from(void* data, u32 index, u64* from, u64* expected) {
+    install_url_data* installData = (install_url_data*) data;
+    installData->resumePath[0] = '\0';
+    *from = 0;
+    *expected = 0;
+    if(!installData->saveOnly || installData->exactPaths) {
+        return 0;
+    }
+
+    DIR* dir = opendir("sdmc:" INSTALL_URL_SAVE_DIR);
+    if(dir == NULL) {
+        return 0;
+    }
+
+    size_t suffix = strlen(INSTALL_URL_PART_INFO);
+    struct dirent* entry = NULL;
+    while((entry = readdir(dir)) != NULL) {
+        size_t len = strlen(entry->d_name);
+        if(len <= suffix || strcmp(entry->d_name + len - suffix, INSTALL_URL_PART_INFO) != 0) {
+            continue;
+        }
+
+        char local[FILE_PATH_MAX + 24];
+        snprintf(local, sizeof(local), "sdmc:" INSTALL_URL_SAVE_DIR "%s", entry->d_name);
+        FILE* f = fopen(local, "rb");
+        if(f == NULL) {
+            continue;
+        }
+
+        char url[DOWNLOAD_URL_MAX + 8] = "";
+        unsigned long long size = 0;
+        unsigned long long whole = 0;
+        char line[DOWNLOAD_URL_MAX + 16];
+        while(fgets(line, sizeof(line), f) != NULL) {
+            line[strcspn(line, "\r\n")] = '\0';
+            if(strncmp(line, "url=", 4) == 0) {
+                string_copy(url, line + 4, sizeof(url));
+            } else if(strncmp(line, "size=", 5) == 0) {
+                size = strtoull(line + 5, NULL, 10);
+            } else if(strncmp(line, "whole=", 6) == 0) {
+                whole = strtoull(line + 6, NULL, 10);
+            }
+        }
+
+        fclose(f);
+        if(strcmp(url, installData->urls[index]) != 0 || size == 0 || whole == 0 || whole >= size) {
+            continue;
+        }
+
+        // Its piece must still be there, at the file's size (it is made whole-sized at the start).
+        char path[FILE_PATH_MAX];
+        snprintf(path, sizeof(path), INSTALL_URL_SAVE_DIR "%.*s", (int) (len - suffix), entry->d_name);
+        snprintf(local, sizeof(local), "sdmc:%s.part", path);
+        struct stat st;
+        if(stat(local, &st) != 0 || (u64) st.st_size != size) {
+            continue;
+        }
+
+        string_copy(installData->resumePath, path, sizeof(installData->resumePath));
+        *from = whole;
+        *expected = size;
+        break;
+    }
+
+    closedir(dir);
+    return 0;
+}
+
 static Result action_install_url_open_save(install_url_data* installData, u32 index, void* initialReadBlock, u64 size, u32* handle) {
     installData->contentType = CONTENT_SAVED;
     installData->currIsCia = initialReadBlock != NULL && *(u16*) initialReadBlock == 0x2020;
+    installData->currIsPart = false;
+
+    // What an earlier try left: on from it (the server agreed), or gone (it starts again).
+    if(installData->resumePath[0] != '\0') {
+        if(installData->installInfo.currResumeFrom > 0) {
+            string_copy(installData->currPath, installData->resumePath, FILE_PATH_MAX);
+            installData->currIsPart = true;
+            size_t len = strlen(installData->currPath);
+            installData->currIsCia = len > 4 && strcasecmp(installData->currPath + len - 4, ".cia") == 0;
+
+            char part[FILE_PATH_MAX + 16];
+            char info[FILE_PATH_MAX + 16];
+            action_install_url_part_paths(installData->currPath, part, info, sizeof(part));
+            FS_Path* path = fs_make_path_utf8(part);
+            if(path == NULL) {
+                return R_APP_OUT_OF_MEMORY;
+            }
+
+            Result res = FSUSER_OpenFileDirectly(handle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *path, FS_OPEN_WRITE, 0);
+            fs_free_path_utf8(path);
+            return res;
+        }
+
+        action_install_url_forget_part(installData->resumePath, false);
+        installData->resumePath[0] = '\0';
+    }
 
     char name[FILE_NAME_MAX];
     action_install_url_save_name(installData->urls[index], initialReadBlock, name, sizeof(name));
@@ -222,12 +363,17 @@ static Result action_install_url_open_save(install_url_data* installData, u32 in
         string_get_file_name(base, name, sizeof(base));
         const char* ext = strlen(base) < strlen(name) ? name + strlen(base) : "";
 
+        char part[FILE_PATH_MAX + 16];
+        char info[FILE_PATH_MAX + 16];
         snprintf(installData->currPath, FILE_PATH_MAX, INSTALL_URL_SAVE_DIR "%s", name);
-        for(u32 n = 2; n < 1000 && action_install_url_exists(sdmcArchive, installData->currPath); n++) {
+        action_install_url_part_paths(installData->currPath, part, info, sizeof(part));
+        for(u32 n = 2; n < 1000 && (action_install_url_exists(sdmcArchive, installData->currPath) || action_install_url_exists(sdmcArchive, part)); n++) {
             snprintf(installData->currPath, FILE_PATH_MAX, INSTALL_URL_SAVE_DIR "%s (%lu)%s", base, n, ext);
+            action_install_url_part_paths(installData->currPath, part, info, sizeof(part));
         }
 
-        FS_Path* path = fs_make_path_utf8(installData->currPath);
+        installData->currIsPart = true;
+        FS_Path* path = fs_make_path_utf8(part);
         if(path != NULL) {
             res = FSUSER_OpenFile(handle, sdmcArchive, *path, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);
 
@@ -284,20 +430,10 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
                 }
             }
 
-            // Deleting FBI before it reinstalls itself causes issues.
-            u64 currTitleId = 0;
-            FS_MediaType currMediaType = MEDIATYPE_NAND;
+            u16 version = 0;
+            cia_get_title_version(&version, (u8*) initialReadBlock, installData->installInfo.bufferSize);
 
-            if(envIsHomebrew() || R_FAILED(APT_GetAppletInfo((NS_APPID) envGetAptAppId(), &currTitleId, (u8*) &currMediaType, NULL, NULL, NULL)) || titleId != currTitleId || dest != currMediaType) {
-                AM_DeleteTitle(dest, titleId);
-                AM_DeleteTicket(titleId);
-
-                if(dest == MEDIATYPE_SD) {
-                    AM_QueryAvailableExternalTitleDatabase(NULL);
-                }
-            }
-
-            if(R_SUCCEEDED(res = AM_StartCiaInstall(dest, handle))) {
+            if(R_SUCCEEDED(res = action_install_cia_start(dest, titleId, version, handle))) {
                 installData->currTitleId = titleId;
                 cia_seed_watch_start(&installData->seedWatch, (u8*) initialReadBlock, installData->installInfo.bufferSize);
             }
@@ -368,14 +504,42 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
                     res = AM_InstallFirm(installData->currTitleId);
                 }
             }
+
+            action_install_cia_ended(installData->currTitleId, R_SUCCEEDED(res));
         } else if(installData->contentType == CONTENT_TICKET) {
             res = AMNET_InstallTicketFinish(handle);
         } else if(installData->contentType == CONTENT_3DSX_SMDH || installData->contentType == CONTENT_SAVED) {
             res = FSFILE_Close(handle);
+
+            // Whole: <name>.part becomes <name>.
+            if(R_SUCCEEDED(res) && installData->contentType == CONTENT_SAVED && installData->currIsPart) {
+                char part[FILE_PATH_MAX + 16];
+                char info[FILE_PATH_MAX + 16];
+                action_install_url_part_paths(installData->currPath, part, info, sizeof(part));
+                char from[FILE_PATH_MAX + 24];
+                char to[FILE_PATH_MAX + 24];
+                snprintf(from, sizeof(from), "sdmc:%s", part);
+                snprintf(to, sizeof(to), "sdmc:%s", installData->currPath);
+                if(rename(from, to) != 0) {
+                    res = R_APP_IO_ERROR;
+                }
+
+                action_install_url_forget_part(installData->currPath, true);
+            }
+        }
+    } else if(installData->contentType == CONTENT_SAVED && installData->currIsPart) {
+        // Failed or cancelled: what came stays, to resume.
+        res = FSFILE_Close(handle);
+        u64 whole = installData->installInfo.currWritten;
+        if(whole > 0 && installData->installInfo.currTotal > whole) {
+            action_install_url_keep_part(installData->currPath, installData->urls[index], installData->installInfo.currTotal, whole);
+        } else {
+            action_install_url_forget_part(installData->currPath, false);
         }
     } else {
         if(installData->contentType == CONTENT_CIA) {
             res = AM_CancelCIAInstall(handle);
+            action_install_cia_ended(installData->currTitleId, false);
         } else if(installData->contentType == CONTENT_TICKET) {
             res = AMNET_InstallTicketAbort(handle);
         } else if(installData->contentType == CONTENT_3DSX_SMDH || installData->contentType == CONTENT_SAVED) {
@@ -423,6 +587,7 @@ static Result action_install_url_write_dst(void* data, u32 handle, u32* bytesWri
 static bool action_install_url_error(void* data, u32 index, Result res, ui_view** errorView) {
     install_url_data* installData = (install_url_data*) data;
     installData->states[index] = URL_FAILED;
+    led_blink(false);
 
     char* url = installData->urls[index];
     if(installData->saveOnly) {
@@ -499,6 +664,15 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
         u32 failed = action_install_url_count(installData, URL_FAILED);
         u32 skipped = action_install_url_count(installData, URL_SKIPPED);
         bool installAfter = installData->toInstall != NULL && installData->installInfo.result != R_APP_CANCELLED;
+        // A failure lit it as its error showed; the summary of several URLs lights it again. Saved to install
+        // next: the install says when it is done.
+        if(installData->installInfo.result != R_APP_CANCELLED) {
+            if(failed == 0 && skipped == 0 && (installed > 0 || (saved > 0 && !installAfter))) {
+                led_blink(true);
+            } else if(failed > 0 && installData->installInfo.total > 1) {
+                led_blink(false);
+            }
+        }
         if(installData->installInfo.result != R_APP_CANCELLED && !installData->quiet) {
             if(failed == 0 && skipped == 0) {
                 if(saved > 0 && installAfter) {
@@ -941,6 +1115,7 @@ static void action_install_url_start(const char* confirmMessage, const char* url
     data->installInfo.getSrcUrl = action_install_url_get_src_url;
 
     data->installInfo.openDst = action_install_url_open_dst;
+    data->installInfo.resumeFrom = action_install_url_resume_from;
     data->installInfo.closeDst = action_install_url_close_dst;
     data->installInfo.writeDst = action_install_url_write_dst;
 

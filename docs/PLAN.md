@@ -162,6 +162,35 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Date and time** (2026-11-09, `feat/date-time`, `source/fbi/datetime.c`, `source/core/datefmt.c`; issue #33 asks for it,
+left open until Cosmosx007 says whether the format was the problem). System -> Console opens it (A):
+- [ ] The format: Clock (by region / 24 h / 12 h) and Date order (by region / day/month / month/day); by region is
+  America month first and 12 h, Japan/China/Korea/Taiwan month first, Europe/Australia day first (the HOME Menu of a
+  European console writes 9/11). It changes the status bar, the files' dates, Remote install's history, the Wi-Fi
+  copies and the web page's dates (the page now shows the console's times as they are, not converted from UTC).
+  Claude, 2026-11-09: on the New 3DS XL 12 h + month/day gave "4:07 PM 11/09/2026" on the top screen, `/api/settings`
+  clock24/monthFirst follow; back to by region.
+- [ ] Set the time from the Internet (pool.ntp.org, UTC + the zone + summer time; PTMSYSM_SetUserTime as Rosalina; ptm:sets
+  is not in the service list and is not needed: time() follows). Claude, 2026-11-09: the New 3DS XL was 93 s slow, set
+  right ("El reloj se ha movido +93 segundos"), and it stayed right after NSA restarted.
+- [ ] "From the Internet when NSA opens" (off by default): once the Wi-Fi is up (up to 2 minutes), one try.
+- [ ] Time zone (31, by country by default: ES -> Madrid) and summer time (by the zone's dates: EU, US, south-east
+  Australia, New Zealand rules; never; always). Claude: Auckland in November showed +1 h (right: NZ summer); the
+  zone list opens on the zone chosen (the sheets held 24 actions at most: now 40). Each choice list opens with the focus
+  on the choice made (the owner's request).
+- [ ] Date and time picked by hand (`source/fbi/datepicker.c`, the owner's idea instead of typing): a Date tab with the
+  month's calendar (D-Pad a day / a week, L / R or the arrows the month, a tap a day; weeks start on Monday with
+  day/month, Sunday with month/day; Sundays in red) and a Time tab with wheels for hours, minutes and seconds (+ AM/PM on
+  12 h): drag, tap above / below, or Up / Down; Left / Right pick a wheel; A or Save saves, B goes back. The wheels follow
+  the clock until one is turned. New icon `calendar` (only its cell added to the atlases: tools/make_icons.py renders
+  with Linux Chrome). Claude on the 2DS, 2026-11-09: calendar and wheels drawn right, a drag of 48 px moved the minutes
+  two, the time ticks, the hour turned down and saved gave 15:44, set back from the Internet (+3602 s).
+- [ ] "From the Internet when NSA opens" ran on the 2DS at a start (on by a stray press, then off): "moved +0 s".
+- [ ] The guide (2026-11-09, `feat/guide-whats-new`): steps carry their own version (INFO_SINCE); a chapter seen before
+  plays only its new steps (marked "New" in the bubble) and the steps that move between screens; Settings -> Guide plays
+  it whole with "New" on the newest version's steps. New chapter Date and time (0.11); new steps: extract .zip/.7z (SD
+  card), resume a saved download, install over keeping the save, the notification light (Remote install), Console opens
+  Date and time (Cleanup and System). The owner saw the offer on the New 3DS XL (17 steps: 5 + 5 + 1 + 6).
 **The owner's tests of 2026-11-07, evening** (the items ticked below, all on `staging` 6760a75). Changed after them, on
 `staging` and tried on the New 3DS XL (DEBUG) unless said:
 - Store scripts (`fix/store-script-paths`; tried on the New 3DS XL on 2026-11-08 with `fix/store-empty-extract`): ndsForwarder and YANBF (extract a pack to the card's
@@ -213,6 +242,7 @@ no DSP firmware (sdmc:/3ds/dspfirm.cdc comes from a console).
 - [x] *Back to the player* in a folder's sheet opens it where it is; X there stops it and the icon goes.
 - [ ] On the **2DS / Old 3DS**: an FTP upload and a URL download with music in the background against without (`tools/speed_tests.py`,
       back to back). If it costs much, pause the background player while a transfer holds the turn (`xferturn_get`) on an Old 3DS.
+  Claude on the 2DS, 2026-11-09: with Settings -> Background music (Shop) on and off, not the audio player: FTP up 64 MB 782 / 946 KB/s (16 MB 859 / 856), down 637 / 624 (608 / 643), URL save 32 MB 961 / 847 (noise). Only the big upload lost (~17 %).
 
 **FTP: REST, and appends that start mid-block** (2026-11-08, `feat/ftp-rest`; tested on the New 3DS XL):
 - `REST <offset>` (in FEAT as `REST STREAM`): the next RETR starts there, the next STOR keeps the file and writes from
@@ -274,9 +304,12 @@ a card that is out looks uninstalled, which the question says). Deleting a game 
 that has a folder there asks whether to delete its mods too. Guide chapter `mods` (since 0.8: a console already on 0.8 is not offered it at start, it is in Settings -> Guide). Translated into the 10 languages
 (zh only with characters already in `hanfont.png`).
 - [ ] The list on a console with mods: names and icons, sizes, the states (install a game, delete it, take a card out).
-- [ ] *Delete mods* and *Delete mods of games not installed* delete only those folders; the list updates.
+- [x] *Delete mods* and *Delete mods of games not installed* delete only those folders; the list updates.
+  Claude on the New 3DS XL, 2026-11-09: *Delete mods* on a test mod (romfs/ + code.ips) and *Delete mods of games not installed* deleted only that folder, the empty ones stayed; the list updated. Its question says "los mods de 1 juegos" (plural for one).
+  Claude, 2026-11-09 (fixed, 0.9.4-dev): one game now says "los mods de 1 juego que no está instalado" (a singular string in the 10 languages); seen on the 2DS with one fake mod, answered No.
 - [x] Deleting a game with mods from Titles asks, and Yes deletes `/luma/titles/<ID>/`; a game without mods asks nothing.
-- [ ] No `/luma/titles` (or empty): the screen says "No mods in /luma/titles." and nothing breaks.
+- [x] No `/luma/titles` (or empty): the screen says "No mods in /luma/titles." and nothing breaks.
+  Claude on the New 3DS XL, 2026-11-09: /luma/titles empty: "No hay mods en /luma/titles.", nothing broke.
 
 **Empty mods folders** (2026-11-07, `feat/mods-empty-folders`; the owner's New 3DS XL has 22 folders in `/luma/titles`, all
 empty, so every game seemed to have mods): a folder with no files is no mods. They are hidden by default and one row at the top
@@ -284,15 +317,18 @@ stands for them all ("22 empty folders", folder-off icon; its sheet: *Show empty
 Show has a third chip, *Empty folders* (settings `mods.states` bit 4). Shown, they carry the tag *Empty* and the sheet of any
 row has *Hide* / *Delete empty folders*. *Delete mods of games not installed* leaves the empty ones out, and deleting a game
 from Titles no longer asks about an empty folder. The owner decides whether hidden or shown reads better.
-- [ ] The New 3DS XL: the list shows only the summary row (or the real mods); A on it: show them, delete them all.
-- [ ] Filter -> Empty folders on and off; the setting is kept when the screen opens again.
+- [x] The New 3DS XL: the list shows only the summary row (or the real mods); A on it: show them, delete them all.
+  Claude on the New 3DS XL, 2026-11-09: two empty test folders and one mod: the row "2 carpetas vacías" on top; A on it, *Delete empty folders* deleted both.
+- [x] Filter -> Empty folders on and off; the setting is kept when the screen opens again.
+  Claude on the New 3DS XL, 2026-11-09: off, the summary row; on, the folders tagged *Vacío*; kept after reopening.
 
 **Deleting a folder that holds folders** (2026-11-07, `fix/delete-dir-trailing-slash`; the owner, deleting the mods of a
 game not installed: "Failed to delete the mods", C8804478 not found): the console's FS refuses
 `FSUSER_DeleteDirectoryRecursively` on a path that ends in `/` once the folder holds another (an empty one or one with only
 files goes; tried on the New 3DS XL through the web API). `fs_delete_dir_recursively` drops the slash; the mods, a folder
 cut and pasted onto another medium, the web page's delete and a store script's `rmdir` use it.
-- [ ] Mods: delete the test mods of 0004000000FFFF00 (romfs/ and code.ips), alone and with *Delete mods of games not installed*.
+- [x] Mods: delete the test mods of 0004000000FFFF00 (romfs/ and code.ips), alone and with *Delete mods of games not installed*.
+  Claude on the New 3DS XL, 2026-11-09: 0004000000FFFF00 (romfs/ with a file, code.ips) deleted alone and, made again, with *Delete mods of games not installed*.
 - [ ] Files: cut a folder with folders in it and paste it onto another medium (the NAND, a save): the source goes.
 
 **Shared UI pieces** (2026-11-07, `refactor/ui-structure`; the owner: screens, dialogs and bars each re-implemented the
@@ -373,7 +409,8 @@ hint, the reversed name sort and Left/Right in the viewer seen in Azahar):
 **Delete a title's mods from Titles** (2026-11-07, `feat/title-delete-mods`; the owner asked for it): a title with something
 in `/luma/titles/<ID>/` has *Delete mods* in its sheet, right before *Delete* (a game card's too). To try it, a dummy CIA
 "NSA Test" (`000400000FB1AE00`, devkitPro's hello world) with a test mods folder.
-- [ ] Titles -> NSA Test -> *Delete mods*: asks, deletes, and the action is gone the next time.
+- [x] Titles -> NSA Test -> *Delete mods*: asks, deletes, and the action is gone the next time.
+  Claude on the 2DS, 2026-11-09: on the test title 000400000FB1AF00 (installed by URL; NSA Test is not on the 2DS): "¿Borrar estos mods? El juego se queda, sin ellos." with the folder, "Mods borrados.", /luma/titles empty, the title kept; the sheet no longer has it.
 - [x] Deleting NSA Test with mods asks whether to delete them too (the owner, 2026-11-07).
 - [x] Now asked *before* deleting, right after *Delete the selected title?*, in red (`feat/title-mods-ask-first`; the
   owner was unsure which order reads better): Yes deletes the title and then the mods; No keeps the mods.
@@ -404,7 +441,8 @@ on the app's core, as the fetches do, and the update check too. Measured on the 
 "Yes" to the CIA downloaded 44 s -> 10 s (the probe 36 s -> 2.5 s); the check 6.3 s -> 4.7 s (reading the releases 1.1 s ->
 0.36 s). `transfer-log.txt` now says how long each probe took and the update check's times.
 - [ ] On the New 3DS XL: an update from Settings and an install from a URL start as before (no slower).
-- [ ] An install from a URL on the 2DS starts within a few seconds too (the same probe).
+- [x] An install from a URL on the 2DS starts within a few seconds too (the same probe).
+  Claude on the 2DS, 2026-11-09: a 2.5 MB CIA from this PC (`speed_tests.py --only url --cia`): probe 40 ms, downloaded and installed in 5.8 s.
 
 **No seed lookup for titles without one, no probe for small downloads** (2026-11-06, `fix/seed-probe`): after installing a CIA,
 NSA asked Nintendo's server for its seed whatever it was (as FBI did: a 404 for anything not from the eShop, 2.4 s on the 2DS);
@@ -420,6 +458,7 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] A console that ran NSA before (settings.json without `guide_known`) is asked once at start "New in this version": Your
   main menu and Store, with Getting around chained before them while not seen; the top screen lists what it will play with the steps
   of each, and X "Everything" adds every other chapter not seen. Any answer, Later too, is not asked again.
+  Claude on the 2DS, 2026-11-09: 2DS (from 0.9.2-dev.116 with guide_known 9): at start "Novedades de esta versión: - Conexiones Wi-Fi" with Verlo / Todo / Luego; the top card lists Moverse por NSA (10 steps, not seen) before Conexiones Wi-Fi (8) and "X Todo: también los otros 14"; Luego moved guide_known to 10 (a console with `guide_known`, not one without).
 - [ ] A first start (no settings.json) is welcomed with the five essential chapters (Getting around, Your main menu, Titles, SD card,
   Remote install).
 - [ ] The tours: each chapter first goes back to the main menu by itself (B until only it is open); the rest of the screen is dimmed
@@ -442,8 +481,9 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] The 0.8 texts (Store, guide, menu editing, receive choices...) in the nine other languages (2026-11-06, translated in one go; only
   Simplified Chinese seen in Azahar: the guide's offer and a bubble). Simplified Chinese's font now has 587 characters in a 512x924 atlas
   (cells of 28 px: `tools/make_hanfont.py` must keep it within 1024 high, or NSA freezes at start in that language).
-- [ ] Settings -> Guide: "Everything not seen yet (N)", every chapter with New or a tick, "Start again" (asks); the top screen shows the
+- [x] Settings -> Guide: "Everything not seen yet (N)", every chapter with New or a tick, "Start again" (asks); the top screen shows the
   summary, steps and the version it came with. The Settings row shows "N of 12 chapters seen".
+  Claude on the New 3DS XL, 2026-11-09: "Todo lo que no has visto (15)", New on each chapter and a tick on the one seen, the top screen's summary, steps and "desde NSA 0.8"; "Empezar de nuevo" asks; the Settings row says "1 de 16 capítulos vistos" (16 now).
 - [ ] Every dialog whose message is taller than its card scrolls it above the buttons (D-Pad / Circle Pad up and down, a finger
   dragging the text, or its scrollbar); short ones look as before. Check a sheet (HOME theme) and the Pixel theme.
 - [ ] The texts of the chapters fit their card on the console's own font, in English and Spanish (only Spanish has the new strings).
@@ -459,7 +499,8 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 **Store** (2026-11-05, branch `feat/store`, `source/fbi/store.c`; builds, not run in Azahar or on a console)
 - [ ] Main menu -> Store downloads Universal-DB's UniStore (`https://db.universal-team.net/unistore/universal-db.unistore`, ~0.9 MB, kept as `sdmc:/nsa/store.unistore` and used when there is no connection) and lists the 3DS apps that publish a CIA or a .3dsx with a plain "downloadFile" first step (about 320 of 447 on 2026-11-05: 260 CIA, 280 .3dsx). Zips and multi-step scripts are left out. The top screen shows the selected app (author, version, description, sizes, category); R or the tool searches.
 - [ ] A opens it: a CIA only -> asks and installs through the Remote install screens (`action_install_url`); a .3dsx only -> downloads to `/3ds/<name>/<name>.3dsx`; both -> a sheet to choose.
-- [ ] Memory: parsing ~1 MB of JSON on an Old 3DS / 2DS; leaving the screen while it loads (B).
+- [x] Memory: parsing ~1 MB of JSON on an Old 3DS / 2DS; leaving the screen while it loads (B).
+  Claude on the 2DS, 2026-11-09: Universal-DB, 426 apps: downloaded and read in 8.4 s, on screen at 18 s with the icon sheets built; B while "Cargando el catálogo..." leaves at once, memory as before. Next time the SD copy: 4.6 s. The first copy read gave -1 (written by 0.9.2-dev.116, older STORE_CACHE_FORMAT: expected).
 - Not done: DS apps, `downloadRelease` (the latest GitHub release: 13 apps, left out).
 - [ ] **Universal-DB's scripts** (2026-11-06, `feat/store-scripts`, `source/fbi/storescript.c`, `source/core/unarchive.c`): the
   Store follows each file's steps as Universal-Updater does (downloadFile, extractFile from a .zip through zlib or a .7z through the
@@ -512,14 +553,17 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [x] History: names and links on its rows and on the top card are decoded and the top card shows each link whole, over several lines (the stored address keeps its escapes, so "install again" asks for the real one); the summary on Remote install keeps its lines inside the card. Seen on the New 3DS XL; the 2DS still has the build before this.
 - [x] Wrapped text: a word that fills a whole line (an address with no spaces) is cut where the line ends; before it left an empty first line, so a link with no spaces started one line lower than one with spaces (`screen_wrap_string`, used by every wrapped text). Seen on the New 3DS XL in History; other wrapped texts were not compared.
 - [ ] The install progress screen shows the decoded name.
-- [ ] `tools/console_tests.py`: its rules answer "Incoming file" / "Existing files" as prompts; they are list sheets now (named after the screen under them), so the rules need updating before the next run.
+- [x] `tools/console_tests.py`: its rules answer "Incoming file" / "Existing files" as prompts; they are list sheets now (named after the screen under them), so the rules need updating before the next run.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: SITE TEST UI now describes sheets (kind "sheet"; sheet_set_id names the two), the script picks the row with the D-Pad and A and reads buttons and texts through the i18n tables (the consoles are in Spanish). All 33 tests pass.
 - [ ] Not done: a preview of the icon of an incoming CIA / .3dsx. A CIA keeps its icon at the end and a .3dsx near it, so the sender has to send it: a protocol 9 (hello + icon) that both consoles must run.
 - [ ] A 15 s "io: nothing for 15 s" stall killed one send while two screenshots were fetched over FTP mid-transfer; it did not come back in the reruns. Watch for it.
 
 **Receive menus as lists** (2026-11-04, `feat/receive-list`; DEBUG 0.7.0 installed on the New 3DS XL only, the 2DS was off the network; the screen itself was not seen: `fake_peer.py send` got its connection reset before NSA logged anything):
 - [ ] An incoming file / CIA / folder / save from another console shows a list sheet ("Install now", "Save", "Reject", "Import now", "Save in a folder", "Original path") with a detail line per row, the file name and size as its title, and the transfer card on the top screen; A or a tap chooses.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: through console_tests: the sheet for a file (Guardar / Ruta original / Rechazar, each with its detail line, title "payload.bin (16.00 MiB)", the card on the top screen), a folder and a title package (.cia, saved). Install now and the save package not tried.
 - [ ] B or a tap above the list rejects: the sender sees "declined" and NSA goes back to waiting.
-- [ ] "Existing files" (Original path with files already there) is a list too: Overwrite, Skip existing (folders), Cancel (= reject).
+- [x] "Existing files" (Original path with files already there) is a list too: Overwrite, Skip existing (folders), Cancel (= reject).
+  Claude, New 3DS XL -> 2DS, 2026-11-09: origin_folder_overwrite / skip / cancel and origin_file: the sheet comes up and each answer does what it says.
 - [ ] Only Spanish has the new strings (the other ten languages show the English ones until translated).
 
 **Web System tab** (2026-11-04, `feat/web-system`; DEBUG build on the New 3DS XL, page opened in the browser: the four cards showed the console's real data):
@@ -562,12 +606,25 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Files: B in a folder selects that folder in the parent at once, also in a big folder full of CIAs; a D-Pad or A pressed meanwhile does nothing until it is selected.
 
 **System's details** (issue #23; `source/fbi/systeminfo.c`; only the layout was checked, in Azahar, whose data is fake)
-- [ ] Main menu -> System opens a list (Console, Network, Storage, Battery); each row shows its page on the top screen; B goes back.
+- [x] Main menu -> System opens a list (Console, Network, Storage, Battery); each row shows its page on the top screen; B goes back.
+  Claude on the New 3DS XL, 2026-11-09: Consola, Red, Almacenamiento, Batería; each page on the top screen; B back.
 - [ ] Console: serial number (read from `SecureInfo_A` on the CTR NAND) matches the sticker; device ID, country, system and kernel versions, MCU firmware (shown as major - 0x10 . minor: check it is plausible), Luma3DS version and commit, "Running as" CIA / 3DSX.
+  Claude on the New 3DS XL, 2026-11-09: QEF10498537, device ID, ES, 11.17.0-50E, kernel 2.58-0, MCU 3.65, Luma 13.4.0 (b3282131), running as CIA: all plausible; the sticker was not compared.
+  Claude on the 2DS, 2026-11-09: 2DS: AEM12193646, ES, 11.17.0-50E, kernel 2.58-0, MCU 2.37, Luma 13.4.0, CIA: plausible; sticker not compared.
 - [ ] Console on the New 3DS XL: the screen types (IPS / TN from `GSPLCD_GetVendors`: vendor 1 = IPS, 0xC = TN is a guess to confirm).
+  Claude on the New 3DS XL, 2026-11-09: it says top IPS, bottom IPS: to check against the console.
+  Claude on the 2DS, 2026-11-09: 2DS: TN (plausible for a 2DS).
 - [ ] Network: MAC, gateway, DNS, DHCP lease and proxy have real values (all empty in Azahar).
+  Claude on the New 3DS XL, 2026-11-09: **wrong**: gateway 127.0.0.1 and DNS "-" (the router is 192.168.1.1); MAC (as the router's ARP table), netmask, DHCP lease 23 h 42 min and proxy No are right.
+  Claude on the 2DS, 2026-11-09: 2DS: the same **wrong** gateway 127.0.0.1 and DNS "-"; IP, mask, MAC, lease and the servers' ports right.
+  Claude, 2026-11-09 (fixed, 0.9.4-dev): the routing table has routes through 127.0.0.1 (the console's own address, 127/8) before the default route (0.0.0.0/0 via 192.168.1.1, the last row): the default route's gateway is taken, never a loopback one. The DNS table wants a 336-byte buffer (EINVAL with 160). Both consoles now show 192.168.1.1 and "8.8.8.8, 206.67.222.222" (the page's System tab too). DEBUG `SITE NETDUMP` writes the raw tables and the CID to /nsa/netdump.txt.
 - [ ] Storage: the SD card's maker, product name and date from its CID (the byte order is guessed: both are tried), speed, writable, cluster size.
+  Claude on the New 3DS XL, 2026-11-09: **wrong**: "0x15 a8h0T", made 2049-11 (the CID read in the wrong order); speed (high), writable, cluster 32 KiB and the four media's space are right.
+  Claude, 2026-11-09 (fixed, 0.9.4-dev): the 3DS hands the CID reversed on both consoles; the unreversed bytes of this Samsung card happened to read as text in the product name. The reversed order goes first and the other needs bytes 1-7 as text: New 3DS XL "Samsung BC2QT, 2017-05", 2DS still "Kingston SD32G, 2016-07".
+  Claude on the 2DS, 2026-11-09: 2DS: "Kingston SD32G", made 2016-07, right; so the guessed byte order fails only for the New 3DS XL's card.
 - [ ] Battery: percent with a decimal, voltage and temperature from MCU registers 0x0A-0x0D (plausible: about 3.6-4.2 V, room temperature); charging / on the charger / on battery; after 2 minutes on the page the rate and the time left appear and the graph fills; plugging or unplugging restarts the measure.
+  Claude on the New 3DS XL, 2026-11-09: 100.0 %, 4.06 V, 23 °C, on the charger and not charging; after 2 min "+0.0 %/h" and the graph starting. Plugging and unplugging not tried.
+  Claude on the 2DS, 2026-11-09: 2DS: 100.0 %, 4.04 V, 28 °C, plugged in, level 5/5, "Midiendo...". Plugging and unplugging not tried.
 
 **Web server** (item 10; `source/fbi/webserver.c`; tested only in Azahar with `tools/web_tests.py` and the page in a browser)
 - [ ] Screen tab on a real console: frames per second over the Wi-Fi on the New 3DS XL and the 2DS (and what it costs the console: UI, music, a transfer meanwhile); if too slow, try a smaller frame.
@@ -579,11 +636,15 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Titles tab on a real console: the list, names and icons arrive (a console has many more titles than Azahar: how long, and does the console stay usable), filters.
 - [ ] Download a save, extra data and SpotPass data of a game as a package; send that package back from the page: the console unpacks it and asks about the import (red) there.
 - [ ] Settings -> Web server: On/Off; the row's top screen shows `http://IP:8080  PIN nnnnnn`; the PIN changes each time it starts; it starts at launch when it was left on.
+  Claude on the New 3DS XL, 2026-11-09: the row shows http://192.168.1.135:8080, the PIN and the QR code; the PIN changed at every start of the day's builds and the server started with them. On/Off not toggled.
 - [ ] From the PC: open the address, the PIN screen, wrong PIN (and the lock after 10), browse the SD card, download, upload (a big file, several at once), new folder, rename, delete.
+  Claude, 2026-11-09 (0.9.3-dev.38): web_tests.py passes on both consoles (52 checks: no / wrong PIN 401, mkdir, copy, rename, delete, upload, settings, titles, tickets, extra data, screens, input); it needed volume 101 for "out of range" (5 is valid now: it had set the music to 5 %) and to wait out the import still pending (409). The page in a browser and the lock after 10 not tried.
 - [ ] Files tab: copy a big folder (the page waits; the console stays usable?), move to another folder, edit and save a text file (UTF-8, CRLF kept as typed).
 - [ ] Tickets and Extra data tabs on a real console: counts, names and icons arrive (hundreds of tickets: how long), the text filter.
 - [ ] Install a `.cia` from the page (an SD title; NSA itself restarts); the toast on the bottom screen shows it.
-- [ ] Speed of a big download and upload on the New 3DS XL and the 2DS (the FTP server's for comparison); the console stays usable meanwhile (UI, music).
+- [x] Speed of a big download and upload on the New 3DS XL and the 2DS (the FTP server's for comparison); the console stays usable meanwhile (UI, music).
+  Claude, 2026-11-09: 64 MB with speed_tests.py, FTP and the page back to back (byte for byte). The page went 64-85 % of FTP (each send()/recv() moved 5-6 KB): New 3DS XL up/down 797/780 KB/s (FTP 1155/921), 2DS 554/427 (FTP 869/629). With 32 KB SO_RCVBUF/SO_SNDBUF on the listening socket (WEB_SOCKET_BUFFER, as the FTP's passive socket): New 3DS XL 1029/1289 (FTP 1001/1007), 2DS 892/633 (FTP 901/633), 15-20 KB per call on the 2DS; web_tests pass on both. Whether the console stays usable meanwhile is for the owner.
+  The owner and Claude on the 2DS, 2026-11-09: 256 MB up 900 KB/s, down 623 KB/s through the page (byte for byte) while the owner went through the menus: no delay, the UI drew 10-13 frames/s in the traces and the music played throughout.
 - [ ] The local wireless (Send / Receive without a router) stops the web server and brings it back after; nothing else breaks while it serves.
 - [ ] The page in a phone's browser and in Firefox / Chrome (dark and light).
 - [ ] Download a save / extra data / SpotPass package from the page on the 2DS: the console shows "Packing for the web page" with its bar, B there cancels and the page says so, the page's card shows packing then downloading, and NSA closes normally afterwards.
@@ -593,12 +654,14 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 
 **Original path** (`feat/keep-original-path`, issue #24; `tools/console_tests.py --only origin` (8 tests: new, overwrite, skip, cancel, cut and resumed, a single file, unsafe paths not offered) pass on the New 3DS XL <-> 2DS over the Wi-Fi; the owner has not tried it by hand)
 - [ ] Files -> a folder's ⋯ -> *Send to another 3DS*; on the receiver *Original path*: with nothing there the folder appears at the same path; with files there it asks "N of M files already exist" and Overwrite / Skip existing / Cancel do what they say; try it with PKSM's folder.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: the 8 origin tests pass (sent with SITE TEST SENDDIR, not from Files); PKSM's folder not tried.
 - [ ] The same with a single file, and a CIA or a save package (they must not offer *Original path*).
 
 **Sending folders** (`feat/send-folders`; code in `transferfolder.c` and `foldermanifest.c`; `tests/foldermanifest_test.c` on the host and `tools/console_tests.py --only send_folder` (10 tests: clean, name taken, cuts on both sides, write and read failures, 250 small files, no files, unsafe paths, another destination) pass on the New 3DS XL <-> 2DS over the Wi-Fi; the owner has not tried it by hand)
 - [ ] Files -> a folder's ⋯ (or the open folder's sheet) -> *Send to another 3DS*: a small folder (a few files, subfolders, an empty file, an empty subfolder) arrives in `sdmc:/nsa/received/<name>/` with the same tree; the receiver is asked *Save* / *Reject* and picks the destination folder.
 - [ ] A folder with several CIAs (hundreds of MB): speed like a single file, nothing duplicated on the sender's card; cancel with B on each side; a name that already exists arrives as `<name> (2)`.
 - [ ] A cut transfer of a folder goes on from where it stopped (the `<name>.part` folder and `.part.pos` stay on the receiver); an empty folder and one with only empty subfolders are refused by the sender ("no files"); a folder with thousands of small files.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: send_folder_cut_sender / cut_receiver / write_fails / read_fails, the empty folder refused and 250 small files in 20 folders pass; thousands of files not tried.
 - [ ] Wi-Fi and the local wireless (no router); an older NSA (protocol 5) on the other console must refuse cleanly.
 
 **Saves, extra data and SpotPass data** (item 3b; code in `source/fbi/action/savetransfer.c`; none of it tried on a console)
@@ -629,11 +692,15 @@ dates). The owner will go through them one by one; tick each only when they say 
 **One transfer at a time** (`feat/one-transfer`; on the New 3DS XL `tools/turn_tests.py` passes and the speed is above)
 - [ ] Console to console with the turn (New 3DS XL <-> 2DS, `tools/console_tests.py`): sending and receiving still work; a send
       while the receiver downloads something is refused with "Another transfer is in progress"; the retry question frees it.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: console_tests (A New 3DS XL, B 2DS): all 33 pass, so sending and receiving work with the turn; a send while the receiver downloads not tried.
+  Claude, 2026-11-09 (0.9.3-dev.38): turn_tests.py on both: all pass but, once each, reset-down on the New 3DS XL (the turn freed after 31-32 s, one answer 3.2 s: the reset not seen, as in Decisions) and web-vanish on the 2DS (one request failed, the page back at 10-14.7 s, close to the 15 s limit). Rerun twice each: both passed.
 - [ ] Settings -> FTP server (and Web server) off and on again with a transfer under way: nothing freezes, the turn is free.
 - [ ] The page: the top bar shows a transfer (name, %, KB/s) of FTP or a download; an upload while one runs says so and sends
       nothing; the live screens say they are paused; browsing Titles and Files keeps working.
 - [ ] A QR / URL install while an FTP upload runs: the console says another transfer is in progress; after it ends it works.
-- [ ] The 2DS: the same speed tests (`speed_tests.py --wait-mode poll|nap`) to see whether the short poll helps there too.
+  Claude, 2026-11-09 (0.9.3-dev.38): turn_tests busy-ftp on both consoles: /api/install-url gets 503 while an FTP upload holds the turn, the upload ends and the turn is free at once. The console's own message (QR) not seen.
+- [x] The 2DS: the same speed tests (`speed_tests.py --wait-mode poll|nap`) to see whether the short poll helps there too.
+  Claude on the 2DS, 2026-11-09: 64 MB, music off: poll 921 up / 619 down KB/s, nap 930 / 637, hybrid 849 / 627: no difference beyond noise (left on POLL).
 
 **Downloads from Dropbox and in long pieces** (Decisions, "Saving comes in long pieces"; the New 3DS XL passed Save from
 Dropbox, catbox and the LAN, byte for byte, and an install by URL of an 8 MB CIA over 8 connections)
@@ -725,6 +792,7 @@ the log says what it chose ("sender: N KB/s over M connections...").
 the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, byte for byte.
 - [ ] The catbox.moe QR CIA in 3dsDL on the 2DS, to compare with NSA's 432 KB/s there.
 - [ ] The 2DS stays smooth during a download and an FTP transfer (menus, music; FTP threads now on the app core).
+  Claude on the 2DS, 2026-11-09: the traces say the UI draws 10 frames/s during FTP and 11-12 during a URL download (with or without music); how it feels is for the owner.
 - [x] Console to console: the speed on screen no longer jumps between 0 and twice the real one (bytes counted every 32 KB,
       not per 256 KB chunk, and averaged over the last seconds); the owner saw it steady (2026-11-02).
 - [ ] Remote Install's confirmation (QR, typed URL, history, received URLs, the web page's install from URL): Install /
@@ -740,6 +808,7 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
 - [ ] Music during transfers on an Old 3DS: off made the 2DS's FTP 10-25% faster (New 3DS: 3-6%); a URL install on the
       2DS 520 -> 530 KB/s (2%, the install is its limit); a 16 MB send New 3DS -> 2DS 29.0 / 35.7 s with music on both,
       29.8 / 30.8 s off (~6%, noisy). Owner to decide whether NSA pauses it during FTP transfers on an Old 3DS.
+  Claude on the 2DS, 2026-11-09: 2026-11-09 again: FTP up 64 MB 782 KB/s with music, 946 without; down and URL the same (see the 2DS item above).
 - [ ] FTP and web after the non-blocking change: FileZilla and a browser on a real console (big files both ways, several
       at once, a client that disappears mid-transfer, turning the servers off mid-transfer).
 
@@ -757,6 +826,7 @@ the LAN (numbers in Decisions); URL install, FTP and web up/down worked there, b
 **Pending titles and System save data on the Titles pattern**
 - [ ] Pending titles: rows (kind, ID, SD/NAND tag, version), SD/NAND filter remembered, search, sheet
       with both deletes in red, long press, X refreshes. Only seen empty in Azahar (no pending titles).
+  Claude on the New 3DS XL, 2026-11-09: seen only empty (0) on the New 3DS XL too.
 - [ ] System save data: rows with the ID, search, sheet (browse, delete in red), the delete
       confirmation in the red warning. Azahar crashes on this screen (also on the previous
       `release`, before this change): not seen even once; readable names of the modules were not
@@ -842,6 +912,7 @@ nothing: the file it was writing stayed, at its full size (the copy sets it firs
 - [x] On the New 3DS XL: a 150 MB paste, B -> No went on (38 %, "Quedan 00:00:30"), B -> Yes stopped it, "Cancelado",
       the half file gone.
 - [ ] A CIA install and console to console: B asks, No goes on, Yes stops.
+  Claude, New 3DS XL -> 2DS, 2026-11-09: receiving: B -> "¿Parar ahora? Lo que falta no se hará.", Sí stops and the sender says the other console cancelled (receiver_cancels). No, and a CIA install, not tried.
 
 **Time left under every progress bar** (2026-11-08, `feat/progress-eta`): the progress view (info.c, every copy,
 paste, install, delete, import, export, console to console, Store files) shows "00:01:23 left" under its bar, from
@@ -900,31 +971,42 @@ the system wrote since (header and FIRMs equal).
       `sdmc:/nsa/music-cache-N.pcm`, 1.3 to 1.6 MB each), a new one is made meanwhile (about 15 s on the 2DS) and it
       replaces it with a 3.5 s fade-out/fade-in; the new one is what is kept. Changing style fades the old one out
       and plays the cache of the new one if there is one. Turning it off cancels a song being made.
+  Claude on the 2DS, 2026-11-09: 2DS: songs of Shop take 14.8-29 s to make (music-log); turning it off while Calm was being made (going from Shop to No passes Calm and Lift): "style 2: stopped in 3196 ms" and the note left the status bar. Not heard.
 - [ ] The animation: a note blinks in the status bar while a song is made, and Settings shows the progress,
       a progress bar and an equalizer (quick while making, slow while playing). Seen in Azahar only; the fade
       cannot be heard there.
 
 **Remote install history**
-- [ ] History list: install again, forget, long-press sheet, top card with the links.
+- [x] History list: install again, forget, long-press sheet, top card with the links.
+  Claude on the New 3DS XL, 2026-11-09: rows and top card with the whole link; A asks Install / Save... ; held A: Install / Forget; Forget removes the row (42 -> 41).
 - [ ] Migration of the old `lasturls` (now deleted through an opened SD archive); 100 request limit.
 
 **Files: cut / move**
 - [ ] Cut a file and a folder, paste on the same medium (instant rename) and on another one
       (SD to NAND: copy then delete the source); same folder; folder into itself; name taken.
-- [ ] Cut, then paste after the source's list was left (clipboard survives navigating).
+  Claude on the New 3DS XL, 2026-11-09: a file cut in /nsa/ptest and pasted in /nsa: "Movido", gone from the source. Copying a folder and pasting it inside itself is not refused: it made one copy inside (no loop). Cut into itself, name taken and SD -> NAND not tried.
+  Claude, 2026-11-09 (fixed, 0.9.4-dev): copying (or cutting, where it is not a rename) a folder into itself or one of its folders is refused: "Una carpeta no se puede copiar dentro de sí misma" (the copy kept no archive ID: the archive handles are compared). On the 2DS: /0selftest/A pasted in A refused, nothing copied; pasted in /0selftest/C it asked and copied.
+- [x] Cut, then paste after the source's list was left (clipboard survives navigating).
+  Claude on the New 3DS XL, 2026-11-09: cut in /nsa/ptest, pasted from /nsa's sheet (the clipboard row showed it).
 
 **Files: pictures**
 - [ ] PNG, JPEG, BMP, GIF, TGA open; L/R through the folder; zoom, drag, D-Pad/Circle Pad pan.
+  Claude on the New 3DS XL, 2026-11-09: all five open, L/R and Left/Right go through the folder ("4 / 7"), zoom 200 % and the D-Pad pans. A GIF crashed NSA until the main stack was raised (c5e0637). Dragging and the Circle Pad not tried.
 - [ ] A camera's **MPO in 3D** (pair order, depth, slider at 0 shows the left picture): not
       tried even in Azahar (no sample).
-- [ ] More than 5 megapixels / 12 MB refuses with a message; a 1024+ px picture is shrunk.
-- [ ] Memory on an Old 3DS with a 4-5 megapixel JPEG.
+- [x] More than 5 megapixels / 12 MB refuses with a message; a 1024+ px picture is shrunk.
+  Claude on the New 3DS XL, 2026-11-09: a 3000x2000 JPEG: "Demasiado grande (5 megapíxeles como máximo)."; a 1600x1200 PNG shown shrunk to fit.
+- [x] Memory on an Old 3DS with a 4-5 megapixel JPEG.
+  Claude on the 2DS, 2026-11-09: 2DS: a 2520x1900 JPEG (4.8 MP, 382 KB) shown fitted after 6-9 s of "Cargando..."; SITE MEM the same before and after.
 
 **Files: text**
-- [ ] Open `.txt`/`.json`/...; "Open as text" on a file with no known extension; binary files refuse.
+- [x] Open `.txt`/`.json`/...; "Open as text" on a file with no known extension; binary files refuse.
+  Claude on the New 3DS XL, 2026-11-09: .txt (accents, ñ) and .json open; README (no extension) opens as text; a binary file with no extension: "Esto no parece un archivo de texto."
 - [ ] Edit with the custom keyboard: letters, shift/caps, symbols, accents, backspace/arrows
       repeat, D-Pad cursor, X/Y/A shortcuts, START saves, close with changes asks.
-- [ ] CRLF kept; a Latin-1 file is read and saved as UTF-8; a file over 256 KB is read only.
+  Claude on the New 3DS XL, 2026-11-09: a letter typed, START saves ("Guardado."), closing with a change asks Guardar / Descartar / Cancelar and Descartar keeps the file. Shift, symbols, accents and repeats not tried.
+- [x] CRLF kept; a Latin-1 file is read and saved as UTF-8; a file over 256 KB is read only.
+  Claude on the New 3DS XL, 2026-11-09: CRLF kept byte for byte; a Latin-1 file shown right ("No es UTF-8...") and saved as UTF-8; 293 KB: "Solo se muestra el principio (solo lectura)", Editar greyed.
 - [ ] Saving on the NAND / save-data archives (commit).
 
 **Files: audio**
@@ -947,12 +1029,15 @@ the system wrote since (header and FIRMs equal).
 the owner: folder icons, the CIA size cell and the Modified cell)
 - [ ] Picture previews in the rows and on the card: speed while scrolling a big folder, nothing
       freezes, Old 3DS memory.
-- [ ] A .3dsx's preview, name and author on both consoles; a .3dsx without SMDH keeps the generic icon.
+- [x] A .3dsx's preview, name and author on both consoles; a .3dsx without SMDH keeps the generic icon.
+  Claude on the New 3DS XL, 2026-11-09: New 3DS XL: boot.3dsx shows its icon, "Homebrew Menu v2.4.3", "hbmenu team". 2DS and a .3dsx without SMDH not tried.
+  Claude on the 2DS, 2026-11-09: 2DS: boot.3dsx with its icon, "Homebrew Menu v2.4.3", "hbmenu team"; a .3dsx with no SMDH: the generic program icon, its file name, "Programa".
 - [ ] **Run program** on a real .3dsx: the owner's NSA is a CIA and they have a Homebrew Launcher CIA.
       Possible failures: its title ID is not `000400000D921E00` (write it in `sdmc:/nsa/hbl_title.txt`),
       or NSA's exheader does not allow `svcConnectToPort` ("hb:ldr", error shown). Also from a 3DSX build.
-- [ ] File type names and icons on files of each kind; "Open as text" is now offered only on
+- [x] File type names and icons on files of each kind; "Open as text" is now offered only on
       files with no known extension (README...), not on programs, ROMs, pictures, archives.
+  Claude on the New 3DS XL, 2026-11-09: Imagen, Texto, Archivo, Comprimido, Programa, ROM de juego, Carpeta with their icons; a picture's sheet has *Ver imagen* and no *Open as text*, a file with no extension has it.
 
 **Next, item 3 (Pending titles, System save data, Dump NAND on the Titles pattern)**
 - [ ] The owner thinks they tried it once but does not remember. The code on `release` still

@@ -439,6 +439,10 @@ static void coach_bubble_measure(const coach_step* step, gfxScreen_t screen, coa
     screen_get_string_size_wrap(&textW, &b->textH, b->text, BUBBLE_SCALE, BUBBLE_SCALE, maxW);
     float footerW = widget_text_width(b->footer, BUBBLE_SMALL) + widget_text_width(b->counter, BUBBLE_SMALL) + 16;
     float titleW = step->title != NULL ? widget_text_width(step->title, BUBBLE_SMALL) : 0;
+    if(step->fresh) {
+        titleW += 8 + widget_text_width(_("New"), WIDGET_SMALL_SCALE) + 12;
+    }
+
     b->innerW = textW;
     if(footerW > b->innerW) b->innerW = footerW;
     if(titleW > b->innerW) b->innerW = titleW;
@@ -474,7 +478,14 @@ static void coach_bubble_draw(gfxScreen_t screen, const coach_step* step, const 
     float x = bx + BUBBLE_PAD;
     float y = by + BUBBLE_PAD;
     if(step->title != NULL) {
-        widget_text_fit(step->title, x, y, BUBBLE_SMALL, t->accent, b->innerW);
+        float badgeW = step->fresh ? widget_text_width(_("New"), WIDGET_SMALL_SCALE) + 12 : 0;
+        widget_text_fit(step->title, x, y, BUBBLE_SMALL, t->accent, b->innerW - (step->fresh ? badgeW + 8 : 0));
+        if(step->fresh) {
+            float titleW = widget_text_width(step->title, BUBBLE_SMALL);
+            float room = b->innerW - badgeW - 8;
+            widget_badge(x + (titleW < room ? titleW : room) + 8, y - 1, _("New"), t->accent, t->onAccent);
+        }
+
         y += b->smallH + 4;
     }
 

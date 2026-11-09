@@ -489,6 +489,37 @@ static void action_paste_contents_move_here(linked_list* items, list_item* selec
     }
 }
 
+// Whether one of the clipboard's folders is `dir` or holds it (same archive): copying it there would copy its own
+// copy over and over (it made one nested copy and stopped).
+static bool action_paste_contents_into_itself(const char* dir) {
+    u32 count = clipboard_get_name_count();
+    u32 total = count > 0 ? count : 1;
+    for(u32 i = 0; i < total; i++) {
+        char srcPath[FILE_PATH_MAX];
+        if(count > 0) {
+            snprintf(srcPath, sizeof(srcPath), "%s%s", clipboard_get_path(), clipboard_get_name(i));
+        } else {
+            string_copy(srcPath, clipboard_get_path(), sizeof(srcPath));
+        }
+
+        size_t length = strlen(srcPath);
+        if(length == 0 || !fs_is_dir(clipboard_get_archive(), srcPath)) {
+            continue;
+        }
+
+        if(srcPath[length - 1] != '/' && length + 1 < sizeof(srcPath)) {
+            srcPath[length++] = '/';
+            srcPath[length] = '\0';
+        }
+
+        if(strncmp(dir, srcPath, length) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void action_paste_contents_in(linked_list* items, list_item* selected, FS_ArchiveID archiveId) {
     // A selection copied into the folder it came from would overwrite each item with itself (deleting it first).
     if(clipboard_has_contents() && !clipboard_is_cut() && clipboard_get_name_count() > 0 && archiveId != 0 && archiveId == clipboard_get_archive_id()) {
@@ -509,6 +540,24 @@ void action_paste_contents_in(linked_list* items, list_item* selected, FS_Archiv
     if(clipboard_has_contents() && clipboard_is_cut() && archiveId != 0 && archiveId == clipboard_get_archive_id() && action_paste_contents_renamable(archiveId)) {
         action_paste_contents_move_here(items, selected);
         return;
+    }
+
+    // A folder into itself or one of its folders (the web page refuses it too). A plain copy keeps no archive ID:
+    // compare the archive handles (the list's, which the clipboard holds a reference to).
+    file_info* pasteTarget = (file_info*) selected->data;
+    if(clipboard_has_contents() && pasteTarget->archive == clipboard_get_archive()) {
+        file_info* target = pasteTarget;
+        char dir[FILE_PATH_MAX] = {'\0'};
+        if(target->attributes & FS_ATTRIBUTE_DIRECTORY) {
+            string_copy(dir, target->path, FILE_PATH_MAX);
+        } else {
+            string_get_parent_path(dir, target->path, FILE_PATH_MAX);
+        }
+
+        if(action_paste_contents_into_itself(dir)) {
+            prompt_display_notify("Failure", clipboard_is_cut() ? "A folder cannot be moved into itself." : "A folder cannot be copied into itself.", COLOR_TEXT, NULL, NULL, NULL);
+            return;
+        }
     }
 
     action_paste_contents(items, selected);

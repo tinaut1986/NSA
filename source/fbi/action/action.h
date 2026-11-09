@@ -37,6 +37,13 @@ void action_install_cia_delete_now(linked_list* items, list_item* selected);
 // Installs CIAs on the SD card one after another with no question (Remote Install's "Save and install"):
 // `paths` one a line; `delete` deletes each once it is installed.
 void action_install_cia_paths_now(const char* paths, bool delete);
+// Starts installing a CIA of `titleId` / `version` on `dest`: over the installed title when this is the same version or
+// a higher one (nothing deleted, the save kept), else deleting the installed one first.
+Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Handle* handle);
+// installsave.c: a lower version than the installed one. Asks, backs up the save (an error, or R_APP_SKIPPED when the
+// user says no: nothing deleted then); `ended` once the install is over puts the save back, or says where it is kept.
+Result action_install_cia_lower(FS_MediaType dest, u64 titleId, u16 version, u16 installedVersion);
+void action_install_cia_ended(u64 titleId, bool installed);
 void action_install_cias(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_cias_delete(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 // The CIAs of the folder `selected` that `filter` keeps (the Files screen's selection).
@@ -53,6 +60,9 @@ void action_delete_dir_tickets(linked_list* items, list_item* selected);
 // The items of the folder `selected` that `filter` keeps (the Files screen's selection), folders with all they hold.
 void action_delete_selected(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_new_folder(linked_list* items, list_item* selected);
+// Everything in the .zip or .7z at `path` (on the SD card) into its folder, or into a new folder named after it;
+// `done` once it ends (to list the folder again), before the message.
+void action_extract_archive(const char* path, bool intoFolder, void (*done)(void* userData), void* userData);
 void action_paste_contents(linked_list* items, list_item* selected);
 // Like it, but a cut item on the same medium (`archiveId`) is renamed into the folder instead of copied.
 void action_paste_contents_in(linked_list* items, list_item* selected, FS_ArchiveID archiveId);
@@ -99,6 +109,8 @@ void action_send_save_files(title_info* title, const char* name, save_kind kind,
 // The same with one of the title's backups (as listed by action_save_backups) instead of the data on the console.
 void action_send_save_backup(title_info* title, const char* name, save_kind kind, const char* path);
 bool action_find_ext_data(title_info* info, u32* extId);
+// DEBUG (SITE EXTIDS): every game on the SD card, the ext data ID its exheader names against the guesses.
+bool action_ext_data_debug(const char* path);
 typedef struct {
     char path[512];      // The backup's folder, with the trailing slash.
     char label[96];      // "[NSA] 2026-10-31 14:25:30", "[Checkpoint] name", "[JKSM] name", "[PKSM] date".

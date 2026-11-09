@@ -6,7 +6,7 @@
 NSA needs "web_server": true in sdmc:/nsa/settings.json (or Settings -> Web server). Without --pin it
 is fetched from /nsa/web-pin.txt over the FTP server (port 5021), which DEBUG builds write.
 """
-import argparse, json, os, sys, urllib.request, urllib.error, ftplib, io
+import argparse, json, os, sys, urllib.request, urllib.error, ftplib, io, time
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--host', required=True)
@@ -60,7 +60,7 @@ s, b = req('GET', '/icons.js'); check('icon names are public', s == 200 and b'IC
 s, b = req('GET', '/api/settings', a.pin); st = json.loads(b) if s == 200 else {}
 check('settings', s == 200 and st.get('theme') == t.get('theme') and len(st.get('accents', [])) > 1 and st.get('night') in ('off', 'on', 'auto'))
 s, b = req('POST', '/api/settings?theme=nope', a.pin); check('unknown theme refused', s == 400)
-s, b = req('POST', '/api/settings?musicVolume=5', a.pin); check('volume out of range refused', s == 400)
+s, b = req('POST', '/api/settings?musicVolume=101', a.pin); check('volume out of range refused', s == 400)
 s, b = req('POST', '/api/settings?night=' + st.get('night', 'off')); check('settings need the PIN', s == 401)
 s, b = req('POST', '/api/settings?night=' + st.get('night', 'off'), a.pin); check('settings set (unchanged)', s == 200 and json.loads(b)['night'] == st.get('night'))
 s, b = req('GET', '/font.ttf'); check('pixel font', s == 200 and len(b) > 10000)
@@ -81,7 +81,13 @@ s, b = req('POST', '/api/title/delete?id=0004000000000000&media=sd', a.pin); che
 if titles:
     s, b = req('GET', '/api/save/backups?' + q + '&kind=save', a.pin); check('backups list', s == 200 and isinstance(json.loads(b)['backups'], list))
     s, b = req('POST', '/api/save/import?' + q + '&kind=save&path=/etc/passwd', a.pin); check('import needs a listed backup (404 or queued then refused)', s in (200, 404))
-s, b = req('POST', '/api/install-url', a.pin, b'http://127.0.0.1:9/none.cia\n'); check('install from a URL is queued for the console to ask', s == 200)
+# The import above may still be pending on the console (409 "still asking about the last request") for a moment.
+for _ in range(15):
+    s, b = req('POST', '/api/install-url', a.pin, b'http://127.0.0.1:9/none.cia\n')
+    if s != 409:
+        break
+    time.sleep(1)
+check('install from a URL is queued for the console to ask', s == 200)
 s, b = req('GET', '/api/tickets', a.pin); check('tickets list', s == 200 and isinstance(json.loads(b)['tickets'], list))
 s, b = req('GET', '/api/extdata', a.pin); check('extra data list', s == 200 and isinstance(json.loads(b)['extdata'], list))
 s, b = req('GET', '/api/extdata/info?id=zz&media=sd', a.pin); check('extra data info needs a real id', s == 400)

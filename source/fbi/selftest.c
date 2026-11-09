@@ -395,7 +395,7 @@ static void selftest_describe(char* reply, size_t size) {
     d.kind = "other";
     d.progress = -1;
     d.selected = -1;
-    if(view != NULL && !prompt_describe(view, &d) && !info_describe(view, &d)) {
+    if(view != NULL && !prompt_describe(view, &d) && !info_describe(view, &d) && !sheet_describe(view, &d)) {
         list_describe(view, &d);
     }
 

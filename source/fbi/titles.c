@@ -387,9 +387,9 @@ static void titles_import_sv(void* data) { titles_run(data, action_import_secure
 static void titles_export_sv(void* data) { titles_run(data, action_export_secure_value); }
 static void titles_delete_sv(void* data) { titles_run(data, action_delete_secure_value); }
 
-// The ID of the ext save data a game has on the SD card, if it has any: under
-// its own ID, or under it without the last byte (Mario Kart 7, 00030700, keeps
-// its data as 307).
+// The ID of the ext save data a game has on the SD card, if it has any: the one
+// its exheader names, else its own ID or its own ID without the last byte
+// (savetransfer.c, save_data_candidates).
 static bool titles_ext_find(title_info* info, u32* extId) {
     return action_find_ext_data(info, extId);
 }

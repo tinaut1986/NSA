@@ -78,6 +78,15 @@ typedef struct {
     u32 updated;      // 0 any time, else updated in the last month, 6 months or year (store.c's store_updated_days).
 } store_settings;
 
+// Date and time (datetime.c).
+typedef struct {
+    u32 clock;         // 0 by region, 1 24 hours, 2 12 hours.
+    u32 order;         // 0 by region, 1 day/month, 2 month/day.
+    char zone[24];     // A zone's id; "" the country's.
+    u32 summer;        // 0 by the zone's dates, 1 never, 2 always.
+    bool syncOnStart;  // The clock is set from the Internet when NSA opens.
+} datetime_settings;
+
 typedef struct {
     update_channel channel;
     bool autoUpdate;
@@ -121,6 +130,7 @@ typedef struct {
     pending_settings pending;
     mods_settings mods;
     store_settings store;
+    datetime_settings datetime;
 } settings_data;
 
 // Pushes the appearance settings to the theme and the translation layer.

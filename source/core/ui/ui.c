@@ -15,6 +15,7 @@
 #include "../bgmusic.h"
 #include "../appinfo.h"
 #include "../i18n.h"
+#include "../datefmt.h"
 #include "../data/smdh.h"
 #include "../icons.h"
 #include "../theme.h"
@@ -203,11 +204,15 @@ static void ui_draw_top_bar() {
     time_t now = time(NULL);
     struct tm* local = gmtime(&now);
     char clock[32];
-    strftime(clock, sizeof(clock), "%d/%m  %H:%M", local);
+    char day[8];
+    char hour[12];
+    datefmt_day_month(day, sizeof(day), local);
+    datefmt_time(hour, sizeof(hour), local);
+    snprintf(clock, sizeof(clock), "%s  %s", day, hour);
     float clockWidth = widget_text_width(clock, WIDGET_SMALL_SCALE);
     float clockX = (TOP_SCREEN_WIDTH - clockWidth) / 2;
     if(clockX < left + 8 || clockX + clockWidth > x - 8) {
-        strftime(clock, sizeof(clock), "%H:%M", local);
+        snprintf(clock, sizeof(clock), "%s", hour);
         clockWidth = widget_text_width(clock, WIDGET_SMALL_SCALE);
         clockX = left + (x - left - clockWidth) / 2;
     }

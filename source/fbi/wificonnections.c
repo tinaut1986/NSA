@@ -137,8 +137,10 @@ static void wifi_saved_text(const wifislots_backup* backup, char* out, size_t si
 
     time_t saved = backup->saved;
     struct tm* tm = gmtime(&saved);
-    if(tm == NULL || strftime(out, size, "%Y-%m-%d %H:%M", tm) == 0) {
+    if(tm == NULL) {
         string_copy(out, "-", size);
+    } else {
+        datefmt_date_time(out, size, tm);
     }
 }
 

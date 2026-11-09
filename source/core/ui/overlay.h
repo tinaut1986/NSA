@@ -36,7 +36,7 @@ void popover_display(const popover_def* def, void* data);
 
 // ---- Sheet: actions for one item, rising from the bottom ----
 
-#define SHEET_ACTIONS_MAX 24
+#define SHEET_ACTIONS_MAX 40   // Date and time's zones are 31.
 
 typedef struct {
     u32 icon;
@@ -69,6 +69,8 @@ void sheet_display_choice(const char* title, const sheet_action* actions, u32 co
                           void (*cancel)(void* data));
 // Names the sheet just shown for the tests (SITE TEST UI), as a view's id: the English name of the question.
 void sheet_set_id(const char* id);
+// Puts the focus of the sheet just shown on one of its actions (the one chosen last time), scrolled into view.
+void sheet_set_selected(u32 index);
 // SITE TEST UI: a sheet's title, actions (each run with A once selected) and selection. False for any other view.
 typedef struct ui_description_s ui_description;
 bool sheet_describe(ui_view* view, ui_description* out);

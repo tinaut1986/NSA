@@ -162,6 +162,23 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+**Date and time** (2026-11-09, `feat/date-time`, `source/fbi/datetime.c`, `source/core/datefmt.c`; issue #33 asks for it,
+left open until Cosmosx007 says whether the format was the problem). System -> Console opens it (A):
+- [ ] The format: Clock (by region / 24 h / 12 h) and Date order (by region / day/month / month/day); by region is
+  America month first and 12 h, Japan/China/Korea/Taiwan month first, Europe/Australia day first (the HOME Menu of a
+  European console writes 9/11). It changes the status bar, the files' dates, Remote install's history, the Wi-Fi
+  copies and the web page's dates (the page now shows the console's times as they are, not converted from UTC).
+  Claude, 2026-11-09: on the New 3DS XL 12 h + month/day gave "4:07 PM 11/09/2026" on the top screen, `/api/settings`
+  clock24/monthFirst follow; back to by region.
+- [ ] Set the time from the Internet (pool.ntp.org, UTC + the zone + summer time; PTMSYSM_SetUserTime as Rosalina; ptm:sets
+  is not in the service list and is not needed: time() follows). Claude, 2026-11-09: the New 3DS XL was 93 s slow, set
+  right ("El reloj se ha movido +93 segundos"), and it stayed right after NSA restarted.
+- [ ] "From the Internet when NSA opens" (off by default): once the Wi-Fi is up (up to 2 minutes), one try. Not tried.
+- [ ] Time zone (31, by country by default: ES -> Madrid) and summer time (by the zone's dates: EU, US, south-east
+  Australia, New Zealand rules; never; always). Claude: Auckland in November showed +1 h (right: NZ summer); the
+  zone list opens on the zone chosen (the sheets held 24 actions at most: now 40). Each choice list opens with the focus
+  on the choice made (the owner's request).
+- [ ] Date and time typed by hand (the keyboard, in the date order; AM/PM may be typed): not tried.
 **The owner's tests of 2026-11-07, evening** (the items ticked below, all on `staging` 6760a75). Changed after them, on
 `staging` and tried on the New 3DS XL (DEBUG) unless said:
 - Store scripts (`fix/store-script-paths`; tried on the New 3DS XL on 2026-11-08 with `fix/store-empty-extract`): ndsForwarder and YANBF (extract a pack to the card's

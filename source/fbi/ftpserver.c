@@ -1343,6 +1343,47 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    // The raw routing and DNS tables of the network service, into /nsa/netdump.txt (System -> Network's gateway / DNS).
+    if(NSA_DEBUG && strcmp(sub, "NETDUMP") == 0) {
+        FILE* f = fopen("sdmc:" APP_DATA_DIR "netdump.txt", "w");
+        if(f == NULL) {
+            ftp_reply(s, "550 Could not create " APP_DATA_DIR "netdump.txt.");
+            return;
+        }
+
+        static const struct { s32 opt; const char* name; } opts[] = {
+            {NETOPT_ROUTING_TABLE, "routing"}, {NETOPT_DNS_TABLE, "dns"}, {NETOPT_ARP_TABLE, "arp"},
+        };
+        static u8 buf[2048];
+        for(u32 o = 0; o < sizeof(opts) / sizeof(*opts); o++) {
+            memset(buf, 0xEE, sizeof(buf));
+            socklen_t length = sizeof(buf);
+            int ret = SOCU_GetNetworkOpt(SOL_CONFIG, opts[o].opt, buf, &length);
+            fprintf(f, "%s: ret %d errno %d length %u\n", opts[o].name, ret, errno, (unsigned) length);
+            for(u32 i = 0; i < length && i < sizeof(buf); i++) {
+                fprintf(f, "%02X%s", buf[i], (i % 24) == 23 ? "\n" : " ");
+            }
+            fprintf(f, "\n");
+
+            // The same with a small buffer, as systeminfo.c asks.
+            length = 160;
+            ret = SOCU_GetNetworkOpt(SOL_CONFIG, opts[o].opt, buf, &length);
+            fprintf(f, "  with 160: ret %d errno %d length %u\n", ret, errno, (unsigned) length);
+        }
+
+        u8 cid[0x10] = {0};
+        Result cidRes = FSUSER_GetSdmcCid(cid, sizeof(cid));
+        fprintf(f, "sd cid: res %08lX\n", (u32) cidRes);
+        for(u32 i = 0; i < sizeof(cid); i++) {
+            fprintf(f, "%02X ", cid[i]);
+        }
+        fprintf(f, "\n");
+
+        fclose(f);
+        ftp_reply(s, "200 " APP_DATA_DIR "netdump.txt written.");
+        return;
+    }
+
     // Each game's ext data ID from its exheader against the guesses (issue #13), into /nsa/extids.csv.
     if(NSA_DEBUG && strcmp(sub, "EXTIDS") == 0) {
         if(!action_ext_data_debug("sdmc:" APP_DATA_DIR "extids.csv")) {

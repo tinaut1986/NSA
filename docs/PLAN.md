@@ -277,6 +277,7 @@ that has a folder there asks whether to delete its mods too. Guide chapter `mods
 - [ ] The list on a console with mods: names and icons, sizes, the states (install a game, delete it, take a card out).
 - [x] *Delete mods* and *Delete mods of games not installed* delete only those folders; the list updates.
   Claude on the New 3DS XL, 2026-11-09: *Delete mods* on a test mod (romfs/ + code.ips) and *Delete mods of games not installed* deleted only that folder, the empty ones stayed; the list updated. Its question says "los mods de 1 juegos" (plural for one).
+  Claude, 2026-11-09 (fixed, 0.9.4-dev): one game now says "los mods de 1 juego que no está instalado" (a singular string in the 10 languages); seen on the 2DS with one fake mod, answered No.
 - [x] Deleting a game with mods from Titles asks, and Yes deletes `/luma/titles/<ID>/`; a game without mods asks nothing.
 - [x] No `/luma/titles` (or empty): the screen says "No mods in /luma/titles." and nothing breaks.
   Claude on the New 3DS XL, 2026-11-09: /luma/titles empty: "No hay mods en /luma/titles.", nothing broke.
@@ -587,8 +588,10 @@ START on the main menu, and a long message scrolled with the D-Pad and a finger)
 - [ ] Network: MAC, gateway, DNS, DHCP lease and proxy have real values (all empty in Azahar).
   Claude on the New 3DS XL, 2026-11-09: **wrong**: gateway 127.0.0.1 and DNS "-" (the router is 192.168.1.1); MAC (as the router's ARP table), netmask, DHCP lease 23 h 42 min and proxy No are right.
   Claude on the 2DS, 2026-11-09: 2DS: the same **wrong** gateway 127.0.0.1 and DNS "-"; IP, mask, MAC, lease and the servers' ports right.
+  Claude, 2026-11-09 (fixed, 0.9.4-dev): the routing table has routes through 127.0.0.1 (the console's own address, 127/8) before the default route (0.0.0.0/0 via 192.168.1.1, the last row): the default route's gateway is taken, never a loopback one. The DNS table wants a 336-byte buffer (EINVAL with 160). Both consoles now show 192.168.1.1 and "8.8.8.8, 206.67.222.222" (the page's System tab too). DEBUG `SITE NETDUMP` writes the raw tables and the CID to /nsa/netdump.txt.
 - [ ] Storage: the SD card's maker, product name and date from its CID (the byte order is guessed: both are tried), speed, writable, cluster size.
   Claude on the New 3DS XL, 2026-11-09: **wrong**: "0x15 a8h0T", made 2049-11 (the CID read in the wrong order); speed (high), writable, cluster 32 KiB and the four media's space are right.
+  Claude, 2026-11-09 (fixed, 0.9.4-dev): the 3DS hands the CID reversed on both consoles; the unreversed bytes of this Samsung card happened to read as text in the product name. The reversed order goes first and the other needs bytes 1-7 as text: New 3DS XL "Samsung BC2QT, 2017-05", 2DS still "Kingston SD32G, 2016-07".
   Claude on the 2DS, 2026-11-09: 2DS: "Kingston SD32G", made 2016-07, right; so the guessed byte order fails only for the New 3DS XL's card.
 - [ ] Battery: percent with a decimal, voltage and temperature from MCU registers 0x0A-0x0D (plausible: about 3.6-4.2 V, room temperature); charging / on the charger / on battery; after 2 minutes on the page the rate and the time left appear and the graph fills; plugging or unplugging restarts the measure.
   Claude on the New 3DS XL, 2026-11-09: 100.0 %, 4.06 V, 23 °C, on the charger and not charging; after 2 min "+0.0 %/h" and the graph starting. Plugging and unplugging not tried.
@@ -953,6 +956,7 @@ the system wrote since (header and FIRMs equal).
 - [ ] Cut a file and a folder, paste on the same medium (instant rename) and on another one
       (SD to NAND: copy then delete the source); same folder; folder into itself; name taken.
   Claude on the New 3DS XL, 2026-11-09: a file cut in /nsa/ptest and pasted in /nsa: "Movido", gone from the source. Copying a folder and pasting it inside itself is not refused: it made one copy inside (no loop). Cut into itself, name taken and SD -> NAND not tried.
+  Claude, 2026-11-09 (fixed, 0.9.4-dev): copying (or cutting, where it is not a rename) a folder into itself or one of its folders is refused: "Una carpeta no se puede copiar dentro de sí misma" (the copy kept no archive ID: the archive handles are compared). On the 2DS: /0selftest/A pasted in A refused, nothing copied; pasted in /0selftest/C it asked and copied.
 - [x] Cut, then paste after the source's list was left (clipboard survives navigating).
   Claude on the New 3DS XL, 2026-11-09: cut in /nsa/ptest, pasted from /nsa's sheet (the clipboard row showed it).
 

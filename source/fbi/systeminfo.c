@@ -470,23 +470,28 @@ static void systeminfo_load_network() {
     systeminfo_address(info_network.ip, sizeof(info_network.ip), ip);
     systeminfo_address(info_network.netmask, sizeof(info_network.netmask), netmask);
 
-    // The gateway: the route that goes through one.
+    // The gateway: the default route's (0.0.0.0/0, the last row on a real console). The console's own address and
+    // 127.0.0.0/8 also have the G flag, through 127.0.0.1: never take a loopback one.
     struct in_addr gateway = {0};
-    SOCU_RoutingTableEntry routes[8];
+    SOCU_RoutingTableEntry routes[16];
     length = sizeof(routes);
     if(info_network.connected && SOCU_GetNetworkOpt(SOL_CONFIG, NETOPT_ROUTING_TABLE, routes, &length) == 0) {
         for(u32 i = 0; i < length / sizeof(*routes); i++) {
-            if((routes[i].flags & ROUTING_FLAG_G) && routes[i].gateway.s_addr != 0) {
+            u32 via = ntohl(routes[i].gateway.s_addr);
+            if((routes[i].flags & ROUTING_FLAG_G) && via != 0 && (via >> 24) != 127) {
                 gateway = routes[i].gateway;
-                break;
+                if(routes[i].dest_ip.s_addr == 0) {
+                    break;
+                }
             }
         }
     }
 
     systeminfo_address(info_network.gateway, sizeof(info_network.gateway), gateway);
 
-    // The DNS servers (two at most are set).
-    SOCU_DNSTableEntry dns[8];
+    // The DNS servers (two at most are set). The service wants room for its whole table (336 bytes, 16.8 entries):
+    // with less it fails with EINVAL.
+    SOCU_DNSTableEntry dns[17];
     length = sizeof(dns);
     info_network.dns[0] = '\0';
     if(info_network.connected && SOCU_GetNetworkOpt(SOL_CONFIG, NETOPT_DNS_TABLE, dns, &length) == 0) {
@@ -583,8 +588,10 @@ static const char* systeminfo_sd_maker(u8 id) {
 }
 
 // The card's CID (manufacturer, product name, date) in the SD order: byte 0 is
-// the manufacturer. The 3DS may hand it over reversed and without the CRC
-// byte; the order whose product name reads as text wins.
+// the manufacturer. The 3DS hands it over reversed and without the CRC byte
+// (both consoles, 2026-11-09), so that order is tried first; the other only if
+// its OEM ID and product name (bytes 1-7) read as text. Checking the product
+// name alone took a Samsung card's unreversed bytes ("a8h0T", made 2049-11).
 static bool systeminfo_sd_cid(u8* cid) {
     u8 raw[0x10] = {0};
     if(R_FAILED(FSUSER_GetSdmcCid(raw, sizeof(raw)))) {
@@ -596,10 +603,10 @@ static bool systeminfo_sd_cid(u8* cid) {
         reversed[i] = raw[14 - i];
     }
 
-    const u8* candidates[] = {raw, reversed};
+    const u8* candidates[] = {reversed, raw};
     for(u32 c = 0; c < 2; c++) {
         bool text = true;
-        for(u32 i = 3; i < 8; i++) {
+        for(u32 i = 1; i < 8; i++) {
             if(candidates[c][i] < 0x20 || candidates[c][i] > 0x7E) {
                 text = false;
             }

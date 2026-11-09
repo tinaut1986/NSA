@@ -172,7 +172,8 @@ def ftp_quiet(f, cmd):
         return str(e)
 
 def ftp_upload(f, path, total, seed, meter):
-    if NSA and path.lower().endswith('.cia'):
+    # NSA sets the file's size first when it is told (and shows a CIA's progress).
+    if NSA:
         ftp_quiet(f, f'ALLO {total}')
     conn = f.transfercmd(f'STOR {path}')
     try:

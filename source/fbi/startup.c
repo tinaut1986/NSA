@@ -12,6 +12,7 @@
 #include "ftpserver.h"
 #include "wifislots.h"
 #include "guide.h"
+#include "datetime.h"
 #include "webserver.h"
 #include "settings.h"
 #include "update.h"
@@ -268,6 +269,8 @@ void startup_run() {
     if(settings_get()->webServer) {
         webserver_start_when_online();
     }
+
+    datetime_start();
 
     // Opened without a connection, the system does not connect while NSA is in front (the HOME Menu does it): NSA asks,
     // as a game does, and the servers start once it is up.

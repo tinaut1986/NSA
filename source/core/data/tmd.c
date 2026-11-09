@@ -46,6 +46,20 @@ Result tmd_get_title_id(u64* titleId, u8* tmd, size_t size) {
     return 0;
 }
 
+Result tmd_get_title_version(u16* version, u8* tmd, size_t size) {
+    u8* data = NULL;
+    Result res = tmd_get(&data, tmd, size, 0x9C, sizeof(u16));
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    if(version != NULL) {
+        *version = __builtin_bswap16(*(u16*) data);
+    }
+
+    return 0;
+}
+
 Result tmd_get_content_count(u16* contentCount, u8* tmd, size_t size) {
     u8* data = NULL;
     Result res = tmd_get(&data, tmd, size, 0x9E, sizeof(u16));

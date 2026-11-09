@@ -133,20 +133,45 @@ static Result action_install_cias_open_dst(void* data, u32 index, void* initialR
         }
     }
 
-    // Deleting FBI before it reinstalls itself causes issues.
+    return action_install_cia_start(dest, info->ciaInfo.titleId, info->ciaInfo.version, handle);
+}
+
+Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Handle* handle) {
+    // Installed already, and this is the same version or a higher one: over it, as an update goes. Nothing is
+    // deleted first, and the save data stays; AM keeps the installed contents until AM_FinishCiaInstall, so a
+    // failure or a cancel halfway leaves the title as it was (issue #27).
+    AM_TitleInfo installed;
+    if(R_SUCCEEDED(AM_GetTitleInfo(dest, 1, &titleId, &installed)) && installed.titleID == titleId && version >= installed.version) {
+        return AM_StartCiaInstallOverwrite(handle, dest);
+    }
+
+    // Not installed, or a lower version (AM would refuse it over the installed one): deleted first, as FBI does.
+    // Deleting NSA before it reinstalls itself causes issues.
     u64 currTitleId = 0;
     FS_MediaType currMediaType = MEDIATYPE_NAND;
 
-    if(envIsHomebrew() || R_FAILED(APT_GetAppletInfo((NS_APPID) envGetAptAppId(), &currTitleId, (u8*) &currMediaType, NULL, NULL, NULL)) || info->ciaInfo.titleId != currTitleId || dest != currMediaType) {
-        AM_DeleteTitle(dest, info->ciaInfo.titleId);
-        AM_DeleteTicket(info->ciaInfo.titleId);
+    if(envIsHomebrew() || R_FAILED(APT_GetAppletInfo((NS_APPID) envGetAptAppId(), &currTitleId, (u8*) &currMediaType, NULL, NULL, NULL)) || titleId != currTitleId || dest != currMediaType) {
+        // A lower version: asked first, its save backed up (installsave.c), and put back once it is installed.
+        Result res = 0;
+        if(R_SUCCEEDED(AM_GetTitleInfo(dest, 1, &titleId, &installed)) && installed.titleID == titleId
+           && R_FAILED(res = action_install_cia_lower(dest, titleId, version, installed.version))) {
+            return res;
+        }
+
+        AM_DeleteTitle(dest, titleId);
+        AM_DeleteTicket(titleId);
 
         if(dest == MEDIATYPE_SD) {
             AM_QueryAvailableExternalTitleDatabase(NULL);
         }
     }
 
-    return AM_StartCiaInstall(dest, handle);
+    Result res = AM_StartCiaInstall(dest, handle);
+    if(R_FAILED(res)) {
+        action_install_cia_ended(titleId, false);
+    }
+
+    return res;
 }
 
 static Result action_install_cias_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
@@ -166,9 +191,14 @@ static Result action_install_cias_close_dst(void* data, u32 index, bool succeede
             }
         }
 
+        action_install_cia_ended(info->ciaInfo.titleId, R_SUCCEEDED(res));
         return res;
     } else {
-        return AM_CancelCIAInstall(handle);
+        install_cias_data* installData = (install_cias_data*) data;
+        file_info* info = (file_info*) ((list_item*) linked_list_get(&installData->contents, index))->data;
+        Result res = AM_CancelCIAInstall(handle);
+        action_install_cia_ended(info->ciaInfo.titleId, false);
+        return res;
     }
 }
 
@@ -178,6 +208,7 @@ static Result action_install_cias_write_dst(void* data, u32 handle, u32* bytesWr
 }
 
 bool action_install_cias_error(void* data, u32 index, Result res, ui_view** errorView) {
+    led_blink(false);
     *errorView = error_display_res(data, action_install_cias_draw_top, res, "Failed to install CIA file.");
     return true;
 }
@@ -212,6 +243,7 @@ static void action_install_cias_update(ui_view* view, void* data, float* progres
         installData->queue = NULL;
         bool next = queue != NULL && queue[0] != '\0' && installData->installInfo.result != R_APP_CANCELLED;
         if(R_SUCCEEDED(installData->installInfo.result) && !next) {
+            led_blink(true);
             prompt_display_notify("Success", "Install finished.", COLOR_TEXT, NULL, NULL, NULL);
         }
 

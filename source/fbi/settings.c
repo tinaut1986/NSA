@@ -7,6 +7,7 @@
 #include "settings.h"
 #include "../core/core.h"
 #include "../core/bgmusic.h"
+#include "datetime.h"
 
 #define SETTINGS_PATH "sdmc:" APP_DATA_DIR "settings.json"
 
@@ -128,6 +129,18 @@ void settings_load() {
         string_copy(settings.remoteMenu, json_string_value(remoteMenu), sizeof(settings.remoteMenu));
     }
 
+    json_t* dateTime = json_object_get(json, "date_time");
+    if(json_is_object(dateTime)) {
+        settings.datetime.clock = settings_get_uint(dateTime, "clock", 0, 2);
+        settings.datetime.order = settings_get_uint(dateTime, "order", 0, 2);
+        settings.datetime.summer = settings_get_uint(dateTime, "summer", 0, 2);
+        settings.datetime.syncOnStart = settings_get_bool(dateTime, "sync_on_start", false);
+        json_t* zone = json_object_get(dateTime, "zone");
+        if(json_is_string(zone)) {
+            string_copy(settings.datetime.zone, json_string_value(zone), sizeof(settings.datetime.zone));
+        }
+    }
+
     json_t* guideSeen = json_object_get(json, "guide_seen");
     if(json_is_string(guideSeen)) {
         string_copy(settings.guideSeen, json_string_value(guideSeen), sizeof(settings.guideSeen));
@@ -223,6 +236,7 @@ void settings_apply() {
     i18n_set_language(settings.language);
     sound_set((sound_mode) settings.sounds, settings.soundVolume);
     bgmusic_set((bgmusic_style) settings.music, settings.musicVolume);
+    datetime_apply();
 }
 
 Result settings_save() {
@@ -304,6 +318,9 @@ Result settings_save() {
     json_object_set_new(json, "guide_seen", json_string(settings.guideSeen));
     json_object_set_new(json, "guide_known", json_integer(settings.guideKnown));
     json_object_set_new(json, "player_repeat", json_integer(settings.playerRepeat));
+    json_object_set_new(json, "date_time", json_pack("{s:i,s:i,s:s,s:i,s:b}", "clock", (int) settings.datetime.clock, "order", (int) settings.datetime.order,
+                                                     "zone", settings.datetime.zone, "summer", (int) settings.datetime.summer,
+                                                     "sync_on_start", settings.datetime.syncOnStart));
 
     if(json_dump_file(json, SETTINGS_PATH, JSON_INDENT(2)) != 0) {
         res = R_APP_IO_ERROR;

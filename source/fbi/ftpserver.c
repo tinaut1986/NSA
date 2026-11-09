@@ -852,6 +852,14 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
         ftp_set_phase(PHASE_RECEIVING, vpath);
     }
 
+    // ALLO gave the file's size: set it first, the card writes faster so (issue #26: +26% on the New 3DS, +40%
+    // on the 2DS, and the 2DS's writes of over a second halve). Not for APPE, which writes at the end. Cut back
+    // to what came if less does, so that a REST resumes from there.
+    u64 presized = 0;
+    if(f != NULL && !append && s->allo > at && ftruncate(fileno(f), (off_t) s->allo) == 0) {
+        presized = s->allo;
+    }
+
     u64 allo = s->allo > rest ? s->allo - rest : 0;
     s->allo = 0;
 
@@ -928,6 +936,10 @@ static void ftp_cmd_stor(ftp_session* s, const char* arg, bool append) {
     }
 
     u64 start = speedlog_ticks();
+    if(f != NULL && presized > 0 && at + received < presized && (fflush(f) != 0 || ftruncate(fileno(f), (off_t) (at + received)) != 0)) {
+        ok = false;
+    }
+
     if(f != NULL && fclose(f) != 0) {
         ok = false;
     }
@@ -1319,6 +1331,115 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         sscanf(path != NULL ? path : "", "%u %u", &slot, &change);
         bool done = wifislots_debug_roundtrip(slot, change, reply, sizeof(reply));
         ftp_reply(s, "%s %s", done ? "200" : "550", reply);
+        return;
+    }
+
+    // The notification LED: SITE LED <ok 0/1> <delay> <smoothing> <loop delay> <blink speed> <blinks> <on> <off>.
+    if(NSA_DEBUG && strcmp(sub, "LED") == 0) {
+        unsigned v[8] = {1, 3, 0, 0xFF, 0, 3, 1, 1};
+        sscanf(path != NULL ? path : "", "%u %u %u %u %u %u %u %u", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7]);
+        Result res = led_pattern(v[0] != 0, (u8) v[1], (u8) v[2], (u8) v[3], (u8) v[4], v[5], v[6], v[7]);
+        ftp_reply(s, "200 LED %08lX", (u32) res);
+        return;
+    }
+
+    // The raw routing and DNS tables of the network service, into /nsa/netdump.txt (System -> Network's gateway / DNS).
+    if(NSA_DEBUG && strcmp(sub, "NETDUMP") == 0) {
+        FILE* f = fopen("sdmc:" APP_DATA_DIR "netdump.txt", "w");
+        if(f == NULL) {
+            ftp_reply(s, "550 Could not create " APP_DATA_DIR "netdump.txt.");
+            return;
+        }
+
+        static const struct { s32 opt; const char* name; } opts[] = {
+            {NETOPT_ROUTING_TABLE, "routing"}, {NETOPT_DNS_TABLE, "dns"}, {NETOPT_ARP_TABLE, "arp"},
+        };
+        static u8 buf[2048];
+        for(u32 o = 0; o < sizeof(opts) / sizeof(*opts); o++) {
+            memset(buf, 0xEE, sizeof(buf));
+            socklen_t length = sizeof(buf);
+            int ret = SOCU_GetNetworkOpt(SOL_CONFIG, opts[o].opt, buf, &length);
+            fprintf(f, "%s: ret %d errno %d length %u\n", opts[o].name, ret, errno, (unsigned) length);
+            for(u32 i = 0; i < length && i < sizeof(buf); i++) {
+                fprintf(f, "%02X%s", buf[i], (i % 24) == 23 ? "\n" : " ");
+            }
+            fprintf(f, "\n");
+
+            // The same with a small buffer, as systeminfo.c asks.
+            length = 160;
+            ret = SOCU_GetNetworkOpt(SOL_CONFIG, opts[o].opt, buf, &length);
+            fprintf(f, "  with 160: ret %d errno %d length %u\n", ret, errno, (unsigned) length);
+        }
+
+        u8 cid[0x10] = {0};
+        Result cidRes = FSUSER_GetSdmcCid(cid, sizeof(cid));
+        fprintf(f, "sd cid: res %08lX\n", (u32) cidRes);
+        for(u32 i = 0; i < sizeof(cid); i++) {
+            fprintf(f, "%02X ", cid[i]);
+        }
+        fprintf(f, "\n");
+
+        fclose(f);
+        ftp_reply(s, "200 " APP_DATA_DIR "netdump.txt written.");
+        return;
+    }
+
+    // Each game's ext data ID from its exheader against the guesses (issue #13), into /nsa/extids.csv.
+    if(NSA_DEBUG && strcmp(sub, "EXTIDS") == 0) {
+        if(!action_ext_data_debug("sdmc:" APP_DATA_DIR "extids.csv")) {
+            ftp_reply(s, "550 Could not create " APP_DATA_DIR "extids.csv.");
+            return;
+        }
+
+        ftp_reply(s, "200 " APP_DATA_DIR "extids.csv written.");
+        return;
+    }
+
+    // Tests of installing over a title (issue #27): SITE TESTSAVE <title ID> FORMAT | WRITE <text> | READ, on its
+    // save data on the SD card.
+    if(NSA_DEBUG && strcmp(sub, "TESTSAVE") == 0) {
+        char op[16] = "";
+        char text[64] = "";
+        unsigned long long tid = 0;
+        if(sscanf(path != NULL ? path : "", "%llx %15s %63s", &tid, op, text) < 2) {
+            ftp_reply(s, "501 SITE TESTSAVE <title ID> FORMAT | WRITE <text> | READ");
+            return;
+        }
+
+        u32 archivePath[3] = {MEDIATYPE_SD, (u32) tid, (u32) (tid >> 32)};
+        FS_Path apath = {PATH_BINARY, sizeof(archivePath), archivePath};
+        Result res = 0;
+        char got[64] = "";
+        if(strcasecmp(op, "FORMAT") == 0) {
+            res = FSUSER_FormatSaveData(ARCHIVE_USER_SAVEDATA, apath, 0x200, 10, 10, 11, 11, false);
+        } else {
+            FS_Archive archive = 0;
+            if(R_SUCCEEDED(res = FSUSER_OpenArchive(&archive, ARCHIVE_USER_SAVEDATA, apath))) {
+                Handle file = 0;
+                bool write = strcasecmp(op, "WRITE") == 0;
+                if(R_SUCCEEDED(res = FSUSER_OpenFile(&file, archive, fsMakePath(PATH_ASCII, "/marker.txt"), write ? FS_OPEN_WRITE | FS_OPEN_CREATE : FS_OPEN_READ, 0))) {
+                    u32 n = 0;
+                    if(write) {
+                        if(R_SUCCEEDED(res = FSFILE_SetSize(file, 0))) {
+                            res = FSFILE_Write(file, &n, 0, text, strlen(text), FS_WRITE_FLUSH);
+                        }
+                    } else {
+                        res = FSFILE_Read(file, &n, 0, got, sizeof(got) - 1);
+                        got[n < sizeof(got) ? n : sizeof(got) - 1] = '\0';
+                    }
+
+                    FSFILE_Close(file);
+                }
+
+                if(write && R_SUCCEEDED(res)) {
+                    res = FSUSER_ControlArchive(archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
+                }
+
+                FSUSER_CloseArchive(archive);
+            }
+        }
+
+        ftp_reply(s, "200 TESTSAVE %s %08lX %s", op, (u32) res, got);
         return;
     }
 

@@ -1028,3 +1028,42 @@ void sheet_display_choice(const char* title, const sheet_action* actions, u32 co
     s->cancel = cancel;
     view->info = _(" select    reject");
 }
+
+void sheet_set_id(const char* id) {
+    ui_view* view = ui_top();
+    if(view != NULL && view->update == sheet_update) {
+        view->id = id;
+    }
+}
+
+void sheet_set_selected(u32 index) {
+    ui_view* view = ui_top();
+    if(view != NULL && view->update == sheet_update) {
+        sheet_data* s = (sheet_data*) view->data;
+        if(index < s->count) {
+            s->selected = index;
+            sheet_reveal(s);
+        }
+    }
+}
+
+bool sheet_describe(ui_view* view, ui_description* out) {
+    if(view == NULL || view->update != sheet_update) {
+        return false;
+    }
+
+    sheet_data* s = (sheet_data*) view->data;
+    out->kind = "sheet";
+    out->text = s->title[0] != '\0' ? s->title : NULL;
+    out->optionCount = 0;
+    for(u32 i = 0; i < s->count && i < UI_DESCRIPTION_OPTIONS_MAX; i++) {
+        out->options[out->optionCount] = s->actions[i].label;
+        out->buttons[out->optionCount] = KEY_A;
+        out->optionCount++;
+    }
+
+    out->count = s->count;
+    out->selected = (int) s->selected;
+    out->selectedName = s->selected < s->count ? s->actions[s->selected].label : NULL;
+    return true;
+}

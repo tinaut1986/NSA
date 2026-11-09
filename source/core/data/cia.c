@@ -28,6 +28,27 @@ Result cia_get_title_id(u64* titleId, u8* cia, size_t size) {
     return tmd_get_title_id(titleId, &cia[offset], size - offset);
 }
 
+Result cia_get_title_version(u16* version, u8* cia, size_t size) {
+    if(cia == NULL) {
+        return R_APP_INVALID_ARGUMENT;
+    }
+
+    if(size < 0x10) {
+        return R_APP_BAD_DATA;
+    }
+
+    u32 headerSize = ((*(u32*) &cia[0x00]) + 0x3F) & ~0x3F;
+    u32 certSize = ((*(u32*) &cia[0x08]) + 0x3F) & ~0x3F;
+    u32 ticketSize = ((*(u32*) &cia[0x0C]) + 0x3F) & ~0x3F;
+    u32 offset = headerSize + certSize + ticketSize;
+
+    if(offset >= size) {
+        return R_APP_BAD_DATA;
+    }
+
+    return tmd_get_title_version(version, &cia[offset], size - offset);
+}
+
 Result cia_file_get_smdh(SMDH* smdh, Handle handle) {
     Result res = 0;
 

@@ -43,6 +43,10 @@ typedef struct data_op_data_s {
     // Download: writeDst takes the file's pieces in any order (saving to a file, not installing), so a big
     // file comes in long pieces over several connections (http_download_file).
     bool dstAnyOrder;
+    // Downloads in order: where an earlier try's bytes end for `index` (`from`, 0 for none) and the file's size then.
+    Result (*resumeFrom)(void* data, u32 index, u64* from, u64* expected);
+    u64 currResumeFrom;   // Where the current download started (0, or where it resumed).
+    u64 currWritten;      // What of it is in the destination, from the file's start.
 
     Result (*openDst)(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle);
     Result (*closeDst)(void* data, u32 index, bool succeeded, u32 handle);

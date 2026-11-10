@@ -112,6 +112,7 @@ static const coach_step remote_steps[] = {
         INFO_SINCE(GUIDE_VERSION(0, 11), "remote.url", "A download you chose to save goes on where it stopped if it was cut: Retry, or the same link again."),
         INFO_SINCE(GUIDE_VERSION(0, 11), NULL, "Installing a game that is already there keeps its save. An older version asks first, and NSA backs up the save and puts it back."),
         INFO_SINCE(GUIDE_VERSION(0, 11), NULL, "When a download, an install or a transfer ends, the notification light blinks. Any button turns it off."),
+        INFO_SINCE(GUIDE_VERSION(0, 12), "remote.web", "The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code)."),
         DO("back", "\uE001 goes back to the menu.", KEY_B, true, "v:Main menu"),
 };
 
@@ -155,6 +156,7 @@ static const coach_step computer_steps[] = {
         REACH("settings.web_pin", "Go down to Web PIN."),
         INFO_SINCE(GUIDE_VERSION(0, 12), "settings.web_pin", "Web PIN: Random makes a new PIN each time the server starts, Fixed keeps one between launches (you type it, or make a random one on the keypad), and None opens the page without a PIN, only for a network you trust."),
         INFO_SINCE(GUIDE_VERSION(0, 12), "settings.web_pin", "When a browser asks for the PIN, the console shows it at the bottom of the screen."),
+        INFO_SINCE(GUIDE_VERSION(0, 12), "settings.web_pin", "You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History."),
         BACK_TO_MENU("\uE001 goes back to the menu."),
 };
 

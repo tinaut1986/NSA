@@ -1321,6 +1321,13 @@ const i18n_entry i18n_tw[] = {
         {"Go down to Web PIN.", "向下移到網頁 PIN。"},
         {"Web PIN: Random makes a new PIN each time the server starts, Fixed keeps one between launches (you type it, or make a random one on the keypad), and None opens the page without a PIN, only for a network you trust.", "網頁 PIN：隨機在伺服器每次啟動時產生新的，固定在多次啟動之間保留一個（自己輸入，或在數字鍵盤上產生隨機的），無則無需 PIN 就開啓網頁，僅限你信任的網路。"},
         {"When a browser asks for the PIN, the console shows it at the bottom of the screen.", "瀏覽器索取 PIN 時，主機會在下螢幕顯示。"},
+        {"Copy files to and from the SD card with an FTP program. Press A to turn it on or off.", "用 FTP 程式在 SD 卡與電腦之間複製文件。按 A 開啓或關閉。"},
+        {"Manage the console from a computer's browser. Press A to turn it on or off.", "在電腦瀏覽器中管理主機。按 A 開啓或關閉。"},
+        {" turn on or off    back", " 開啓或關閉    返回"},
+        {"Status", "狀態"},
+        {"PIN", "PIN"},
+        {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "記錄旁邊的兩個小按鈕用來開啓或關閉 FTP 伺服器和網頁伺服器。移到其中一個上，上螢幕會顯示它的位址（網頁伺服器還有 PIN 和 QR 碼）。"},
+        {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "你也可以在遠端安裝中，用記錄旁邊的兩個小按鈕開啓或關閉 FTP 伺服器和網頁伺服器。"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

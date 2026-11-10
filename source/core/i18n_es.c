@@ -1350,6 +1350,13 @@ const i18n_entry i18n_es[] = {
         {"Go down to Web PIN.", "Baja hasta PIN web."},
         {"Web PIN: Random makes a new PIN each time the server starts, Fixed keeps one between launches (you type it, or make a random one on the keypad), and None opens the page without a PIN, only for a network you trust.", "PIN web: Aleatorio hace uno nuevo cada vez que arranca el servidor, Fijo guarda uno entre arranques (lo escribes tú, o haces uno aleatorio en el teclado) y Ninguno abre la página sin PIN, solo para una red de confianza."},
         {"When a browser asks for the PIN, the console shows it at the bottom of the screen.", "Cuando un navegador pide el PIN, la consola lo muestra abajo en la pantalla."},
+        {"Copy files to and from the SD card with an FTP program. Press A to turn it on or off.", "Copia archivos desde y hacia la tarjeta SD con un programa FTP. Pulsa A para activarlo o desactivarlo."},
+        {"Manage the console from a computer's browser. Press A to turn it on or off.", "Maneja la consola desde el navegador de un ordenador. Pulsa A para activarlo o desactivarlo."},
+        {" turn on or off    back", " activar o desactivar    volver"},
+        {"Status", "Estado"},
+        {"PIN", "PIN"},
+        {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "Los dos botones pequeños junto a Historial activan o desactivan el servidor FTP y el servidor web. Ponte sobre uno y la pantalla de arriba muestra su dirección (el web, también su PIN y un código QR)."},
+        {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "También puedes activar o desactivar el servidor FTP y el servidor web desde Instalación remota, con los dos botones pequeños junto a Historial."},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

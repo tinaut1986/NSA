@@ -1333,6 +1333,13 @@ const i18n_entry i18n_ja[] = {
         {"Go down to Web PIN.", "WebのPINまで下に移動します。"},
         {"Web PIN: Random makes a new PIN each time the server starts, Fixed keeps one between launches (you type it, or make a random one on the keypad), and None opens the page without a PIN, only for a network you trust.", "WebのPIN：ランダムはサーバーを起動するたびに新しくし、固定は起動しても同じものを保ち（自分で入力するか、テンキーでランダムに作ります）、なしはPINなしでページを開きます（信頼できるネットワーク専用）。"},
         {"When a browser asks for the PIN, the console shows it at the bottom of the screen.", "ブラウザーがPINを求めると、コンソールの下画面に表示されます。"},
+        {"Copy files to and from the SD card with an FTP program. Press A to turn it on or off.", "FTPプログラムでSDカードとの間でファイルをコピーします。Aでオン／オフを切り替えます。"},
+        {"Manage the console from a computer's browser. Press A to turn it on or off.", "パソコンのブラウザーからコンソールを操作します。Aでオン／オフを切り替えます。"},
+        {" turn on or off    back", " オン／オフ    戻る"},
+        {"Status", "状態"},
+        {"PIN", "PIN"},
+        {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "履歴の横にある2つの小さなボタンで、FTPサーバーとWebサーバーをオン／オフします。どちらかに合わせると、上画面にアドレスが表示されます（Webサーバーはさらに PIN とQRコードも）。"},
+        {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "FTPサーバーとWebサーバーは、リモートインストールの履歴の横にある2つの小さなボタンでもオン／オフできます。"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

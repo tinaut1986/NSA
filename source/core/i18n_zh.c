@@ -1378,6 +1378,12 @@ const i18n_entry i18n_zh[] = {
         {"\uE000 stop recording    \uE001 back", "\uE000 停止    \uE001 返回"},
         {"\uE000 start recording    \uE001 back", "\uE000 记录    \uE001 返回"},
         {"Failed to allocate motion test data.", "无法为体感测试分配内存。"},
+        // HOME Menu icons for a .3dsx (forwarder.c)
+        {"Make a HOME Menu icon", "在 HOME 菜单创建图标"},
+        {"Install a HOME Menu icon that starts this program? The .3dsx stays where it is.", "要在 HOME 菜单安装启动这个程序的图标吗？.3dsx 会留在原处。"},
+        {"\"%s\" is in the HOME Menu now. It starts the program from where it is: if you move or delete the .3dsx, make the icon again.", "“%s”已加入 HOME 菜单。它会从当前位置启动程序：如果移动或删除 .3dsx，请重新创建图标。"},
+        {"Failed to install the HOME Menu icon.", "无法安装 HOME 菜单图标。"},
+        {"A .3dsx's actions can make it a HOME Menu icon: a small title that starts it from where it is (it needs Luma3DS and the Homebrew Launcher title).", ".3dsx 的操作可以在 HOME 菜单创建图标：一个从当前位置启动它的小软件（需要 Luma3DS 和 Homebrew Launcher 的软件）。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

@@ -17,6 +17,7 @@
 
 #include "ftpserver.h"
 #include "relaunch.h"
+#include "forwarder.h"
 #include "selftest.h"
 #include "../core/core.h"
 #include "../core/minire.h"
@@ -1242,6 +1243,21 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         u32 count = 0;
         Result res = action_extract_exefs_to_sd(tid, (FS_MediaType) media, &count);
         ftp_reply(s, "200 res %08lX files %lu", res, count);
+        return;
+    }
+
+    // Tests of the HOME Menu icons without the menus: "SITE FORWARDER </path/to.3dsx>" writes the CIA it would install to
+    // /nsa/forwarder-test.cia.
+    if(NSA_DEBUG && strcmp(sub, "FORWARDER") == 0) {
+        if(path == NULL || path[0] != '/') {
+            ftp_reply(s, "501 SITE FORWARDER /path/to.3dsx");
+            return;
+        }
+
+        char name[128] = {0};
+        u64 titleId = 0;
+        Result res = forwarder_save(path, "sdmc:" APP_DATA_DIR "forwarder-test.cia", name, sizeof(name), &titleId);
+        ftp_reply(s, "200 res %08lX title %016llX name %s", res, titleId, name);
         return;
     }
 

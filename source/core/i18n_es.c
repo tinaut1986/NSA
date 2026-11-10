@@ -1408,6 +1408,12 @@ const i18n_entry i18n_es[] = {
         {"\uE000 stop recording    \uE001 back", "\uE000 parar    \uE001 volver"},
         {"\uE000 start recording    \uE001 back", "\uE000 grabar    \uE001 volver"},
         {"Failed to allocate motion test data.", "No se ha podido reservar memoria para la prueba de movimiento."},
+        // HOME Menu icons for a .3dsx (forwarder.c)
+        {"Make a HOME Menu icon", "Crear icono en el menú HOME"},
+        {"Install a HOME Menu icon that starts this program? The .3dsx stays where it is.", "¿Instalar un icono en el menú HOME que inicie este programa? El .3dsx se queda donde está."},
+        {"\"%s\" is in the HOME Menu now. It starts the program from where it is: if you move or delete the .3dsx, make the icon again.", "\"%s\" ya está en el menú HOME. Inicia el programa desde donde está: si mueves o borras el .3dsx, vuelve a crear el icono."},
+        {"Failed to install the HOME Menu icon.", "No se ha podido instalar el icono del menú HOME."},
+        {"A .3dsx's actions can make it a HOME Menu icon: a small title that starts it from where it is (it needs Luma3DS and the Homebrew Launcher title).", "Entre las acciones de un .3dsx está crear su icono en el menú HOME: un pequeño título que lo inicia desde donde está (necesita Luma3DS y el título del Homebrew Launcher)."},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

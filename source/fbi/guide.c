@@ -97,6 +97,7 @@ static const coach_step files_steps[] = {
         INFO("top", "The top screen shows the file with the focus: a CIA with its icon and sizes."),
         INFO("list.selected", "\uE000 opens a folder, and a picture, a text or a song in its viewer. Hold \uE000 on a file (or keep your finger on it) to open its actions: install, copy, cut, rename, delete, send."),
         INFO_SINCE(GUIDE_VERSION(0, 11), "list.selected", "A .zip or a .7z can be extracted from its actions, on the SD card itself."),
+        INFO_SINCE(GUIDE_VERSION(0, 12), "list.selected", "A .3dsx's actions can make it a HOME Menu icon: a small title that starts it from where it is (it needs Luma3DS and the Homebrew Launcher title)."),
         DO("tool.more", "\uE002 has the actions of the folder itself, such as installing all its CIAs. Open them.", KEY_X, true, "sheet"),
         DO("sheet", "Close them with \uE001.", KEY_B, false, "!sheet"),
         INFO("tool.clipboard", "What you copy or cut waits here until you paste it, even if you leave the SD card: you can paste it somewhere else, such as the CTR NAND."),

@@ -91,6 +91,17 @@ void settings_load() {
         settings.webServer = json_is_true(webServer);
     }
 
+    json_t* webPinMode = json_object_get(json, "web_pin_mode");
+    if(json_is_string(webPinMode)) {
+        const char* m = json_string_value(webPinMode);
+        settings.webPinMode = strcmp(m, "fixed") == 0 ? WEB_PIN_FIXED : strcmp(m, "none") == 0 ? WEB_PIN_NONE : WEB_PIN_RANDOM;
+    }
+
+    json_t* webPin = json_object_get(json, "web_pin");
+    if(json_is_string(webPin) && strlen(json_string_value(webPin)) == 6 && strspn(json_string_value(webPin), "0123456789") == 6) {
+        strcpy(settings.webPin, json_string_value(webPin));
+    }
+
     json_t* ftpPausesMusic = json_object_get(json, "ftp_pauses_music");
     if(json_is_boolean(ftpPausesMusic)) {
         settings.ftpPausesMusic = json_is_true(ftpPausesMusic);
@@ -252,11 +263,13 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
                              "web_server", settings.webServer,
+                             "web_pin_mode", settings.webPinMode == WEB_PIN_FIXED ? "fixed" : settings.webPinMode == WEB_PIN_NONE ? "none" : "random",
+                             "web_pin", settings.webPin,
                              "ftp_pauses_music", settings.ftpPausesMusic,
                              "ftp_music_asked", settings.ftpMusicAsked,
                              "theme", theme_get(settings.theme)->id,

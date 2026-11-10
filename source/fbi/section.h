@@ -29,6 +29,8 @@ void tickets_open();
 void titles_open();
 void startup_run();
 void settingsmenu_open();
+// The web page's address and PIN as a QR code in a square of `side` pixels (Settings, and Remote install's web button).
+void settingsmenu_draw_web_qr(float x, float y, float side);
 void languagemenu_open();
 void systeminfo_draw_top(float x1, float y1, float x2, float y2);
 void systeminfo_draw_console(float x1, float y1, float x2, float y2);

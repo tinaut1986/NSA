@@ -162,6 +162,25 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Web PIN (2026-11-10, `feat/web-pin-modes`; issue #44 by Phibonacci): Settings -> Web PIN steps Random (a new PIN at each start, as before), Fixed (kept between launches) and None (the page opens without a PIN; what changes something still needs the `X-Pin` header, even empty). A row Fixed PIN shows only in Fixed and opens NSA's own keypad (`pinpad.c`: six digits on the top screen, a key with turning arrows makes a random one). When a browser asks for the PIN and has no valid one, the bottom screen shows it for 15 s (until the page signs in at /api/info). The web page tries to sign in with no PIN when it has none saved. Guide chapter `computer` (new steps, 0.12: 0.11 went out with v0.9.4) and the 10 languages. Claude, 2026-11-10, New 3DS XL: the toast, the keypad and Fixed worked (the owner tried the rows and the keypad by touch). Not tried: None with the page open from a browser; the Old 3DS.
+- [ ] Boot logo (2026-11-10, `feat/boot-logo`, `tools/make_logo.py`; issue #15): NSA's own logo while the HOME menu
+  starts it, signed with the HOME menu's HMAC key (kept out of the repository, `~/.3ds/logo_hmackey_text`). The owner
+  saw it on the 2DS and the New 3DS XL: the square fades in, day turns to night with the app's bars. Left to look at:
+  the 3D depth with the slider up on the New 3DS XL (the square comes from Z -80 and rests at +8).
+- [ ] "Extract ExeFS" in a title's sheet (2026-11-10, `feat/extract-exefs`): files in `sdmc:/nsa/exefs/<title ID>/`.
+  Claude, 2026-11-10: the HOME menu's `.code` (1393164 bytes) through `SITE EXEFS` on the 2DS; the sheet's action and a
+  game (with icon, banner and logo) not tried after the fix (one whole read per file).
+- [ ] FTP from Dolphin (2026-11-10, `fix/ftp-list-file`; issue #36): browsing hung or loaded for a long time. Seen
+  through a logging proxy on the 2DS with Dolphin for Windows (KIO's ftp worker, which opens up to 5 connections per
+  server): (1) `LIST <file>` answered 550, and KIO stats every file that way: now one line for the file (`NLST`, `MLSD`
+  too). (2) With three sessions opening their data connections in the same few ms, `accept()` failed after a ready
+  `poll()` and NSA gave up at once (425, the connection reset): now it keeps at it until the 15 s are up. (3) An idle
+  session sent away for a new client could hold an unread command (lost, the client's job hung): it looks once more
+  and stays. (4) 5 sessions instead of 3 (KIO fails the job of every 421: a hundred of them per folder), and (5) the
+  SOC buffer at 2 MB instead of 1 (with 5 sessions listing at once, socket() failed: "425 Cannot open a data port").
+  Claude and the owner, 2026-11-10, 2DS: Dolphin browsed without hanging after (5); 64 MB with music, FTP up/down
+  819/606 KB/s, web 910/612 (as before). Left: Dolphin on Linux and on the New 3DS XL; the URL download speed (the PC's
+  firewall blocked the test's server); FileZilla and WinSCP as before.
 - [ ] Web server and FTP sessions (2026-11-09, `fix/web-tls-hang`; issues #37 and #36 by Phibonacci): (1) forcing `https://` on port 8080 closes at once (a TLS hello is dropped) and a plain `http://` in another tab loads without waiting; a silent connection gives up after 4 s (was 30 s). (2) When all 3 FTP places are taken and one has waited 3 s or more for a command, a 4th client takes its place (the idlest is closed); one under way is never closed, and a 4th within 3 s still gets 421. To try from Dolphin on Linux (browsing a folder opens several connections) and on an Old 3DS, where the owner thinks the real problem is the console saturating with open connections. Claude, 2026-11-09, New 3DS XL: https refused in 0.08 s; with 3 idle FTP connections, a 4th to 7th each got the greeting in 0.1-0.4 s and the server closed the evicted ones.
 - [ ] Scrollbars (2026-11-09, after v0.9.4; the owner: taps near a list's right end did not press the row or button): the bar is grabbed only 4 px to its left (the gap to the rows; it was 16) and 14 px to its right. Every list, sheet, popover, prompt and Settings.
 
@@ -1671,8 +1690,9 @@ current, this list is the summary. What only the owner can test (local wireless)
   send to a client that had gone waited inside the SOC session until TCP gave up, holding every socket call of NSA, the
   shutdown() meant to wake it too; the 2DS stopped answering FTP and web during a download test and froze when the FTP
   server was turned off (2026-11-02). Closing waits (up to 2 s) for the other side to close, as the SOC service drops
-  unsent data when a non-blocking socket closes. The FTP serves up to 3 sessions, each on its own thread (since
-  2026-11-07, `feat/ftp-sessions`; it served one at a time, one silent for 30 s gave way to a new connection). Second requests for a segment only for the one the install waits for (near the end, any), once it has
+  unsent data when a non-blocking socket closes. The FTP serves up to 5 sessions, each on its own thread (3 since
+  2026-11-07, `feat/ftp-sessions`, 5 since 2026-11-10 for Dolphin's KIO, with the SOC buffer at 2 MB, `main.c`; it
+  served one at a time, one silent for 30 s gave way to a new connection). Second requests for a segment only for the one the install waits for (near the end, any), once it has
   taken three times the average: with a fixed 2 s the 2DS asked for 158 segments twice (~80 MB wasted); now 1, and the
   same download went from 401 to 514 KB/s. The 2DS's install lags the network there (the window stays full).
 - `SITE CPU` leaves counting threads at the lowest priority on every core until `SITE CPU OFF`: send it after measuring.

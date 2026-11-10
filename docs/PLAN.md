@@ -162,6 +162,7 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Web PIN (2026-11-10, `feat/web-pin-modes`; issue #44 by Phibonacci): Settings -> Web PIN steps Random (a new PIN at each start, as before), Fixed (kept between launches) and None (the page opens without a PIN; what changes something still needs the `X-Pin` header, even empty). A row Fixed PIN shows only in Fixed and opens NSA's own keypad (`pinpad.c`: six digits on the top screen, a key with turning arrows makes a random one). When a browser asks for the PIN and has no valid one, the bottom screen shows it for 15 s (until the page signs in at /api/info). The web page tries to sign in with no PIN when it has none saved. Guide chapter `computer` (new steps, 0.12: 0.11 went out with v0.9.4) and the 10 languages. Claude, 2026-11-10, New 3DS XL: the toast, the keypad and Fixed worked (the owner tried the rows and the keypad by touch). Not tried: None with the page open from a browser; the Old 3DS.
 - [ ] Boot logo (2026-11-10, `feat/boot-logo`, `tools/make_logo.py`; issue #15): NSA's own logo while the HOME menu
   starts it, signed with the HOME menu's HMAC key (kept out of the repository, `~/.3ds/logo_hmackey_text`). The owner
   saw it on the 2DS and the New 3DS XL: the square fades in, day turns to night with the app's bars. Left to look at:

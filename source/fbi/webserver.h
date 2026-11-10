@@ -6,8 +6,10 @@
 //   http://<console IP>:8080/   the page (romfs:/web/index.html), asks for the PIN shown in Settings.
 //
 // Everything under /api needs the PIN: the cookie `pin` or the header `X-Pin` (anything that
-// changes something needs the header, which a page of another site cannot send). The PIN is made
-// again each time the server starts. After 10 wrong ones in a row the server refuses for a minute.
+// changes something needs the header, which a page of another site cannot send). Settings choose the
+// PIN: a new random one each time the server starts, a fixed one that stays, or none (then anything that changes
+// something still needs the header, even empty). After 10 wrong ones in a row the server refuses for a minute.
+// When the page asks and has no valid PIN, the console shows the PIN in a toast on the bottom screen.
 // It is plain HTTP on the local network: anyone who can watch the Wi-Fi sees the PIN.
 //
 // Only the SD card is reachable ("/" is its root), never the NAND. One request at a time.
@@ -76,5 +78,14 @@ void webserver_poll_main();
 // "http://192.168.1.50:8080", or why it is not serving.
 void webserver_address(char* out, size_t size);
 
-// The PIN to type in the page ("" when not serving).
+// The PIN to type in the page ("" when not serving, or when no PIN is asked).
 void webserver_pin(char* out, size_t size);
+
+// Six random digits (for a fixed PIN made by the owner's request).
+void webserver_random_pin(char* out, size_t size);
+
+// Settings changed the PIN mode or the fixed PIN: the running server takes it now (open pages must type it again).
+void webserver_apply_pin();
+
+// The bottom screen's toast while the page asks for the PIN: false for none.
+bool webserver_notice(char* out, size_t size, float* progress);

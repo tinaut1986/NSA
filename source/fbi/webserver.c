@@ -62,6 +62,9 @@ static volatile int web_client = -1;
 static u32 web_ip = 0;
 static char web_status[48] = "Off";
 static char web_pin[WEB_PIN_DIGITS + 1] = "";
+static bool web_open = false;                 // No PIN is asked (settings: none).
+static volatile u32 web_asked_until = 0;      // osGetTime() as u32: the toast with the PIN shows until then.
+#define WEB_ASK_TOAST_MS 15000
 static u32 web_fails = 0;
 static u64 web_locked_until = 0;
 static char* web_io = NULL;
@@ -432,9 +435,23 @@ static bool web_check_pin(web_request* r) {
 
     // Anything that changes something needs the header: a page of another site cannot send it.
     bool reads = strcmp(r->method, "GET") == 0;
+    // No PIN: reads are free; what changes something still needs the (empty) header, which a page of another site cannot send.
+    if(web_open) {
+        return reads || r->pinHeader;
+    }
+
     if(r->pin[0] != '\0' && strcmp(r->pin, web_pin) == 0 && (reads || r->pinHeader)) {
         web_fails = 0;
+        if(strcmp(r->path, "/api/info") == 0) {
+            web_asked_until = 0;   // The page signed in: the toast has done its job.
+        }
+
         return true;
+    }
+
+    // Someone asks and has no valid PIN: the console shows it (a toast that comes back only once the last one is gone).
+    if(web_asked_until == 0 || (s32) (web_asked_until - (u32) now) <= 0) {
+        web_asked_until = (u32) now + WEB_ASK_TOAST_MS;
     }
 
     if(r->pin[0] != '\0' && ++web_fails >= WEB_FAILS_MAX) {
@@ -2217,11 +2234,42 @@ static void web_main(void* arg) {
 
 static void web_shutdown();
 
-static void web_make_pin() {
+void webserver_random_pin(char* out, size_t size) {
     // Not secret-grade randomness, but unpredictable enough for a PIN that locks after ten tries.
     u64 mix = osGetTime() ^ (svcGetSystemTick() * 2654435761ULL);
     mix ^= mix >> 17;
-    snprintf(web_pin, sizeof(web_pin), "%0*u", WEB_PIN_DIGITS, (unsigned) (mix % 1000000ULL));
+    snprintf(out, size, "%0*u", WEB_PIN_DIGITS, (unsigned) (mix % 1000000ULL));
+}
+
+static void web_make_pin() {
+    settings_data* settings = settings_get();
+    web_open = settings->webPinMode == WEB_PIN_NONE;
+    web_asked_until = 0;
+    if(web_open) {
+        web_pin[0] = '\0';
+    } else if(settings->webPinMode == WEB_PIN_FIXED && strlen(settings->webPin) == WEB_PIN_DIGITS) {
+        snprintf(web_pin, sizeof(web_pin), "%s", settings->webPin);
+    } else {
+        webserver_random_pin(web_pin, sizeof(web_pin));
+    }
+}
+
+void webserver_apply_pin() {
+    if(web_run) {
+        web_make_pin();
+        web_fails = 0;
+        web_locked_until = 0;
+    }
+}
+
+bool webserver_notice(char* out, size_t size, float* progress) {
+    if(!web_run || web_open || web_asked_until == 0 || (s32) (web_asked_until - (u32) osGetTime()) <= 0) {
+        return false;
+    }
+
+    snprintf(out, size, "%s\n%s", _("A browser asks for the web PIN:"), web_pin);
+    *progress = -1;
+    return true;
 }
 
 bool webserver_start() {

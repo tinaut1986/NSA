@@ -14,6 +14,7 @@
 #include "settings.h"
 #include "../core/bgmusic.h"
 #include "update.h"
+#include "pinpad.h"
 #include "../core/core.h"
 
 // Settings: one list. Options change in place with Left/Right (or A, or a
@@ -29,6 +30,8 @@ typedef enum {
     OPTION_FTP,
     OPTION_FTP_MUSIC,
     OPTION_WEB,
+    OPTION_WEB_PIN,
+    OPTION_WEB_FIXED_PIN,   // Only with a fixed PIN: opens the keypad.
     OPTION_CHANNEL,
     OPTION_AUTO_UPDATE,
     OPTION_CHECK_UPDATES,
@@ -47,15 +50,36 @@ static u32* settingsmenu_slider_value(settings_option option) {
     return option == OPTION_SOUNDS ? &settings->soundVolume : option == OPTION_MUSIC ? &settings->musicVolume : NULL;
 }
 
+// The fixed PIN's row shows only while the PIN is fixed.
+static bool settingsmenu_visible(u32 index) {
+    return index != OPTION_WEB_FIXED_PIN || settings_get()->webPinMode == WEB_PIN_FIXED;
+}
+
 static float settingsmenu_row_height(u32 index) {
+    if(!settingsmenu_visible(index)) {
+        return 0;
+    }
+
     return settingsmenu_slider_value((settings_option) index) != NULL ? widget_row_slider_height() : WIDGET_ROW_HEIGHT;
+}
+
+// The next visible row in a direction (1 or -1), wrapping.
+static u32 settingsmenu_next_visible(u32 from, int direction) {
+    u32 i = from;
+    do {
+        i = (i + OPTION_COUNT + (direction < 0 ? OPTION_COUNT - 1 : 1)) % OPTION_COUNT;
+    } while(!settingsmenu_visible(i) && i != from);
+
+    return i;
 }
 
 // Where a row starts, from the top of the list.
 static float settingsmenu_row_top(u32 index) {
     float top = 0;
     for(u32 i = 0; i < index; i++) {
-        top += settingsmenu_row_height(i) + WIDGET_ROW_GAP;
+        if(settingsmenu_visible(i)) {
+            top += settingsmenu_row_height(i) + WIDGET_ROW_GAP;
+        }
     }
 
     return top;
@@ -85,7 +109,7 @@ typedef struct {
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
             ICON_PALETTE, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
-            ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
+            ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
     };
 
     return icons[option];
@@ -104,6 +128,8 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_FTP: return _("FTP server");
         case OPTION_FTP_MUSIC: return _("Pause music for FTP");
         case OPTION_WEB: return _("Web server");
+        case OPTION_WEB_PIN: return _("Web PIN");
+        case OPTION_WEB_FIXED_PIN: return _("Fixed PIN");
         case OPTION_CHECK_UPDATES: return _("Check for updates");
         case OPTION_CHANGELOG: return _("Changelog");
         case OPTION_GUIDE: return _("Guide");
@@ -131,6 +157,8 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_FTP: return ftpserver_running() ? _("On") : ftpserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
         case OPTION_FTP_MUSIC: return settingsmenu_on_off(settings->ftpPausesMusic);
         case OPTION_WEB: return webserver_running() ? _("On") : webserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
+        case OPTION_WEB_PIN: return settings->webPinMode == WEB_PIN_FIXED ? _("Fixed") : settings->webPinMode == WEB_PIN_NONE ? _("None") : _("Random");
+        case OPTION_WEB_FIXED_PIN: return settings->webPin;
         default: return NULL;
     }
 }
@@ -144,6 +172,19 @@ static void settingsmenu_save() {
     if(R_FAILED(res)) {
         error_display_res(NULL, NULL, res, _("Failed to save settings."));
     }
+}
+
+// The fixed PIN typed on the numeric keypad: six digits.
+static void settingsmenu_pin_typed(ui_view* view, void* data, SwkbdButton button, const char* response) {
+    if(button != SWKBD_BUTTON_CONFIRM) {
+        return;
+    }
+
+    settings_data* settings = settings_get();
+    snprintf(settings->webPin, sizeof(settings->webPin), "%s", response);
+    settings->webPinMode = WEB_PIN_FIXED;
+    settingsmenu_save();
+    webserver_apply_pin();
 }
 
 // Changes an option by one step, or runs an action (direction 0: A or a tap).
@@ -202,6 +243,21 @@ static void settingsmenu_change(settings_option option, int direction) {
                 settings->webServer = true;
             }
             break;
+        case OPTION_WEB_PIN:
+            settings->webPinMode = settingsmenu_step(settings->webPinMode, WEB_PIN_MODES, step);
+            if(settings->webPinMode == WEB_PIN_FIXED && strlen(settings->webPin) != 6) {
+                webserver_random_pin(settings->webPin, sizeof(settings->webPin));
+            }
+
+            settingsmenu_save();
+            webserver_apply_pin();
+            return;
+        case OPTION_WEB_FIXED_PIN:
+            // The keypad: type six digits, or the turning arrows for a random one.
+            if(direction == 0) {
+                pinpad_display(_("Web PIN (6 digits)"), settings->webPin, NULL, settingsmenu_pin_typed);
+            }
+            return;
         case OPTION_CHECK_UPDATES:
             if(direction == 0) {
                 update_check_start(false);
@@ -291,9 +347,9 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
 
     u32 last = menu->selected;
     if(settingsmenu_repeat(menu, KEY_DOWN)) {
-        menu->selected = (menu->selected + 1) % OPTION_COUNT;
+        menu->selected = settingsmenu_next_visible(menu->selected, 1);
     } else if(settingsmenu_repeat(menu, KEY_UP)) {
-        menu->selected = (menu->selected + OPTION_COUNT - 1) % OPTION_COUNT;
+        menu->selected = settingsmenu_next_visible(menu->selected, -1);
     } else if(hidKeysDown() & (KEY_R | KEY_L)) {
         // Left and Right change the option, so L and R turn a page: the first row
         // that was not shown (or the one a page above) becomes the top one.
@@ -306,6 +362,10 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
             menu->selected = first + page < OPTION_COUNT ? first + page : OPTION_COUNT - 1;
         } else {
             menu->selected = first > page ? first - page : 0;
+        }
+
+        if(!settingsmenu_visible(menu->selected)) {
+            menu->selected = settingsmenu_next_visible(menu->selected, -1);
         }
 
         menu->scroll = settingsmenu_row_top(menu->selected);
@@ -445,7 +505,12 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_FTP_MUSIC:
             return settings->ftpPausesMusic ? _("On: the music stops while a file goes through the FTP server and comes back after. Transfers go a little faster: 2-3% on an Old 3DS, 3-6% on a New 3DS.")
                                             : _("Off: the music goes on during FTP transfers, which go a little slower (2-3% on an Old 3DS, 3-6% on a New 3DS). Off by default.");
-        case OPTION_WEB: return _("A page to manage the console from a computer's browser: files, installing CIAs. It asks for the PIN shown here, which changes each time the server starts. Plain HTTP, only on your Wi-Fi.");
+        case OPTION_WEB: return _("A page to manage the console from a computer's browser: files, installing CIAs. It asks for the PIN shown here. Plain HTTP, only on your Wi-Fi.");
+        case OPTION_WEB_PIN:
+            return settings->webPinMode == WEB_PIN_FIXED ? _("Fixed: the PIN stays the same between launches. Change it in the row below.")
+                   : settings->webPinMode == WEB_PIN_NONE ? _("None: the page opens without a PIN. Plain HTTP: anyone on your Wi-Fi can then install and delete things. Only for a network you trust.")
+                                                          : _("Random: a new PIN each time the server starts. When a browser asks for it, the console shows it on the bottom screen.");
+        case OPTION_WEB_FIXED_PIN: return _("Type the PIN on the keypad, or press the turning arrows there for a random one. Pages already open have to type it again.");
         case OPTION_CHECK_UPDATES: return _("Look for a newer release in your channel now.");
         case OPTION_CHANGELOG: return _("Every release of your channel, newest first.");
         case OPTION_GUIDE: return _("How NSA works, in short chapters. When an update adds something, NSA offers only the new chapters.");
@@ -523,6 +588,10 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
         webserver_address(address, sizeof(address));
         webserver_pin(pin, sizeof(pin));
         snprintf(line, sizeof(line), pin[0] != '\0' ? "%s  PIN %s" : "%s", address, pin);
+    } else if(option == OPTION_WEB_PIN || option == OPTION_WEB_FIXED_PIN) {
+        char pin[16];
+        webserver_pin(pin, sizeof(pin));
+        snprintf(line, sizeof(line), "PIN %s", pin[0] != '\0' ? pin : webserver_running() ? _("none") : "-");
     } else if(option == OPTION_FTP_MUSIC) {
         snprintf(line, sizeof(line), "%s", settings->music == BGMUSIC_OFF ? _("The background music is off.")
                                            : settings->ftpPausesMusic && ftpserver_holding_music() ? _("Now: paused for an FTP transfer")
@@ -607,7 +676,7 @@ static void settingsmenu_draw_top(ui_view* view, void* data, float x1, float y1,
 
     // The web server running: its QR code on the right, the help beside it.
     float qrSide = 0;
-    if(option == OPTION_WEB && webserver_running()) {
+    if((option == OPTION_WEB || option == OPTION_WEB_PIN || option == OPTION_WEB_FIXED_PIN) && webserver_running()) {
         qrSide = cardH - 70;
         if(qrSide > 132) {
             qrSide = 132;
@@ -642,13 +711,17 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
             continue;
         }
 
+        if(!settingsmenu_visible(i)) {
+            continue;
+        }
+
         settings_option option = (settings_option) i;
         u32* volume = settingsmenu_slider_value(option);
 
         // Where a guided tour finds it (coach.h).
         static const char* const anchors[OPTION_COUNT] = {
                 "settings.theme", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
-                "settings.ftp", "settings.ftp_music", "settings.web", "settings.channel", "settings.auto_update",
+                "settings.ftp", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.channel", "settings.auto_update",
                 "settings.check_updates", "settings.changelog", "settings.guide"
         };
         coach_anchor(anchors[i], rowX, y, rowW, settingsmenu_row_height(i), i == menu->selected);
@@ -667,7 +740,7 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
             }
         } else {
             // Language opens a list: its name and a chevron, not the arrows of a value that steps.
-            bool opens = option == OPTION_LANGUAGE;
+            bool opens = option == OPTION_LANGUAGE || option == OPTION_WEB_FIXED_PIN;
             bool chevron = opens || option == OPTION_CHANGELOG || option == OPTION_GUIDE;
             widget_row(rowX, y, rowW, WIDGET_ROW_HEIGHT, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, opens ? NULL : settingsmenu_value(option), i == menu->selected);
             if(chevron) {

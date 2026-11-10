@@ -135,7 +135,7 @@ static const coach_step console_steps[] = {
 static const coach_step store_steps[] = {
         OPEN("menu.store", "Open Store.", "v:Store"),
         INFO("list", "Your stores: Universal-DB, and any other you add with the last row, by its QR code or its link. Holding one of yours changes or deletes it."),
-        DO("list.selected", "Open Universal-DB with \uE000.", KEY_A, true, "v:Universal-DB"),
+        DO("Universal-DB", "Open Universal-DB with \uE000.", KEY_A, true, "v:Universal-DB"),
         INFO("list", "Its homebrew. The top screen shows the one with the focus, and a mark says what is already on the console."),
         INFO("list.selected", "\uE000 gets it: a CIA installs, a .3dsx goes to /3ds/."),
         DO("tool.filter", "\uE004 filters by kind, category and what you have. Open it.", KEY_L, true, "popover"),
@@ -207,7 +207,7 @@ static const coach_step updates_steps[] = {
 
 static const coach_step wifi_steps[] = {
         OPEN("menu.system", "Open System.", "v:System"),
-        OPEN("list.selected", "Go down to Network and open it with \uE000.", "v:Wi-Fi connections"),
+        OPEN("Network", "Go down to Network and open it with \uE000.", "v:Wi-Fi connections"),
         INFO("list", "Your console's three connections, then the copies saved on the SD card: the same ones WifiManager keeps in /3ds/WifiManager."),
         INFO("list.selected", "\uE000 on a connection: save a copy (with an alias, if you like), edit it, delete it, or write a saved copy there."),
         INFO("list.selected", "\uE000 on a copy: write it to a connection, edit it, rename its alias or delete it."),
@@ -218,7 +218,7 @@ static const coach_step wifi_steps[] = {
 
 static const coach_step datetime_steps[] = {
         OPEN("menu.system", "Open System.", "v:System"),
-        OPEN("list.selected", "Console has the focus: open it with \uE000.", "v:Date and time"),
+        OPEN("Console", "Console has the focus: open it with \uE000.", "v:Date and time"),
         INFO("list.selected", "\uE000 here opens a calendar, then wheels for the hours, minutes and seconds: drag them or turn them with the D-Pad."),
         INFO("list", "Set the time from the Internet puts the clock right, now or each time NSA opens. The console's clock has no time zone: NSA adds yours and summer time."),
         INFO("list", "Clock and Date order: 24 or 12 hours, day or month first. By region, they follow your console's region."),

@@ -92,6 +92,11 @@ static bool attempt_patch_pid() {
 static void (*exit_funcs[16])()= {NULL};
 static u32 exit_func_count = 0;
 
+// The SOC service's buffer, which every socket's send and receive room comes from. 1 MB ran out with five FTP sessions
+// listing at once (each data connection asks for 32 KB each way, its listening socket as much): socket() and bind()
+// failed, "425 Cannot open a data port".
+#define SOC_BUFFER_SIZE 0x200000
+
 static void* soc_buffer = NULL;
 
 void cleanup_services() {
@@ -115,7 +120,7 @@ void cleanup_services() {
 Result init_services() {
     Result res = 0;
 
-    soc_buffer = memalign(0x1000, 0x100000);
+    soc_buffer = memalign(0x1000, SOC_BUFFER_SIZE);
     if(soc_buffer != NULL) {
         Handle tempAM = 0;
         if(R_SUCCEEDED(res = srvGetServiceHandle(&tempAM, "am:net"))) {
@@ -127,7 +132,7 @@ Result init_services() {
                && INIT_SERVICE(ptmuInit(), ptmuExit)
                && INIT_SERVICE(pxiDevInit(), pxiDevExit)
                && INIT_SERVICE(httpcInit(0), httpcExit)
-               && INIT_SERVICE(socInit(soc_buffer, 0x100000), (void (*)()) socExit));
+               && INIT_SERVICE(socInit(soc_buffer, SOC_BUFFER_SIZE), (void (*)()) socExit));
 
             // devkitPro's mbedTLS takes its randomness from sslcGenerateRandomData without checking
             // the result: without an SSLC session curl's HTTPS keys would come from stack garbage.

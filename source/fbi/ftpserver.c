@@ -41,7 +41,11 @@
 static u32 ftp_send_chunk = FTP_SEND_CHUNK;
 // Clients at once, each on a thread of its own (FileZilla keeps one connection to browse and opens another for each
 // transfer). Data still moves for one transfer at a time (xferturn.h); listings and SITE commands answer meanwhile.
-#define FTP_MAX_SESSIONS 3
+// Five, as KIO (Dolphin) opens up to five per server (maxInstancesPerHost) and fails the job of each one refused: with
+// three, browsing a folder got some hundred 421s and left the view loading.
+#define FTP_MAX_SESSIONS 5
+#define FTP_STR2(x) #x
+#define FTP_STR(x) FTP_STR2(x)
 #define FTP_SESSION_STACK 0x10000
 #define FTP_DATA_ACCEPT_MS 15000
 #define FTP_IDLE_MS (10 * 60 * 1000)
@@ -249,11 +253,20 @@ static bool ftp_reply(ftp_session* s, const char* fmt, ...) {
 // silent for FTP_IDLE_MS (a client that vanished with the Wi-Fi) is closed, which frees its place.
 static bool ftp_wait_command_poll(ftp_session* s) {
     u32 waited = 0;
-    while(ftp_run && !s->evict) {
+    while(ftp_run) {
+        // Asked to leave: look once more first. A command may already be waiting unread (Dolphin sent CWD to a
+        // session idle for 9 s, a new client came 0.1 s later and took its place: the command was lost, the client's
+        // reconnection got 421 and its job hung). With one waiting, the session stays and the new client gets 421.
+        bool leaving = s->evict;
         struct pollfd p = {.fd = s->ctrl, .events = POLLIN, .revents = 0};
         int r = poll(&p, 1, 0);
         if(r < 0 || (p.revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
+            s->evict = false;
             return r >= 0;
+        }
+
+        if(leaving) {
+            return false;
         }
 
         u32 nap = net_nap_ms(waited);
@@ -420,13 +433,25 @@ static int ftp_accept_data(ftp_session* s) {
         return -1;
     }
 
+    // poll() may call the listening socket ready and accept() still fail: with several sessions opening their data
+    // connections in the same few ms (Dolphin stats three files at once), it did for two of three. Giving up then closed
+    // the listening socket and reset the connection that was coming in (425 to the client): keep at it until the time
+    // is up instead.
     int fd = -1;
-    if(ftp_wait_fd(s->pasv, POLLIN, FTP_DATA_ACCEPT_MS)) {
+    u64 deadline = osGetTime() + FTP_DATA_ACCEPT_MS;
+    while(fd < 0 && ftp_run) {
+        u64 now = osGetTime();
+        if(now >= deadline || !ftp_wait_fd(s->pasv, POLLIN, (int) (deadline - now))) {
+            break;
+        }
+
         struct sockaddr_in peer;
         socklen_t len = sizeof(peer);
         fd = accept(s->pasv, (struct sockaddr*) &peer, &len);
         if(fd >= 0) {
             net_set_nonblocking(fd);
+        } else {
+            svcSleepThread(FTP_NAP_MS * 1000000LL);
         }
     }
 
@@ -626,18 +651,41 @@ static void ftp_cmd_list(ftp_session* s, const char* arg, list_kind kind) {
     ftp_resolve_path(s, arg, vpath, sizeof(vpath));
     ftp_real_path(vpath, rpath, sizeof(rpath));
 
+    // A file lists as its own line, as other servers do: KIO (Dolphin) stats each file with "LIST <name>" and, when
+    // that fails, keeps opening connections to find out what it is.
     DIR* dir = opendir(rpath);
-    if(dir == NULL) {
+    struct stat fileSt;
+    bool file = dir == NULL && stat(rpath, &fileSt) == 0 && !S_ISDIR(fileSt.st_mode);
+    if(dir == NULL && !file) {
         ftp_close_pasv(s);
-        ftp_reply(s, "550 No such directory.");
+        ftp_reply(s, "550 No such file or directory.");
         return;
     }
 
     ftp_reply(s, "150 Listing.");
     int data = ftp_accept_data(s);
     if(data < 0) {
-        closedir(dir);
+        if(dir != NULL) {
+            closedir(dir);
+        }
+
         ftp_reply(s, "425 No data connection.");
+        return;
+    }
+
+    if(file) {
+        const char* slash = strrchr(vpath, '/');
+        const char* name = slash != NULL ? slash + 1 : vpath;
+        char line[FTP_PATH_MAX + 96];
+        if(kind == LIST_NAMES) {
+            snprintf(line, sizeof(line), "%s\r\n", name);
+        } else {
+            ftp_format_list_line(line, sizeof(line), name, &fileSt, kind == LIST_MACHINE);
+        }
+
+        bool sent = ftp_send_all(data, line, strlen(line));
+        ftp_close_data(s, &data);
+        ftp_reply(s, sent ? "226 Done." : "426 Transfer aborted.");
         return;
     }
 
@@ -1844,7 +1892,7 @@ static void ftp_accept_session(int fd) {
         LightLock_Unlock(&ftp_lock);
     }
 
-    const char* busy = slot < 0 && s != NULL && s->io != NULL ? "421 Too many connections: " APP_NAME " serves 3 at a time.\r\n"
+    const char* busy = slot < 0 && s != NULL && s->io != NULL ? "421 Too many connections: " APP_NAME " serves " FTP_STR(FTP_MAX_SESSIONS) " at a time.\r\n"
                                                                 : "421 Out of memory.\r\n";
     send(fd, busy, strlen(busy), 0);
     net_close_gently(fd);

@@ -229,6 +229,16 @@ static const coach_step datetime_steps[] = {
         DO("back", "\uE001 goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),
 };
 
+static const coach_step hwtest_steps[] = {
+        OPEN("menu.system", "Open System.", "v:System"),
+        OPEN("Hardware tests", "Go down to Hardware tests and open it with \uE000.", "v:Hardware tests"),
+        INFO("list", "Buttons and touch lights each key while you hold it and keeps the ones you pressed marked; the counter at the top says how many are left. The touch screen counts, and so do the 3D and volume sliders once taken from one end to the other."),
+        INFO("list", "Beside each stick, a box shows its centre magnified: at rest the dot should stay inside the green ring. Drift is how far from the centre it is."),
+        INFO("list", "There \uE001 is under test too: hold it for a second to leave, or tap the arrow."),
+        INFO("list", "Motion sensors shows the accelerometer and the gyroscope live. \uE000 records both to a CSV file in /nsa/logs, also with the lid closed."),
+        DO("back", "\uE001 goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),
+};
+
 static const guide_chapter chapters[] = {
         {"basics", GUIDE_VERSION(0, 2), true, NULL, ICON_DEVICE_GAMEPAD_2, "Getting around", "Screens, buttons and touch", basics_steps, COUNT_OF(basics_steps)},
         {"menu", GUIDE_VERSION(0, 8), true, "basics", ICON_LAYOUT_GRID, "Your main menu", "Tiles and icons, in your order", menu_steps, COUNT_OF(menu_steps)},
@@ -249,6 +259,7 @@ static const guide_chapter chapters[] = {
         // offered everything marked 0.9 (a chapter marked so would never be offered to it, as happened with mods and 0.8).
         {"wifi", GUIDE_VERSION(0, 10), false, "basics", ICON_WIFI, "Wi-Fi connections", "Save and restore your Wi-Fi settings", wifi_steps, COUNT_OF(wifi_steps)},
         {"datetime", GUIDE_VERSION(0, 11), false, "basics", ICON_CALENDAR, "Date and time", "Its format, and the clock from the Internet", datetime_steps, COUNT_OF(datetime_steps)},
+        {"hwtest", GUIDE_VERSION(0, 12), false, "basics", ICON_FLASK, "Hardware tests", "Buttons, touch screen and motion sensors", hwtest_steps, COUNT_OF(hwtest_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)

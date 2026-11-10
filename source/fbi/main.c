@@ -331,7 +331,7 @@ void cleanup() {
 // The bottom screen's toast: a restart countdown wins over an FTP transfer.
 static bool main_notice(char* out, size_t size, float* progress) {
     // A transfer over FTP or the web page (with its speed) before the FTP server's own, which then only says it installs.
-    return relaunch_notice(out, size, progress) || xferturn_notice(out, size, progress) || ftpserver_notice(out, size, progress);
+    return relaunch_notice(out, size, progress) || webserver_notice(out, size, progress) || xferturn_notice(out, size, progress) || ftpserver_notice(out, size, progress);
 }
 
 // The top bar's icons: the FTP server moving data, the web server running.

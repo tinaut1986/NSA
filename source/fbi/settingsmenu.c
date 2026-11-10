@@ -14,6 +14,7 @@
 #include "settings.h"
 #include "../core/bgmusic.h"
 #include "update.h"
+#include "../core/ui/kbd.h"
 #include "../core/core.h"
 
 // Settings: one list. Options change in place with Left/Right (or A, or a
@@ -29,6 +30,8 @@ typedef enum {
     OPTION_FTP,
     OPTION_FTP_MUSIC,
     OPTION_WEB,
+    OPTION_WEB_PIN,
+    OPTION_WEB_NEW_PIN,
     OPTION_CHANNEL,
     OPTION_AUTO_UPDATE,
     OPTION_CHECK_UPDATES,
@@ -104,6 +107,8 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_FTP: return _("FTP server");
         case OPTION_FTP_MUSIC: return _("Pause music for FTP");
         case OPTION_WEB: return _("Web server");
+        case OPTION_WEB_PIN: return _("Web PIN");
+        case OPTION_WEB_NEW_PIN: return _("New web PIN");
         case OPTION_CHECK_UPDATES: return _("Check for updates");
         case OPTION_CHANGELOG: return _("Changelog");
         case OPTION_GUIDE: return _("Guide");
@@ -131,6 +136,7 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_FTP: return ftpserver_running() ? _("On") : ftpserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
         case OPTION_FTP_MUSIC: return settingsmenu_on_off(settings->ftpPausesMusic);
         case OPTION_WEB: return webserver_running() ? _("On") : webserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
+        case OPTION_WEB_PIN: return settings->webPinMode == WEB_PIN_FIXED ? _("Fixed") : settings->webPinMode == WEB_PIN_NONE ? _("None") : _("Random");
         default: return NULL;
     }
 }
@@ -144,6 +150,24 @@ static void settingsmenu_save() {
     if(R_FAILED(res)) {
         error_display_res(NULL, NULL, res, _("Failed to save settings."));
     }
+}
+
+// The fixed PIN typed on the numeric keypad: six digits.
+static void settingsmenu_pin_typed(ui_view* view, void* data, SwkbdButton button, const char* response) {
+    if(button != SWKBD_BUTTON_CONFIRM) {
+        return;
+    }
+
+    if(strlen(response) != 6 || strspn(response, "0123456789") != 6) {
+        error_display(NULL, NULL, _("The PIN must be 6 digits."));
+        return;
+    }
+
+    settings_data* settings = settings_get();
+    snprintf(settings->webPin, sizeof(settings->webPin), "%s", response);
+    settings->webPinMode = WEB_PIN_FIXED;
+    settingsmenu_save();
+    webserver_apply_pin();
 }
 
 // Changes an option by one step, or runs an action (direction 0: A or a tap).
@@ -202,6 +226,32 @@ static void settingsmenu_change(settings_option option, int direction) {
                 settings->webServer = true;
             }
             break;
+        case OPTION_WEB_PIN:
+            // Left and right change the mode; A on Fixed types the PIN on the keypad.
+            if(direction == 0 && settings->webPinMode == WEB_PIN_FIXED) {
+                kbd_display(_("Web PIN (6 digits)"), settings->webPin, SWKBD_TYPE_NUMPAD, 0, SWKBD_NOTEMPTY, 7, NULL, settingsmenu_pin_typed);
+                return;
+            }
+
+            settings->webPinMode = settingsmenu_step(settings->webPinMode, WEB_PIN_MODES, step);
+            if(settings->webPinMode == WEB_PIN_FIXED && strlen(settings->webPin) != 6) {
+                webserver_random_pin(settings->webPin, sizeof(settings->webPin));
+            }
+
+            settingsmenu_save();
+            webserver_apply_pin();
+            return;
+        case OPTION_WEB_NEW_PIN:
+            if(direction == 0) {
+                // Fixed: a new random one that stays. Random: another one now. None: nothing to renew.
+                if(settings->webPinMode == WEB_PIN_FIXED) {
+                    webserver_random_pin(settings->webPin, sizeof(settings->webPin));
+                    settingsmenu_save();
+                }
+
+                webserver_apply_pin();
+            }
+            return;
         case OPTION_CHECK_UPDATES:
             if(direction == 0) {
                 update_check_start(false);
@@ -445,7 +495,12 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_FTP_MUSIC:
             return settings->ftpPausesMusic ? _("On: the music stops while a file goes through the FTP server and comes back after. Transfers go a little faster: 2-3% on an Old 3DS, 3-6% on a New 3DS.")
                                             : _("Off: the music goes on during FTP transfers, which go a little slower (2-3% on an Old 3DS, 3-6% on a New 3DS). Off by default.");
-        case OPTION_WEB: return _("A page to manage the console from a computer's browser: files, installing CIAs. It asks for the PIN shown here, which changes each time the server starts. Plain HTTP, only on your Wi-Fi.");
+        case OPTION_WEB: return _("A page to manage the console from a computer's browser: files, installing CIAs. It asks for the PIN shown here. Plain HTTP, only on your Wi-Fi.");
+        case OPTION_WEB_PIN:
+            return settings->webPinMode == WEB_PIN_FIXED ? _("Fixed: the PIN stays the same between launches. Press A to type another one on the keypad.")
+                   : settings->webPinMode == WEB_PIN_NONE ? _("None: the page opens without a PIN. Plain HTTP: anyone on your Wi-Fi can then install and delete things. Only for a network you trust.")
+                                                          : _("Random: a new PIN each time the server starts. When a browser asks for it, the console shows it on the bottom screen.");
+        case OPTION_WEB_NEW_PIN: return _("A new random PIN now (kept when the PIN is fixed). Pages already open have to type it again.");
         case OPTION_CHECK_UPDATES: return _("Look for a newer release in your channel now.");
         case OPTION_CHANGELOG: return _("Every release of your channel, newest first.");
         case OPTION_GUIDE: return _("How NSA works, in short chapters. When an update adds something, NSA offers only the new chapters.");
@@ -523,6 +578,10 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
         webserver_address(address, sizeof(address));
         webserver_pin(pin, sizeof(pin));
         snprintf(line, sizeof(line), pin[0] != '\0' ? "%s  PIN %s" : "%s", address, pin);
+    } else if(option == OPTION_WEB_PIN || option == OPTION_WEB_NEW_PIN) {
+        char pin[16];
+        webserver_pin(pin, sizeof(pin));
+        snprintf(line, sizeof(line), "PIN %s", pin[0] != '\0' ? pin : webserver_running() ? _("none") : "-");
     } else if(option == OPTION_FTP_MUSIC) {
         snprintf(line, sizeof(line), "%s", settings->music == BGMUSIC_OFF ? _("The background music is off.")
                                            : settings->ftpPausesMusic && ftpserver_holding_music() ? _("Now: paused for an FTP transfer")
@@ -607,7 +666,7 @@ static void settingsmenu_draw_top(ui_view* view, void* data, float x1, float y1,
 
     // The web server running: its QR code on the right, the help beside it.
     float qrSide = 0;
-    if(option == OPTION_WEB && webserver_running()) {
+    if((option == OPTION_WEB || option == OPTION_WEB_PIN || option == OPTION_WEB_NEW_PIN) && webserver_running()) {
         qrSide = cardH - 70;
         if(qrSide > 132) {
             qrSide = 132;

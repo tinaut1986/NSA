@@ -1664,7 +1664,9 @@ function sysDrag(card){
 const linked = new URLSearchParams(location.search).get('pin');
 if(linked) history.replaceState(null, '', location.pathname + location.hash);
 const saved = linked || sessionStorage.getItem('pin');
-if(saved) login(saved, true); else showLogin();
+// Without a saved PIN, ask with none: a console set to "no PIN" lets the page in; otherwise the PIN screen shows (and the console
+// shows the PIN on its bottom screen).
+login(saved || '', true);
 </script>
 </body>
 </html>

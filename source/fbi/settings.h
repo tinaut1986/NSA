@@ -87,11 +87,22 @@ typedef struct {
     bool syncOnStart;  // The clock is set from the Internet when NSA opens.
 } datetime_settings;
 
+typedef enum {
+    WEB_PIN_RANDOM = 0,
+    WEB_PIN_FIXED = 1,
+    WEB_PIN_NONE = 2,
+    WEB_PIN_MODES
+} web_pin_mode;
+
 typedef struct {
     update_channel channel;
     bool autoUpdate;
     bool ftpServer;
     bool webServer;   // The web page for a computer's browser: off until the owner turns it on.
+    // The web page's PIN: a new random one each time the server starts, a fixed one (webPin) that stays between launches,
+    // or none (the owner trusts the Wi-Fi). A web_pin_mode.
+    u32 webPinMode;
+    char webPin[8];   // The fixed PIN: 6 digits, "" before one is made.
     // The background music stops while a file goes through the FTP server: 2-3% faster on an Old
     // 3DS since transfers keep only 5% of the system core (10-25% before), 3-6% on a New 3DS. Off by default.
     bool ftpPausesMusic;

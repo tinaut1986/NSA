@@ -164,7 +164,7 @@ static void pinpad_draw_bottom(ui_view* view, void* v, float x1, float y1, float
 static void pinpad_update(ui_view* view, void* v, float bx1, float by1, float bx2, float by2) {
     pinpad_data* d = (pinpad_data*) v;
 
-    view->info = _(" ok    delete    random    cancel");
+    view->info = _("\uE000 ok   \uE002 delete   \uE003 random   \uE001 cancel");
     if(!d->built) {
         pinpad_build_keys(d, bx1, by1, bx2, by2);
     }

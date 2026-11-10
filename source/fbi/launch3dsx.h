@@ -7,8 +7,6 @@
 
 // Whether it can be done on this console; when not, `why` says what is missing (translated).
 bool launch3dsx_available(char* why, size_t size);
-// The same, also when NSA runs as a .3dsx: a forwarder CIA (forwarder.c) always needs the Homebrew Launcher title.
-bool launch3dsx_available_for(char* why, size_t size, bool needTitle);
 
 // Sets `path` (on the SD card, "/3ds/foo.3dsx") as the target and asks NSA to exit into it.
 Result launch3dsx_start(const char* path);

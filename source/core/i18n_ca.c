@@ -1386,12 +1386,22 @@ const i18n_entry i18n_ca[] = {
         {"\uE000 stop recording    \uE001 back", "\uE000 atura    \uE001 enrere"},
         {"\uE000 start recording    \uE001 back", "\uE000 enregistra    \uE001 enrere"},
         {"Failed to allocate motion test data.", "No s'ha pogut reservar memòria per a la prova de moviment."},
-        // HOME Menu icons for a .3dsx (forwarder.c)
-        {"Make a HOME Menu icon", "Crea una icona al menú HOME"},
-        {"Install a HOME Menu icon that starts this program? The .3dsx stays where it is.", "Vols instal·lar una icona al menú HOME que iniciï aquest programa? El .3dsx es queda on és."},
-        {"\"%s\" is in the HOME Menu now. It starts the program from where it is: if you move or delete the .3dsx, make the icon again.", "\"%s\" ja és al menú HOME. Inicia el programa des d'on és: si mous o esborres el .3dsx, torna a crear la icona."},
-        {"Failed to install the HOME Menu icon.", "No s'ha pogut instal·lar la icona del menú HOME."},
-        {"A .3dsx's actions can make it a HOME Menu icon: a small title that starts it from where it is (it needs Luma3DS and the Homebrew Launcher title).", "Entre les accions d'un .3dsx hi ha crear la seva icona al menú HOME: un petit títol que l'inicia des d'on és (cal Luma3DS i el títol del Homebrew Launcher)."},
+        // A .3dsx installed in the HOME Menu (homeicon.c, homeiconview.c)
+        {"Install in the HOME Menu", "Instal·la al menú HOME"},
+        {"Choose a picture", "Tria una imatge"},
+        {"\uE000 choose   \uE001 up", "\uE000 tria   \uE001 puja"},
+        {"HOME Menu", "Menú HOME"},
+        {"Banner made from the icon and the name.", "Bàner fet amb la icona i el nom."},
+        {"A title of its own: it starts from the HOME Menu and goes back to it. The program is copied into it, so after updating the .3dsx, install it again.", "Un títol propi: s'obre des del menú HOME i hi torna. El programa s'hi copia, així que després d'actualitzar el .3dsx, torna'l a instal·lar."},
+        {"Choose a picture for the banner", "Tria una imatge per al bàner"},
+        {"Make the banner from the icon", "Fes el bàner amb la icona"},
+        {"That picture is too big for a banner: up to 12 MB and 5 million pixels.", "Aquesta imatge és massa gran per a un bàner: fins a 12 MB i 5 milions de píxels."},
+        {"Failed to read the picture.", "No s'ha pogut llegir la imatge."},
+        {"\"%s\" is in the HOME Menu now. The .3dsx is no longer needed to start it.", "\"%s\" ja és al menú HOME. Ja no cal el .3dsx per obrir-lo."},
+        {"Failed to install the program in the HOME Menu.", "No s'ha pogut instal·lar el programa al menú HOME."},
+        {"Installing in the HOME Menu", "S'està instal·lant al menú HOME"},
+        {"Failed to create the install thread.", "No s'ha pogut crear el fil d'instal·lació."},
+        {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "Des de les accions d'un .3dsx es pot instal·lar al menú HOME: un títol propi, amb un bàner fet amb la seva icona o amb una imatge teva."},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

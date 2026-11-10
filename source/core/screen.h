@@ -31,6 +31,10 @@ void screen_select(gfxScreen_t screen);
 // The top screen in 3D: one eye, whose drawings move `shift` pixels per unit
 // of depth (screen_set_depth; 0 is the screen's plane).
 void screen_select_eye(gfxScreen_t screen, gfx3dSide_t side, float shift);
+// Draws `draw` (with the usual drawing calls, y down from the top left, no clipping) into a picture of its own instead
+// of a screen and writes it to `rgba` (R G B A bytes, top row first). Between frames only (a view's update); `width`
+// and `height` powers of two from 8 to 1024.
+bool screen_render_offscreen(u32 width, u32 height, void (*draw)(void* data), void* data, u8* rgba);
 // The eye the top screen is being drawn for (GFX_LEFT too in 2D and on the bottom screen).
 gfx3dSide_t screen_get_eye();
 void screen_set_depth(float value);

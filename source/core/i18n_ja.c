@@ -1391,12 +1391,22 @@ const i18n_entry i18n_ja[] = {
         {"\uE000 stop recording    \uE001 back", "\uE000停止    \uE001戻る"},
         {"\uE000 start recording    \uE001 back", "\uE000記録    \uE001戻る"},
         {"Failed to allocate motion test data.", "モーションテストのメモリを確保できませんでした。"},
-        // HOME Menu icons for a .3dsx (forwarder.c)
-        {"Make a HOME Menu icon", "HOMEメニューにアイコンを作る"},
-        {"Install a HOME Menu icon that starts this program? The .3dsx stays where it is.", "このプログラムを起動するアイコンをHOMEメニューにインストールしますか？.3dsxは今の場所のままです。"},
-        {"\"%s\" is in the HOME Menu now. It starts the program from where it is: if you move or delete the .3dsx, make the icon again.", "「%s」がHOMEメニューに追加されました。今の場所からプログラムを起動するので、.3dsxを移動・削除したらアイコンを作り直してください。"},
-        {"Failed to install the HOME Menu icon.", "HOMEメニューのアイコンをインストールできませんでした。"},
-        {"A .3dsx's actions can make it a HOME Menu icon: a small title that starts it from where it is (it needs Luma3DS and the Homebrew Launcher title).", ".3dsxの操作から、HOMEメニューのアイコンを作れます。今の場所から起動する小さなタイトルです（Luma3DSとHomebrew Launcherのタイトルが必要です）。"},
+        // A .3dsx installed in the HOME Menu (homeicon.c, homeiconview.c)
+        {"Install in the HOME Menu", "HOMEメニューにインストール"},
+        {"Choose a picture", "画像を選ぶ"},
+        {"\uE000 choose   \uE001 up", "\uE000 選ぶ   \uE001 上へ"},
+        {"HOME Menu", "HOMEメニュー"},
+        {"Banner made from the icon and the name.", "アイコンと名前から作ったバナーです。"},
+        {"A title of its own: it starts from the HOME Menu and goes back to it. The program is copied into it, so after updating the .3dsx, install it again.", "独立したタイトルです。HOMEメニューから起動し、終了するとHOMEメニューに戻ります。プログラムはコピーされるので、.3dsxを更新したらインストールし直してください。"},
+        {"Choose a picture for the banner", "バナーの画像を選ぶ"},
+        {"Make the banner from the icon", "アイコンからバナーを作る"},
+        {"That picture is too big for a banner: up to 12 MB and 5 million pixels.", "バナーには大きすぎる画像です（12 MB、500万ピクセルまで）。"},
+        {"Failed to read the picture.", "画像を読み込めませんでした。"},
+        {"\"%s\" is in the HOME Menu now. The .3dsx is no longer needed to start it.", "「%s」がHOMEメニューに追加されました。起動に.3dsxはもう必要ありません。"},
+        {"Failed to install the program in the HOME Menu.", "HOMEメニューにインストールできませんでした。"},
+        {"Installing in the HOME Menu", "HOMEメニューにインストール中"},
+        {"Failed to create the install thread.", "インストール用のスレッドを作成できませんでした。"},
+        {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", ".3dsxの操作から、HOMEメニューにインストールできます。独立したタイトルになり、バナーはアイコンか好きな画像から作ります。"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

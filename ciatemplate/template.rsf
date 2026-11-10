@@ -1,9 +1,12 @@
-# NSA's forwarder (forwarder/source/main.c): buildtools' template.rsf with no RomFS and .code left uncompressed,
-# so NSA can write a .3dsx's path into it on the console (source/fbi/forwarder.c).
+# The template of the CIAs NSA makes from a .3dsx (source/fbi/homeicon.c): buildtools' template.rsf with a RomFS
+# (the .3dsx's own replaces it) and 124 MB on a New 3DS, the memory a .3dsx gets from the Homebrew Launcher there.
 BasicInfo:
   Title                   : $(APP_TITLE)
   ProductCode             : $(APP_PRODUCT_CODE)
   Logo                    : Homebrew
+
+RomFs:
+  RootPath                : romfs
 
 TitleInfo:
   Category                : $(APP_CATEGORY)

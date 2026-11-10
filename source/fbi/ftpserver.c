@@ -17,7 +17,7 @@
 
 #include "ftpserver.h"
 #include "relaunch.h"
-#include "forwarder.h"
+#include "homeicon.h"
 #include "selftest.h"
 #include "../core/core.h"
 #include "../core/minire.h"
@@ -1246,18 +1246,32 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
-    // Tests of the HOME Menu icons without the menus: "SITE FORWARDER </path/to.3dsx>" writes the CIA it would install to
-    // /nsa/forwarder-test.cia.
-    if(NSA_DEBUG && strcmp(sub, "FORWARDER") == 0) {
+    // Tests of the HOME Menu titles made from a .3dsx, without the menus: "SITE HOMEICON </path/to.3dsx>[|/picture.png]"
+    // writes the CIA it would install to /nsa/homeicon-test.cia (the banner from the picture, else the plain one).
+    if(NSA_DEBUG && strcmp(sub, "HOMEICON") == 0) {
         if(path == NULL || path[0] != '/') {
-            ftp_reply(s, "501 SITE FORWARDER /path/to.3dsx");
+            ftp_reply(s, "501 SITE HOMEICON /path/to.3dsx[|/picture.png]");
             return;
         }
 
-        char name[128] = {0};
-        u64 titleId = 0;
-        Result res = forwarder_save(path, "sdmc:" APP_DATA_DIR "forwarder-test.cia", name, sizeof(name), &titleId);
-        ftp_reply(s, "200 res %08lX title %016llX name %s", res, titleId, name);
+        static homeicon_job job;
+        static u8 banner[HOMEICON_BANNER_WIDTH * HOMEICON_BANNER_HEIGHT * 4];
+        memset(&job, 0, sizeof(job));
+        char* picture = strchr(path, '|');
+        Result res = 0;
+        if(picture != NULL) {
+            *picture++ = '\0';
+            res = homeicon_picture_banner(picture, banner);
+            job.banner = banner;
+        }
+
+        strncpy(job.path, path, sizeof(job.path) - 1);
+        u64 start = osGetTime();
+        if(R_SUCCEEDED(res)) {
+            res = homeicon_save(&job, "sdmc:" APP_DATA_DIR "homeicon-test.cia");
+        }
+
+        ftp_reply(s, "200 res %08lX title %016llX ms %llu name %s", res, job.titleId, osGetTime() - start, job.name);
         return;
     }
 

@@ -33,7 +33,7 @@ Start here in a new session. `staging` is pushed (`b41f2f6`) and holds all of it
 - **Refactor (UI structure)**: done in three rounds (`refactor/ui-structure`, `-2`, `-3`), see "Shared UI pieces". Not
   unified on purpose: the "Loading..." phase of the actions (only per-action code is left) and each screen's settings
   store/restore. `tools/ui_snapshots.py run/compare` checks that a change draws the same (49 steps in Azahar).
-- **Ideas for later**: issue #32 (named mods and a GameBanana mods store), the forwarder (Next, item 11).
+- **Ideas for later**: issue #32 (named mods and a GameBanana mods store), what is left of item 11 (Next).
 - After the owner's tests pass: `staging` -> `release` -> `advanced` (CLAUDE.md, "Branches in use").
 
 ## Status (2026-10-31)
@@ -162,19 +162,21 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- [ ] HOME Menu icon for a .3dsx (2026-11-10, `feat/forwarder`; issue #46): SD card -> a .3dsx's actions -> "Make a HOME
-  Menu icon" (after "Run program") asks, then installs a forwarder CIA at once. It is `romfs:/forwarder.cia` (built by
-  `make -C forwarder` from `forwarder/source/main.c`, committed) with the .3dsx's path after the `NSAFWD01` marker in its
-  uncompressed .code, the .3dsx's SMDH names and icons (the template's flags, ratings and region; a .3dsx without an SMDH
-  gets its file name and NSA's icon), and a title ID of its own: unique ID from an FNV hash of the path in 0xC8000-0xEFFFF,
-  moved on past titles that are not ours (product code `CTR-P-NSAF`), so making it again for the same path updates it.
-  Hashes made again (ExeFS files and header, exheader, TMD); signatures not (Luma's patches). The stub checks the file
-  exists, finds the Homebrew Launcher title (`sdmc:/nsa/hbl_title.txt` too), sets hb:ldr's target and argv and chains
-  into it; when something is missing it says so on the top screen (English only). The action needs hb:ldr and the HBL
-  title (`launch3dsx_available_for`). DEBUG `SITE FORWARDER /path.3dsx` writes the CIA to `/nsa/forwarder-test.cia`.
-  Banner: NSA's (generic); a custom banner, picture or jingle is for later. Guide: a 0.12 step in the SD card chapter.
-  Claude, 2026-11-10, Azahar: the CIA made for a test .3dsx checked on the PC (title IDs, path, icon, every hash). Not
-  tried: installing it on a console and starting it from the HOME Menu, a .3dsx without an SMDH, making it twice.
+- [ ] A .3dsx installed in the HOME Menu (2026-11-10, `feat/forwarder`; issue #46). SD card -> a .3dsx's actions ->
+  "Install in the HOME Menu" opens a screen: the top screen shows the banner (drawn from the icon, the name and the
+  publisher, or a picture picked with "Choose a picture for the banner", fitted whole on its average colour; "Make the
+  banner from the icon" goes back), A installs it behind a progress bar (B cancels). The .3dsx is **converted**, not
+  forwarded (the first version, a stub that chained into the Homebrew Launcher title, quit into that launcher and showed
+  as it in HOME, as every forwarder does: Luma marks a .3dsx "chainload itself on exit"). See Decisions, "A .3dsx as a
+  title". DEBUG `SITE HOMEICON /path.3dsx[|/picture.png]` writes the CIA to `/nsa/homeicon-test.cia`.
+  Claude, 2026-11-10, Azahar (Windows): NSA's own .3dsx converted (3.4 MB, RomFS of 0.5 MB, 2.3 s): every hash and the
+  three RomFS hash levels checked on the PC, its NCCH booted as a title and ran (fonts and icons from its RomFS);
+  installed through the screen, the installed banner decoded on the PC (the drawn one and a picture's); a 9-megapixel
+  picture and a file that is not a picture refused before decoding. Azahar cannot install a title over itself
+  (`BeginImportProgramForOverWrite` unimplemented: it aborts), so a second install there needs the title deleted first.
+  The first version's forwarder for `/3ds/WiFiManagerPlus-fix.3dsx` (000400000D794B00) is on the New 3DS XL; converting
+  that path again replaces it. Not tried: on a console (install, HOME banner and sound, start and quit to HOME, a .3dsx
+  that uses its RomFS, an Old 3DS / 2DS, a big .3dsx's time), a .3dsx without an SMDH.
 - [ ] System in three groups and hardware tests (2026-11-10, `feat/system-hardware-tests`; issue #43): System's list
   is now Information (Console, Network, Storage, Battery: they only show), Console settings (Date and time, Wi-Fi
   connections, which A on Console and on Network used to open) and Hardware tests (`hwtest.c`). **Buttons and touch**:
@@ -1498,24 +1500,14 @@ current, this list is the summary. What only the owner can test (local wireless)
     - ~~A mini player that keeps the song playing while browsing~~ done on `staging` (`feat/player-background`).
     - Date of creation: not available (the 3DS only gives the last change); NSA could record its own.
 
-11. **A HOME Menu icon for a .3dsx: make a forwarder CIA** (asked on Reddit by rhinofinger in the first thread, 2026-10; the
-    owner answered it could be done; issue #46; first version in `staging` 2026-11-10, see "Pending tests on the console"). After-Pop-2000 made a standalone app for it since,
-    [3DSX-Forwarder / MULTI-Forwarder](https://github.com/LBpartition/3DSX-Forwarder) (MIT; .3dsx, .nds, .gba, SNES): look at it first. A small CIA that only starts the .3dsx, which stays where it
-    is; its icon and name come from the .3dsx's SMDH, and the user may give a banner picture and a jingle. Plan (2026-11-07):
-    - **The stub**: a tiny app built with NSA (devkitARM + makerom on the PC, kept in `romfs:/forwarder.cxi`) that reads a path
-      patched into its own `.code` (a 512-byte buffer after a marker, so no RomFS and no hash tree), calls `hb:ldr` SetTarget /
-      SetArgv as `launch3dsx.c` does, and jumps to the Homebrew Launcher placeholder title (`APT_PrepareToDoApplicationJump`).
-      So it needs Luma3DS and that title, like "Run program" today (`launch3dsx_available` says what is missing). Open question:
-      whether Luma's loader can be pointed at the forwarder's own title instead, so no placeholder is needed.
-    - **On the console**: copy the template NCCH, set a new title ID (unique ID from a hash of the path, in the homebrew range
-      0xF0000-0xFFFFF, avoiding installed ones) in the NCCH header and the exheader, patch the path, put the .3dsx's SMDH as the
-      ExeFS `icon`, recompute the ExeFS file hashes, the ExeFS superblock hash and the exheader hash (signatures stay invalid:
-      Luma's signature patches, as for exported CIAs). Then wrap it with `exportcia.c`'s writer (certificates, ticket, TMD with
-      the content's SHA-256) and install it, or save it to `/nsa/cias/`.
-    - **Banner and jingle**: first a generic NSA banner (CBMD + BCWAV made at build time with bannertool). A custom one later:
-      a .bnr the user made elsewhere is easy (use it as is); a picture needs a CGFX built from a template with the picture as its
-      texture, and a .wav a BCWAV (PCM16 in a CWAV container, the easy part) — what bannertool does.
-    - Size: a few days of work; the risky part is the NCCH (test with `ctrtool` on the PC before any console install).
+11. **A .3dsx in the HOME Menu** (asked on Reddit by rhinofinger in the first thread, 2026-10; issue #46): done, see
+    "Pending tests on the console" and Decisions, "A .3dsx as a title". After-Pop-2000's
+    [3DSX-Forwarder / MULTI-Forwarder](https://github.com/LBpartition/3DSX-Forwarder) (MIT) makes forwarders (the .3dsx
+    stays, quits into the Homebrew Launcher). Left for later: a jingle of the user's (a .wav as the banner's CWAV), a .3dsx
+    that changes itself (an updater writing its own .3dsx: the title keeps the old copy), and the owner's ID questions
+    (2026-11-10): the official CIA's title ID when a known homebrew has one (a list of known homebrew IDs in NSA, so saves
+    match and installing the official CIA replaces the copy), avoiding the known IDs otherwise, and when NSA installs a CIA
+    whose ID is a converted title's, warning, copying its system save data to a free ID and moving the title there first.
 
 - **Named mods and a GameBanana mods store** (issue #32, for later; the owner, 2026-11-07): Luma keeps one folder per game and
   mods mix in it, so a mod's name and files exist only if NSA installs it. A library in `sdmc:/nsa/mods/<ID>/<name>/` with a
@@ -1524,6 +1516,26 @@ current, this list is the summary. What only the owner can test (local wireless)
 
 ## Decisions
 
+- **A .3dsx as a title** (`source/fbi/homeicon.c`, `homeiconview.c`, `ciatemplate/`; issue #46, 2026-11-10): the owner
+  chose converting over forwarding (a forwarder quits into the Homebrew Launcher and shows as it in HOME; a title of its
+  own quits to HOME and needs neither that title nor Luma's loader). The price: the program is copied (SD space; updating
+  the .3dsx means installing again). How:
+  - `romfs:/ciatemplate.cia` (`make -C ciatemplate`, committed) gives certificates, ticket, TMD, NCCH header, exheader (a
+    homebrew title's permissions, 64 MB on an Old 3DS and 124 MB on a New one, stack 0x40000), logo, the banner's model and
+    sound (a chime, `ciatemplate/chime.wav`) and the meta section.
+  - .code: the three segments at a title's addresses (text at 0x100000) with the relocations Luma's loader applies
+    (`sysmodules/loader/source/3dsx.c`); one page after rodata holds argv (argv[0] the .3dsx's path) and _prm's argument
+    list points at it; nothing else in _prm, so libctru sees a title (mounts the title's RomFS, quits to HOME). The data
+    goes up to its last non-zero word, the rest is BSS.
+  - RomFS: the .3dsx's (libctru's format is level 3) with IVFC levels made on the console. It is read three times (level 2
+    hashes; the content's SHA-256, as the TMD comes before the content; the install). Hashes made again everywhere;
+    signatures stay invalid (Luma's patches, as for exported CIAs).
+  - Banner: bannertool's model has one 256x128 RGBA4444 texture (8x8 Morton tiles, top row first); NSA writes the picture
+    there with an ordered dither and stores the CGFX again as LZ11 of literals only (an eighth bigger). The drawn banner is
+    made with the usual drawing calls into a VRAM texture (`screen_render_offscreen`), and the top screen shows that
+    picture, so the preview is what gets installed. Pictures: up to 12 MB and 5 megapixels, checked before decoding.
+  - Title ID: as the forwarder's (FNV hash of the path, unique ID 0xC8000-0xEFFFF, past titles not ours, product code
+    `CTR-P-NSAF`): the same path updates its title.
 - **The guide's chapters** (`source/fbi/guide.c`, the owner asked 2026-11-06 for a tutorial where an update plays only the new
   feature, chains the earlier ones not seen, and does not overwhelm): each chapter has a stable `id`, the version it came with
   (`since`, `GUIDE_VERSION(0, 8)`), `essential` (offered on a first start) and `needs` (a chapter shown first while unseen).

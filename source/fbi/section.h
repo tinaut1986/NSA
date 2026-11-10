@@ -14,6 +14,10 @@ void files_open_ctr_nand();
 void files_open_twl_nand();
 void files_open_twl_photo();
 void files_open_twl_sound();
+// Files from `dir` of the SD card to pick a picture: `picked` gets its path, then the list closes (B at the root: nothing).
+void files_pick_picture(const char* dir, void (*picked)(void* data, const char* path), void* data);
+// A .3dsx made a title of its own in the HOME Menu (homeiconview.c): its banner, then the install.
+void homeicon_open(const char* path);
 // The folders of /luma/titles (mods.c).
 void mods_open();
 void pendingtitles_open();

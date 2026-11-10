@@ -92,7 +92,7 @@ static Result launch_set_argv(Handle handle, const void* buffer, size_t size) {
     return R_FAILED(res) ? res : (Result) cmdbuf[1];
 }
 
-bool launch3dsx_available_for(char* why, size_t size, bool needTitle) {
+bool launch3dsx_available(char* why, size_t size) {
     Handle handle = 0;
     Result res = svcConnectToPort(&handle, "hb:ldr");
     if(R_FAILED(res)) {
@@ -102,7 +102,7 @@ bool launch3dsx_available_for(char* why, size_t size, bool needTitle) {
 
     svcCloseHandle(handle);
 
-    if(envIsHomebrew() && !needTitle) {
+    if(envIsHomebrew()) {
         return true;
     }
 
@@ -158,8 +158,4 @@ Result launch3dsx_start(const char* path) {
 
 bool launch3dsx_poll() {
     return launch_exit;
-}
-
-bool launch3dsx_available(char* why, size_t size) {
-    return launch3dsx_available_for(why, size, false);
 }

@@ -1378,12 +1378,22 @@ const i18n_entry i18n_zh[] = {
         {"\uE000 stop recording    \uE001 back", "\uE000 停止    \uE001 返回"},
         {"\uE000 start recording    \uE001 back", "\uE000 记录    \uE001 返回"},
         {"Failed to allocate motion test data.", "无法为体感测试分配内存。"},
-        // HOME Menu icons for a .3dsx (forwarder.c)
-        {"Make a HOME Menu icon", "在 HOME 菜单创建图标"},
-        {"Install a HOME Menu icon that starts this program? The .3dsx stays where it is.", "要在 HOME 菜单安装启动这个程序的图标吗？.3dsx 会留在原处。"},
-        {"\"%s\" is in the HOME Menu now. It starts the program from where it is: if you move or delete the .3dsx, make the icon again.", "“%s”已加入 HOME 菜单。它会从当前位置启动程序：如果移动或删除 .3dsx，请重新创建图标。"},
-        {"Failed to install the HOME Menu icon.", "无法安装 HOME 菜单图标。"},
-        {"A .3dsx's actions can make it a HOME Menu icon: a small title that starts it from where it is (it needs Luma3DS and the Homebrew Launcher title).", ".3dsx 的操作可以在 HOME 菜单创建图标：一个从当前位置启动它的小软件（需要 Luma3DS 和 Homebrew Launcher 的软件）。"},
+        // A .3dsx installed in the HOME Menu (homeicon.c, homeiconview.c)
+        {"Install in the HOME Menu", "安装到 HOME 菜单"},
+        {"Choose a picture", "选择图片"},
+        {"\uE000 choose   \uE001 up", "\uE000 选择   \uE001 上级"},
+        {"HOME Menu", "HOME 菜单"},
+        {"Banner made from the icon and the name.", "用图标和名称制作的横幅。"},
+        {"A title of its own: it starts from the HOME Menu and goes back to it. The program is copied into it, so after updating the .3dsx, install it again.", "独立的软件：从 HOME 菜单启动，退出后回到 HOME 菜单。程序会复制到里面，所以更新 .3dsx 后请重新安装。"},
+        {"Choose a picture for the banner", "选择横幅图片"},
+        {"Make the banner from the icon", "用图标制作横幅"},
+        {"That picture is too big for a banner: up to 12 MB and 5 million pixels.", "图片太大，无法用作横幅：最多 12 MB、500 万像素。"},
+        {"Failed to read the picture.", "无法读取图片。"},
+        {"\"%s\" is in the HOME Menu now. The .3dsx is no longer needed to start it.", "“%s”已加入 HOME 菜单。启动时不再需要 .3dsx。"},
+        {"Failed to install the program in the HOME Menu.", "无法将程序安装到 HOME 菜单。"},
+        {"Installing in the HOME Menu", "正在安装到 HOME 菜单"},
+        {"Failed to create the install thread.", "无法创建安装线程。"},
+        {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "在 .3dsx 的操作中可以将它安装到 HOME 菜单：成为独立的软件，横幅用它的图标或你的图片制作。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

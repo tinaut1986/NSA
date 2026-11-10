@@ -1387,6 +1387,12 @@ const i18n_entry i18n_ru[] = {
         {"\uE000 stop recording    \uE001 back", "\uE000 стоп    \uE001 назад"},
         {"\uE000 start recording    \uE001 back", "\uE000 запись    \uE001 назад"},
         {"Failed to allocate motion test data.", "Не удалось выделить память для проверки движения."},
+        // HOME Menu icons for a .3dsx (forwarder.c)
+        {"Make a HOME Menu icon", "Создать значок в меню HOME"},
+        {"Install a HOME Menu icon that starts this program? The .3dsx stays where it is.", "Установить в меню HOME значок, который запускает эту программу? Файл .3dsx остаётся на месте."},
+        {"\"%s\" is in the HOME Menu now. It starts the program from where it is: if you move or delete the .3dsx, make the icon again.", "«%s» теперь в меню HOME. Значок запускает программу с её места: если переместить или удалить .3dsx, создайте значок заново."},
+        {"Failed to install the HOME Menu icon.", "Не удалось установить значок меню HOME."},
+        {"A .3dsx's actions can make it a HOME Menu icon: a small title that starts it from where it is (it needs Luma3DS and the Homebrew Launcher title).", "В действиях файла .3dsx можно создать для него значок в меню HOME: маленький титул, который запускает его с его места (нужны Luma3DS и титул Homebrew Launcher)."},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

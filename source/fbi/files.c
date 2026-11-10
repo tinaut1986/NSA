@@ -11,6 +11,7 @@
 #include "task/uitask.h"
 #include "../core/core.h"
 #include "launch3dsx.h"
+#include "forwarder.h"
 #include "thumbs.h"
 #include "viewers.h"
 #include "../core/data/smdh.h"
@@ -804,6 +805,45 @@ static void files_launch(void* data) {
     prompt_display_yes_no("Confirmation", "Start this program? NSA closes first.", COLOR_TEXT, path, NULL, files_launch_response);
 }
 
+// A HOME Menu icon for the selected .3dsx (forwarder.c): its own confirmation first, then it is installed at once (a
+// CIA of well under a megabyte).
+static void files_forwarder_response(ui_view* view, void* data, u32 response) {
+    char* path = (char*) data;
+    if(response == PROMPT_YES) {
+        char name[128] = {0};
+        Result res = forwarder_install(path, name, sizeof(name));
+        if(R_FAILED(res)) {
+            error_display_res(NULL, NULL, res, "Failed to install the HOME Menu icon.");
+        } else {
+            char text[256];
+            snprintf(text, sizeof(text), _("\"%s\" is in the HOME Menu now. It starts the program from where it is: if you move or delete the .3dsx, make the icon again."), name);
+            prompt_display_notify("Success", text, COLOR_TEXT, NULL, NULL, NULL);
+        }
+    }
+
+    free(path);
+}
+
+static void files_forwarder(void* data) {
+    files_data* listData = (files_data*) data;
+    file_info* info = (file_info*) listData->actionSelected->data;
+
+    char why[200];
+    if(!forwarder_available(why, sizeof(why))) {
+        prompt_display_notify("Failure", why, COLOR_TEXT, info, task_draw_file_info, NULL);
+        return;
+    }
+
+    char* path = strdup(info->path);
+    if(path == NULL) {
+        error_display(NULL, NULL, "Failed to allocate program data.");
+        return;
+    }
+
+    prompt_display_yes_no("Confirmation", "Install a HOME Menu icon that starts this program? The .3dsx stays where it is.", COLOR_TEXT, path,
+                          NULL, files_forwarder_response);
+}
+
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
 
 static void files_extract(files_data* data, bool intoFolder) {
@@ -847,6 +887,7 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
 
     if(files_type_of(info) == TYPE_PROGRAM && data->archiveId == ARCHIVE_SDMC && viewers_has_ext(info->name, "3dsx")) {
         actions[count++] = (sheet_action) {ICON_PLAYER_PLAY, _("Run program"), false, files_launch};
+        actions[count++] = (sheet_action) {ICON_APPS, _("Make a HOME Menu icon"), false, files_forwarder};
     }
 
     viewer_kind viewer = viewers_kind_of(info->name);

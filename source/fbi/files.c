@@ -808,10 +808,11 @@ static void files_launch(void* data) {
 // A HOME Menu icon for the selected .3dsx (forwarder.c): its own confirmation first, then it is installed at once (a
 // CIA of well under a megabyte).
 static void files_forwarder_response(ui_view* view, void* data, u32 response) {
-    char* path = (char*) data;
+    // A copy of the file's info: the top screen shows it while the question is up.
+    file_info* info = (file_info*) data;
     if(response == PROMPT_YES) {
         char name[128] = {0};
-        Result res = forwarder_install(path, name, sizeof(name));
+        Result res = forwarder_install(info->path, name, sizeof(name));
         if(R_FAILED(res)) {
             error_display_res(NULL, NULL, res, "Failed to install the HOME Menu icon.");
         } else {
@@ -821,7 +822,7 @@ static void files_forwarder_response(ui_view* view, void* data, u32 response) {
         }
     }
 
-    free(path);
+    free(info);
 }
 
 static void files_forwarder(void* data) {
@@ -834,14 +835,15 @@ static void files_forwarder(void* data) {
         return;
     }
 
-    char* path = strdup(info->path);
-    if(path == NULL) {
+    file_info* copy = (file_info*) malloc(sizeof(file_info));
+    if(copy == NULL) {
         error_display(NULL, NULL, "Failed to allocate program data.");
         return;
     }
 
-    prompt_display_yes_no("Confirmation", "Install a HOME Menu icon that starts this program? The .3dsx stays where it is.", COLOR_TEXT, path,
-                          NULL, files_forwarder_response);
+    *copy = *info;
+    prompt_display_yes_no("Confirmation", "Install a HOME Menu icon that starts this program? The .3dsx stays where it is.", COLOR_TEXT, copy,
+                          task_draw_file_info, files_forwarder_response);
 }
 
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }

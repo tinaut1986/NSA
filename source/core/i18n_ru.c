@@ -1329,6 +1329,13 @@ const i18n_entry i18n_ru[] = {
         {"Go down to Web PIN.", "Спуститесь до PIN веб."},
         {"Web PIN: Random makes a new PIN each time the server starts, Fixed keeps one between launches (you type it, or make a random one on the keypad), and None opens the page without a PIN, only for a network you trust.", "PIN веб: Случайный делает новый при каждом запуске сервера, Постоянный хранит один между запусками (вы вводите его сами или делаете случайный на клавиатуре), а Нет открывает страницу без PIN, только для сети, которой вы доверяете."},
         {"When a browser asks for the PIN, the console shows it at the bottom of the screen.", "Когда браузер просит PIN, консоль показывает его внизу экрана."},
+        {"Copy files to and from the SD card with an FTP program. Press A to turn it on or off.", "Копируйте файлы на SD-карту и с неё программой FTP. Нажмите A, чтобы включить или выключить."},
+        {"Manage the console from a computer's browser. Press A to turn it on or off.", "Управляйте консолью из браузера компьютера. Нажмите A, чтобы включить или выключить."},
+        {" turn on or off    back", " включить или выключить    назад"},
+        {"Status", "Состояние"},
+        {"PIN", "PIN"},
+        {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "Две маленькие кнопки рядом с Историей включают и выключают FTP-сервер и веб-сервер. Наведитесь на одну, и верхний экран покажет её адрес (у веб-сервера ещё PIN и QR-код)."},
+        {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "FTP-сервер и веб-сервер можно также включать и выключать в разделе «Удаленная установка» двумя маленькими кнопками рядом с Историей."},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

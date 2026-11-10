@@ -1328,6 +1328,13 @@ const i18n_entry i18n_fr[] = {
         {"Go down to Web PIN.", "Descendez jusqu'à PIN web."},
         {"Web PIN: Random makes a new PIN each time the server starts, Fixed keeps one between launches (you type it, or make a random one on the keypad), and None opens the page without a PIN, only for a network you trust.", "PIN web : Aléatoire en crée un nouveau à chaque démarrage du serveur, Fixe en garde un entre les lancements (vous le tapez, ou vous en faites un aléatoire sur le pavé) et Aucun ouvre la page sans PIN, seulement pour un réseau de confiance."},
         {"When a browser asks for the PIN, the console shows it at the bottom of the screen.", "Quand un navigateur demande le PIN, la console l'affiche en bas de l'écran."},
+        {"Copy files to and from the SD card with an FTP program. Press A to turn it on or off.", "Copiez des fichiers vers et depuis la carte SD avec un programme FTP. Appuyez sur A pour l'activer ou le désactiver."},
+        {"Manage the console from a computer's browser. Press A to turn it on or off.", "Gérez la console depuis le navigateur d'un ordinateur. Appuyez sur A pour l'activer ou le désactiver."},
+        {" turn on or off    back", " activer ou désactiver    retour"},
+        {"Status", "État"},
+        {"PIN", "PIN"},
+        {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "Les deux petits boutons à côté de l'Historique activent ou désactivent le serveur FTP et le serveur web. Placez-vous sur l'un d'eux et l'écran du haut affiche son adresse (pour le web, aussi le PIN et un code QR)."},
+        {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "Vous pouvez aussi activer ou désactiver le serveur FTP et le serveur web depuis Installation à distance, avec les deux petits boutons à côté de l'Historique."},
 };
 
 const u32 i18n_fr_count = sizeof(i18n_fr) / sizeof(*i18n_fr);

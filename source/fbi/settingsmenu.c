@@ -616,7 +616,7 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
 
 // The web page's address and PIN as a QR code, to open it from a phone's camera: dark modules on a white square with
 // a quiet zone of 4 modules. Made again only when the address changes.
-static void settingsmenu_draw_web_qr(float x, float y, float side) {
+void settingsmenu_draw_web_qr(float x, float y, float side) {
     static qr_code qr;
     static char encoded[96] = "";
 
@@ -644,8 +644,9 @@ static void settingsmenu_draw_web_qr(float x, float y, float side) {
     }
 
     float drawn = (float) (module * total);
-    float ox = x + (side - drawn) / 2;
-    float oy = y + (side - drawn) / 2;
+    // On whole pixels too: a half pixel rounds differently for each eye in 3D, and some columns come out wider.
+    float ox = floorf(x + (side - drawn) / 2);
+    float oy = floorf(y + (side - drawn) / 2);
     screen_fill_rect(ox, oy, drawn, drawn, 0xFFFFFFFF);
     for(int my = 0; my < qr.size; my++) {
         for(int mx = 0; mx < qr.size; mx++) {

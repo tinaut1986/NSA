@@ -177,6 +177,15 @@ What `release` holds, in the order it was built:
   screens in English and Spanish, a recording. To try on the consoles: the C-Stick and ZL/ZR on the New 3DS XL and their
   absence on the 2DS, real sensor values and their signs, a recording with the lid closed, 60 rows a second, the guide
   chapters Wi-Fi connections and Date and time from Settings -> Guide.
+  Second round (the owner on the New 3DS XL: "22 of 23" without saying which was missing, A counted on entering, a
+  way to see drift): the touch screen has its own pill on the top screen (it was counted but not drawn); keys held when
+  the screen opens count only once let go and pressed again; each stick has a cross at its centre, hollow direction
+  marks until pushed that way and a box beside it with the centre magnified (25 raw units to the edge, a green ring of
+  10, the last 1.5 s as dots, the dot amber outside the ring and "Drift N" under it); the 3D slider (not on a 2DS or New
+  2DS XL) and the volume count once taken from one end to the other, with marks at the lowest and highest reached.
+  New guide chapter `hwtest` (0.12): System -> Hardware tests and what the screens show. The Chinese texts were
+  worded with characters already in the atlas (see Known issues). Claude, 2026-11-10, Azahar: 0 of 25 on entering with
+  A, the touch pill, the drift boxes, the chapter's first four steps.
 - [ ] Web PIN (2026-11-10, `feat/web-pin-modes`; issue #44 by Phibonacci): Settings -> Web PIN steps Random (a new PIN at each start, as before), Fixed (kept between launches) and None (the page opens without a PIN; what changes something still needs the `X-Pin` header, even empty). A row Fixed PIN shows only in Fixed and opens NSA's own keypad (`pinpad.c`: six digits on the top screen, a key with turning arrows makes a random one). When a browser asks for the PIN and has no valid one, the bottom screen shows it for 15 s (until the page signs in at /api/info). The web page tries to sign in with no PIN when it has none saved. Guide chapter `computer` (new steps, 0.12: 0.11 went out with v0.9.4) and the 10 languages. Claude, 2026-11-10, New 3DS XL: the toast, the keypad and Fixed worked (the owner tried the rows and the keypad by touch). Not tried: None with the page open from a browser; the Old 3DS.
 - [ ] Boot logo (2026-11-10, `feat/boot-logo`, `tools/make_logo.py`; issue #15): NSA's own logo while the HOME menu
   starts it, signed with the HOME menu's HMAC key (kept out of the repository, `~/.3ds/logo_hmackey_text`). The owner

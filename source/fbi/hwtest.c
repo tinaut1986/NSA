@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,6 +46,10 @@ static bool hwtest_arrow_at(const touchPosition* pos) {
 #define TRAIL_MAX 240
 #define TRAIL_LIFE 1500      // ms a touched point stays on the screen.
 #define BACK_HOLD 1000       // ms B is held to leave.
+#define STICK_RANGE 156      // Raw units from the centre to the edge (Circle Pad and C-Stick).
+#define DRIFT_SPAN 25        // Raw units from the centre to the edge of a stick's drift box.
+#define DRIFT_OK 10          // A stick at rest within this many raw units of the centre is fine.
+#define DRIFT_HISTORY 90     // Positions kept for the drift boxes: 1.5 s.
 
 typedef struct {
     u16 x;
@@ -54,12 +59,23 @@ typedef struct {
 
 typedef struct {
     bool isNew;
+    bool has3d;          // A 2DS and a New 2DS XL have no 3D slider.
     u32 seen;            // Every key pressed at least once.
     u32 held;
+    u32 ignore;          // Held when the screen opened (the A that opened it): not counted until let go.
     circlePosition pad;
     circlePosition stick;
+    circlePosition padHistory[DRIFT_HISTORY];
+    circlePosition stickHistory[DRIFT_HISTORY];
+    u32 historyNext;
+    u32 historyCount;
+
     float slider;
+    float sliderMin;
+    float sliderMax;
     u8 volume;
+    u8 volumeMin;
+    u8 volumeMax;
     bool volumeKnown;
 
     trail_point trail[TRAIL_MAX];
@@ -92,16 +108,25 @@ static u32 buttons_count(u32 bits) {
     return n;
 }
 
+// A slider counts once it has been taken from one end to the other.
+static bool buttons_slider_done(const buttons_data* d) {
+    return d->sliderMin <= 0.02f && d->sliderMax >= 0.98f;
+}
+
+static bool buttons_volume_done(const buttons_data* d) {
+    return d->volumeKnown && d->volumeMin <= 1 && d->volumeMax >= 62;
+}
+
 // A key's colours: held now, pressed before, never pressed, or absent from this console.
-static void buttons_colors(const buttons_data* data, u32 key, bool present, u32* fill, u32* ink) {
+static void buttons_state_colors(bool present, bool held, bool seen, u32* fill, u32* ink) {
     const theme_current* t = theme();
     if(!present) {
         *fill = THEME_ALPHA(t->palette->border, 0x60);
         *ink = THEME_ALPHA(t->palette->textMuted, 0x80);
-    } else if(data->held & key) {
+    } else if(held) {
         *fill = t->accent;
         *ink = t->onAccent;
-    } else if(data->seen & key) {
+    } else if(seen) {
         *fill = t->accentSoft;
         *ink = t->accent;
     } else {
@@ -110,65 +135,129 @@ static void buttons_colors(const buttons_data* data, u32 key, bool present, u32*
     }
 }
 
-static void buttons_key(const buttons_data* data, u32 key, bool present, float x, float y, float w, float h, float radius, const char* label) {
+static void buttons_pill(bool present, bool held, bool seen, float x, float y, float w, float h, float radius, const char* label) {
     const theme_current* t = theme();
     u32 fill = 0;
     u32 ink = 0;
-    buttons_colors(data, key, present, &fill, &ink);
-    screen_frame_round_rect(x, y, w, h, radius, t->def->border > 0 ? t->def->border : 1, (data->held & key) ? t->accent : t->palette->border, fill);
+    buttons_state_colors(present, held, seen, &fill, &ink);
+    screen_frame_round_rect(x, y, w, h, radius, t->def->border > 0 ? t->def->border : 1, held ? t->accent : t->palette->border, fill);
     if(label != NULL) {
-        widget_text_centered(label, x, x + w, y + (h - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, ink);
+        widget_text_fit(label, x + 4 + (w - 8 - widget_text_width(label, WIDGET_SMALL_SCALE) > 0 ? (w - 8 - widget_text_width(label, WIDGET_SMALL_SCALE)) / 2 : 0),
+                        y + (h - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, ink, w - 8);
     }
 }
 
-// A stick: its four directions as marks around a circle, and a dot where it is.
-static void buttons_stick(const buttons_data* data, float cx, float cy, float r, const circlePosition* pos, float range, u32 up, u32 down, u32 left, u32 right,
+static void buttons_key(const buttons_data* data, u32 key, bool present, float x, float y, float w, float h, float radius, const char* label) {
+    buttons_pill(present, (data->held & key) != 0, (data->seen & key) != 0, x, y, w, h, radius, label);
+}
+
+// A stick: its four directions as marks around a circle (hollow until pushed that way), a cross at the centre and a dot
+// where it is.
+static void buttons_stick(const buttons_data* data, float cx, float cy, float r, const circlePosition* pos, u32 up, u32 down, u32 left, u32 right,
                           bool present, const char* label) {
     const theme_current* t = theme();
     screen_fill_circle(cx, cy, r + 1, present ? t->palette->border : THEME_ALPHA(t->palette->border, 0x60));
     screen_fill_circle(cx, cy, r, present ? t->palette->surface : THEME_ALPHA(t->palette->surface, 0x80));
+    if(present) {
+        screen_fill_rect(cx - r + 3, cy, 2 * r - 6, 1, THEME_ALPHA(t->palette->border, 0xC0));
+        screen_fill_rect(cx, cy - r + 3, 1, 2 * r - 6, THEME_ALPHA(t->palette->border, 0xC0));
+    }
 
     const struct {
         u32 key;
         float dx;
         float dy;
     } marks[] = {{up, 0, -1}, {down, 0, 1}, {left, -1, 0}, {right, 1, 0}};
+    float markR = r >= 24 ? 4 : 3;
     for(u32 i = 0; i < COUNT_OF(marks); i++) {
-        u32 fill = 0;
-        u32 ink = 0;
-        buttons_colors(data, marks[i].key, present, &fill, &ink);
-        if(fill == t->palette->surface) {
-            fill = THEME_ALPHA(t->palette->border, 0xC0);
+        float mx = cx + marks[i].dx * (r - markR - 2);
+        float my = cy + marks[i].dy * (r - markR - 2);
+        if(!present) {
+            screen_fill_circle(mx, my, markR, THEME_ALPHA(t->palette->border, 0x60));
+        } else if(data->seen & marks[i].key) {
+            screen_fill_circle(mx, my, markR, (data->held & marks[i].key) ? t->accent : THEME_ALPHA(t->accent, 0xA0));
+        } else {
+            screen_fill_circle(mx, my, markR, t->palette->textMuted);
+            screen_fill_circle(mx, my, markR - 1.5f, t->palette->surface);
         }
-
-        screen_fill_circle(cx + marks[i].dx * (r - 5), cy + marks[i].dy * (r - 5), 3, fill);
     }
 
     if(present) {
-        float dx = pos->dx / range;
-        float dy = -pos->dy / range;
+        float dx = (float) pos->dx / STICK_RANGE;
+        float dy = (float) -pos->dy / STICK_RANGE;
         if(dx > 1) dx = 1;
         if(dx < -1) dx = -1;
         if(dy > 1) dy = 1;
         if(dy < -1) dy = -1;
-        screen_fill_circle(cx + dx * (r - 9), cy + dy * (r - 9), 7, t->accent);
+        float dot = r >= 24 ? 6 : 4;
+        screen_fill_circle(cx + dx * (r - dot - 2), cy + dy * (r - dot - 2), dot, t->accent);
     }
 
-    widget_text_centered(label, cx - r - 20, cx + r + 20, cy + r + 4, WIDGET_SMALL_SCALE, present ? t->palette->textMuted : THEME_ALPHA(t->palette->textMuted, 0x80));
+    widget_text_centered(label, cx - r - 30, cx + r + 30, cy + r + 4, WIDGET_SMALL_SCALE, present ? t->palette->textMuted : THEME_ALPHA(t->palette->textMuted, 0x80));
 }
 
-// A slider of the console's side (3D, volume): a vertical track filled to `fraction`.
-static void buttons_slider(float x, float y, float h, float fraction, const char* label, const char* value) {
+// A stick's centre, magnified: a ring where rest is fine, the last 1.5 s as faint dots and where it is now, green inside the
+// ring and amber outside, with its distance from the centre under it.
+static void buttons_drift(const buttons_data* d, const circlePosition* history, const circlePosition* now, float x, float y, float size, bool present) {
+    const theme_current* t = theme();
+    screen_frame_round_rect(x, y, size, size, 4, 1, present ? t->palette->border : THEME_ALPHA(t->palette->border, 0x60),
+                            present ? t->palette->surface : THEME_ALPHA(t->palette->surface, 0x80));
+    if(!present) {
+        return;
+    }
+
+    float cx = x + size / 2;
+    float cy = y + size / 2;
+    float scale = (size / 2 - 2) / DRIFT_SPAN;
+    screen_fill_circle(cx, cy, DRIFT_OK * scale + 1, THEME_ALPHA(t->palette->success, 0x90));
+    screen_fill_circle(cx, cy, DRIFT_OK * scale, THEME_ALPHA(t->palette->successSoft, 0xFF));
+    screen_fill_rect(x + 2, cy, size - 4, 1, THEME_ALPHA(t->palette->border, 0xC0));
+    screen_fill_rect(cx, y + 2, 1, size - 4, THEME_ALPHA(t->palette->border, 0xC0));
+
+    float lim = DRIFT_SPAN;
+    for(u32 n = 0; n < d->historyCount; n++) {
+        float hx = history[n].dx;
+        float hy = -history[n].dy;
+        if(hx > lim || hx < -lim || hy > lim || hy < -lim) {
+            continue;
+        }
+
+        screen_fill_rect(cx + hx * scale - 0.5f, cy + hy * scale - 0.5f, 1.5f, 1.5f, THEME_ALPHA(t->accent, 0x60));
+    }
+
+    float px = now->dx;
+    float py = -now->dy;
+    float dist = sqrtf(px * px + py * py);
+    if(px > lim) px = lim;
+    if(px < -lim) px = -lim;
+    if(py > lim) py = lim;
+    if(py < -lim) py = -lim;
+    screen_fill_circle(cx + px * scale, cy + py * scale, 3, dist <= DRIFT_OK ? t->palette->success : t->palette->warning);
+
+    char text[32];
+    snprintf(text, sizeof(text), _("Drift %d"), (int) (dist + 0.5f));
+    widget_text_centered(text, x - 14, x + size + 14, y + size + 2, WIDGET_SMALL_SCALE, dist <= DRIFT_OK ? t->palette->textMuted : t->palette->warning);
+}
+
+// A slider of the console's side (3D, volume): a vertical track filled to `fraction`, marks at the lowest and highest
+// it has been, and its name as a pill that fills in once it has gone from one end to the other.
+static void buttons_slider(float x, float y, float h, float fraction, float low, float high, bool present, bool done, const char* label, const char* value) {
     const theme_current* t = theme();
     float w = 10;
-    screen_fill_round_rect(x, y, w, h, w / 2, THEME_ALPHA(t->palette->border, 0xC0));
-    if(fraction > 0) {
+    screen_fill_round_rect(x, y, w, h, w / 2, THEME_ALPHA(t->palette->border, present ? 0xC0 : 0x50));
+    if(present && fraction > 0) {
         float fh = h * (fraction > 1 ? 1 : fraction);
         screen_fill_round_rect(x, y + h - fh, w, fh, w / 2, t->accent);
     }
 
-    widget_text_centered(label, x - 30, x + w + 30, y + h + 4, WIDGET_SMALL_SCALE, t->palette->textMuted);
-    widget_text_centered(value, x - 30, x + w + 30, y + h + 4 + widget_text_height(WIDGET_SMALL_SCALE) + 1, WIDGET_SMALL_SCALE, t->palette->text);
+    if(present) {
+        screen_fill_rect(x - 4, y + h - h * low - 1, 3, 2, t->palette->textMuted);
+        screen_fill_rect(x - 4, y + h - h * high - 1, 3, 2, t->palette->textMuted);
+    }
+
+    float pw = 56;
+    buttons_pill(present, false, done, x + w / 2 - pw / 2, y + h + 4, pw, 16, 8, label);
+    widget_text_centered(value, x - 30, x + w + 30, y + h + 22, WIDGET_SMALL_SCALE, present ? t->palette->text : t->palette->textMuted);
 }
 
 static void buttons_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -182,33 +271,42 @@ static void buttons_draw_top(ui_view* view, void* data, float x1, float y1, floa
     buttons_key(d, KEY_R, true, x2 - 84, sy, 74, 22, 8, "R");
     buttons_key(d, KEY_ZR, d->isNew, x2 - 134, sy, 44, 22, 8, "ZR");
 
-    // How far the test is.
+    // How far the test is: the keys, the touch screen and the sliders.
     u32 all = buttons_all(d);
-    char done[64];
-    snprintf(done, sizeof(done), _("Pressed %lu of %lu"), buttons_count(d->seen & all), buttons_count(all));
-    bool complete = (d->seen & all) == all;
-    float bw = widget_text_width(done, WIDGET_SMALL_SCALE) + 12;
+    u32 total = buttons_count(all) + (d->has3d ? 1 : 0) + (d->volumeKnown ? 1 : 0);
+    u32 done = buttons_count(d->seen & all) + (d->has3d && buttons_slider_done(d) ? 1 : 0) + (buttons_volume_done(d) ? 1 : 0);
+    char count[64];
+    snprintf(count, sizeof(count), _("Pressed %lu of %lu"), done, total);
+    bool complete = done == total;
+    float bw = widget_text_width(count, WIDGET_SMALL_SCALE) + 12;
     float mid = (x1 + x2) / 2;
-    widget_badge(mid - bw / 2, sy + 3, done, complete ? t->palette->successSoft : t->accentSoft, complete ? t->palette->success : t->accent);
+    widget_badge(mid - bw / 2, sy + 3, count, complete ? t->palette->successSoft : t->accentSoft, complete ? t->palette->success : t->accent);
 
-    // Left: the Circle Pad over the D-Pad.
-    float lx = x1 + 72;
-    buttons_stick(d, lx, y1 + 76, 30, &d->pad, 156, KEY_CPAD_UP, KEY_CPAD_DOWN, KEY_CPAD_LEFT, KEY_CPAD_RIGHT, true, _("Circle Pad"));
+    // The touch screen counts too: lit while touched.
+    buttons_key(d, KEY_TOUCH, true, mid - 52, sy + 28, 104, 18, 9, _("Touch screen"));
 
-    float dpy = y1 + 162;
-    float arm = 20;
+    // Left: the Circle Pad (and its centre, magnified) over the D-Pad.
+    float lx = x1 + 60;
+    float padY = y1 + 84;
+    buttons_stick(d, lx, padY, 30, &d->pad, KEY_CPAD_UP, KEY_CPAD_DOWN, KEY_CPAD_LEFT, KEY_CPAD_RIGHT, true, _("Circle Pad"));
+    buttons_drift(d, d->padHistory, &d->pad, lx + 38, padY - 26, 36, true);
+
+    float dpy = y1 + 166;
+    float arm = 18;
     buttons_key(d, KEY_DUP, true, lx - arm / 2, dpy - arm * 1.5f, arm, arm, 4, NULL);
     buttons_key(d, KEY_DDOWN, true, lx - arm / 2, dpy + arm / 2, arm, arm, 4, NULL);
     buttons_key(d, KEY_DLEFT, true, lx - arm * 1.5f, dpy - arm / 2, arm, arm, 4, NULL);
     buttons_key(d, KEY_DRIGHT, true, lx + arm / 2, dpy - arm / 2, arm, arm, 4, NULL);
     screen_fill_rect(lx - arm / 2 + 1, dpy - arm / 2, arm - 2, arm, t->palette->border);
-    widget_text_centered(_("D-Pad"), lx - 40, lx + 40, dpy + arm * 1.5f + 4, WIDGET_SMALL_SCALE, t->palette->textMuted);
+    widget_text_centered(_("D-Pad"), lx - 50, lx + 50, dpy + arm * 1.5f + 3, WIDGET_SMALL_SCALE, t->palette->textMuted);
 
-    // Right: the C-Stick over A, B, X and Y.
-    float rx = x2 - 72;
-    buttons_stick(d, rx, y1 + 64, 16, &d->stick, 156, KEY_CSTICK_UP, KEY_CSTICK_DOWN, KEY_CSTICK_LEFT, KEY_CSTICK_RIGHT, d->isNew, _("C-Stick"));
+    // Right: the C-Stick (and its centre) over A, B, X and Y.
+    float rx = x2 - 60;
+    float stickY = y1 + 72;
+    buttons_stick(d, rx, stickY, 18, &d->stick, KEY_CSTICK_UP, KEY_CSTICK_DOWN, KEY_CSTICK_LEFT, KEY_CSTICK_RIGHT, d->isNew, _("C-Stick"));
+    buttons_drift(d, d->stickHistory, &d->stick, rx - 18 - 8 - 36, stickY - 18, 36, d->isNew);
 
-    float fy = y1 + 152;
+    float fy = y1 + 158;
     float fr = 12;
     float gap = 21;
     const struct {
@@ -226,32 +324,32 @@ static void buttons_draw_top(ui_view* view, void* data, float x1, float y1, floa
     // B held to leave: a bar under the buttons fills up.
     if(d->backSince != 0) {
         float progress = (float) (osGetTime() - d->backSince) / BACK_HOLD;
-        widget_progress(rx - 40, fy + gap + fr + 6, 80, 4, progress > 1 ? 1 : progress);
+        widget_progress(rx - 40, fy + gap + fr + 4, 80, 4, progress > 1 ? 1 : progress);
     }
 
-    // Middle: SELECT and START, the sliders and the sticks' numbers.
-    float by = y2 - 32;
-    buttons_key(d, KEY_SELECT, true, mid - 82, by, 76, 20, 10, "SELECT");
-    buttons_key(d, KEY_START, true, mid + 6, by, 76, 20, 10, "START");
-
+    // Middle: the sliders, then SELECT and START.
     char value[32];
-    snprintf(value, sizeof(value), "%d %%", (int) (d->slider * 100 + 0.5f));
-    buttons_slider(mid - 40, y1 + 52, 70, d->slider, _("3D"), value);
+    if(d->has3d) {
+        snprintf(value, sizeof(value), "%d %%", (int) (d->slider * 100 + 0.5f));
+    } else {
+        string_copy(value, "-", sizeof(value));
+    }
+
+    float slY = y1 + 64;
+    float slH = 76;
+    buttons_slider(mid - 34, slY, slH, d->slider, d->sliderMin, d->sliderMax, d->has3d, buttons_slider_done(d), _("3D"), value);
     if(d->volumeKnown) {
         snprintf(value, sizeof(value), "%d %%", (int) (d->volume * 100 / 63));
     } else {
         string_copy(value, "-", sizeof(value));
     }
 
-    buttons_slider(mid + 30, y1 + 52, 70, d->volumeKnown ? d->volume / 63.0f : 0, _("Volume"), value);
+    buttons_slider(mid + 24, slY, slH, d->volumeKnown ? d->volume / 63.0f : 0, d->volumeMin / 63.0f, d->volumeMax / 63.0f, d->volumeKnown,
+                   buttons_volume_done(d), _("Volume"), value);
 
-    char line[64];
-    snprintf(line, sizeof(line), "%s  %+4d %+4d", _("Circle Pad"), d->pad.dx, d->pad.dy);
-    widget_text_centered(line, mid - 70, mid + 70, by - 30, WIDGET_SMALL_SCALE, t->palette->textMuted);
-    if(d->isNew) {
-        snprintf(line, sizeof(line), "%s  %+4d %+4d", _("C-Stick"), d->stick.dx, d->stick.dy);
-        widget_text_centered(line, mid - 70, mid + 70, by - 30 + widget_text_height(WIDGET_SMALL_SCALE) + 1, WIDGET_SMALL_SCALE, t->palette->textMuted);
-    }
+    float by = y2 - 28;
+    buttons_key(d, KEY_SELECT, true, mid - 70, by, 64, 20, 10, "SELECT");
+    buttons_key(d, KEY_START, true, mid + 6, by, 64, 20, 10, "START");
 }
 
 static void buttons_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -280,7 +378,7 @@ static void buttons_draw_bottom(ui_view* view, void* data, float x1, float y1, f
         screen_fill_circle(p->x, p->y, 3, THEME_ALPHA(t->accent, alpha));
     }
 
-    if(d->touching) {
+    if(d->touching && !d->arrowTouched) {
         float px = d->touch.px;
         float py = d->touch.py;
         screen_fill_rect(x1, py, x2 - x1, 1, THEME_ALPHA(t->accent, 0x80));
@@ -315,16 +413,48 @@ static void buttons_update(ui_view* view, void* data, float bx1, float by1, floa
 
     u32 down = hidKeysDown();
     u32 held = hidKeysHeld();
-    d->held = held;
-    d->seen |= held;
+    // What was held when the screen opened counts once it is let go and pressed again.
+    d->ignore &= held;
+    d->held = held & ~d->ignore;
+    d->seen |= d->held;
 
     hidCircleRead(&d->pad);
     if(d->isNew) {
         hidCstickRead(&d->stick);
     }
 
-    d->slider = osGet3DSliderState();
-    d->volumeKnown = R_SUCCEEDED(HIDUSER_GetSoundVolume(&d->volume));
+    d->padHistory[d->historyNext] = d->pad;
+    d->stickHistory[d->historyNext] = d->stick;
+    d->historyNext = (d->historyNext + 1) % DRIFT_HISTORY;
+    if(d->historyCount < DRIFT_HISTORY) {
+        d->historyCount++;
+    }
+
+    d->slider = d->has3d ? osGet3DSliderState() : 0;
+    if(d->slider < d->sliderMin) {
+        d->sliderMin = d->slider;
+    }
+
+    if(d->slider > d->sliderMax) {
+        d->sliderMax = d->slider;
+    }
+
+    bool known = R_SUCCEEDED(HIDUSER_GetSoundVolume(&d->volume));
+    if(known && !d->volumeKnown) {
+        d->volumeMin = d->volume;
+        d->volumeMax = d->volume;
+    }
+
+    d->volumeKnown = known;
+    if(known) {
+        if(d->volume < d->volumeMin) {
+            d->volumeMin = d->volume;
+        }
+
+        if(d->volume > d->volumeMax) {
+            d->volumeMax = d->volume;
+        }
+    }
 
     touchPosition pos;
     hidTouchRead(&pos);
@@ -376,6 +506,13 @@ void hwtest_buttons_open() {
     }
 
     data->isNew = hwtest_is_new3ds();
+    u8 model = CFG_MODEL_3DS;
+    CFGU_GetSystemModel(&model);
+    data->has3d = model != CFG_MODEL_2DS && model != CFG_MODEL_N2DSXL;
+    data->ignore = hidKeysHeld();
+    data->slider = data->has3d ? osGet3DSliderState() : 0;
+    data->sliderMin = data->slider;
+    data->sliderMax = data->slider;
 
     ui_view* view = ui_create();
     view->name = _("Buttons and touch");

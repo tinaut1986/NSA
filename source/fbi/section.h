@@ -4,6 +4,9 @@ void mainmenu_open();
 
 void dumpnand_open();
 void wificonnections_open();
+// System -> Hardware tests (hwtest.c).
+void hwtest_buttons_open();
+void hwtest_motion_open();
 void extsavedata_open();
 void files_open(FS_ArchiveID archiveId, FS_Path archivePath);
 void files_open_sd();

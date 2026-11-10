@@ -1486,7 +1486,8 @@ current, this list is the summary. What only the owner can test (local wireless)
     - Date of creation: not available (the 3DS only gives the last change); NSA could record its own.
 
 11. **A HOME Menu icon for a .3dsx: make a forwarder CIA** (asked on Reddit by rhinofinger in the first thread, 2026-10; the
-    owner answered it could be done; not started, no issue yet). A small CIA that only starts the .3dsx, which stays where it
+    owner answered it could be done; not started; issue #46). After-Pop-2000 made a standalone app for it since,
+    [3DSX-Forwarder / MULTI-Forwarder](https://github.com/LBpartition/3DSX-Forwarder) (MIT; .3dsx, .nds, .gba, SNES): look at it first. A small CIA that only starts the .3dsx, which stays where it
     is; its icon and name come from the .3dsx's SMDH, and the user may give a banner picture and a jingle. Plan (2026-11-07):
     - **The stub**: a tiny app built with NSA (devkitARM + makerom on the PC, kept in `romfs:/forwarder.cxi`) that reads a path
       patched into its own `.code` (a 512-byte buffer after a marker, so no RomFS and no hash tree), calls `hb:ldr` SetTarget /

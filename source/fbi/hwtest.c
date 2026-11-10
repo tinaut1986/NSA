@@ -304,7 +304,7 @@ static void buttons_draw_top(ui_view* view, void* data, float x1, float y1, floa
     float rx = x2 - 60;
     float stickY = y1 + 72;
     buttons_stick(d, rx, stickY, 18, &d->stick, KEY_CSTICK_UP, KEY_CSTICK_DOWN, KEY_CSTICK_LEFT, KEY_CSTICK_RIGHT, d->isNew, _("C-Stick"));
-    buttons_drift(d, d->stickHistory, &d->stick, rx - 18 - 8 - 36, stickY - 18, 36, d->isNew);
+    buttons_drift(d, d->stickHistory, &d->stick, rx - 18 - 28 - 36, stickY - 18, 36, d->isNew);
 
     float fy = y1 + 158;
     float fr = 12;

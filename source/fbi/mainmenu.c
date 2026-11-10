@@ -15,7 +15,8 @@
 // The main menu: the three everyday entries as big tiles, then two groups
 // (Cleanup and data, Advanced) and System and Settings. A group opens a list
 // of its entries; Advanced asks once per session before opening. System shows
-// the console at a glance and opens the list of its details.
+// the console at a glance and opens its own groups: Information (the details),
+// Console settings and Hardware tests.
 
 typedef struct mainmenu_entry_s mainmenu_entry;
 
@@ -53,13 +54,32 @@ static const mainmenu_entry advanced[] = {
 
 // System's details: nothing to open, each draws its page on the top screen.
 static const mainmenu_entry details[] = {
-        {ICON_3DS, "Console", "", "Model, versions, date and time", datetime_open, -1, -1, systeminfo_draw_console},
-        {ICON_WIFI, "Network", "", "Wi-Fi, addresses and servers", wificonnections_open, -1, -1, systeminfo_draw_network},
+        {ICON_3DS, "Console", "", "Model, versions and region", NULL, -1, -1, systeminfo_draw_console},
+        {ICON_WIFI, "Network", "", "Wi-Fi, addresses and servers", NULL, -1, -1, systeminfo_draw_network},
         {ICON_DEVICE_SD_CARD, "Storage", "", "SD card and system memories", NULL, -1, -1, systeminfo_draw_storage},
         {ICON_BATTERY_CHARGING, "Battery", "", "Charge, voltage, temperature, rate", NULL, -1, -1, systeminfo_draw_battery},
 };
 
+// What System lets you change on the console.
+static const mainmenu_entry console_settings[] = {
+        {ICON_CALENDAR, "Date and time", "The console's clock: set it by hand or from the Internet, with your time zone and summer time.", "Clock, time zone, format", datetime_open, -1, -1},
+        {ICON_WIFI, "Wi-Fi connections", "The console's three connections and the copies on the SD card: save, edit and restore them.", "Save and restore them", wificonnections_open, -1, -1},
+};
+
+// Checks of the console's hardware (hwtest.c).
+static const mainmenu_entry hardware_tests[] = {
+        {ICON_DEVICE_GAMEPAD_2, "Buttons and touch", "Every button, the Circle Pad, the C-Stick, the sliders and the touch screen, live as you use them.", "Every input, live", hwtest_buttons_open, -1, -1},
+        {ICON_DEVICE_MOBILE, "Motion sensors", "The accelerometer and the gyroscope, live, and a recording of both to a CSV file on the SD card.", "Accelerometer and gyroscope", hwtest_motion_open, -1, -1},
+};
+
 #define COUNT_OF(a) (sizeof(a) / sizeof(*(a)))
+
+// System's own list: three groups.
+static const mainmenu_entry system_groups[] = {
+        {ICON_INFO_CIRCLE, "Information", "", "Console, network, battery", NULL, -1, -1, systeminfo_draw_top, details, COUNT_OF(details), false},
+        {ICON_SETTINGS, "Console settings", "What NSA can change on the console itself.", "Date and time, Wi-Fi", NULL, -1, -1, NULL, console_settings, COUNT_OF(console_settings), false},
+        {ICON_FLASK, "Hardware tests", "Check that the buttons, the touch screen and the motion sensors work.", "Buttons, touch, motion", NULL, -1, -1, NULL, hardware_tests, COUNT_OF(hardware_tests), false},
+};
 
 static const mainmenu_entry entries[] = {
         {ICON_DEVICE_SD_CARD, "SD card", "Browse the SD card: install CIAs and tickets, copy, rename and delete files.", NULL, files_open_sd, SYSTEM_MEDIATYPE_SD, -1},
@@ -68,7 +88,7 @@ static const mainmenu_entry entries[] = {
         {ICON_PACKAGE, "Store", "Homebrew from Universal-DB and the stores you add: browse them and install or download apps.", NULL, store_open, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_STACK_2, "Cleanup and data", "Licences, half-finished installs, the games' extra data and mods.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, cleanup, COUNT_OF(cleanup), false},
         {ICON_ALERT_TRIANGLE, "Advanced", "The console's own memories and system data. Handle with care.", NULL, NULL, SYSTEM_MEDIATYPE_CTR_NAND, SYSTEM_MEDIATYPE_TWL_NAND, NULL, advanced, COUNT_OF(advanced), true},
-        {ICON_3DS, "System", "The console at a glance: model, versions, network, battery and space.", NULL, NULL, -1, -1, systeminfo_draw_top, details, COUNT_OF(details), false},
+        {ICON_3DS, "System", "The console at a glance: model, versions, network, battery and space.", NULL, NULL, -1, -1, systeminfo_draw_top, system_groups, COUNT_OF(system_groups), false},
         {ICON_SETTINGS, "Settings", "Theme, colours, language, updates and the FTP server.", NULL, settingsmenu_open, -1, -1},
 };
 
@@ -461,6 +481,13 @@ static void mainmenu_draw_storage(const mainmenu_entry* entry, float x1, float y
 
 // ---- a group: its entries in a list ----
 
+static void mainmenu_open_entry(const mainmenu_entry* entry);
+
+// What opens another screen or a group; System's details only show.
+static bool mainmenu_entry_opens(const mainmenu_entry* entry) {
+    return entry->open != NULL || entry->children != NULL;
+}
+
 static void mainmenu_group_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     const theme_current* t = theme();
     const mainmenu_entry* entry = (const mainmenu_entry*) item->data;
@@ -472,7 +499,7 @@ static void mainmenu_group_draw_row(void* data, list_item* item, float x, float 
     float tx = x + 33;
     float right = x + width - 9;
     // What opens another screen says so; System's details only show.
-    if(entry->open != NULL) {
+    if(mainmenu_entry_opens(entry)) {
         right = widget_row_chevron(right, y, height, selected);
     }
 
@@ -503,7 +530,7 @@ static void mainmenu_group_update(ui_view* view, void* data, linked_list* items,
     const mainmenu_entry* group = (const mainmenu_entry*) data;
     view->name = _(group->name);
     // System's details only show: nothing to open.
-    bool opens = selected == NULL || ((const mainmenu_entry*) selected->data)->open != NULL;
+    bool opens = selected == NULL || mainmenu_entry_opens((const mainmenu_entry*) selected->data);
     view->info = opens ? _(" open    back") : _(" back");
 
     if(hidKeysDown() & KEY_B) {
@@ -532,8 +559,8 @@ static void mainmenu_group_update(ui_view* view, void* data, linked_list* items,
         }
     }
 
-    if(selected != NULL && ((const mainmenu_entry*) selected->data)->open != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
-        ((const mainmenu_entry*) selected->data)->open();
+    if(selected != NULL && mainmenu_entry_opens((const mainmenu_entry*) selected->data) && (selectedTouched || (hidKeysDown() & KEY_A))) {
+        mainmenu_open_entry((const mainmenu_entry*) selected->data);
     }
 }
 

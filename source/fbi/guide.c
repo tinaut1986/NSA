@@ -174,7 +174,7 @@ static const coach_step look_steps[] = {
 static const coach_step cleanup_steps[] = {
         INFO("menu.cleanup", "Tickets, half-finished installs and the games' extra data: free space or back it up."),
         INFO("menu.system", "The console at a glance: model, versions, network, storage and battery."),
-        INFO_SINCE(GUIDE_VERSION(0, 11), "menu.system", "Inside, \uE000 on Console opens Date and time, and on Network your Wi-Fi connections."),
+        INFO_SINCE(GUIDE_VERSION(0, 12), "menu.system", "Inside: Information, Console settings (Date and time, Wi-Fi connections) and Hardware tests, for the buttons, the touch screen and the motion sensors."),
         INFO("menu.advanced", "The console's own memories. NSA asks before going in: a wrong change there can stop the console from starting."),
 };
 
@@ -209,22 +209,34 @@ static const coach_step updates_steps[] = {
 
 static const coach_step wifi_steps[] = {
         OPEN("menu.system", "Open System.", "v:System"),
-        OPEN("Network", "Go down to Network and open it with \uE000.", "v:Wi-Fi connections"),
+        OPEN("Console settings", "Go down to Console settings and open it with \uE000.", "v:Console settings"),
+        OPEN("Wi-Fi connections", "Go down to Wi-Fi connections and open it with \uE000.", "v:Wi-Fi connections"),
         INFO("list", "Your console's three connections, then the copies saved on the SD card: the same ones WifiManager keeps in /3ds/WifiManager."),
         INFO("list.selected", "\uE000 on a connection: save a copy (with an alias, if you like), edit it, delete it, or write a saved copy there."),
         INFO("list.selected", "\uE000 on a copy: write it to a connection, edit it, rename its alias or delete it."),
         INFO("list.selected", "Not connected, NSA connects with what you write at once (or with Connect). The network the console is on changes only after sleep mode."),
         INFO("hints", "\uE003 shows the passwords, to type one on another device."),
-        DO("back", "\uE001 goes back to System, and again to the menu.", KEY_B, true, "v:Main menu"),
+        DO("back", "\uE001 goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),
 };
 
 static const coach_step datetime_steps[] = {
         OPEN("menu.system", "Open System.", "v:System"),
-        OPEN("Console", "Console has the focus: open it with \uE000.", "v:Date and time"),
+        OPEN("Console settings", "Go down to Console settings and open it with \uE000.", "v:Console settings"),
+        OPEN("Date and time", "Date and time has the focus: open it with \uE000.", "v:Date and time"),
         INFO("list.selected", "\uE000 here opens a calendar, then wheels for the hours, minutes and seconds: drag them or turn them with the D-Pad."),
         INFO("list", "Set the time from the Internet puts the clock right, now or each time NSA opens. The console's clock has no time zone: NSA adds yours and summer time."),
         INFO("list", "Clock and Date order: 24 or 12 hours, day or month first. By region, they follow your console's region."),
-        DO("back", "\uE001 goes back to System, and again to the menu.", KEY_B, true, "v:Main menu"),
+        DO("back", "\uE001 goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),
+};
+
+static const coach_step hwtest_steps[] = {
+        OPEN("menu.system", "Open System.", "v:System"),
+        OPEN("Hardware tests", "Go down to Hardware tests and open it with \uE000.", "v:Hardware tests"),
+        INFO("list", "Buttons and touch lights each key while you hold it and keeps the ones you pressed marked; the counter at the top says how many are left. The touch screen counts, and so do the 3D and volume sliders once taken from one end to the other."),
+        INFO("list", "Beside each stick, a box shows its centre magnified: at rest the dot should stay inside the green ring. Drift is how far from the centre it is."),
+        INFO("list", "There \uE001 is under test too: hold it for a second to leave, or tap the arrow."),
+        INFO("list", "Motion sensors shows the accelerometer and the gyroscope live. \uE000 records both to a CSV file in /nsa/logs, also with the lid closed."),
+        DO("back", "\uE001 goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),
 };
 
 static const guide_chapter chapters[] = {
@@ -247,6 +259,7 @@ static const guide_chapter chapters[] = {
         // offered everything marked 0.9 (a chapter marked so would never be offered to it, as happened with mods and 0.8).
         {"wifi", GUIDE_VERSION(0, 10), false, "basics", ICON_WIFI, "Wi-Fi connections", "Save and restore your Wi-Fi settings", wifi_steps, COUNT_OF(wifi_steps)},
         {"datetime", GUIDE_VERSION(0, 11), false, "basics", ICON_CALENDAR, "Date and time", "Its format, and the clock from the Internet", datetime_steps, COUNT_OF(datetime_steps)},
+        {"hwtest", GUIDE_VERSION(0, 12), false, "basics", ICON_FLASK, "Hardware tests", "Buttons, touch screen and motion sensors", hwtest_steps, COUNT_OF(hwtest_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)

@@ -86,6 +86,7 @@ void keys_draw(const key_rect* k, bool pressed, u32 shift) {
         case K_CLEAR: icon = ICON_TRASH; break;
         case K_SAVE: icon = ICON_DEVICE_FLOPPY; label = _("Save"); break;
         case K_DONE: icon = ICON_CHECK; label = _("Done"); break;
+        case K_REFRESH: icon = ICON_REFRESH; break;
     }
 
     if(icon >= 0 && label != NULL) {

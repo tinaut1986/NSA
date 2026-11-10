@@ -15,6 +15,7 @@
 #include "section.h"
 #include "settings.h"
 #include "ftpserver.h"
+#include "webserver.h"
 #include "transfer.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -1011,6 +1012,11 @@ static void remoteinstall_order_save() {
     }
 }
 #define HISTORY_INDEX ENTRY_COUNT   // The last request's row, when there is one.
+// Two small buttons at the right of the history row: they turn the FTP server and the web server on or off (as Settings does).
+#define FTP_BUTTON (ENTRY_COUNT + 1)
+#define WEB_BUTTON (ENTRY_COUNT + 2)
+#define TARGET_COUNT (ENTRY_COUNT + 3)
+#define BUTTON_WIDTH 46
 #define TILE_HEIGHT 60
 #define HISTORY_HEIGHT 36
 #define GAP 6
@@ -1025,6 +1031,7 @@ typedef struct {
     bool haveLast;
     u32 lastCount;
     char lastHost[64];
+    char lastName[FILE_NAME_MAX];   // The file the newest request names (its first link).
     u32 lastVersion;
 
     u32 shown;
@@ -1045,6 +1052,13 @@ static void remoteinstall_read_last(remoteinstall_data* data) {
     if(data->haveLast) {
         char shown[1][DOWNLOAD_URL_MAX];
         data->lastCount = history_describe(&history[0], data->lastHost, sizeof(data->lastHost), shown, 1);
+
+        // The last part of the link's path, without its query: the file's name.
+        char path[DOWNLOAD_URL_MAX];
+        string_copy(path, shown[0], sizeof(path));
+        path[strcspn(path, "?#")] = '\0';
+        const char* slash = strrchr(path, '/');
+        string_url_decode(data->lastName, slash != NULL && slash[1] != '\0' ? slash + 1 : data->lastHost, sizeof(data->lastName));
     }
 }
 
@@ -1056,35 +1070,46 @@ static void remoteinstall_rect(u32 index, float x1, float y1, float x2, float* x
         *x = x1 + PAD + (index % 2) * (*w + GAP);
         *y = y1 + PAD + (index / 2) * (TILE_HEIGHT + GAP);
     } else {
-        *w = area;
         *h = HISTORY_HEIGHT;
-        *x = x1 + PAD;
         *y = y1 + PAD + 2 * (TILE_HEIGHT + GAP);
+        if(index == HISTORY_INDEX) {
+            *w = area - 2 * (BUTTON_WIDTH + GAP);
+            *x = x1 + PAD;
+        } else {
+            *w = BUTTON_WIDTH;
+            *x = x1 + PAD + area - (index == WEB_BUTTON ? BUTTON_WIDTH : 2 * BUTTON_WIDTH + GAP);
+        }
     }
 }
 
 static u32 remoteinstall_targets(remoteinstall_data* data) {
-    return ENTRY_COUNT + (data->haveLast ? 1 : 0);
+    return TARGET_COUNT;
+}
+
+// The history row is only there when there is a request; the tiles and the two buttons always are.
+static bool remoteinstall_has(remoteinstall_data* data, u32 index) {
+    return index != HISTORY_INDEX || data->haveLast;
 }
 
 // Two by two, the history row under both columns.
 static u32 remoteinstall_move(remoteinstall_data* data, u32 selected, u32 key) {
     bool history = data->haveLast;
-    if(selected == HISTORY_INDEX) {
-        if(key == KEY_UP) {
-            return 2;
-        } else if(key == KEY_DOWN) {
-            return 0;
+    // The bottom row: the history (when there is one), then the FTP and the web buttons.
+    if(selected >= ENTRY_COUNT) {
+        switch(key) {
+            case KEY_UP: return selected == HISTORY_INDEX ? 2 : 3;
+            case KEY_DOWN: return selected == WEB_BUTTON ? 1 : selected == FTP_BUTTON ? 1 : 0;
+            case KEY_LEFT: return selected == WEB_BUTTON ? FTP_BUTTON : selected == FTP_BUTTON && history ? HISTORY_INDEX : selected;
+            case KEY_RIGHT: return selected == HISTORY_INDEX ? FTP_BUTTON : selected == FTP_BUTTON ? WEB_BUTTON : selected;
+            default: return selected;
         }
-
-        return selected;
     }
 
     switch(key) {
         case KEY_LEFT: return selected % 2 == 1 ? selected - 1 : selected;
         case KEY_RIGHT: return selected % 2 == 0 ? selected + 1 : selected;
-        case KEY_UP: return selected >= 2 ? selected - 2 : (history ? HISTORY_INDEX : selected + 2);
-        case KEY_DOWN: return selected < 2 ? selected + 2 : (history ? HISTORY_INDEX : selected - 2);
+        case KEY_UP: return selected >= 2 ? selected - 2 : (selected == 0 ? (history ? HISTORY_INDEX : FTP_BUTTON) : WEB_BUTTON);
+        case KEY_DOWN: return selected < 2 ? selected + 2 : (selected == 2 ? (history ? HISTORY_INDEX : FTP_BUTTON) : WEB_BUTTON);
         default: return selected;
     }
 }
@@ -1103,9 +1128,47 @@ static bool remoteinstall_repeat(remoteinstall_data* data, u32 key) {
     return false;
 }
 
+static void remoteinstall_save_settings() {
+    Result res = settings_save();
+    if(R_FAILED(res)) {
+        error_display_res(NULL, NULL, res, _("Failed to save settings."));
+    }
+}
+
+// As Settings does: on or waiting for Wi-Fi turns it off; off turns it on now, or once there is Wi-Fi.
+static void remoteinstall_toggle_ftp() {
+    settings_data* settings = settings_get();
+    if(ftpserver_running() || ftpserver_waiting()) {
+        ftpserver_stop();
+        settings->ftpServer = false;
+    } else {
+        ftpserver_start_when_online();
+        settings->ftpServer = true;
+    }
+
+    remoteinstall_save_settings();
+}
+
+static void remoteinstall_toggle_web() {
+    settings_data* settings = settings_get();
+    if(webserver_running() || webserver_waiting()) {
+        webserver_stop();
+        settings->webServer = false;
+    } else {
+        webserver_start_when_online();
+        settings->webServer = true;
+    }
+
+    remoteinstall_save_settings();
+}
+
 static void remoteinstall_open_target(remoteinstall_data* data, u32 index) {
     if(index < ENTRY_COUNT) {
         entries[order[index]].open();
+    } else if(index == FTP_BUTTON) {
+        remoteinstall_toggle_ftp();
+    } else if(index == WEB_BUTTON) {
+        remoteinstall_toggle_web();
     } else if(data->haveLast) {
         remoteinstall_history_open();
     }
@@ -1235,6 +1298,8 @@ static void remoteinstall_update(ui_view* view, void* data, float bx1, float by1
     view->name = _("Remote install");
     if(editing) {
         view->info = _("\uE000 move   \uE003 reset   SELECT done");
+    } else if(menu->selected == FTP_BUTTON || menu->selected == WEB_BUTTON) {
+        view->info = _("\uE000 turn on or off   \uE001 back");
     } else {
         view->info = menu->haveLast ? _("\uE000 open   \uE003 install the last again   \uE001 back") : _("\uE000 open   \uE001 back");
     }
@@ -1293,7 +1358,7 @@ static void remoteinstall_update(ui_view* view, void* data, float bx1, float by1
         for(u32 i = 0; i < remoteinstall_targets(menu); i++) {
             float x, y, w, h;
             remoteinstall_rect(i, bx1, by1, bx2, &x, &y, &w, &h);
-            if(widget_touched(&pos, x, y, w, h)) {
+            if(remoteinstall_has(menu, i) && widget_touched(&pos, x, y, w, h)) {
                 widget_press_begin(&menu->press, (int) i, true, pos.px, pos.py);
                 menu->selected = i;
             }
@@ -1306,7 +1371,7 @@ static void remoteinstall_update(ui_view* view, void* data, float bx1, float by1
         for(u32 i = 0; i < remoteinstall_targets(menu); i++) {
             float x, y, w, h;
             remoteinstall_rect(i, bx1, by1, bx2, &x, &y, &w, &h);
-            if(i != menu->selected && widget_touched(&pos, x, y, w, h)) {
+            if(i != menu->selected && remoteinstall_has(menu, i) && widget_touched(&pos, x, y, w, h)) {
                 menu->selected = i;
                 menu->press.cancelled = true;
                 break;
@@ -1353,23 +1418,63 @@ static void remoteinstall_draw_cell(float x, float y, float w, const char* label
     widget_text_fit(value, x + 8, y + 4 + widget_text_height(WIDGET_SMALL_SCALE), WIDGET_TEXT_SCALE, t->palette->text, w - 16);
 }
 
+// `text` wrapped up to `right`: the lines above `belowY` start at `x` (beside the icon), the rest at `leftX` (under it).
+static void remoteinstall_draw_flow(const char* text, float x, float y, float scale, u32 color, float right, float belowY, float leftX) {
+    float lineHeight = widget_text_height(scale) + 2;
+    char line[192] = "";
+    const char* p = text;
+    while(*p != '\0') {
+        const char* end = p;
+        while(*end != '\0' && *end != ' ') {
+            end++;
+        }
+
+        char word[64];
+        size_t n = (size_t) (end - p) < sizeof(word) - 1 ? (size_t) (end - p) : sizeof(word) - 1;
+        memcpy(word, p, n);
+        word[n] = '\0';
+
+        char joined[192];
+        snprintf(joined, sizeof(joined), "%s%s%s", line, line[0] != '\0' ? " " : "", word);
+        float lineX = y < belowY ? x : leftX;
+        if(line[0] != '\0' && widget_text_width(joined, scale) > right - lineX) {
+            screen_draw_text(line, lineX, y, scale, color);
+            y += lineHeight;
+            snprintf(line, sizeof(line), "%s", word);
+        } else {
+            snprintf(line, sizeof(line), "%s", joined);
+        }
+
+        p = end;
+        while(*p == ' ') {
+            p++;
+        }
+    }
+
+    if(line[0] != '\0') {
+        screen_draw_text(line, y < belowY ? x : leftX, y, scale, color);
+    }
+}
+
 static void remoteinstall_draw_card(remoteinstall_data* menu, u32 index, float x1, float y1, float x2, float y2) {
     const theme_current* t = theme();
 
     float cardX = x1 + 12;
     float cardY = y1 + 14;
     float cardW = x2 - x1 - 24;
-    float cardH = 96;
+    // The web button's card is taller while the server runs: the QR code needs room to be read.
+    bool server = index == FTP_BUTTON || index == WEB_BUTTON;
+    float cardH = index == WEB_BUTTON && webserver_running() ? 132 : 96;
     widget_card(cardX, cardY, cardW, cardH);
 
-    // The entry shown at position `index` (the history is past the tiles).
+    // The entry shown at position `index` (the history and the two buttons are past the tiles).
     u32 entry = index < ENTRY_COUNT ? order[index] : index;
-    u32 icon = index < ENTRY_COUNT ? entries[entry].icon : ICON_HISTORY;
-    const char* name = index < ENTRY_COUNT ? _(entries[entry].name) : _("History");
+    u32 icon = index < ENTRY_COUNT ? entries[entry].icon : index == FTP_BUTTON ? ICON_SERVER : index == WEB_BUTTON ? ICON_DEVICE_DESKTOP : ICON_HISTORY;
+    const char* name = index < ENTRY_COUNT ? _(entries[entry].name) : index == FTP_BUTTON ? _("FTP server") : index == WEB_BUTTON ? _("Web server") : _("History");
 
     float tile = 64;
     float tileX = cardX + 16;
-    float tileY = cardY + (cardH - tile) / 2;
+    float tileY = cardY + (96 - tile) / 2;   // As in the other cards, also when this one is taller.
     float depth = screen_get_depth();
     screen_set_depth(depth + 1);
     screen_fill_round_rect(tileX, tileY, tile, tile, t->def->radius, t->accentSoft);
@@ -1378,12 +1483,28 @@ static void remoteinstall_draw_card(remoteinstall_data* menu, u32 index, float x
 
     float textX = tileX + tile + 14;
     float wrap = cardX + cardW - 14;
+    if(index == WEB_BUTTON && webserver_running()) {
+        // The page's address and PIN as a QR code, to open it from a phone's camera.
+        float qrSide = cardH - 12;
+        // Raised over the card by a whole step of depth (a fractional one blurs the code in 3D).
+        float baseDepth = screen_get_depth();
+        screen_set_depth(roundf(baseDepth) + 1);
+        settingsmenu_draw_web_qr(cardX + cardW - 6 - qrSide, cardY + 6, qrSide);
+        screen_set_depth(baseDepth);
+        wrap -= qrSide - 4;
+    }
+
     float textY = cardY + 14;
     screen_draw_text(name, textX, textY, WIDGET_TITLE_SCALE, t->palette->text);
     textY += widget_text_height(WIDGET_TITLE_SCALE) + 4;
 
     if(index < ENTRY_COUNT) {
         screen_draw_text_wrap(_(entries[entry].description), textX, textY, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap);
+    } else if(server) {
+        // Beside the icon, then under it.
+        remoteinstall_draw_flow(index == FTP_BUTTON ? _("Copy files to and from the SD card with an FTP program. Press A to turn it on or off.")
+                                                    : _("Manage the console from a computer's browser. Press A to turn it on or off."),
+                                textX, textY, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap, tileY + tile + 4, tileX);
     } else {
         // The newest requests, one line each.
         char line[128];
@@ -1422,6 +1543,18 @@ static void remoteinstall_draw_card(remoteinstall_data* menu, u32 index, float x
 
         remoteinstall_draw_cell(cardX, cellY, cellW, _("Send to"), value);
         remoteinstall_draw_cell(cardX + cellW + 6, cellY, cellW, _("FTP server"), ftpserver_running() ? _("Keeps running") : _("Off"));
+    } else if(index == FTP_BUTTON) {
+        ftpserver_address(value, sizeof(value));
+        remoteinstall_draw_cell(cardX, cellY, cellW, _("Address"), value);
+        remoteinstall_draw_cell(cardX + cellW + 6, cellY, cellW, _("Status"), ftpserver_running() ? _("On") : ftpserver_waiting() ? _("Waiting for Wi-Fi") : _("Off"));
+    } else if(index == WEB_BUTTON) {
+        char pin[16];
+        webserver_address(value, sizeof(value));
+        webserver_pin(pin, sizeof(pin));
+        // The address is the long one: the PIN's cell is narrow.
+        float pinW = 96;
+        remoteinstall_draw_cell(cardX, cellY, cardW - pinW - 6, _("Address"), value);
+        remoteinstall_draw_cell(cardX + cardW - pinW, cellY, pinW, _("PIN"), pin[0] != '\0' ? pin : webserver_running() ? _("None") : "-");
     }
 }
 
@@ -1460,7 +1593,10 @@ static void remoteinstall_draw_top(ui_view* view, void* data, float x1, float y1
     remoteinstall_top_context context = {menu, x1, y1, x2, y2};
     widget_crossfade(widget_ease(menu->shownTime, WIDGET_CROSSFADE_TIME), remoteinstall_draw_card_fade, &context, menu->leaving != menu->shown);
 
-    widget_storage(SYSTEM_MEDIATYPE_SD, x1 + 16, y2 - 52, x2 - x1 - 32);
+    // The server buttons' cards need the room.
+    if(menu->selected < FTP_BUTTON) {
+        widget_storage(SYSTEM_MEDIATYPE_SD, x1 + 16, y2 - 52, x2 - x1 - 32);
+    }
 }
 
 // A big tile: the icon over the label, on two lines when it must.
@@ -1499,11 +1635,31 @@ static void remoteinstall_draw_history(remoteinstall_data* menu, float x, float 
     float top = y + (h - lineH - smallH - 1) / 2;
     widget_text_fit(_("History"), textX, top, WIDGET_TEXT_SCALE, ink, textW);
 
-    char line[96];
-    snprintf(line, sizeof(line), menu->lastCount == 1 ? _("Last: %lu link from %s") : _("Last: %lu links from %s"), menu->lastCount, menu->lastHost);
+    // The file's name; with more links in the request, how many others come with it.
+    char line[FILE_NAME_MAX + 16];
+    if(menu->lastCount > 1) {
+        snprintf(line, sizeof(line), "%s (+%lu)", menu->lastName, menu->lastCount - 1);
+    } else {
+        snprintf(line, sizeof(line), "%s", menu->lastName);
+    }
+
     widget_text_fit(line, textX, top + lineH + 1, WIDGET_SMALL_SCALE, muted, textW);
 
     widget_badge(x + w - 9 - badgeW, y + (h - smallH - 6) / 2, badge, selected ? THEME_ALPHA(t->onAccent, 0x30) : t->accentSoft, selected ? t->onAccent : t->accent);
+}
+
+// A small button that turns a server on or off: lit while it runs.
+static void remoteinstall_draw_server_button(float x, float y, float w, float h, u32 icon, const char* label, bool on, bool selected) {
+    const theme_current* t = theme();
+    u32 fill = selected ? t->accent : on ? t->accentSoft : t->palette->surface;
+    u32 edge = selected || on ? t->accent : t->palette->border;
+    u32 ink = selected ? t->onAccent : on ? t->accent : t->palette->textMuted;
+    screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
+    screen_draw_icon(icon, x + (w - 14) / 2, y + 3, 14, ink);
+    widget_text_centered(label, x, x + w, y + 3 + 14 + 1, WIDGET_SMALL_SCALE, ink);
+    if(on) {
+        screen_fill_rect(x + w - 9, y + 4, 4, 4, ink);
+    }
 }
 
 // Where each tile (by entry) is drawn: it eases towards its place, so while one is dragged the others make way.
@@ -1540,6 +1696,10 @@ static void remoteinstall_draw_bottom(ui_view* view, void* data, float x1, float
     // The tile in the hand is drawn last, over the rest.
     for(int pass = 0; pass < 2; pass++) {
         for(u32 i = 0; i < remoteinstall_targets(menu); i++) {
+            if(!remoteinstall_has(menu, i)) {
+                continue;
+            }
+
             bool isDragged = dragging && i == (u32) menu->dragFrom;
             if(isDragged != (pass == 1)) {
                 continue;
@@ -1574,6 +1734,10 @@ static void remoteinstall_draw_bottom(ui_view* view, void* data, float x1, float
 
             if(i < ENTRY_COUNT) {
                 remoteinstall_draw_tile(x, y, w, h, entries[order[i]].icon, _(entries[order[i]].name), selected);
+            } else if(i == FTP_BUTTON) {
+                remoteinstall_draw_server_button(x, y, w, h, ICON_SERVER, "FTP", ftpserver_running() || ftpserver_waiting(), selected);
+            } else if(i == WEB_BUTTON) {
+                remoteinstall_draw_server_button(x, y, w, h, ICON_DEVICE_DESKTOP, "Web", webserver_running() || webserver_waiting(), selected);
             } else {
                 remoteinstall_draw_history(menu, x, y, w, h, selected);
             }
@@ -1582,7 +1746,7 @@ static void remoteinstall_draw_bottom(ui_view* view, void* data, float x1, float
 
             // Where a guided tour finds it (coach.h): "remote.qr"..., "remote.history".
             char anchor[32];
-            snprintf(anchor, sizeof(anchor), "remote.%s", i < ENTRY_COUNT ? entry_ids[order[i]] : "history");
+            snprintf(anchor, sizeof(anchor), "remote.%s", i < ENTRY_COUNT ? entry_ids[order[i]] : i == FTP_BUTTON ? "ftp" : i == WEB_BUTTON ? "web" : "history");
             coach_anchor(anchor, slot[0], slot[1], slot[2], slot[3], selected);
         }
     }

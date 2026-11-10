@@ -112,6 +112,7 @@ static const coach_step remote_steps[] = {
         INFO_SINCE(GUIDE_VERSION(0, 11), "remote.url", "A download you chose to save goes on where it stopped if it was cut: Retry, or the same link again."),
         INFO_SINCE(GUIDE_VERSION(0, 11), NULL, "Installing a game that is already there keeps its save. An older version asks first, and NSA backs up the save and puts it back."),
         INFO_SINCE(GUIDE_VERSION(0, 11), NULL, "When a download, an install or a transfer ends, the notification light blinks. Any button turns it off."),
+        INFO_SINCE(GUIDE_VERSION(0, 12), "remote.web", "The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code)."),
         DO("back", "\uE001 goes back to the menu.", KEY_B, true, "v:Main menu"),
 };
 
@@ -135,7 +136,7 @@ static const coach_step console_steps[] = {
 static const coach_step store_steps[] = {
         OPEN("menu.store", "Open Store.", "v:Store"),
         INFO("list", "Your stores: Universal-DB, and any other you add with the last row, by its QR code or its link. Holding one of yours changes or deletes it."),
-        DO("list.selected", "Open Universal-DB with \uE000.", KEY_A, true, "v:Universal-DB"),
+        DO("Universal-DB", "Open Universal-DB with \uE000.", KEY_A, true, "v:Universal-DB"),
         INFO("list", "Its homebrew. The top screen shows the one with the focus, and a mark says what is already on the console."),
         INFO("list.selected", "\uE000 gets it: a CIA installs, a .3dsx goes to /3ds/."),
         DO("tool.filter", "\uE004 filters by kind, category and what you have. Open it.", KEY_L, true, "popover"),
@@ -152,6 +153,10 @@ static const coach_step computer_steps[] = {
         REACH("settings.web", "Now go to Web server."),
         INFO("settings.web", "Turn it on and open the address on the top screen in your computer's browser, with the PIN: files, titles, saves, installs and the screens live. Only on your own Wi-Fi."),
         INFO("settings.web", "While the web server runs, its row shows a QR code: scan it with your phone and the page opens, already signed in."),
+        REACH("settings.web_pin", "Go down to Web PIN."),
+        INFO_SINCE(GUIDE_VERSION(0, 12), "settings.web_pin", "Web PIN: Random makes a new PIN each time the server starts, Fixed keeps one between launches (you type it, or make a random one on the keypad), and None opens the page without a PIN, only for a network you trust."),
+        INFO_SINCE(GUIDE_VERSION(0, 12), "settings.web_pin", "When a browser asks for the PIN, the console shows it at the bottom of the screen."),
+        INFO_SINCE(GUIDE_VERSION(0, 12), "settings.web_pin", "You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History."),
         BACK_TO_MENU("\uE001 goes back to the menu."),
 };
 
@@ -204,7 +209,7 @@ static const coach_step updates_steps[] = {
 
 static const coach_step wifi_steps[] = {
         OPEN("menu.system", "Open System.", "v:System"),
-        OPEN("list.selected", "Go down to Network and open it with \uE000.", "v:Wi-Fi connections"),
+        OPEN("Network", "Go down to Network and open it with \uE000.", "v:Wi-Fi connections"),
         INFO("list", "Your console's three connections, then the copies saved on the SD card: the same ones WifiManager keeps in /3ds/WifiManager."),
         INFO("list.selected", "\uE000 on a connection: save a copy (with an alias, if you like), edit it, delete it, or write a saved copy there."),
         INFO("list.selected", "\uE000 on a copy: write it to a connection, edit it, rename its alias or delete it."),
@@ -215,7 +220,7 @@ static const coach_step wifi_steps[] = {
 
 static const coach_step datetime_steps[] = {
         OPEN("menu.system", "Open System.", "v:System"),
-        OPEN("list.selected", "Console has the focus: open it with \uE000.", "v:Date and time"),
+        OPEN("Console", "Console has the focus: open it with \uE000.", "v:Date and time"),
         INFO("list.selected", "\uE000 here opens a calendar, then wheels for the hours, minutes and seconds: drag them or turn them with the D-Pad."),
         INFO("list", "Set the time from the Internet puts the clock right, now or each time NSA opens. The console's clock has no time zone: NSA adds yours and summer time."),
         INFO("list", "Clock and Date order: 24 or 12 hours, day or month first. By region, they follow your console's region."),

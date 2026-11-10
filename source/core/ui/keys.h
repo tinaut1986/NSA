@@ -20,7 +20,8 @@ typedef enum {
     K_DOWN,
     K_CLEAR,
     K_SAVE,
-    K_DONE
+    K_DONE,
+    K_REFRESH
 } key_action;
 
 typedef struct {

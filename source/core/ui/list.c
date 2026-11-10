@@ -734,6 +734,12 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
         if(selected && y >= y1 && y + l.itemH <= y2) {
             coach_anchor("list.selected", x, y, l.itemW, l.itemH, true);
         }
+
+        // While a tour plays, every row on screen is an anchor by its name as the list shows it (the coach matches the English or the translated one): a step can ask for one row, and A
+        // only goes on while that row has the focus (guide.c: "Network", "Console").
+        if(coach_active() && item->name[0] != '\0' && y >= y1 && y + l.itemH <= y2) {
+            coach_anchor(item->name, x, y, l.itemW, l.itemH, selected);
+        }
     }
 
     screen_clear_clip();

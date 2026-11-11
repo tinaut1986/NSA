@@ -168,6 +168,10 @@ What `release` holds, in the order it was built:
   30% of their height, or flicked down, they are put away as B does (a question takes its last answer: No, Cancel, Keep
   editing; never one that goes ahead), else they go back up. Claude, 2026-11-11, Azahar (HOME): a title's actions pulled
   away, the editor's "Save the changes?" pulled away (Keep editing), a short slow pull going back.
+  Second round (the owner on the New 3DS XL: it vanished when let go, and a touch just above the handle closed it):
+  let go low enough, it slides the rest of the way down before it goes (no key counts meanwhile); a touch up to 18 px
+  above its top takes its top too (`fix/sheet-drag-slide`). Claude, Azahar: a tap just above the handle keeps it, a long
+  pull closes it.
 - [ ] Pages of a grid, second round (2026-11-11, `feat/page-scrubber`; the owner: no way to go to a page from the dots,
   and a bar when there are too many). Under a grid in pages (18 px now): up to 20 pages, dots 12 px apart, a tap on one
   (or a finger along them) goes to it; more pages, a bar with a thumb and "N / M" beside it, and a finger along it

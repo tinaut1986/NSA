@@ -168,7 +168,8 @@ What `release` holds, in the order it was built:
   (`REDRAWN`), each in the box of the font's own glyph: flat-topped 5 and 3, a 2 with a flat bottom, 6 and 9 open, B
   square on the left. The atlas in the repository was patched in place (only those cells): rebaking with this PC's
   Pillow moves pixels in every glyph, as the script now says. Claude, 2026-11-11, Azahar: main menu and Store in Pixel.
-  To see on a console: versions, sizes and dates at the three sizes. The font's Z still looks like its old 2.
+  To see on a console: versions, sizes and dates at the three sizes. The Z too (`fix/pixel-font-z`): the font's looked
+  like its old 2; now a flat top and bottom with a diagonal (seen in Azahar on the Store's Zelda apps).
 - [x] Lists open at the top, and jump to the top or the end (2026-11-11, `fix/list-selection-on-load`; issue #45). The Store
   (and Titles) "started in the middle": while a list loaded, the selection stayed on the first item listed (a CIA) and
   followed it wherever the live sort took it. Now `list.c` keeps the selection on its **index** until it is chosen (D-Pad,

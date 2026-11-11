@@ -37,6 +37,7 @@ typedef struct {
     bool pixelFont;       // Text in the bundled pixel font (pixelfont.c) instead of the system's.
     bool blockBars;       // Progress bars as blocks instead of a smooth fill.
     bool sheetPrompts;    // Dialogs rise from the bottom as a full-width sheet.
+    bool pagedGrids;      // Icon grids in pages that turn sideways, with dots under them, instead of scrolling down.
     theme_menu_layout menuLayout;
 } theme_def;
 

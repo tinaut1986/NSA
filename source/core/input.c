@@ -19,6 +19,7 @@ static volatile u32 inject_frames = 0;
 static volatile u16 inject_x = 0;
 static volatile u16 inject_y = 0;
 static volatile u16 inject_y_to = 0;
+static volatile u16 inject_x_to = 0;
 static volatile u32 inject_total = 0;   // A drag: how many frames it lasts.
 static u32 injected_last = 0;
 
@@ -40,9 +41,9 @@ void input_scan() {
             if(inject_total > 1) {
                 // Frames are counted down: how far along the drag is.
                 u32 done = inject_total - inject_frames - 1;
-                int from = inject_y;
-                int to = inject_y_to;
-                touch.py = (u16) (from + (to - from) * (int) done / (int) (inject_total - 1));
+                int steps = (int) (inject_total - 1);
+                touch.px = (u16) (inject_x + ((int) inject_x_to - (int) inject_x) * (int) done / steps);
+                touch.py = (u16) (inject_y + ((int) inject_y_to - (int) inject_y) * (int) done / steps);
             }
         }
     }
@@ -86,7 +87,12 @@ void input_inject_tap(u16 x, u16 y, u32 frames) {
 }
 
 void input_inject_drag(u16 x, u16 y1, u16 y2, u32 frames) {
-    inject_x = x;
+    input_inject_slide(x, y1, x, y2, frames);
+}
+
+void input_inject_slide(u16 x1, u16 y1, u16 x2, u16 y2, u32 frames) {
+    inject_x = x1;
+    inject_x_to = x2;
     inject_y = y1;
     inject_y_to = y2;
     inject_total = frames > 1 ? frames : 2;

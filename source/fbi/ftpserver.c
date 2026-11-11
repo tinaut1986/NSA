@@ -1564,6 +1564,20 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    if(strcmp(sub, "SWIPE") == 0) {
+        // Sideways: pages of a grid.
+        char* args = path != NULL ? path : "";
+        unsigned x1 = 0, y = 0, x2 = 0, frames = 20;
+        if(sscanf(args, "%u %u %u %u", &x1, &y, &x2, &frames) < 3 || x1 >= 320 || x2 >= 320 || y >= 240) {
+            ftp_reply(s, "501 SITE SWIPE <x1> <y> <x2> [frames]");
+            return;
+        }
+
+        input_inject_slide((u16) x1, (u16) y, (u16) x2, (u16) y, frames);
+        ftp_reply(s, "200 Swiped %u to %u at %u.", x1, x2, y);
+        return;
+    }
+
     if(strcmp(sub, "DRAG") == 0) {
         char* args = path != NULL ? path : "";
         unsigned x = 0, y1 = 0, y2 = 0, frames = 20;

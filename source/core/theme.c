@@ -115,6 +115,7 @@ static const theme_def themes[] = {
                 .radiusSmall = 12,
                 .border = 1,
                 .sheetPrompts = true,
+                .pagedGrids = true,
                 .menuLayout = THEME_MENU_TILES
         }
 };

@@ -162,6 +162,13 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Icon grids in pages (2026-11-11, `feat/paged-grids`; issue #14): with the HOME theme (`theme_def.pagedGrids`), every
+  list's grid (Titles, Tickets, Ext Save Data, Mods, the Store) is in pages that turn sideways: as many rows as fit,
+  dots under them (or "3 / 51" past 20 pages), no scrollbar and no jump arrows. Up and Down stay in the page; Left and
+  Right go on to the page beside at its edge, on the same row; ZL/ZR to the first and last item. A finger slides the
+  pages and they settle on one (a flick turns one), and the selection comes to the first item of the page turned to.
+  Rows are unchanged. New `SITE SWIPE <x1> <y> <x2> [frames]` for tests. Claude, 2026-11-11, Azahar: the Store's 406
+  apps in 51 pages, the D-Pad across a page edge, swipes both ways, rows afterwards.
 - [ ] Themes from the SD card (2026-11-11, `feat/sd-themes`; issue #14). Each `.json` in `sdmc:/nsa/themes/` is a theme
   (`themefile.c`: colours of day and night as `#RRGGBB[AA]`, radii, border, pixelFont, blockBars, sheetPrompts, menu
   `grid`/`tiles`, over a built-in `base`), listed in Settings -> Theme after the built-in ones, by name, saved as
@@ -1513,7 +1520,7 @@ current, this list is the summary. What only the owner can test (local wireless)
    in pages, modals as a sheet from the bottom; Pixel = bundled pixel font (OFL), square
    corners, thick borders, block progress bars, yellow highlight. Then ~~**themes from the
    SD card**~~ done (2026-11-11, `feat/sd-themes`, see Pending tests and `docs/themes.md`). Left: HOME's icon grids in
-   pages that turn sideways, with dots (they still scroll down), and dragging a sheet down to close it.
+   pages that turn sideways (done, `feat/paged-grids`), and dragging a sheet down to close it.
 6. ~~**NSA icon and banner**~~ done (the boot logo and the banner sound are left in issue #15). It was: still FBI's. Ask the owner for a
    direction first.
 7. **Top-screen information**: the owner wants to restructure what the top screen shows

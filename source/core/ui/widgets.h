@@ -112,7 +112,7 @@ void widget_count_badge(u32 count, float x, float y);
 // its top left corner, at `alpha` (0..1) while it fades in or out; `pressed` while a finger holds it.
 void widget_float_button(float x, float y, float size, u32 icon, float alpha, bool pressed);
 
-// ---- coasting and the jump arrows, for screens that scroll by themselves (list.c has its own) ----
+// ---- coasting and the jump arrows of a scrolling area (lists, Settings, sheets, popovers) ----
 
 // A drag let go keeps the content moving, slowing down; while it moves, and for a while after, two round arrows float
 // at the bottom right of the area (only the ways it can still go), to its top and its end. `right` is the area's right
@@ -129,14 +129,22 @@ typedef struct {
     float jumpAlpha;
     int jumpTouch;    // The arrow a finger went down on.
     bool jumpOn;      // And is still over it.
+    bool demo;        // Set by the screen: both arrows show, also with nothing to scroll (a guided tour points at them).
+    bool hidden;      // Set by the screen: no arrows (a grid in pages), unless `demo`.
 } widget_scroller;
 
 // A finger dragging moved by `dy` (its move this frame): the speed is kept for when it lifts.
 void widget_scroller_drag(widget_scroller* s, int dy);
 // Stops the coasting (a touch, a key move, a jump).
 void widget_scroller_stop(widget_scroller* s);
-// Once a frame: coasts `*scroll` unless a finger drags, keeps it in 0..max, and fades the arrows.
+// Moves `*scroll` on by the flick's speed, slowing it down; whether it moved (not clamped).
+bool widget_scroller_coast(widget_scroller* s, float* scroll);
+// Once a frame, after the scroll moved: fades the arrows in while it moves (and a while after), else out.
+void widget_scroller_fade(widget_scroller* s, float scroll, float max);
+// Both of the above for a plain area: coasts unless a finger drags, keeps `*scroll` in 0..max, fades the arrows.
 void widget_scroller_step(widget_scroller* s, float* scroll, float max, bool dragging);
+// Where an arrow is (its top left), and whether it shows.
+bool widget_scroller_jump_rect(widget_scroller* s, float scroll, float max, int which, float right, float bottom, float* x, float* y);
 // On a touch down: whether it is on an arrow (it takes the touch).
 bool widget_scroller_jump_down(widget_scroller* s, float scroll, float max, float right, float bottom, const touchPosition* pos);
 // While s->jumpTouch is set, every frame: the arrow let go over (WIDGET_JUMP_TOP or _END), else WIDGET_JUMP_NONE.

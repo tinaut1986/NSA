@@ -174,6 +174,13 @@ What `release` holds, in the order it was built:
   does not work in Azahar; the parser was run on the host over the real pages of all 11 languages.
   Also to check after the next release: the workflow's new step pushes the pages to `feat/website` with GITHUB_TOKEN and
   that push starts the Pages build (if it does not, Pages needs a manual run or a token of the owner's).
+  Second round (the owner on the New 3DS XL: "it works", but L/R had to be pressed once per page, lines were cut where
+  the Markdown had a line break, and versions and their points looked alike): L / R held turn a page every 8 frames;
+  each release is a heading in the accent colour (a BETA badge, a hairline between releases), each point a bullet with
+  its lines indented under it; lines the Markdown broke by hand are joined, and lines are wrapped once, by width on
+  screen (`update_notes_items` gives the items, `changelog.c` wraps and draws them). Brackets that are not a link stay
+  ("[Checkpoint]"). The source notes did not change. Claude, 2026-11-11, New 3DS XL (.144): Spanish, headings, bullets,
+  R held (several pages; the owner was pressing too).
 - [ ] Flick and jump arrows in the menus (2026-11-11, `feat/menu-flick`; the owner: the lists coast after a drag and
   have the arrows to the top and the end, the menus do not). Settings and the action sheets drawn as a list now coast
   when a drag is let go, show the two round arrows at their bottom right while they scroll (only the ways they can still

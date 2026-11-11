@@ -51,5 +51,8 @@ bool update_is_newer(const char* candidate, const char* installed);
 bool update_valid_version(const char* version);
 bool update_allowed_download_url(const char* url);
 
-// Plain-text, word-wrapped notes, at most `width` (< UPDATE_LINE_MAX) columns.
-unsigned update_format_notes(const char* markdown, char lines[][UPDATE_LINE_MAX], unsigned capacity, unsigned width);
+// The notes as plain text, one item a line, each line starting with its kind: 'H' a heading ("## v0.9.9 BETA"),
+// 'B' a bullet ("- ..."), 'P' a paragraph. Lines the Markdown broke by hand are joined to their item; tags, images,
+// link destinations, emphasis and emoji are left out. Only the notes block of a release body when it has one (else
+// its commit list). Empty when there is nothing; NULL when out of memory. Free it.
+char* update_notes_items(const char* markdown);

@@ -1391,6 +1391,22 @@ const i18n_entry i18n_it[] = {
         {"\uE000 stop recording    \uE001 back", "\uE000 ferma    \uE001 indietro"},
         {"\uE000 start recording    \uE001 back", "\uE000 registra    \uE001 indietro"},
         {"Failed to allocate motion test data.", "Impossibile allocare la memoria per il test di movimento."},
+        // A .3dsx installed in the HOME Menu (homeicon.c, homeiconview.c)
+        {"Install in the HOME Menu", "Installa nel menu HOME"},
+        {"Choose a picture", "Scegli un'immagine"},
+        {"\uE000 choose   \uE001 up", "\uE000 scegli   \uE001 su"},
+        {"HOME Menu", "Menu HOME"},
+        {"Banner made from the icon and the name.", "Banner fatto con l'icona e il nome."},
+        {"A title of its own: it starts from the HOME Menu and goes back to it. The program is copied into it, so after updating the .3dsx, install it again.", "Un titolo a sé: si avvia dal menu HOME e ci ritorna. Il programma viene copiato al suo interno, quindi dopo aver aggiornato il .3dsx, installalo di nuovo."},
+        {"Choose a picture for the banner", "Scegli un'immagine per il banner"},
+        {"Make the banner from the icon", "Fai il banner con l'icona"},
+        {"That picture is too big for a banner: up to 12 MB and 5 million pixels.", "Questa immagine è troppo grande per un banner: fino a 12 MB e 5 milioni di pixel."},
+        {"Failed to read the picture.", "Impossibile leggere l'immagine."},
+        {"\"%s\" is in the HOME Menu now. The .3dsx is no longer needed to start it.", "\"%s\" ora è nel menu HOME. Il .3dsx non serve più per avviarlo."},
+        {"Failed to install the program in the HOME Menu.", "Impossibile installare il programma nel menu HOME."},
+        {"Installing in the HOME Menu", "Installazione nel menu HOME"},
+        {"Failed to create the install thread.", "Impossibile creare il thread di installazione."},
+        {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "Dalle azioni di un .3dsx lo si può installare nel menu HOME: un titolo a sé, con un banner fatto con la sua icona o con un'immagine tua."},
 };
 
 const u32 i18n_it_count = sizeof(i18n_it) / sizeof(*i18n_it);

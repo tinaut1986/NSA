@@ -1387,6 +1387,22 @@ const i18n_entry i18n_ru[] = {
         {"\uE000 stop recording    \uE001 back", "\uE000 стоп    \uE001 назад"},
         {"\uE000 start recording    \uE001 back", "\uE000 запись    \uE001 назад"},
         {"Failed to allocate motion test data.", "Не удалось выделить память для проверки движения."},
+        // A .3dsx installed in the HOME Menu (homeicon.c, homeiconview.c)
+        {"Install in the HOME Menu", "Установить в меню HOME"},
+        {"Choose a picture", "Выберите изображение"},
+        {"\uE000 choose   \uE001 up", "\uE000 выбрать   \uE001 вверх"},
+        {"HOME Menu", "Меню HOME"},
+        {"Banner made from the icon and the name.", "Баннер из значка и названия."},
+        {"A title of its own: it starts from the HOME Menu and goes back to it. The program is copied into it, so after updating the .3dsx, install it again.", "Отдельный титул: запускается из меню HOME и возвращается в него. Программа копируется внутрь, поэтому после обновления .3dsx установите его снова."},
+        {"Choose a picture for the banner", "Выбрать изображение для баннера"},
+        {"Make the banner from the icon", "Сделать баннер из значка"},
+        {"That picture is too big for a banner: up to 12 MB and 5 million pixels.", "Изображение слишком большое для баннера: до 12 МБ и 5 миллионов пикселей."},
+        {"Failed to read the picture.", "Не удалось прочитать изображение."},
+        {"\"%s\" is in the HOME Menu now. The .3dsx is no longer needed to start it.", "«%s» теперь в меню HOME. Файл .3dsx для запуска больше не нужен."},
+        {"Failed to install the program in the HOME Menu.", "Не удалось установить программу в меню HOME."},
+        {"Installing in the HOME Menu", "Установка в меню HOME"},
+        {"Failed to create the install thread.", "Не удалось создать поток установки."},
+        {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "В действиях файла .3dsx его можно установить в меню HOME: отдельный титул с баннером из его значка или из вашего изображения."},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

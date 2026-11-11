@@ -1379,6 +1379,22 @@ const i18n_entry i18n_tw[] = {
         {"\uE000 stop recording    \uE001 back", "\uE000 停止    \uE001 返回"},
         {"\uE000 start recording    \uE001 back", "\uE000 記錄    \uE001 返回"},
         {"Failed to allocate motion test data.", "無法配置動作測試的記憶體。"},
+        // A .3dsx installed in the HOME Menu (homeicon.c, homeiconview.c)
+        {"Install in the HOME Menu", "安裝到 HOME 選單"},
+        {"Choose a picture", "選擇圖片"},
+        {"\uE000 choose   \uE001 up", "\uE000 選擇   \uE001 上層"},
+        {"HOME Menu", "HOME 選單"},
+        {"Banner made from the icon and the name.", "以圖示和名稱製作的橫幅。"},
+        {"A title of its own: it starts from the HOME Menu and goes back to it. The program is copied into it, so after updating the .3dsx, install it again.", "獨立的軟體：從 HOME 選單啓動，結束後回到 HOME 選單。程式會複製到裡面，所以更新 .3dsx 後請重新安裝。"},
+        {"Choose a picture for the banner", "選擇橫幅圖片"},
+        {"Make the banner from the icon", "以圖示製作橫幅"},
+        {"That picture is too big for a banner: up to 12 MB and 5 million pixels.", "圖片太大，無法用作橫幅：最多 12 MB、500 萬像素。"},
+        {"Failed to read the picture.", "無法讀取圖片。"},
+        {"\"%s\" is in the HOME Menu now. The .3dsx is no longer needed to start it.", "「%s」已加入 HOME 選單。啓動時不再需要 .3dsx。"},
+        {"Failed to install the program in the HOME Menu.", "無法將程式安裝到 HOME 選單。"},
+        {"Installing in the HOME Menu", "正在安裝到 HOME 選單"},
+        {"Failed to create the install thread.", "無法建立安裝執行緒。"},
+        {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "從 .3dsx 的動作可以將它安裝到 HOME 選單：成為獨立的軟體，橫幅以它的圖示或你的圖片製作。"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

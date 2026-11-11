@@ -1391,6 +1391,22 @@ const i18n_entry i18n_de[] = {
         {"\uE000 stop recording    \uE001 back", "\uE000 beenden    \uE001 zurück"},
         {"\uE000 start recording    \uE001 back", "\uE000 aufnehmen    \uE001 zurück"},
         {"Failed to allocate motion test data.", "Speicher für den Bewegungstest konnte nicht reserviert werden."},
+        // A .3dsx installed in the HOME Menu (homeicon.c, homeiconview.c)
+        {"Install in the HOME Menu", "Im HOME-Menü installieren"},
+        {"Choose a picture", "Bild auswählen"},
+        {"\uE000 choose   \uE001 up", "\uE000 auswählen   \uE001 hoch"},
+        {"HOME Menu", "HOME-Menü"},
+        {"Banner made from the icon and the name.", "Banner aus Symbol und Namen."},
+        {"A title of its own: it starts from the HOME Menu and goes back to it. The program is copied into it, so after updating the .3dsx, install it again.", "Ein eigener Titel: Er startet im HOME-Menü und kehrt dorthin zurück. Das Programm wird hineinkopiert; nach einem Update der .3dsx erneut installieren."},
+        {"Choose a picture for the banner", "Bild für das Banner auswählen"},
+        {"Make the banner from the icon", "Banner aus dem Symbol erstellen"},
+        {"That picture is too big for a banner: up to 12 MB and 5 million pixels.", "Dieses Bild ist zu groß für ein Banner: höchstens 12 MB und 5 Millionen Pixel."},
+        {"Failed to read the picture.", "Das Bild konnte nicht gelesen werden."},
+        {"\"%s\" is in the HOME Menu now. The .3dsx is no longer needed to start it.", "„%s“ ist jetzt im HOME-Menü. Die .3dsx wird zum Starten nicht mehr gebraucht."},
+        {"Failed to install the program in the HOME Menu.", "Das Programm konnte nicht im HOME-Menü installiert werden."},
+        {"Installing in the HOME Menu", "Wird im HOME-Menü installiert"},
+        {"Failed to create the install thread.", "Der Installations-Thread konnte nicht erstellt werden."},
+        {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "Über die Aktionen einer .3dsx lässt sie sich im HOME-Menü installieren: als eigener Titel, mit einem Banner aus ihrem Symbol oder einem eigenen Bild."},
 };
 
 const u32 i18n_de_count = sizeof(i18n_de) / sizeof(*i18n_de);

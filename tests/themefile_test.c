@@ -56,9 +56,15 @@ int main() {
     // Another base, and the shapes.
     CHECK(parse("{\"base\": \"home\", \"radius\": 4, \"border\": 2, \"font\": \"pixel\", \"menu\": \"grid\"}", &def, name, error));
     CHECK(name[0] == '\0');
-    CHECK(def.radius == 4 && def.radiusSmall == 8 && def.border == 2 && def.pixelFont && def.sheetPrompts);
+    // Corners given alone: those of rows and buttons follow (three quarters).
+    CHECK(def.radius == 4 && def.radiusSmall == 3 && def.border == 2 && def.pixelFont && def.sheetPrompts);
     CHECK(def.menuLayout == THEME_MENU_GRID2);
     CHECK(def.pagedGrids);
+    // A file may still give the corners of rows and buttons; 0 is square everywhere.
+    CHECK(parse("{\"radius\": 16, \"radiusSmall\": 2}", &def, name, error));
+    CHECK(def.radius == 16 && def.radiusSmall == 2);
+    CHECK(parse("{\"radius\": 0}", &def, name, error));
+    CHECK(def.radius == 0 && def.radiusSmall == 0);
     CHECK(parse("{\"base\": \"home\", \"grid\": \"scroll\", \"font\": \"system\"}", &def, name, error));
     CHECK(!def.pagedGrids && !def.pixelFont);
     CHECK(!parse("{\"grid\": \"down\"}", &def, name, error));

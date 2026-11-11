@@ -56,6 +56,17 @@ static void test_history() {
     assert(history("{\"format\":2,\"pages\":3,\"releases\":[]}", "0.1.0", out, sizeof(out), &pages) == -1);
     assert(history("[]", "0.1.0", out, sizeof(out), &pages) == -1);
     assert(history("<html>404</html>", "0.1.0", out, sizeof(out), &pages) == -1);
+
+    // The index: every release up to the installed one, bad entries left out; none on a page without it.
+    const char* first = "{\"format\":1,\"page\":1,\"pages\":2,\"releases\":[],\"index\":["
+                        "{\"tag\":\"v0.4.0\",\"prerelease\":true},{\"tag\":\"v0.3.0\",\"prerelease\":false},"
+                        "{\"tag\":\"x\",\"prerelease\":false},{\"tag\":\"v0.2.1\",\"prerelease\":true},{\"tag\":\"v0.2.0\"}]}";
+    update_history_entry entries[8];
+    assert(update_parse_history_index(first, strlen(first), "0.3.0", entries, 8) == 2);
+    assert(!strcmp(entries[0].tag, "v0.3.0") && !entries[0].prerelease && !strcmp(entries[1].tag, "v0.2.1") && entries[1].prerelease);
+    assert(update_parse_history_index(first, strlen(first), "1.0.0", entries, 2) == 2 && !strcmp(entries[0].tag, "v0.4.0"));
+    assert(update_parse_history_index(page, strlen(page), "1.0.0", entries, 8) == 0);
+    assert(update_parse_history_index("nope", 4, "1.0.0", entries, 8) == 0);
 }
 
 static void test_versions() {

@@ -201,6 +201,111 @@ void widget_float_button(float x, float y, float size, u32 icon, float alpha, bo
     screen_draw_icon(icon, x + r - 8, y + r - 8, 16, THEME_ALPHA(t->accent, a));
 }
 
+#define WIDGET_JUMP_SHOW 1500   // How long (ms) the arrows stay after the content last moved.
+
+void widget_scroller_drag(widget_scroller* s, int dy) {
+    s->velocity = s->velocity * 0.5f + dy * 0.5f;
+}
+
+void widget_scroller_stop(widget_scroller* s) {
+    s->velocity = 0;
+}
+
+void widget_scroller_step(widget_scroller* s, float* scroll, float max, bool dragging) {
+    if(max < 0) {
+        max = 0;
+    }
+
+    if(!dragging && s->velocity != 0) {
+        *scroll -= s->velocity;
+        s->velocity *= 0.92f;
+        if(s->velocity > -0.3f && s->velocity < 0.3f) {
+            s->velocity = 0;
+        }
+    }
+
+    if(*scroll > max) {
+        *scroll = max;
+        s->velocity = 0;
+    } else if(*scroll < 0) {
+        *scroll = 0;
+        s->velocity = 0;
+    }
+
+    u64 now = osGetTime();
+    if(*scroll != s->lastScroll) {
+        s->lastScroll = *scroll;
+        s->movedTime = now;
+    }
+
+    bool show = s->jumpTouch != WIDGET_JUMP_NONE || (s->movedTime != 0 && now - s->movedTime < WIDGET_JUMP_SHOW && max > 0);
+    s->jumpAlpha += show ? 0.15f : -0.08f;
+    s->jumpAlpha = s->jumpAlpha > 1 ? 1 : s->jumpAlpha < 0 ? 0 : s->jumpAlpha;
+    if(s->velocity != 0 || show || s->jumpAlpha > 0) {
+        ui_wake();
+    }
+}
+
+static bool widget_scroller_jump_rect(float scroll, float max, int which, float right, float bottom, float* x, float* y) {
+    *x = right - WIDGET_JUMP_SIZE - 2;
+    *y = bottom - WIDGET_JUMP_SIZE - 4;
+    if(which == WIDGET_JUMP_TOP) {
+        *y -= WIDGET_JUMP_SIZE + 6;
+        return scroll > 1;
+    }
+
+    return scroll < max - 1;
+}
+
+static int widget_scroller_jump_hit(widget_scroller* s, float scroll, float max, float right, float bottom, const touchPosition* pos) {
+    if(s->jumpAlpha < 0.5f) {
+        return WIDGET_JUMP_NONE;
+    }
+
+    for(int which = WIDGET_JUMP_TOP; which <= WIDGET_JUMP_END; which++) {
+        float x, y;
+        // A little room around it, for a finger.
+        if(widget_scroller_jump_rect(scroll, max, which, right, bottom, &x, &y)
+           && widget_touched(pos, x - 3, y - 3, WIDGET_JUMP_SIZE + 6, WIDGET_JUMP_SIZE + 6)) {
+            return which;
+        }
+    }
+
+    return WIDGET_JUMP_NONE;
+}
+
+bool widget_scroller_jump_down(widget_scroller* s, float scroll, float max, float right, float bottom, const touchPosition* pos) {
+    s->jumpTouch = widget_scroller_jump_hit(s, scroll, max, right, bottom, pos);
+    s->jumpOn = s->jumpTouch != WIDGET_JUMP_NONE;
+    if(s->jumpOn) {
+        s->velocity = 0;
+    }
+
+    return s->jumpOn;
+}
+
+int widget_scroller_jump_track(widget_scroller* s, float scroll, float max, float right, float bottom, const touchPosition* pos) {
+    if(hidKeysHeld() & KEY_TOUCH) {
+        s->jumpOn = widget_scroller_jump_hit(s, scroll, max, right, bottom, pos) == s->jumpTouch;
+        return WIDGET_JUMP_NONE;
+    }
+
+    int which = s->jumpOn ? s->jumpTouch : WIDGET_JUMP_NONE;
+    s->jumpTouch = WIDGET_JUMP_NONE;
+    s->jumpOn = false;
+    return which;
+}
+
+void widget_scroller_draw(widget_scroller* s, float scroll, float max, float right, float bottom) {
+    for(int which = WIDGET_JUMP_TOP; which <= WIDGET_JUMP_END && s->jumpAlpha > 0; which++) {
+        float x, y;
+        if(widget_scroller_jump_rect(scroll, max, which, right, bottom, &x, &y)) {
+            widget_float_button(x, y, WIDGET_JUMP_SIZE, which == WIDGET_JUMP_TOP ? ICON_CHEVRON_UP : ICON_CHEVRON_DOWN, s->jumpAlpha,
+                                s->jumpTouch == which && s->jumpOn);
+        }
+    }
+}
+
 void widget_count_badge(u32 count, float x, float y) {
     const theme_current* t = theme();
     char text[8];

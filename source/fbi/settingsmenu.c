@@ -106,6 +106,7 @@ typedef struct {
     widget_press press;
     u16 touchStartY;
     u16 lastTouchY;
+    widget_scroller scroller;   // A flick's coasting, and the arrows to the top and the end.
 } settingsmenu_data;
 
 static icon_id settingsmenu_icon(settings_option option) {
@@ -317,6 +318,15 @@ static void settingsmenu_reveal(settingsmenu_data* menu, float viewHeight) {
     settingsmenu_clamp_scroll(menu, viewHeight);
 }
 
+static float settingsmenu_max_scroll(float viewHeight) {
+    return settingsmenu_total_height() - viewHeight;
+}
+
+// The right and bottom edges of the rows' area, where the jump arrows float.
+static float settingsmenu_rows_right(float x2) {
+    return x2 - PAD - WIDGET_SCROLLBAR_WIDTH - 4;
+}
+
 static bool settingsmenu_repeat(settingsmenu_data* menu, u32 key) {
     if(hidKeysDown() & key) {
         menu->nextMove = osGetTime() + 400;
@@ -354,8 +364,15 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         return;
     }
 
+    widget_scroller_step(&menu->scroller, &menu->scroll, settingsmenu_max_scroll(viewHeight), menu->touching && menu->dragged);
+
     u32 last = menu->selected;
-    if(settingsmenu_repeat(menu, KEY_DOWN)) {
+    if(hidKeysDown() & KEY_ZL) {
+        // ZL and ZR (a New 3DS) go to the first and the last row, as the floating arrows do.
+        menu->selected = 0;
+    } else if(hidKeysDown() & KEY_ZR) {
+        menu->selected = OPTION_COUNT - 1;
+    } else if(settingsmenu_repeat(menu, KEY_DOWN)) {
         menu->selected = settingsmenu_next_visible(menu->selected, 1);
     } else if(settingsmenu_repeat(menu, KEY_UP)) {
         menu->selected = settingsmenu_next_visible(menu->selected, -1);
@@ -400,13 +417,19 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
     }
 
     if(menu->selected != last) {
+        widget_scroller_stop(&menu->scroller);
         settingsmenu_reveal(menu, viewHeight);
     }
 
     // Touch: a tap selects a row, a tap on the selected row changes it; a drag scrolls.
     touchPosition pos;
     hidTouchRead(&pos);
-    if(hidKeysDown() & KEY_TOUCH) {
+    float rowsRight = settingsmenu_rows_right(bx2);
+    float rowsBottom = by2 - PAD;
+    if((hidKeysDown() & KEY_TOUCH) && widget_scroller_jump_down(&menu->scroller, menu->scroll, settingsmenu_max_scroll(viewHeight), rowsRight, rowsBottom, &pos)) {
+        menu->touching = false;
+    } else if(hidKeysDown() & KEY_TOUCH) {
+        widget_scroller_stop(&menu->scroller);
         menu->touching = true;
         menu->dragged = false;
         menu->touchStartY = menu->lastTouchY = pos.py;
@@ -437,7 +460,13 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         }
     }
 
-    if(menu->touching && menu->barDrag && (hidKeysHeld() & KEY_TOUCH)) {
+    if(menu->scroller.jumpTouch != WIDGET_JUMP_NONE) {
+        int which = widget_scroller_jump_track(&menu->scroller, menu->scroll, settingsmenu_max_scroll(viewHeight), rowsRight, rowsBottom, &pos);
+        if(which != WIDGET_JUMP_NONE) {
+            menu->selected = which == WIDGET_JUMP_TOP ? 0 : OPTION_COUNT - 1;
+            settingsmenu_reveal(menu, viewHeight);
+        }
+    } else if(menu->touching && menu->barDrag && (hidKeysHeld() & KEY_TOUCH)) {
         menu->scroll = widget_scrollbar_offset(by1 + PAD, viewHeight, viewHeight, settingsmenu_total_height(), pos.py);
         settingsmenu_clamp_scroll(menu, viewHeight);
     } else if(menu->touching && menu->sliding >= 0 && (hidKeysHeld() & KEY_TOUCH)) {
@@ -454,7 +483,9 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         }
 
         if(menu->dragged) {
-            menu->scroll -= (int) pos.py - (int) menu->lastTouchY;
+            int dy = (int) pos.py - (int) menu->lastTouchY;
+            menu->scroll -= dy;
+            widget_scroller_drag(&menu->scroller, dy);
             settingsmenu_clamp_scroll(menu, viewHeight);
         }
 
@@ -787,6 +818,7 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
     screen_clear_clip();
 
     widget_scrollbar(x2 - PAD - WIDGET_SCROLLBAR_WIDTH, y1 + PAD, viewHeight, menu->scroll, viewHeight, settingsmenu_total_height());
+    widget_scroller_draw(&menu->scroller, menu->scroll, settingsmenu_max_scroll(viewHeight), settingsmenu_rows_right(x2), y2 - PAD);
 }
 
 void settingsmenu_open() {

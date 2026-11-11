@@ -119,6 +119,7 @@ const i18n_entry i18n_ca[] = {
         {"Window", "Finestra"},
         {"\uE004\uE005 hue   \uE002 type   \uE000 ok   \uE001 cancel", "\uE004\uE005 to   \uE002 escriure   \uE000 acceptar   \uE001 cancel·lar"},
         {"Edit the theme changes the one in use value by value, its colours with a finger, and you see it at once on both screens. A built-in theme is saved as a new one of your own.", "Editar el tema canvia el que fas servir valor a valor, els colors amb el dit, i el veus a l'instant a les dues pantalles. Un tema de sèrie es desa com un de nou teu."},
+        {"The page can edit the theme too, in its Settings: you see each change on the page and on the console at once.", "La pàgina també pot editar el tema, als seus Ajustos: veus cada canvi a l'instant a la pàgina i a la consola."},
         {"Writes the theme in use to /nsa/themes/ on the SD card, as a start for your own: change its colours on a computer and it shows under Theme.", "Desa el tema que fas servir a /nsa/themes/ de la targeta SD, com a punt de partida per a un de teu: canvia'n els colors en un ordinador i apareixerà a Tema."},
         {"Save the theme as a file", "Desar el tema com a fitxer"},
         {"The theme could not be saved to the SD card.", "No s'ha pogut desar el tema a la targeta SD."},

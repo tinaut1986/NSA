@@ -162,6 +162,12 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Sheets pulled down to close (2026-11-11, `feat/sheet-drag`; issue #14, the last of HOME's mockup). An action sheet
+  (`overlay.c`, every theme; it now has a handle) and a dialog drawn as a sheet (`prompt.c`, a theme with sheetPrompts)
+  follow a finger put on their top (the handle and the header, not the close cross) and the scrim lightens; let go past
+  30% of their height, or flicked down, they are put away as B does (a question takes its last answer: No, Cancel, Keep
+  editing; never one that goes ahead), else they go back up. Claude, 2026-11-11, Azahar (HOME): a title's actions pulled
+  away, the editor's "Save the changes?" pulled away (Keep editing), a short slow pull going back.
 - [ ] Pages of a grid, second round (2026-11-11, `feat/page-scrubber`; the owner: no way to go to a page from the dots,
   and a bar when there are too many). Under a grid in pages (18 px now): up to 20 pages, dots 12 px apart, a tap on one
   (or a finger along them) goes to it; more pages, a bar with a thumb and "N / M" beside it, and a finger along it
@@ -1568,7 +1574,7 @@ current, this list is the summary. What only the owner can test (local wireless)
    in pages, modals as a sheet from the bottom; Pixel = bundled pixel font (OFL), square
    corners, thick borders, block progress bars, yellow highlight. Then ~~**themes from the
    SD card**~~ done (2026-11-11, `feat/sd-themes`, see Pending tests and `docs/themes.md`). Left: HOME's icon grids in
-   pages that turn sideways (done, `feat/paged-grids`), and dragging a sheet down to close it.
+   pages that turn sideways (done, `feat/paged-grids`), and dragging a sheet down to close it (done, `feat/sheet-drag`).
 6. ~~**NSA icon and banner**~~ done (the boot logo and the banner sound are left in issue #15). It was: still FBI's. Ask the owner for a
    direction first.
 7. **Top-screen information**: the owner wants to restructure what the top screen shows

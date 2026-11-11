@@ -78,7 +78,7 @@
  "faq.safe.q": "La pagina web / l'FTP sono sicuri?",
  "faq.safe.a": "La pagina web resta spenta finché non la attivi ed è protetta da PIN, ma usa HTTP in chiaro: usala solo sulla tua rete.",
  "report.title": "Segnala un problema",
- "report.intro": "Hai trovato un bug o hai un'idea? <a href=\"https://discord.gg/TODO\">Unisciti al Discord</a> oppure <a href=\"https://github.com/tinaut1986/NSA/issues/new/choose\">apri una issue su GitHub</a>. Per favore includi:",
+ "report.intro": "Hai trovato un bug o hai un'idea? <a href=\"https://discord.gg/TsE89qj6PE\">Unisciti al Discord</a> oppure <a href=\"https://github.com/tinaut1986/NSA/issues/new/choose\">apri una issue su GitHub</a>. Per favore includi:",
  "report.1": "<strong>Versione di NSA</strong> (Impostazioni / pagina Sistema, ad es. v0.8.4 o una beta)",
  "report.2": "<strong>Modello di console:</strong> Old o New 3DS / 2DS, e dimensione (XL o no)",
  "report.3": "<strong>Firmware e CFW</strong> (ad es. 11.17 con Luma3DS)",
@@ -90,5 +90,8 @@
  "news.more": "Tutte le versioni su GitHub",
  "hero.beta": "Ultima beta",
  "accent.label": "Colore di accento",
- "viewer.close": "Chiudi"
+ "viewer.close": "Chiudi",
+ "report.bug": "Segnala un bug",
+ "report.idea": "Proponi un'idea",
+ "report.discord": "Entra nel Discord"
 }

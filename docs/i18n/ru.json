@@ -78,7 +78,7 @@
  "faq.safe.q": "Безопасны ли веб-страница и FTP?",
  "faq.safe.a": "Веб-страница выключена, пока вы её не включите, и защищена PIN-кодом, но работает по обычному HTTP: пользуйтесь ей только в собственной сети.",
  "report.title": "Сообщить о проблеме",
- "report.intro": "Нашли ошибку или есть идея? <a href=\"https://discord.gg/TODO\">Заходите в Discord</a> или <a href=\"https://github.com/tinaut1986/NSA/issues/new/choose\">создайте issue на GitHub</a>. Пожалуйста, укажите:",
+ "report.intro": "Нашли ошибку или есть идея? <a href=\"https://discord.gg/TsE89qj6PE\">Заходите в Discord</a> или <a href=\"https://github.com/tinaut1986/NSA/issues/new/choose\">создайте issue на GitHub</a>. Пожалуйста, укажите:",
  "report.1": "<strong>Версию NSA</strong> (Настройки / страница «Система», например v0.8.4 или бета)",
  "report.2": "<strong>Модель консоли:</strong> Old или New 3DS / 2DS и размер (XL или нет)",
  "report.3": "<strong>Прошивку и CFW</strong> (например, 11.17 с Luma3DS)",
@@ -90,5 +90,8 @@
  "news.more": "Все версии на GitHub",
  "hero.beta": "Последняя бета",
  "accent.label": "Цвет акцента",
- "viewer.close": "Закрыть"
+ "viewer.close": "Закрыть",
+ "report.bug": "Сообщить об ошибке",
+ "report.idea": "Предложить идею",
+ "report.discord": "Присоединиться к Discord"
 }

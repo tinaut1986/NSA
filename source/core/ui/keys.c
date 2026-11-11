@@ -4,6 +4,7 @@
 #include "widgets.h"
 #include "../i18n.h"
 #include "../icons.h"
+#include "../input.h"
 #include "../screen.h"
 #include "../theme.h"
 

@@ -69,6 +69,17 @@ check('theme preview is drawn', s == 200 and t2.get('theme') == 'web' and t2.get
 s, b = req('POST', '/api/theme/preview/end', a.pin); s2, b2 = req('GET', '/theme.json')
 check('theme preview ends', s == 200 and json.loads(b2).get('theme') == t.get('theme'))
 s, b = req('POST', '/api/theme/save', a.pin, b'{"name": ""}'); check('theme save needs a name', s == 400)
+s, b = req('GET', '/api/theme/edit?id=blank', a.pin); e = json.loads(b) if s == 200 else {}
+check('theme editor: the blank template', s == 200 and e.get('id') == 'blank' and e['theme']['radius'] == 8)
+s, b = req('POST', '/api/theme/delete?id=cards', a.pin); check('theme delete: only a theme of the SD card', s == 404)
+# Saved as a new one (and in use), then deleted: the first built-in one is in use again.
+s, b = req('POST', '/api/theme/save?editing=home&new=1', a.pin, json.dumps({'name': 'Webtest theme', 'base': 'home', 'radius': 0}).encode())
+saved = json.loads(b).get('theme', '') if s == 200 else ''
+s2, b2 = req('GET', '/api/settings', a.pin)
+check('theme save as new is in use', s == 200 and saved.startswith('sd:webtest-theme') and json.loads(b2)['theme'] == saved)
+s, b = req('POST', '/api/theme/delete?id=' + saved, a.pin); s2, b2 = req('GET', '/api/settings', a.pin)
+check('theme delete', s == 200 and json.loads(b).get('theme') == 'cards' and all(t['id'] != saved for t in json.loads(b2)['themes']))
+req('POST', '/api/settings?theme=' + t.get('theme', 'cards'), a.pin)
 s, b = req('GET', '/icons.png'); check('icon atlas is public', s == 200 and b[:4] == b'\x89PNG')
 s, b = req('GET', '/icons.js'); check('icon names are public', s == 200 and b'ICON_NAMES' in b)
 s, b = req('GET', '/api/settings', a.pin); st = json.loads(b) if s == 200 else {}

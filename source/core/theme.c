@@ -336,24 +336,54 @@ static bool theme_write_file(const theme_def* def, const char* name, const char*
     return ok;
 }
 
-bool theme_export(u32 index, char* path, size_t pathSize) {
-    const theme_def* def = theme_get(index);
-    char stem[THEME_SD_TEXT];
-    theme_slug(def->name, stem, sizeof(stem));
+// The start of a theme of one's own that owes nothing to the built-in ones: greys, medium corners.
+static const theme_def blank_theme = {
+        .id = "blank",
+        .name = "Blank template",
+        .day = {
+                .background = THEME_RGB(0xEFEFEF),
+                .surface = THEME_RGB(0xFFFFFF),
+                .border = THEME_RGB(0xD6D6D6),
+                .text = THEME_RGB(0x222222),
+                .textMuted = THEME_RGB(0x6B6B6B),
+                .scrim = THEME_ALPHA(THEME_RGB(0x000000), 0x70),
+                .success = THEME_RGB(0x2E7D4F),
+                .successSoft = THEME_RGB(0xE2F3E8),
+                .danger = THEME_RGB(0xB3261E),
+                .warning = THEME_RGB(0x8A5A00)
+        },
+        .night = {
+                .background = THEME_RGB(0x161616),
+                .surface = THEME_RGB(0x222222),
+                .border = THEME_RGB(0x3A3A3A),
+                .text = THEME_RGB(0xEDEDED),
+                .textMuted = THEME_RGB(0xA0A0A0),
+                .scrim = THEME_ALPHA(THEME_RGB(0x000000), 0xA0),
+                .success = THEME_RGB(0x6CCB94),
+                .successSoft = THEME_RGB(0x173826),
+                .danger = THEME_RGB(0xF28B82),
+                .warning = THEME_RGB(0xF2B84B)
+        },
+        .radius = 8,
+        .radiusSmall = 6,
+        .border = 1,
+        .menuLayout = THEME_MENU_GRID2
+};
 
-    // A name that is not taken: "Cards 2", "Cards 3"...
-    char base[THEME_SD_TEXT];
-    string_copy(base, def->name, sizeof(base));
-    for(u32 number = 2; number < 1000; number++) {
-        snprintf(path, pathSize, "sdmc:" APP_DATA_DIR "themes/%s-%lu.json", stem, number);
-        if(!theme_file_exists(path)) {
-            char name[THEME_SD_TEXT + 8];
-            snprintf(name, sizeof(name), "%s %lu", base, number);
-            return theme_write_file(def, name, path);
-        }
+const theme_def* theme_blank() {
+    return &blank_theme;
+}
+
+bool theme_delete_custom(u32 index) {
+    if(!theme_is_custom(index)) {
+        return false;
     }
 
-    return false;
+    char path[THEME_SD_TEXT + 64];
+    snprintf(path, sizeof(path), "sdmc:" APP_DATA_DIR "themes/%s.json", theme_get(index)->id + 3);
+    bool ok = remove(path) == 0;
+    theme_load_sd();
+    return ok;
 }
 
 bool theme_save_custom(const theme_def* def, const char* name, u32 editing, u32* saved, char* path, size_t pathSize) {

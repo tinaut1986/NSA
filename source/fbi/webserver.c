@@ -1869,7 +1869,8 @@ static const char* web_night_ids[] = {"off", "on", "auto"};
 typedef enum {
     WEB_THEME_PREVIEW,
     WEB_THEME_END,
-    WEB_THEME_SAVE
+    WEB_THEME_SAVE,
+    WEB_THEME_DELETE
 } web_theme_kind;
 
 static struct {
@@ -1925,6 +1926,20 @@ static char* web_read_body(web_request* r, size_t max) {
 static void web_api_theme_edit(web_request* r) {
     char id[64];
     u32 index = settings_get()->theme;
+    if(web_query_get(r->query, "id", id, sizeof(id)) && strcmp(id, "blank") == 0) {
+        // A new theme of one's own from greys.
+        char* text = themefile_write(theme_blank(), "My theme");
+        json_t* theme = text != NULL ? json_loads(text, 0, NULL) : NULL;
+        free(text);
+        if(theme == NULL) {
+            web_send_error(r, 500, "out of memory");
+            return;
+        }
+
+        web_send_json(r, 200, json_pack("{s:b,s:s,s:b,s:o}", "ok", 1, "id", "blank", "custom", 0, "theme", theme));
+        return;
+    }
+
     if(web_query_get(r->query, "id", id, sizeof(id))) {
         index = theme_count();
         for(u32 i = 0; i < theme_count(); i++) {
@@ -2039,11 +2054,14 @@ static void web_api_theme_save(web_request* r) {
         return;
     }
 
-    // Which theme it was made from: over its file when it is one from the SD card.
+    // Which theme it was made from: over its file when it is one from the SD card, unless asked for a new one (a built-in
+    // theme's index, 0, makes a new file).
     char editing[64] = "";
+    char asNew[4] = "";
     web_query_get(r->query, "editing", editing, sizeof(editing));
+    web_query_get(r->query, "new", asNew, sizeof(asNew));
     web_theme.editing = 0;
-    for(u32 i = 0; i < theme_count(); i++) {
+    for(u32 i = 0; strcmp(asNew, "1") != 0 && i < theme_count(); i++) {
         if(strcmp(theme_get(i)->id, editing) == 0) {
             web_theme.editing = i;
         }
@@ -2062,6 +2080,39 @@ static void web_api_theme_save(web_request* r) {
     web_send_json(r, 200, json_pack("{s:b,s:s}", "ok", 1, "theme", web_theme.id));
 }
 
+static void web_api_theme_delete(web_request* r) {
+    if(web_theme.state == 1) {
+        web_send_error(r, 409, "the console is still drawing the last one");
+        return;
+    }
+
+    char id[64] = "";
+    web_query_get(r->query, "id", id, sizeof(id));
+    web_theme.editing = theme_count();
+    for(u32 i = 0; i < theme_count(); i++) {
+        if(theme_is_custom(i) && strcmp(theme_get(i)->id, id) == 0) {
+            web_theme.editing = i;
+        }
+    }
+
+    if(web_theme.editing == theme_count()) {
+        web_send_error(r, 404, "no theme of the SD card with that id");
+        return;
+    }
+
+    if(!web_theme_run(WEB_THEME_DELETE)) {
+        web_send_error(r, 503, "the console did not answer in time");
+        return;
+    }
+
+    if(!web_theme.ok) {
+        web_send_error(r, 500, "the theme could not be deleted from the SD card");
+        return;
+    }
+
+    web_send_json(r, 200, json_pack("{s:b,s:s}", "ok", 1, "theme", web_theme.id));
+}
+
 // Main thread.
 static void web_theme_apply() {
     if(web_theme.kind == WEB_THEME_PREVIEW) {
@@ -2072,6 +2123,18 @@ static void web_theme_apply() {
     } else if(web_theme.kind == WEB_THEME_END) {
         theme_preview_end();
         web_theme.ok = true;
+    } else if(web_theme.kind == WEB_THEME_DELETE) {
+        theme_preview_end();
+        settings_data* settings = settings_get();
+        bool inUse = settings->theme == web_theme.editing;
+        char id[64];
+        string_copy(id, theme_get(settings->theme)->id, sizeof(id));
+        web_theme.ok = theme_delete_custom(web_theme.editing);
+        // The theme in use stays, unless it was this one: then the first built-in one.
+        settings->theme = inUse ? 0 : theme_find(id);
+        settings_apply();
+        settings_save();
+        string_copy(web_theme.id, theme_get(settings->theme)->id, sizeof(web_theme.id));
     } else {
         theme_preview_end();
         char path[256];
@@ -2423,6 +2486,8 @@ static void web_handle(web_request* r) {
         web_api_theme_preview_end(r);
     } else if(post && strcmp(api, "theme/save") == 0) {
         web_api_theme_save(r);
+    } else if(post && strcmp(api, "theme/delete") == 0) {
+        web_api_theme_delete(r);
     } else if(post && strcmp(api, "install-url") == 0) {
         web_api_install_url(r);
     } else if(get && strcmp(api, "prompt") == 0) {

@@ -17,6 +17,11 @@
 // The release workflow puts docs/release-notes/<tag>.md between these markers.
 #define UPDATE_NOTES_OPEN "<!-- nsa-notes -->"
 #define UPDATE_NOTES_CLOSE "<!-- /nsa-notes -->"
+// The changelog's pages (tools/make_changelog.py, served by GitHub Pages from feat/website):
+// changelog/<language>/<page>.json = {"format": 1, "page": n, "pages": total,
+// "releases": [{"tag": "vX.Y.Z", "prerelease": bool, "notes": "- ..."}]}, newest first.
+#define UPDATE_HISTORY_FORMAT 1
+#define UPDATE_HISTORY_PAGE 10
 
 typedef struct {
     char version[48];
@@ -32,6 +37,12 @@ typedef struct {
 // (or `installed` is "0.0.0"), the channel's whole history.
 // -1: invalid response, 0: nothing in this channel, 1: valid candidate.
 int update_parse_releases(const char* data, size_t size, bool betas, bool homebrew, const char* installed, update_release* out);
+
+// One page of the changelog: every release in it, betas and stables alike, that is not newer than `installed`, newest
+// first, as "## vX.Y.Z[ BETA]" headings and their notes. Written to out (cap bytes, always terminated); a release that
+// does not fit is left out with the ones after it. *pages: how many pages there are.
+// -1: invalid page, else the number of releases written.
+int update_parse_history(const char* data, size_t size, const char* installed, char* out, size_t cap, unsigned* pages);
 
 // Versions: "X.Y.Z" (optionally with a leading 'v'), "X.Y.Z-beta" for a
 // published pre-release build, "X.Y.Z-dev.N+hash" for an unpublished one.

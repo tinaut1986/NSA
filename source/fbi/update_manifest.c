@@ -188,6 +188,63 @@ static void notes_block(const char* body, const char** start, size_t* len) {
     *len = b != NULL ? (size_t) (b - a) : strlen(a);
 }
 
+int update_parse_history(const char* data, size_t size, const char* installed, char* out, size_t cap, unsigned* pages) {
+    *pages = 0;
+    if(cap > 0) {
+        out[0] = '\0';
+    }
+
+    json_error_t err;
+    json_t* root = json_loadb(data, size, JSON_REJECT_DUPLICATES, &err);
+    json_t* releases = root != NULL ? json_object_get(root, "releases") : NULL;
+    json_t* total = root != NULL ? json_object_get(root, "pages") : NULL;
+    if(!json_is_object(root) || json_integer_value(json_object_get(root, "format")) != UPDATE_HISTORY_FORMAT || !json_is_array(releases) ||
+       !json_is_integer(total) || json_integer_value(total) < 0 || json_integer_value(total) > 100000) {
+        json_decref(root);
+        return -1;
+    }
+
+    *pages = (unsigned) json_integer_value(total);
+
+    int count = 0;
+    size_t used = 0;
+    size_t i;
+    json_t* o;
+    json_array_foreach(releases, i, o) {
+        char tag[48];
+        json_t* notes = json_object_get(o, "notes");
+        json_t* pre = json_object_get(o, "prerelease");
+        if(!json_is_object(o) || !get_text(o, "tag", tag, sizeof(tag)) || tag[0] != 'v' || strchr(tag, '-') != NULL || !update_valid_version(tag) ||
+           !json_is_boolean(pre) || !json_is_string(notes)) {
+            continue;
+        }
+
+        // Betas and stables alike, up to the installed build: a beta's notes are not repeated by the stable after it.
+        char cmp[64];
+        snprintf(cmp, sizeof(cmp), "%s%s", tag, json_is_true(pre) ? "-beta" : "");
+        if(installed != NULL && update_is_newer(cmp, installed)) {
+            continue;
+        }
+
+        // A release that does not fit is left out with the ones after it, never cut in half.
+        size_t len = json_string_length(notes);
+        int head = snprintf(out + used, cap - used, "%s## %s%s\n", used ? "\n" : "", tag, json_is_true(pre) ? " BETA" : "");
+        if(head < 0 || (size_t) head + len + 1 > cap - used) {
+            out[used] = '\0';
+            break;
+        }
+
+        used += (size_t) head;
+        memcpy(out + used, json_string_value(notes), len);
+        used += len;
+        out[used] = '\0';
+        count++;
+    }
+
+    json_decref(root);
+    return count;
+}
+
 int update_parse_releases(const char* data, size_t size, bool betas, bool homebrew, const char* installed, update_release* out) {
     memset(out, 0, sizeof(*out));
 
@@ -287,11 +344,6 @@ unsigned update_format_notes(const char* md, char lines[][UPDATE_LINE_MAX], unsi
         width = UPDATE_LINE_MAX - 1;
     }
 
-    char* clean = (char*) malloc(UPDATE_NOTES_MAX);
-    if(clean == NULL) {
-        return 0;
-    }
-
     // Show the notes block when there is one, else the commit list.
     size_t limit = md != NULL ? strlen(md) : 0;
     const char* section = md != NULL ? strstr(md, UPDATE_NOTES_OPEN) : NULL;
@@ -304,9 +356,14 @@ unsigned update_format_notes(const char* md, char lines[][UPDATE_LINE_MAX], unsi
         limit = strlen(md);
     }
 
+    char* clean = (char*) malloc(limit + 1);
+    if(clean == NULL) {
+        return 0;
+    }
+
     // Image/link destinations and Markdown markers are presentation only.
     size_t n = 0;
-    for(size_t i = 0; i < limit && md[i] && n < UPDATE_NOTES_MAX - 1;) {
+    for(size_t i = 0; i < limit && md[i];) {
         if(md[i] == '<') {
             const char* end = memchr(md + i, '>', limit - i);
             if(end != NULL) {
@@ -337,7 +394,16 @@ unsigned update_format_notes(const char* md, char lines[][UPDATE_LINE_MAX], unsi
         }
 
         unsigned char c = (unsigned char) md[i++];
-        if(c == '*' || c == '`' || c == '#' || c == '\r' || c >= 128) {
+        if(c == '*' || c == '`' || c == '#' || c == '\r') {
+            continue;
+        }
+
+        // UTF-8 stays (the translated notes); four-byte characters (emoji) are not in the system font.
+        if(c >= 0xF0) {
+            while(i < limit && ((unsigned char) md[i] & 0xC0) == 0x80) {
+                i++;
+            }
+
             continue;
         }
 
@@ -370,8 +436,13 @@ unsigned update_format_notes(const char* md, char lines[][UPDATE_LINE_MAX], unsi
                 take--;
             }
 
-            if(take == 0) {
+            // A space early in the line is not worth breaking at (Japanese and Chinese have none past "- ").
+            if(take < width / 2) {
                 take = width;
+                // Not in the middle of a character.
+                while(take > 0 && ((unsigned char) p[take] & 0xC0) == 0x80) {
+                    take--;
+                }
             }
         }
 

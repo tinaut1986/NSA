@@ -35,7 +35,7 @@ jobs:
       - name: Install host build tools
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends xxd qrencode >/dev/null
+          apt-get install -y -qq --no-install-recommends xxd qrencode python3 >/dev/null
 
       - name: Determine release tag and channel
         id: vars
@@ -153,3 +153,26 @@ jobs:
             release/NSA-${{ steps.vars.outputs.tag }}.3dsx
             release/SHA256SUMS.txt
             release/QR-${{ steps.vars.outputs.tag }}.png
+
+      # NSA's Settings -> Changelog (v0.10 on) reads pages of the notes in its language from GitHub Pages
+      # (branch feat/website, folder /docs): see tools/make_changelog.py. The release bodies stay English only,
+      # because NSA v0.9.9 and older read every body at once and must keep getting what they always did.
+      - name: Publish the changelog pages
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 --branch feat/website \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" site
+          python3 tools/make_changelog.py --repo "${{ github.repository }}" --out site/docs/changelog
+          cd site
+          git add -A docs/changelog
+          if git diff --cached --quiet; then
+            echo "The changelog pages are unchanged"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Changelog pages for ${{ steps.vars.outputs.tag }}"
+          # Someone may have pushed to the site meanwhile: the pages are regenerated whole, so rebasing onto it is safe.
+          git push -q origin HEAD:feat/website || { git pull -q --rebase origin feat/website && git push -q origin HEAD:feat/website; }

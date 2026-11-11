@@ -1407,6 +1407,7 @@ const i18n_entry i18n_de[] = {
         {"Installing in the HOME Menu", "Wird im HOME-Menü installiert"},
         {"Failed to create the install thread.", "Der Installations-Thread konnte nicht erstellt werden."},
         {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "Über die Aktionen einer .3dsx lässt sie sich im HOME-Menü installieren: als eigener Titel, mit einem Banner aus ihrem Symbol oder einem eigenen Bild."},
+        {"When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS.", "Ist eine Liste länger als der Bildschirm, erscheinen beim Scrollen unten rechts zwei Pfeile: Sie springen zum ersten oder zum letzten Eintrag. Auf einem New 3DS tun ZL und ZR dasselbe."},
 };
 
 const u32 i18n_de_count = sizeof(i18n_de) / sizeof(*i18n_de);

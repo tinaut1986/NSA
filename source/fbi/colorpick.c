@@ -279,6 +279,10 @@ static void cp_draw_bottom(ui_view* view, void* data, float x1, float y1, float 
     screen_fill_circle(rx, ry, 5, t->palette->text);
     screen_fill_circle(rx, ry, 4, color | 0xFF000000u);
 
+    // Where a guided tour points (guide.c, "Your own themes").
+    coach_anchor("colorpick.square", l.sqX, l.sqY, l.sqW, l.sqH, false);
+    coach_anchor("colorpick.hue", l.hueX - 2, l.sqY, CP_BAR_W + 4, l.sqH, false);
+
     // The hues, and a bar across where it is.
     screen_frame_round_rect(l.hueX - 1, l.sqY - 1, CP_BAR_W + 2, l.sqH + 2, 2, 1, t->palette->border, t->palette->border);
     screen_draw_texture(d->hueTexture, l.hueX, l.sqY, CP_BAR_W, l.sqH);

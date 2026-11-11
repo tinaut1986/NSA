@@ -3,3 +3,6 @@ contact_links:
   - name: Install guide and FAQ
     url: https://tinaut1986.github.io/NSA/#install
     about: How to install NSA, the update channels, and common questions.
+  - name: Discord
+    url: https://discord.gg/TsE89qj6PE
+    about: Questions and chat with other NSA users.

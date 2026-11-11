@@ -167,8 +167,8 @@ What `release` holds, in the order it was built:
   have the arrows to the top and the end, the menus do not). Settings and the action sheets drawn as a list now coast
   when a drag is let go, show the two round arrows at their bottom right while they scroll (only the ways they can still
   go; a tap selects the first or the last row) and take ZL / ZR for the same; the filter popovers coast too (no arrows:
-  the card is small). One helper, `widget_scroller` (`widgets.c`); `list.c` keeps its own. Built only (DEBUG 0.9.9), not
-  tried in Azahar or on a console.
+  the card is small). One helper, `widget_scroller` (`widgets.c`), which the lists (`list.c`) now use too for theirs.
+  Built only (DEBUG 0.9.9), not tried in Azahar or on a console.
 - [x] Sheets pulled down to close (2026-11-11, `feat/sheet-drag`; issue #14, the last of HOME's mockup). An action sheet
   (`overlay.c`, every theme; it now has a handle) and a dialog drawn as a sheet (`prompt.c`, a theme with sheetPrompts)
   follow a finger put on their top (the handle and the header, not the close cross) and the scrim lightens; let go past

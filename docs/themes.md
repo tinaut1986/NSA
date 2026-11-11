@@ -4,7 +4,11 @@ NSA reads themes from `sdmc:/nsa/themes/`: each `.json` file there is a theme, l
 Settings -> Theme after Cards, Pixel and HOME (by name). Settings reads the folder again each time
 it opens, so a file copied over FTP or the web page shows up without restarting NSA.
 
-The easiest start is **Settings -> Save the theme as a file**: it writes the theme in use as
+The easiest way is **Settings -> Edit the theme**, on the console: every value below, the colours
+picked with a finger, seen at once on both screens. A built-in theme is saved as a new file named
+after the name you give it.
+
+To edit a file on a computer instead, start from **Settings -> Save the theme as a file**: it writes the theme in use as
 `/nsa/themes/<name>-2.json` (named "<Name> 2"), with every key. Change its colours on a computer
 and pick it under Theme.
 

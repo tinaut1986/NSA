@@ -81,6 +81,7 @@ typedef struct {
     bool barTouching;
     bool scrollbarTouching;   // A finger holds the scrollbar.
     bool held;                // list_hold: items take no presses.
+    bool sideKeys;            // list_set_side_keys: rows do not turn a page with Left and Right.
     // The arrows to the top and the end show for a while after the list scrolls (they fade in and out).
     float lastScrollPos;
     u64 scrollMovedTime;
@@ -646,6 +647,8 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
                 u32 lastRow = ((count - 1) / cols) * cols;
                 listData->selectedIndex = lastRow + listData->selectedIndex < count ? lastRow + listData->selectedIndex : count - 1;
             }
+        } else if(listData->sideKeys && cols == 1) {
+            // Left and Right are the screen's (they change the selected row's value).
         } else if(list_repeat(listData, KEY_RIGHT)) {
             if(cols > 1) {
                 listData->selectedIndex = (listData->selectedIndex + 1) % count;
@@ -1251,6 +1254,14 @@ bool list_selection_chosen(ui_view* view) {
 
 void list_hold(ui_view* view, bool held) {
     ((list_data*) view->data)->held = held;
+}
+
+linked_list* list_get_items(ui_view* view) {
+    return &((list_data*) view->data)->items;
+}
+
+void list_set_side_keys(ui_view* view, bool own) {
+    ((list_data*) view->data)->sideKeys = own;
 }
 
 void list_show_title_bar(ui_view* view) {

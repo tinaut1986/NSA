@@ -15,6 +15,7 @@
 #include "../core/bgmusic.h"
 #include "update.h"
 #include "pinpad.h"
+#include "themeedit.h"
 #include "../core/core.h"
 
 // Settings: one list. Options change in place with Left/Right (or A, or a
@@ -22,6 +23,7 @@
 
 typedef enum {
     OPTION_THEME,
+    OPTION_THEME_EDIT,     // The theme editor (themeedit.c).
     OPTION_THEME_EXPORT,   // Writes the theme in use to the SD card, to make one's own.
     OPTION_ACCENT,
     OPTION_NIGHT,
@@ -109,7 +111,7 @@ typedef struct {
 
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
-            ICON_PALETTE, ICON_DEVICE_FLOPPY, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
+            ICON_PALETTE, ICON_PENCIL, ICON_DEVICE_FLOPPY, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
             ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
     };
 
@@ -119,6 +121,7 @@ static icon_id settingsmenu_icon(settings_option option) {
 static const char* settingsmenu_label(settings_option option) {
     switch(option) {
         case OPTION_THEME: return _("Theme");
+        case OPTION_THEME_EDIT: return _("Edit the theme");
         case OPTION_THEME_EXPORT: return _("Save the theme as a file");
         case OPTION_ACCENT: return _("Accent colour");
         case OPTION_NIGHT: return _("Night mode");
@@ -215,6 +218,11 @@ static void settingsmenu_change(settings_option option, int direction) {
         case OPTION_THEME:
             settings->theme = settingsmenu_step(settings->theme, theme_count(), step);
             break;
+        case OPTION_THEME_EDIT:
+            if(direction == 0) {
+                themeedit_open();
+            }
+            return;
         case OPTION_THEME_EXPORT:
             if(direction == 0) {
                 settingsmenu_export_theme();
@@ -506,6 +514,7 @@ static const char* settingsmenu_help(settings_option option) {
     settings_data* settings = settings_get();
     switch(option) {
         case OPTION_THEME: return _("How the menus look. Your own themes are .json files in /nsa/themes/ on the SD card: they are listed after the others.");
+        case OPTION_THEME_EDIT: return _("Change the theme in use value by value, its colours with a finger, and see it at once. A built-in theme is saved as a new one of your own.");
         case OPTION_THEME_EXPORT: return _("Writes the theme in use to /nsa/themes/ on the SD card, as a start for your own: change its colours on a computer and it shows under Theme.");
         case OPTION_ACCENT: return _("The colour of buttons, selections and bars.");
         case OPTION_NIGHT: return _("Dark colours. Automatic: from 20:00 to 8:00.");
@@ -764,7 +773,7 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
 
         // Where a guided tour finds it (coach.h).
         static const char* const anchors[OPTION_COUNT] = {
-                "settings.theme", "settings.theme_export", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
+                "settings.theme", "settings.theme_edit", "settings.theme_export", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
                 "settings.ftp", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.channel", "settings.auto_update",
                 "settings.check_updates", "settings.changelog", "settings.guide"
         };

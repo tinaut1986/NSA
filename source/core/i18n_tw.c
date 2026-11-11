@@ -118,6 +118,7 @@ const i18n_entry i18n_tw[] = {
         {"Window", "視窗"},
         {"\uE004\uE005 hue   \uE002 type   \uE000 ok   \uE001 cancel", "\uE004\uE005 色調   \uE002 輸入   \uE000 確定   \uE001 取消"},
         {"Edit the theme changes the one in use value by value, its colours with a finger, and you see it at once on both screens. A built-in theme is saved as a new one of your own.", "編輯主題可以逐項修改目前的主題，用手指選擇顏色，兩個螢幕上立即看到效果。標準主題會儲存為自己的新主題。"},
+        {"The page can edit the theme too, in its Settings: you see each change on the page and on the console at once.", "網頁的設定也可以編輯主題：修改都會立即顯示在網頁和主機上。"},
         {"Writes the theme in use to /nsa/themes/ on the SD card, as a start for your own: change its colours on a computer and it shows under Theme.", "將目前的主題儲存到 SD 的 /nsa/themes/，作為自己主題的起點：在電腦上修改它的顏色，它就會出現在主題中。"},
         {"Save the theme as a file", "將主題儲存為文件"},
         {"The theme could not be saved to the SD card.", "無法將主題儲存到 SD。"},

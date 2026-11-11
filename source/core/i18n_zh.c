@@ -117,6 +117,7 @@ const i18n_entry i18n_zh[] = {
         {"Window", "在中间"},
         {"\uE004\uE005 hue   \uE002 type   \uE000 ok   \uE001 cancel", "\uE004\uE005 色调   \uE002 输入   \uE000 确定   \uE001 取消"},
         {"Edit the theme changes the one in use value by value, its colours with a finger, and you see it at once on both screens. A built-in theme is saved as a new one of your own.", "编辑主题可以按项修改当前主题，用手指选择颜色，两个屏幕上立即看到效果。内置主题会保存为你自己的新主题。"},
+        {"The page can edit the theme too, in its Settings: you see each change on the page and on the console at once.", "网页的设置也可以编辑主题：每次修改都会立即显示在网页和主机上。"},
         {"Writes the theme in use to /nsa/themes/ on the SD card, as a start for your own: change its colours on a computer and it shows under Theme.", "将当前主题保存到 SD 卡的 /nsa/themes/，作为你自己主题的起点：在电脑上修改它的颜色，它就会出现在主题中。"},
         {"Save the theme as a file", "将主题保存为文件"},
         {"The theme could not be saved to the SD card.", "无法将主题保存到 SD 卡。"},

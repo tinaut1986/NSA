@@ -155,6 +155,7 @@ static const coach_step computer_steps[] = {
         REACH("settings.web", "Now go to Web server."),
         INFO("settings.web", "Turn it on and open the address on the top screen in your computer's browser, with the PIN: files, titles, saves, installs and the screens live. Only on your own Wi-Fi."),
         INFO("settings.web", "While the web server runs, its row shows a QR code: scan it with your phone and the page opens, already signed in."),
+        INFO_SINCE(GUIDE_VERSION(0, 13), "settings.web", "The page can edit the theme too, in its Settings: you see each change on the page and on the console at once."),
         REACH("settings.web_pin", "Go down to Web PIN."),
         INFO_SINCE(GUIDE_VERSION(0, 12), "settings.web_pin", "Web PIN: Random makes a new PIN each time the server starts, Fixed keeps one between launches (you type it, or make a random one on the keypad), and None opens the page without a PIN, only for a network you trust."),
         INFO_SINCE(GUIDE_VERSION(0, 12), "settings.web_pin", "When a browser asks for the PIN, the console shows it at the bottom of the screen."),

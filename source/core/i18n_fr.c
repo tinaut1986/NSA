@@ -119,6 +119,7 @@ const i18n_entry i18n_fr[] = {
         {"Window", "Fenêtre"},
         {"\uE004\uE005 hue   \uE002 type   \uE000 ok   \uE001 cancel", "\uE004\uE005 teinte   \uE002 saisir   \uE000 ok   \uE001 annuler"},
         {"Edit the theme changes the one in use value by value, its colours with a finger, and you see it at once on both screens. A built-in theme is saved as a new one of your own.", "Modifier le thème change celui utilisé valeur par valeur, ses couleurs du doigt, et vous le voyez aussitôt sur les deux écrans. Un thème intégré est enregistré comme un nouveau thème à vous."},
+        {"The page can edit the theme too, in its Settings: you see each change on the page and on the console at once.", "La page peut aussi modifier le thème, dans ses Paramètres : vous voyez chaque changement aussitôt sur la page et sur la console."},
         {"Writes the theme in use to /nsa/themes/ on the SD card, as a start for your own: change its colours on a computer and it shows under Theme.", "Enregistre le thème utilisé dans /nsa/themes/ sur la carte SD, comme point de départ pour le vôtre : changez ses couleurs sur un ordinateur et il apparaîtra dans Thème."},
         {"Save the theme as a file", "Enregistrer le thème dans un fichier"},
         {"The theme could not be saved to the SD card.", "Le thème n'a pas pu être enregistré sur la carte SD."},

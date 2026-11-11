@@ -119,6 +119,7 @@ const i18n_entry i18n_ja[] = {
         {"Window", "ウィンドウ"},
         {"\uE004\uE005 hue   \uE002 type   \uE000 ok   \uE001 cancel", "\uE004\uE005 色相   \uE002 入力   \uE000 OK   \uE001 キャンセル"},
         {"Edit the theme changes the one in use value by value, its colours with a finger, and you see it at once on both screens. A built-in theme is saved as a new one of your own.", "テーマを編集では、使用中のテーマを値ごとに変え、色は指で選び、両方の画面ですぐに確認できます。標準のテーマは自分の新しいテーマとして保存されます。"},
+        {"The page can edit the theme too, in its Settings: you see each change on the page and on the console at once.", "ページの設定でもテーマを編集できます。変更はページとコンソールの両方ですぐに見られます。"},
         {"Writes the theme in use to /nsa/themes/ on the SD card, as a start for your own: change its colours on a computer and it shows under Theme.", "使用中のテーマをSDカードの /nsa/themes/ に保存して、自分のテーマの元にします。パソコンで色を変えるとテーマに並びます。"},
         {"Save the theme as a file", "テーマをファイルに保存"},
         {"The theme could not be saved to the SD card.", "テーマをSDカードに保存できませんでした。"},

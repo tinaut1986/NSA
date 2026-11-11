@@ -120,6 +120,7 @@ const i18n_entry i18n_ru[] = {
         {"Window", "Окно"},
         {"\uE004\uE005 hue   \uE002 type   \uE000 ok   \uE001 cancel", "\uE004\uE005 оттенок   \uE002 ввод   \uE000 ок   \uE001 отмена"},
         {"Edit the theme changes the one in use value by value, its colours with a finger, and you see it at once on both screens. A built-in theme is saved as a new one of your own.", "Изменить тему меняет текущую значение за значением, цвета пальцем, и вы сразу видите это на обоих экранах. Встроенная тема сохраняется как новая своя."},
+        {"The page can edit the theme too, in its Settings: you see each change on the page and on the console at once.", "Страница тоже может изменять тему, в своих настройках: каждое изменение сразу видно на странице и на консоли."},
         {"Writes the theme in use to /nsa/themes/ on the SD card, as a start for your own: change its colours on a computer and it shows under Theme.", "Сохраняет текущую тему в /nsa/themes/ на SD-карте как основу для своей: измените ее цвета на компьютере, и она появится в списке тем."},
         {"Save the theme as a file", "Сохранить тему в файл"},
         {"The theme could not be saved to the SD card.", "Не удалось сохранить тему на SD-карту."},

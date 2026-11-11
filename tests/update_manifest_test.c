@@ -11,7 +11,7 @@
 static json_t* make(const char* tag, bool pre, const char* notes) {
     char name[100];
     char url[512];
-    char body[256];
+    char body[1024];
     snprintf(name, sizeof(name), APP_NAME "-%s.cia", tag);
     snprintf(url, sizeof(url), "https://github.com/" APP_REPOSITORY "/releases/download/%s/%s", tag, name);
     snprintf(body, sizeof(body), "intro\n" UPDATE_NOTES_OPEN "\n%s\n" UPDATE_NOTES_CLOSE "\nfooter", notes);
@@ -24,6 +24,48 @@ static int parse(json_t* list, bool betas, bool homebrew, const char* installed,
     int result = update_parse_releases(s, strlen(s), betas, homebrew, installed, out);
     free(s);
     return result;
+}
+
+static int history(const char* page, const char* installed, char* out, size_t cap, unsigned* pages) {
+    return update_parse_history(page, strlen(page), installed, out, cap, pages);
+}
+
+static void test_history() {
+    static char out[4096];
+    unsigned pages = 0;
+    const char* page = "{\"format\":1,\"page\":1,\"pages\":3,\"releases\":["
+                       "{\"tag\":\"v0.4.0\",\"prerelease\":true,\"notes\":\"- beta cuatro\\n\"},"
+                       "{\"tag\":\"v0.3.0\",\"prerelease\":false,\"notes\":\"- estable tres, ñandú\\n\"},"
+                       "{\"tag\":\"v0.2.1\",\"prerelease\":true,\"notes\":\"- beta two one\\n\"},"
+                       "{\"tag\":\"../x\",\"prerelease\":false,\"notes\":\"- evil\\n\"},"
+                       "{\"tag\":\"v0.2.0\",\"prerelease\":false}"
+                       "]}";
+
+    // Up to the installed build, betas and stables alike, newest first.
+    assert(history(page, "0.3.0", out, sizeof(out), &pages) == 2 && pages == 3);
+    assert(!strcmp(out, "## v0.3.0\n- estable tres, ñandú\n\n## v0.2.1 BETA\n- beta two one\n"));
+    // A newer dev build sees them all; a beta build of 0.4.0 too; the bad entries never.
+    assert(history(page, "0.4.1-dev.2+abc", out, sizeof(out), &pages) == 3 && strstr(out, "## v0.4.0 BETA\n- beta cuatro"));
+    assert(history(page, "0.4.0-beta", out, sizeof(out), &pages) == 3 && !strstr(out, "evil"));
+    assert(history(page, "0.4.0-dev.1+abc", out, sizeof(out), &pages) == 2);
+
+    // What does not fit is left out, never cut in half.
+    assert(history(page, "0.4.0", out, 40, &pages) == 1 && !strcmp(out, "## v0.4.0 BETA\n- beta cuatro\n"));
+
+    assert(history("{\"format\":1,\"page\":4,\"pages\":3,\"releases\":[]}", "0.1.0", out, sizeof(out), &pages) == 0 && pages == 3 && !out[0]);
+    assert(history("{\"format\":2,\"pages\":3,\"releases\":[]}", "0.1.0", out, sizeof(out), &pages) == -1);
+    assert(history("[]", "0.1.0", out, sizeof(out), &pages) == -1);
+    assert(history("<html>404</html>", "0.1.0", out, sizeof(out), &pages) == -1);
+
+    // UTF-8 survives formatting and is never split inside a character; emoji are dropped.
+    static char lines[64][UPDATE_LINE_MAX];
+    unsigned count = update_format_notes("- Pantalla de diseño 🎨 ñ", lines, 64, 50);
+    assert(count == 1 && !strcmp(lines[0], "- Pantalla de diseño  ñ"));
+    count = update_format_notes("テーマエディタテーマエディタ", lines, 64, 10);
+    for(unsigned i = 0; i < count; i++) {
+        assert(strlen(lines[i]) % 3 == 0);
+    }
+    assert(count == 5);
 }
 
 static void test_versions() {
@@ -138,6 +180,7 @@ int main() {
     test_versions();
     test_format();
     test_channels();
+    test_history();
     puts("PASS: update_manifest");
     return 0;
 }

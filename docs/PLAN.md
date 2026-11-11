@@ -163,6 +163,17 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Changelog in pages and in every language (2026-11-11, `feat/changelog-pages`). Settings -> Changelog no longer
+  downloads the last 100 releases of GitHub's API: it reads `https://tinaut1986.github.io/NSA/changelog/<code>/<n>.json`
+  (10 releases a page, in the interface language; English if that language has no pages, a 404) and asks for the next
+  page when the end of the text is on screen ("Loading older releases..." on the bottom screen; a failure says
+  " retry"). It lists every release up to the installed one, betas and stables, on both channels. The notes keep
+  accents, Cyrillic and CJK (the formatter dropped every byte above 127) and lines never break inside a character.
+  Try: Changelog in Spanish and in Japanese (UTF-8 on screen, lines), scroll to the end (pages 2 to 4 load), B while a
+  page loads, Wi-Fi off at the end (retry with A), the update offer (unchanged, English). Built only (DEBUG 0.9.9): HTTPS
+  does not work in Azahar; the parser was run on the host over the real pages of all 11 languages.
+  Also to check after the next release: the workflow's new step pushes the pages to `feat/website` with GITHUB_TOKEN and
+  that push starts the Pages build (if it does not, Pages needs a manual run or a token of the owner's).
 - [ ] Flick and jump arrows in the menus (2026-11-11, `feat/menu-flick`; the owner: the lists coast after a drag and
   have the arrows to the top and the end, the menus do not). Settings and the action sheets drawn as a list now coast
   when a drag is let go, show the two round arrows at their bottom right while they scroll (only the ways they can still
@@ -1673,6 +1684,12 @@ current, this list is the summary. What only the owner can test (local wireless)
   once), own versions from `v0.1.0`. Upstream is noted as "based on FBI 2.6.1".
 - Updates: Stable/Beta channels from GitHub releases; the changelog joins every
   release since the installed one. Ported from `../zelda-tmc-3ds` (host tests in `tests/`).
+- The changelog (2026-11-11): pages of 10 releases in each interface language on GitHub Pages
+  (`tools/make_changelog.py`, run by the release workflow, pushed to `feat/website` `docs/changelog/`), from
+  `docs/release-notes/<tag>.md` and `<tag>.<code>.md` (every language, for every tag: see that folder's README). Not in the
+  release bodies, as dusklight does: NSA v0.9.9 and older read `releases?per_page=100` whole (1 MB at most) for updates and
+  their changelog, and the translations would have nearly doubled it. Those bodies stay English and unchanged. The
+  update offer still joins the English notes of the releases since the installed one.
 - FTP server on port 5021 (passive 5022-5085), SD card only; `SITE INSTALL` refuses NAND
   titles and never deletes a title to force a downgrade (it would delete the game's saves).
   It was on 5000 until v0.3.0 and paused while Remote install's "Receive URLs" was open;

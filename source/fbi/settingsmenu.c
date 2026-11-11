@@ -553,7 +553,7 @@ static const char* settingsmenu_help(settings_option option) {
                                                           : _("Random: a new PIN each time the server starts. When a browser asks for it, the console shows it on the bottom screen.");
         case OPTION_WEB_FIXED_PIN: return _("Type the PIN on the keypad, or press the turning arrows there for a random one. Pages already open have to type it again.");
         case OPTION_CHECK_UPDATES: return _("Look for a newer release in your channel now.");
-        case OPTION_CHANGELOG: return _("Every release of your channel, newest first.");
+        case OPTION_CHANGELOG: return _("Every release up to yours, betas and stables, newest first.");
         case OPTION_GUIDE: return _("How NSA works, in short chapters. When an update adds something, NSA offers only the new chapters.");
         default: return "";
     }

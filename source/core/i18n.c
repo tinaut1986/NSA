@@ -90,6 +90,10 @@ language_id i18n_get_language() {
     return selected;
 }
 
+language_id i18n_effective_language() {
+    return i18n_resolve(selected);
+}
+
 const char* i18n_language_name(language_id language) {
     if(language > LANGUAGE_SYSTEM && language < LANGUAGE_COUNT) {
         return languages[language].name;

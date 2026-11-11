@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Install guide and FAQ
+    url: https://tinaut1986.github.io/NSA/#install
+    about: How to install NSA, the update channels, and common questions.

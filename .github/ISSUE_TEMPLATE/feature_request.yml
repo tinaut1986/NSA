@@ -1,0 +1,49 @@
+name: Idea or suggestion
+description: Something NSA could do, or do better.
+title: "[Idea]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Tell what you would like to do with NSA; how it could look is welcome too, but not needed.
+
+  - type: textarea
+    id: need
+    attributes:
+      label: What you would like to do
+      description: What you are trying to do, and what gets in the way today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: How it could work
+      description: Your idea of it in NSA. Sketches or screenshots of other apps are welcome.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Part of NSA
+      multiple: true
+      options:
+        - Installing (SD card, network, URL, QR code)
+        - Titles, tickets, save data
+        - Files (SD card, viewers, player)
+        - Store (Universal-DB)
+        - Console to console (sending to another 3DS)
+        - Web page / FTP server
+        - Updates and changelog
+        - Settings, themes, guide
+        - Advanced (NAND)
+        - Something new
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before sending
+      options:
+        - label: This is not about pirated content.
+          required: true
+        - label: I looked for an issue with the same idea.

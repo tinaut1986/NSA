@@ -131,7 +131,7 @@ const i18n_entry i18n_tw[] = {
         {"Save as a new theme keeps it on the SD card and puts it in use. A theme of yours also has Save the theme, over its file, and Delete this theme.", "儲存為新主題會儲存到 SD 並使用。自己的主題還有儲存主題（覆蓋文件）和刪除這個主題。"},
         {"\uE001 leaves the editor; with changes, it asks first.", "\uE001 離開編輯；有修改時會先確認。"},
         {"The web page has this editor too, in its Settings: the page and the console show the theme while you change it.", "網頁的設定中也有這個編輯：修改時網頁和主機都會顯示主題。"},
-        {"HOME turns its icon grids sideways, in pages. Your own themes have a chapter of their own.", "HOME 的圖示網格以左右分頁顯示。自己的主題有專門的一章。"},
+        {"HOME turns its icon grids sideways, in pages: a tap on a dot, or a finger along the bar under them, goes to one. Your own themes have a chapter of their own.", "HOME 的圖示網格以左右分頁顯示：按一下下面的點，或用手指在下面的列上移動，就會到那一頁。自己的主題有專門的一章。"},
         {"Blank template", "空白範本"},
         {"Delete the theme \"%s\"? Its file is removed from the SD card.", "要刪除主題「%s」？它的文件會從 SD 刪除。"},
         {"Delete this theme", "刪除這個主題"},

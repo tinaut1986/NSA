@@ -133,7 +133,7 @@ const i18n_entry i18n_ru[] = {
         {"Save as a new theme keeps it on the SD card and puts it in use. A theme of yours also has Save the theme, over its file, and Delete this theme.", "«Сохранить как новую тему» сохраняет ее на SD-карте и включает. У своей темы есть еще «Сохранить тему» поверх ее файла и «Удалить эту тему»."},
         {"\uE001 leaves the editor; with changes, it asks first.", "\uE001 выходит из редактора; если есть изменения, сначала спросит."},
         {"The web page has this editor too, in its Settings: the page and the console show the theme while you change it.", "На веб-странице тоже есть этот редактор, в ее настройках: страница и консоль показывают тему, пока вы ее меняете."},
-        {"HOME turns its icon grids sideways, in pages. Your own themes have a chapter of their own.", "HOME листает сетки значков вбок, страницами. У своих тем есть отдельная глава."},
+        {"HOME turns its icon grids sideways, in pages: a tap on a dot, or a finger along the bar under them, goes to one. Your own themes have a chapter of their own.", "HOME листает сетки значков вбок, страницами: касание точки или палец вдоль полосы под ними ведут к нужной. У своих тем есть отдельная глава."},
         {"Blank template", "Пустой шаблон"},
         {"Delete the theme \"%s\"? Its file is removed from the SD card.", "Удалить тему «%s»? Ее файл будет удален с SD-карты."},
         {"Delete this theme", "Удалить эту тему"},

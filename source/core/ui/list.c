@@ -88,6 +88,9 @@ typedef struct {
     float jumpAlpha;
     int jumpTouch;            // The arrow a finger went down on (LIST_JUMP_*).
     bool jumpTouchOn;         // And is still over it.
+    // A finger on the dots or the bar under a grid in pages: the page it is on, gone to when it lifts.
+    bool pageScrub;
+    u32 scrubPage;
     int barTarget;
     void (*longPress)(ui_view* view, void* data, linked_list* items, list_item* item);
 
@@ -125,7 +128,9 @@ typedef struct {
     float view;             // How much of the list shows at once, along the way it scrolls.
 } list_layout;
 
-#define LIST_DOTS_HEIGHT 12
+#define LIST_DOTS_HEIGHT 18   // Under a grid in pages: its dots, or a bar to drag (a finger fits).
+#define LIST_DOTS_STEP 12
+#define LIST_DOTS_MAX 20       // More pages than this: a bar instead of dots.
 
 static bool list_grid(list_data* listData) {
     return listData->mode == LIST_MODE_GRID && listData->style.drawTile != NULL;
@@ -203,6 +208,34 @@ static void list_item_position(list_data* listData, list_layout* l, u32 index, f
 
     *x = l->x1 + (index % l->columns) * l->pitchX;
     *y = l->y1 + (index / l->columns) * l->pitchY - listData->scrollPos;
+}
+
+// The dots or the bar under a grid in pages, from `left` to `right` (the first and last page) at height `cy`.
+static void list_pager_geometry(list_data* listData, list_layout* l, float x1, float x2, float y2, float* left, float* right, float* cy) {
+    u32 pages = list_page_count(listData, l);
+    *cy = y2 - LIST_DOTS_HEIGHT / 2 - 1;
+    if(pages <= LIST_DOTS_MAX) {
+        *left = (x1 + x2) / 2 - (pages - 1) * LIST_DOTS_STEP / 2.0f;
+        *right = *left + (pages - 1) * LIST_DOTS_STEP;
+    } else {
+        // Room at the right for "12 / 51".
+        *left = x1 + 24;
+        *right = x2 - 76;
+    }
+}
+
+// The page under a finger at `px` on the dots or the bar.
+static u32 list_pager_page(list_data* listData, list_layout* l, float x1, float x2, float y2, float px) {
+    u32 pages = list_page_count(listData, l);
+    float left, right, cy;
+    list_pager_geometry(listData, l, x1, x2, y2, &left, &right, &cy);
+    if(pages <= 1 || right <= left) {
+        return 0;
+    }
+
+    float at = (px - left) / (right - left);
+    at = at < 0 ? 0 : at > 1 ? 1 : at;
+    return (u32) (at * (pages - 1) + 0.5f);
 }
 
 // The page that shows most (pages only).
@@ -720,6 +753,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
         listData->barTouching = false;
         listData->scrollbarTouching = false;
         listData->jumpTouch = LIST_JUMP_NONE;
+        listData->pageScrub = false;
         int target = list_title_bar_target(listData, &pos);
         float barTotal = list_total_height(listData, &l);
         int jump = count > 0 ? list_jump_hit(listData, &l, &pos) : LIST_JUMP_NONE;
@@ -729,6 +763,9 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
         } else if(jump != LIST_JUMP_NONE) {
             listData->jumpTouch = jump;
             listData->jumpTouchOn = true;
+        } else if(l.paged && count > 0 && list_page_count(listData, &l) > 1 && pos.py >= l.y2) {
+            listData->pageScrub = true;
+            listData->scrubPage = list_pager_page(listData, &l, bx1, bx2, by2, pos.px);
         } else if(!l.paged && widget_scrollbar_touched(&pos, l.x2 + 4, l.y1, l.y2 - l.y1, l.y2 - l.y1, barTotal)) {
             // The scrollbar: the list follows the finger along it.
             listData->scrollbarTouching = true;
@@ -760,6 +797,18 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
                     break;
                 }
             }
+        }
+    } else if(listData->pageScrub && (hidKeysHeld() & KEY_TOUCH)) {
+        listData->scrubPage = list_pager_page(listData, &l, bx1, bx2, by2, pos.px);
+    } else if(listData->pageScrub && (hidKeysUp() & KEY_TOUCH)) {
+        // To the page chosen, with its first item selected.
+        listData->pageScrub = false;
+        if(count > 0 && l.paged) {
+            u32 index = listData->scrubPage * l.perPage;
+            listData->selectedIndex = index < count ? index : count - 1;
+            listData->selectedItem = listData->visible[listData->selectedIndex];
+            listData->followItem = true;
+            list_validate(listData, &l, true);
         }
     } else if(listData->jumpTouch != LIST_JUMP_NONE && (hidKeysHeld() & KEY_TOUCH)) {
         listData->jumpTouchOn = list_jump_hit(listData, &l, &pos) == listData->jumpTouch;
@@ -992,21 +1041,38 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
     screen_clear_clip();
 
     if(l.paged) {
-        // A dot for each page, the one showing in the accent.
         u32 pages = list_page_count(listData, &l);
         u32 current = list_current_page(listData, &l);
-        if(pages > 20) {
-            // Too many for dots: which of how many.
+        u32 shown = listData->pageScrub ? listData->scrubPage : current;
+        float left, right, cy;
+        list_pager_geometry(listData, &l, x1, x2, y2, &left, &right, &cy);
+        float shownX = pages > 1 ? left + (right - left) * shown / (pages - 1) : left;
+        if(pages > LIST_DOTS_MAX) {
+            // Too many for dots: a bar to drag along, and which of how many.
+            float thumb = (right - left) / pages;
+            thumb = thumb < 14 ? 14 : thumb;
+            screen_fill_round_rect(left - thumb / 2, cy - 2, right - left + thumb, 4, 2, t->palette->border);
+            screen_fill_round_rect(shownX - thumb / 2, cy - 3, thumb, 6, 3, t->accent);
             char text[16];
-            snprintf(text, sizeof(text), "%lu / %lu", current + 1, pages);
-            widget_text_centered(text, x1, x2, y2 - LIST_DOTS_HEIGHT - 1, WIDGET_SMALL_SCALE, t->palette->textMuted);
+            snprintf(text, sizeof(text), "%lu / %lu", shown + 1, pages);
+            screen_draw_text(text, right + thumb / 2 + 8, cy - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
         } else if(pages > 1) {
-            float step = 10;
-            float cx = (x1 + x2) / 2 - (pages - 1) * step / 2;
-            float cy = y2 - LIST_DOTS_HEIGHT / 2 - 1;
+            // A dot for each page, the one showing in the accent; a tap goes to one.
             for(u32 p = 0; p < pages; p++) {
-                screen_fill_circle(cx + p * step, cy, p == current ? 3 : 2, p == current ? t->accent : t->palette->border);
+                screen_fill_circle(left + p * LIST_DOTS_STEP, cy, p == shown ? 3.5f : 2.5f, p == shown ? t->accent : t->palette->border);
             }
+        }
+
+        if(listData->pageScrub && pages > 1) {
+            // Where the finger will land: the page's number over it.
+            char text[16];
+            snprintf(text, sizeof(text), "%lu", shown + 1);
+            float w = widget_text_width(text, WIDGET_SMALL_SCALE) + 12;
+            float h = widget_text_height(WIDGET_SMALL_SCALE) + 6;
+            float bx = shownX - w / 2;
+            bx = bx < x1 + 2 ? x1 + 2 : bx + w > x2 - 2 ? x2 - 2 - w : bx;
+            screen_fill_round_rect(bx, cy - 10 - h, w, h, t->def->radiusSmall, t->accent);
+            screen_draw_text(text, bx + 6, cy - 10 - h + 3, WIDGET_SMALL_SCALE, t->onAccent);
         }
     } else {
         widget_scrollbar(x2 - 8 - WIDGET_SCROLLBAR_WIDTH, l.y1, l.y2 - l.y1, listData->scrollPos, l.y2 - l.y1, list_total_height(listData, &l));
@@ -1089,6 +1155,8 @@ void list_set_mode(ui_view* view, list_mode mode) {
     listData->mode = mode;
     listData->scrollPos = listData->scrollTarget = listData->scrollVelocity = 0;
     listData->scrollGliding = false;
+    // Rows and grid (and a grid's pages) lay it out apart: the selection is shown again.
+    listData->revealPending = true;
 }
 
 list_mode list_get_mode(ui_view* view) {

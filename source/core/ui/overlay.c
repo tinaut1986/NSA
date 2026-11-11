@@ -526,7 +526,15 @@ typedef struct {
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2);
     void (*cancel)(void* data);
     bool detailed;   // Some row has a detail line: the rows are taller.
+    // A finger on its top (the handle, the header) pulls it down; let go low enough, or flicked, it is put away as B does.
+    bool pulling;
+    float pulled;          // How far down it is.
+    float pullSpeed;       // The finger's last move, for a flick.
 } sheet_data;
+
+// How far a sheet has to be pulled down, of its height, to be put away when let go; or a flick of this many pixels.
+#define SHEET_PULL_SHARE 0.3f
+#define SHEET_PULL_FLICK 6
 
 // Answers that went ahead (Yes, OK...) since NSA started.
 static u32 sheet_confirms = 0;
@@ -725,12 +733,43 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
     hidTouchRead(&pos);
     float top = by2 - sheet_height(s);
     float listTop = top + SHEET_PAD + SHEET_HEADER_OF(s);
+
+    // Pulled down by its top: it follows the finger, and goes back up when let go too soon.
+    if(s->pulling) {
+        if(hidKeysHeld() & KEY_TOUCH) {
+            float pulled = (float) pos.py - (float) s->touchStartY;
+            s->pullSpeed = (float) pos.py - (float) s->lastTouchY;
+            s->pulled = pulled > 0 ? pulled : 0;
+            s->lastTouchY = pos.py;
+            return;
+        }
+
+        s->pulling = false;
+        if(s->pulled > sheet_height(s) * SHEET_PULL_SHARE || s->pullSpeed > SHEET_PULL_FLICK) {
+            sheet_dismiss(view, s);
+            return;
+        }
+    } else if(s->pulled > 0) {
+        s->pulled = s->pulled < 1 ? 0 : s->pulled * 0.6f;
+        ui_wake();
+    }
+
     if(down & KEY_TOUCH) {
         widget_press_end(&s->press);
         s->dragged = false;
         s->lastTouchY = pos.py;
         if(pos.py < top) {
             sheet_dismiss(view, s);
+            return;
+        }
+
+        // Its top (the handle and the header, never the close cross): a pull.
+        bool cross = s->title[0] != '\0' && pos.px >= bx2 - SHEET_PAD - 24;
+        if(!cross && (pos.py < listTop || pos.py < top + 14)) {
+            s->pulling = true;
+            s->pulled = 0;
+            s->pullSpeed = 0;
+            s->touchStartY = pos.py;
             return;
         }
 
@@ -828,8 +867,11 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
 
     // The scrim darkens in while the sheet slides up from the bottom.
     float e = widget_ease(s->opened, 200);
-    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->scrim, (u32) (((t->palette->scrim >> 24) & 0xFF) * e)));
-    float slide = (1 - e) * (sheet_height(s) + WIDGET_HINT_BAR_HEIGHT);
+    // Pulled down, the scrim lightens with it.
+    float left = 1 - s->pulled / (sheet_height(s) + 1);
+    left = left < 0 ? 0 : left;
+    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->scrim, (u32) (((t->palette->scrim >> 24) & 0xFF) * e * left)));
+    float slide = (1 - e) * (sheet_height(s) + WIDGET_HINT_BAR_HEIGHT) + s->pulled;
     screen_set_offset(0, slide);
 
     // The sheet runs into the hint bar: only its top corners are round.
@@ -837,6 +879,8 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
     float r = t->def->radius + 4;
     screen_fill_round_rect(x1, top, x2 - x1, y2 - top + r, r, t->palette->surface);
     screen_fill_rect(x1, top + r, x2 - x1, 1, t->palette->surface);
+    // The handle that says it can be pulled down.
+    screen_fill_round_rect((x1 + x2) / 2 - 14, top + 3, 28, 3, 1, t->palette->border);
 
     if(s->title[0] != '\0' && s->kicker[0] != '\0') {
         // What the actions are for: a tinted icon, the kind in the accent colour, the name under it.

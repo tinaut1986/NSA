@@ -1394,6 +1394,7 @@ const i18n_entry i18n_zh[] = {
         {"Installing in the HOME Menu", "正在安装到 HOME 菜单"},
         {"Failed to create the install thread.", "无法创建安装线程。"},
         {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "在 .3dsx 的操作中可以将它安装到 HOME 菜单：成为独立的软件，横幅用它的图标或你的图片制作。"},
+        {"When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS.", "列表超出屏幕时，滚动期间右下角会出现两个箭头：可跳到第一项或最后一项。在 New 3DS 上，ZL 和 ZR 也有同样的作用。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

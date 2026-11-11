@@ -1403,6 +1403,7 @@ const i18n_entry i18n_ru[] = {
         {"Installing in the HOME Menu", "Установка в меню HOME"},
         {"Failed to create the install thread.", "Не удалось создать поток установки."},
         {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "В действиях файла .3dsx его можно установить в меню HOME: отдельный титул с баннером из его значка или из вашего изображения."},
+        {"When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS.", "Когда список длиннее экрана, при прокрутке справа внизу появляются две стрелки: они переходят к первому или к последнему элементу. На New 3DS то же делают ZL и ZR."},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

@@ -1407,6 +1407,7 @@ const i18n_entry i18n_ja[] = {
         {"Installing in the HOME Menu", "HOMEメニューにインストール中"},
         {"Failed to create the install thread.", "インストール用のスレッドを作成できませんでした。"},
         {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", ".3dsxの操作から、HOMEメニューにインストールできます。独立したタイトルになり、バナーはアイコンか好きな画像から作ります。"},
+        {"When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS.", "リストが画面に収まらないときは、スクロール中に右下に2つの矢印が出ます。最初または最後の項目へ移動できます。New 3DSではZLとZRでも同じことができます。"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

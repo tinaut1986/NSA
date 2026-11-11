@@ -169,7 +169,8 @@ What `release` holds, in the order it was built:
   over. The Store keeps the app by title across a newer catalogue only when it was chosen (`list_selection_chosen`).
   While a list scrolls (and 1.5 s after), two round arrows float at its bottom right (`widget_float_button`): the top one
   selects the first item, the bottom one the last; each shows only the way the list can still go, and they fade out.
-  ZL and ZR do the same on a New 3DS. Claude, 2026-11-11, Azahar: the Store opens on its first app, the arrows after a
+  ZL and ZR do the same on a New 3DS. The guide says it (a step of guide version 0.13 in Getting around, on Titles'
+  list; `docs/guide-list-jump`), so whoever updates is offered that chapter again. Claude, 2026-11-11, Azahar: the Store opens on its first app, the arrows after a
   drag, the end arrow and ZL. Not tried: a console with many titles (Titles' live sort), the Store's newer catalogue
   arriving after the copy on the SD, ZR, whether the arrows hide a row's badge too long.
 - [ ] A .3dsx installed in the HOME Menu (2026-11-10, `feat/forwarder`; issue #46). SD card -> a .3dsx's actions ->

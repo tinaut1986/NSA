@@ -54,7 +54,21 @@ s, b = req('POST', '/api/copy?path=/webtest/d&to=/webtest/d/in', a.pin); check('
 s, b = req('POST', '/api/copy?path=/webtest/nope&to=/webtest/n2', a.pin); check('copy of a missing file is 404', s == 404)
 s, b = req('DELETE', '/api/file?path=/webtest', a.pin); check('delete folder', s == 200)
 s, b = req('GET', '/theme.json'); t = json.loads(b) if s == 200 else {}
-check('theme is public and has colours', s == 200 and t.get('theme') in ('cards', 'pixel', 'home') and t['colors']['accent'].startswith('#'))
+check('theme is public and has colours', s == 200 and (t.get('theme') in ('cards', 'pixel', 'home') or t.get('theme', '').startswith('sd:'))
+      and t['colors']['accent'].startswith('#'))
+# The theme editor: a theme as a theme file's JSON; what is sent is checked and drawn, then back to the one in use.
+s, b = req('GET', '/api/theme/edit?id=home', a.pin); e = json.loads(b) if s == 200 else {}
+check('theme editor reads a theme', s == 200 and e.get('id') == 'home' and not e.get('custom') and e['theme']['name'] == 'HOME 2'
+      and e['theme']['grid'] == 'pages' and e['theme']['day']['background'].startswith('#'))
+s, b = req('GET', '/api/theme/edit?id=nope', a.pin); check('theme editor: unknown theme is 404', s == 404)
+s, b = req('POST', '/api/theme/preview', None, b'{}'); check('theme preview needs the PIN', s in (401, 403))
+s, b = req('POST', '/api/theme/preview', a.pin, b'{"day": {"text": "red"}}'); check('theme preview refuses a wrong colour', s == 400 and b'day.text' in b)
+s, b = req('POST', '/api/theme/preview?night=day', a.pin, json.dumps({'base': 'pixel', 'day': {'background': '#F0E0D0'}}).encode())
+s2, b2 = req('GET', '/theme.json'); t2 = json.loads(b2) if s2 == 200 else {}
+check('theme preview is drawn', s == 200 and t2.get('theme') == 'web' and t2.get('pixel') and t2['colors']['background'] == '#f0e0d0')
+s, b = req('POST', '/api/theme/preview/end', a.pin); s2, b2 = req('GET', '/theme.json')
+check('theme preview ends', s == 200 and json.loads(b2).get('theme') == t.get('theme'))
+s, b = req('POST', '/api/theme/save', a.pin, b'{"name": ""}'); check('theme save needs a name', s == 400)
 s, b = req('GET', '/icons.png'); check('icon atlas is public', s == 200 and b[:4] == b'\x89PNG')
 s, b = req('GET', '/icons.js'); check('icon names are public', s == 200 and b'ICON_NAMES' in b)
 s, b = req('GET', '/api/settings', a.pin); st = json.loads(b) if s == 200 else {}

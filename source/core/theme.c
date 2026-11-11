@@ -177,6 +177,11 @@ u32 theme_find(const char* id) {
     return 0;
 }
 
+const theme_def* theme_builtins(u32* count) {
+    *count = THEME_COUNT;
+    return themes;
+}
+
 bool theme_is_custom(u32 index) {
     return index >= THEME_COUNT && index < THEME_COUNT + sd_count;
 }

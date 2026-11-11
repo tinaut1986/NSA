@@ -65,7 +65,7 @@ static const coach_step basics_steps[] = {
         INFO("hints", "This bar lists the buttons that work on each screen."),
         OPEN("menu.titles", "Open Titles: tap it, or bring the focus to it with the D-Pad and press \uE000.", "v:Titles"),
         INFO("list", "Every game and app installed. The top screen shows the one with the focus."),
-        INFO_SINCE(GUIDE_VERSION(0, 13), "list", "When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS."),
+        INFO_SINCE(GUIDE_VERSION(0, 13), "list.jump", "When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS."),
         DO("list.selected", "Press \uE000, or tap the one with the focus: its actions open.", KEY_A, true, "sheet|titles.chain"),
         CHAIN_OPEN_GAME,
         DO("sheet", "Its actions. Whatever deletes asks first, in red. Close them with \uE001.", KEY_B, false, "!sheet"),

@@ -32,6 +32,8 @@ typedef struct {
 // finished or left with START (`finished`).
 void coach_start(const coach_step* steps, u32 count, void (*onStep)(u32 tag, bool last), void (*onEnd)(bool finished));
 bool coach_active();
+// Whether the step on screen points at `id`: a screen can show then what is usually hidden (the list's jump arrows).
+bool coach_points_at(const char* id);
 
 // Where something a tour may point at was drawn this frame, on the screen being drawn; `selected`: it has the focus.
 void coach_anchor(const char* id, float x, float y, float width, float height, bool selected);

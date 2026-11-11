@@ -325,11 +325,24 @@ static float list_max_scroll(list_data* listData, list_layout* l) {
     return max > 0 ? max : 0;
 }
 
+// The guide points at the arrows ("list.jump"): both show, also in a list that does not scroll.
+static bool list_jump_demo() {
+    return coach_active() && coach_points_at("list.jump");
+}
+
 // Where an arrow is (the end's at the bottom right of the list, the top's over it), and whether it shows: only the
 // way the list can still go.
 static bool list_jump_rect(list_data* listData, list_layout* l, int which, float* x, float* y) {
     *x = l->x2 - LIST_JUMP_SIZE - 2;
     *y = l->y2 - LIST_JUMP_SIZE - 4;
+    if(list_jump_demo()) {
+        if(which == LIST_JUMP_TOP) {
+            *y -= LIST_JUMP_SIZE + 6;
+        }
+
+        return true;
+    }
+
     if(which == LIST_JUMP_TOP) {
         *y -= LIST_JUMP_SIZE + 6;
         return listData->scrollPos > 1;
@@ -374,7 +387,7 @@ static void list_animate_jump(list_data* listData, list_layout* l) {
         listData->scrollMovedTime = osGetTime();
     }
 
-    bool show = listData->jumpTouch != LIST_JUMP_NONE
+    bool show = listData->jumpTouch != LIST_JUMP_NONE || list_jump_demo()
                 || (listData->scrollMovedTime != 0 && osGetTime() - listData->scrollMovedTime < LIST_JUMP_SHOW
                     && list_max_scroll(listData, l) > 0);
     listData->jumpAlpha += show ? 0.15f : -0.08f;
@@ -869,6 +882,12 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
             widget_float_button(x, y, LIST_JUMP_SIZE, which == LIST_JUMP_TOP ? ICON_CHEVRON_UP : ICON_CHEVRON_DOWN, listData->jumpAlpha,
                                 listData->jumpTouch == which && listData->jumpTouchOn);
         }
+    }
+
+    if(list_jump_demo()) {
+        float x, y;
+        list_jump_rect(listData, &l, LIST_JUMP_TOP, &x, &y);
+        coach_anchor("list.jump", x - 3, y - 3, LIST_JUMP_SIZE + 6, 2 * LIST_JUMP_SIZE + 12, false);
     }
 }
 

@@ -28,6 +28,7 @@ static void make_bases() {
     bases[1].name = "HOME";
     bases[1].radius = 16;
     bases[1].sheetPrompts = true;
+    bases[1].pagedGrids = true;
     bases[1].menuLayout = THEME_MENU_TILES;
 }
 
@@ -53,10 +54,16 @@ int main() {
     CHECK(def.radius == 10 && def.border == 1 && def.menuLayout == THEME_MENU_GRID2);
 
     // Another base, and the shapes.
-    CHECK(parse("{\"base\": \"home\", \"radius\": 4, \"border\": 2, \"pixelFont\": true, \"menu\": \"grid\"}", &def, name, error));
+    CHECK(parse("{\"base\": \"home\", \"radius\": 4, \"border\": 2, \"font\": \"pixel\", \"menu\": \"grid\"}", &def, name, error));
     CHECK(name[0] == '\0');
     CHECK(def.radius == 4 && def.radiusSmall == 8 && def.border == 2 && def.pixelFont && def.sheetPrompts);
     CHECK(def.menuLayout == THEME_MENU_GRID2);
+    CHECK(def.pagedGrids);
+    CHECK(parse("{\"base\": \"home\", \"grid\": \"scroll\", \"font\": \"system\"}", &def, name, error));
+    CHECK(!def.pagedGrids && !def.pixelFont);
+    CHECK(!parse("{\"grid\": \"down\"}", &def, name, error));
+    CHECK(strstr(error, "grid") != NULL);
+    CHECK(!parse("{\"font\": \"comic\"}", &def, name, error));
 
     // Unknown keys are left alone.
     CHECK(parse("{\"author\": \"me\", \"day\": {\"sparkle\": 3}}", &def, name, error));
@@ -86,6 +93,7 @@ int main() {
     CHECK(text != NULL);
     CHECK(text != NULL && strstr(text, "\"#ABCDEF40\"") != NULL);
     CHECK(text != NULL && strstr(text, "\"tiles\"") != NULL);
+    CHECK(text != NULL && strstr(text, "\"pages\"") != NULL);
     theme_def back;
     CHECK(text != NULL && parse(text, &back, name, error));
     CHECK(strcmp(name, "Mine 2") == 0);
@@ -93,7 +101,7 @@ int main() {
     CHECK(memcmp(&back.night, &source.night, sizeof(back.night)) == 0);
     CHECK(back.radius == source.radius && back.radiusSmall == source.radiusSmall && back.border == source.border);
     CHECK(back.pixelFont == source.pixelFont && back.blockBars == source.blockBars && back.sheetPrompts == source.sheetPrompts);
-    CHECK(back.menuLayout == source.menuLayout);
+    CHECK(back.menuLayout == source.menuLayout && back.pagedGrids == source.pagedGrids);
     free(text);
 
     printf("themefile_test: %s\n", failures == 0 ? "ok" : "FAILED");

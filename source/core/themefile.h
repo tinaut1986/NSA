@@ -10,8 +10,10 @@
 //               "danger": "#A32D2D", "warning": "#854F0B"},
 //     "night": { ... the same keys ... },
 //     "radius": 10, "radiusSmall": 8, "border": 1,   // Corners and outline, in pixels (0..24, 0..4).
-//     "pixelFont": false, "blockBars": false, "sheetPrompts": false,
-//     "menu": "grid"                   // Or "tiles": the main menu as big icon tiles (HOME).
+//     "font": "system",                // Or "pixel": the Pixel theme's font.
+//     "blockBars": false, "sheetPrompts": false,
+//     "menu": "grid",                  // Or "tiles": the main menu as big icon tiles (HOME).
+//     "grid": "scroll"                 // Or "pages": icon grids in pages that turn sideways (HOME).
 //   }
 //
 // Colours are "#RRGGBB" or "#RRGGBBAA". Plain C with Jansson, so the host tests build it too.

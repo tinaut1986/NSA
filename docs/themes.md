@@ -33,10 +33,11 @@ out. The accent colour and night mode are still chosen in Settings, and work wit
   "radius": 14,
   "radiusSmall": 12,
   "border": 1,
-  "pixelFont": false,
+  "font": "system",
   "blockBars": false,
   "sheetPrompts": true,
-  "menu": "tiles"
+  "menu": "tiles",
+  "grid": "pages"
 }
 ```
 
@@ -56,10 +57,11 @@ Every key may be left out: it then comes from `base`.
 | `danger`, `warning` | Deleting and errors, and warnings. |
 | `radius`, `radiusSmall` | Rounded corners of cards and dialogs, and of buttons and rows, in pixels (0 to 24; 0 is square). |
 | `border` (number) | The width of outlines, in pixels (0 to 4). |
-| `pixelFont` | `true`: text in the Pixel theme's font. |
+| `font` | `system` (the console's) or `pixel` (the Pixel theme's). Only the fonts NSA carries: a font is baked into a picture on a computer (`tools/make_pixelfont.py`), so a new one comes with an update of NSA. |
 | `blockBars` | `true`: progress bars in blocks. |
 | `sheetPrompts` | `true`: dialogs rise from the bottom as a sheet (HOME). |
 | `menu` | `grid` (buttons in two columns) or `tiles` (big icon tiles, four to a row, as HOME). |
+| `grid` | How the icon grids of Titles, Tickets, the Store... go: `scroll` (down, with a scrollbar) or `pages` (pages that turn sideways, with dots, as HOME). |
 
 Keys NSA does not know are left alone. A file that is not JSON, or has a wrong value, is not
 listed: Settings -> Theme says which file and why, under its sample. Up to 32 themes are read,

@@ -170,8 +170,8 @@ What `release` holds, in the order it was built:
   Rows are unchanged. New `SITE SWIPE <x1> <y> <x2> [frames]` for tests. Claude, 2026-11-11, Azahar: the Store's 406
   apps in 51 pages, the D-Pad across a page edge, swipes both ways, rows afterwards.
 - [ ] Themes from the SD card (2026-11-11, `feat/sd-themes`; issue #14). Each `.json` in `sdmc:/nsa/themes/` is a theme
-  (`themefile.c`: colours of day and night as `#RRGGBB[AA]`, radii, border, pixelFont, blockBars, sheetPrompts, menu
-  `grid`/`tiles`, over a built-in `base`), listed in Settings -> Theme after the built-in ones, by name, saved as
+  (`themefile.c`: colours of day and night as `#RRGGBB[AA]`, radii, border, font (system/pixel), blockBars, sheetPrompts, menu
+  `grid`/`tiles`, grid `scroll`/`pages`, over a built-in `base`), listed in Settings -> Theme after the built-in ones, by name, saved as
   `sd:<file>`; Settings reads the folder again each time it opens. A file that cannot be read is left out and the
   Theme row's top screen says which and why. New row **Save the theme as a file** writes the theme in use as
   `<name>-N.json` ("<Name> N"), every key, as a start. Format for users: `docs/themes.md`. New guide step (0.13) in

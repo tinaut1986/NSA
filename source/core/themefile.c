@@ -122,6 +122,24 @@ static bool themefile_parse_bool(json_t* json, const char* key, bool* out, char*
     return true;
 }
 
+// One of two words: `second` sets *out, `first` clears it.
+static bool themefile_parse_choice(json_t* json, const char* key, const char* first, const char* second, bool* out, char* error,
+                                   size_t errorSize) {
+    json_t* value = json_object_get(json, key);
+    if(value == NULL) {
+        return true;
+    }
+
+    const char* text = json_is_string(value) ? json_string_value(value) : "";
+    if(strcmp(text, first) == 0 || strcmp(text, second) == 0) {
+        *out = strcmp(text, second) == 0;
+        return true;
+    }
+
+    snprintf(error, errorSize, "%s is not \"%s\" or \"%s\"", key, first, second);
+    return false;
+}
+
 bool themefile_parse(const char* text, const theme_def* bases, size_t baseCount, theme_def* out, char* name, size_t nameSize,
                      char* error, size_t errorSize) {
     if(nameSize > 0) {
@@ -178,7 +196,8 @@ bool themefile_parse(const char* text, const theme_def* bases, size_t baseCount,
        || !themefile_parse_number(json, "radius", 0, 24, &out->radius, error, errorSize)
        || !themefile_parse_number(json, "radiusSmall", 0, 24, &out->radiusSmall, error, errorSize)
        || !themefile_parse_number(json, "border", 0, 4, &out->border, error, errorSize)
-       || !themefile_parse_bool(json, "pixelFont", &out->pixelFont, error, errorSize)
+       || !themefile_parse_choice(json, "font", "system", "pixel", &out->pixelFont, error, errorSize)
+       || !themefile_parse_choice(json, "grid", "scroll", "pages", &out->pagedGrids, error, errorSize)
        || !themefile_parse_bool(json, "blockBars", &out->blockBars, error, errorSize)
        || !themefile_parse_bool(json, "sheetPrompts", &out->sheetPrompts, error, errorSize)) {
         goto done;
@@ -235,10 +254,11 @@ char* themefile_write(const theme_def* def, const char* name) {
     json_object_set_new(json, "radius", json_integer((json_int_t) def->radius));
     json_object_set_new(json, "radiusSmall", json_integer((json_int_t) def->radiusSmall));
     json_object_set_new(json, "border", json_integer((json_int_t) def->border));
-    json_object_set_new(json, "pixelFont", json_boolean(def->pixelFont));
+    json_object_set_new(json, "font", json_string(def->pixelFont ? "pixel" : "system"));
     json_object_set_new(json, "blockBars", json_boolean(def->blockBars));
     json_object_set_new(json, "sheetPrompts", json_boolean(def->sheetPrompts));
     json_object_set_new(json, "menu", json_string(def->menuLayout == THEME_MENU_TILES ? "tiles" : "grid"));
+    json_object_set_new(json, "grid", json_string(def->pagedGrids ? "pages" : "scroll"));
 
     char* text = json_dumps(json, JSON_INDENT(2) | JSON_PRESERVE_ORDER);
     json_decref(json);

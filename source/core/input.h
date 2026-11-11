@@ -16,6 +16,8 @@ void input_inject_keys(u32 keys, u32 frames);
 void input_inject_tap(u16 x, u16 y, u32 frames);
 // A finger that goes from y1 to y2 at x over `frames` frames.
 void input_inject_drag(u16 x, u16 y1, u16 y2, u32 frames);
+// A finger that goes from (x1, y1) to (x2, y2) over `frames` frames.
+void input_inject_slide(u16 x1, u16 y1, u16 x2, u16 y2, u32 frames);
 
 #define hidKeysDown() input_keys_down()
 #define hidKeysHeld() input_keys_held()

@@ -139,7 +139,7 @@ turn it off; DEBUG builds ignore it):
 `SITE SCREENSHOT` (both screens to `/nsa/screenshots/top.bmp` and `bottom.bmp`),
 `SITE PRESS <A|B|X|Y|L|R|ZL|ZR|START|SELECT|UP|DOWN|LEFT|RIGHT>[+...] [frames]`,
 `SITE TAP <x> <y> [frames]` (bottom screen), `SITE DRAG <x> <y1> <y2> [frames]` (a finger sliding
-from y1 to y2, to scroll). For example:
+from y1 to y2, to scroll), `SITE SWIPE <x1> <y> <x2> [frames]` (sideways: a grid's pages). For example:
 `curl -Q "SITE PRESS DOWN" ftp://IP:5021/`.
 
 To look at the real console, wait a few seconds after `SITE SCREENSHOT` (it answers

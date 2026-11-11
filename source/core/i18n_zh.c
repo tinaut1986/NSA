@@ -130,7 +130,7 @@ const i18n_entry i18n_zh[] = {
         {"Save as a new theme keeps it on the SD card and puts it in use. A theme of yours also has Save the theme, over its file, and Delete this theme.", "另存为新主题会保存到 SD 卡并使用。自己的主题还有保存主题（覆盖文件）和删除这个主题。"},
         {"\uE001 leaves the editor; with changes, it asks first.", "\uE001 离开编辑；如果有修改，会先确认。"},
         {"The web page has this editor too, in its Settings: the page and the console show the theme while you change it.", "网页的设置中也有这个编辑：修改时网页和主机都会显示主题。"},
-        {"HOME turns its icon grids sideways, in pages. Your own themes have a chapter of their own.", "HOME 的图标网格横向分页显示。自己的主题有单独的一章。"},
+        {"HOME turns its icon grids sideways, in pages: a tap on a dot, or a finger along the bar under them, goes to one. Your own themes have a chapter of their own.", "HOME 的图标网格横向分页显示：点一下下面的点，或用手指在下面的条上移动，就会到那一页。自己的主题有单独的一章。"},
         {"Blank template", "空白模板"},
         {"Delete the theme \"%s\"? Its file is removed from the SD card.", "删除主题“%s”吗？它的文件会从 SD 卡删除。"},
         {"Delete this theme", "删除这个主题"},

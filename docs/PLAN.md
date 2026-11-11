@@ -162,6 +162,13 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Pages of a grid, second round (2026-11-11, `feat/page-scrubber`; the owner: no way to go to a page from the dots,
+  and a bar when there are too many). Under a grid in pages (18 px now): up to 20 pages, dots 12 px apart, a tap on one
+  (or a finger along them) goes to it; more pages, a bar with a thumb and "N / M" beside it, and a finger along it
+  shows a bubble with the page it lands on, gone to when it lifts (first item selected). Switching rows and grid shows the
+  selection again (it went back to the top). The guide's step on HOME says it. Claude, 2026-11-11, Azahar: the Store's 54
+  pages, a drag along the bar (bubble "30", let go at 51), Tickets' 2 dots (a tap on the second), the selection's page
+  after Y Y.
 - [ ] Guide chapter **Your own themes** (2026-11-11, `docs/guide-themes-chapter`, guide 0.13, after Look and sound): Settings
   -> Edit the theme, Start from, Background opened in the colour picker (anchors `colorpick.square` and `colorpick.hue`),
   B to leave it as it was, Corners and the rows below it, Save as a new theme, leaving, and the web page's editor. Look and

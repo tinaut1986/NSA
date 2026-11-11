@@ -132,7 +132,7 @@ const i18n_entry i18n_ja[] = {
         {"Save as a new theme keeps it on the SD card and puts it in use. A theme of yours also has Save the theme, over its file, and Delete this theme.", "「新しいテーマとして保存」でSDカードに保存し、使用中にします。自分のテーマには、ファイルに上書きする「テーマを保存」と「このテーマを削除」もあります。"},
         {"\uE001 leaves the editor; with changes, it asks first.", "\uE001で編集を終えます。変更があれば先に確認します。"},
         {"The web page has this editor too, in its Settings: the page and the console show the theme while you change it.", "Webページの設定にもこの編集があり、変更中のテーマをページとコンソールの両方に表示します。"},
-        {"HOME turns its icon grids sideways, in pages. Your own themes have a chapter of their own.", "HOMEはアイコンの並びを横のページで表示します。自分のテーマには専用の章があります。"},
+        {"HOME turns its icon grids sideways, in pages: a tap on a dot, or a finger along the bar under them, goes to one. Your own themes have a chapter of their own.", "HOMEはアイコンの並びを横のページで表示します。下の点に触れるか、バーを指でなぞるとそのページへ移ります。自分のテーマには専用の章があります。"},
         {"Blank template", "空のテンプレート"},
         {"Delete the theme \"%s\"? Its file is removed from the SD card.", "テーマ「%s」を削除しますか? ファイルがSDカードから消えます。"},
         {"Delete this theme", "このテーマを削除"},

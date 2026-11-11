@@ -132,7 +132,7 @@ const i18n_entry i18n_ca[] = {
         {"Save as a new theme keeps it on the SD card and puts it in use. A theme of yours also has Save the theme, over its file, and Delete this theme.", "Desar com a tema nou el desa a la targeta SD i el posa en ús. Un tema teu també té Desar el tema, sobre el seu fitxer, i Esborrar aquest tema."},
         {"\uE001 leaves the editor; with changes, it asks first.", "\uE001 surt de l'editor; si hi ha canvis, pregunta abans."},
         {"The web page has this editor too, in its Settings: the page and the console show the theme while you change it.", "La pàgina web també té aquest editor, als seus Ajustos: la pàgina i la consola mostren el tema mentre el canvies."},
-        {"HOME turns its icon grids sideways, in pages. Your own themes have a chapter of their own.", "HOME passa les graelles d'icones de costat, en pàgines. Els teus temes tenen el seu propi capítol."},
+        {"HOME turns its icon grids sideways, in pages: a tap on a dot, or a finger along the bar under them, goes to one. Your own themes have a chapter of their own.", "HOME passa les graelles d'icones de costat, en pàgines: tocar un punt, o lliscar el dit per la barra de sota, porta a una. Els teus temes tenen el seu propi capítol."},
         {"Blank template", "Plantilla en blanc"},
         {"Delete the theme \"%s\"? Its file is removed from the SD card.", "Vols esborrar el tema \"%s\"? El seu fitxer s'elimina de la targeta SD."},
         {"Delete this theme", "Esborrar aquest tema"},

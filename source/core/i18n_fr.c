@@ -132,7 +132,7 @@ const i18n_entry i18n_fr[] = {
         {"Save as a new theme keeps it on the SD card and puts it in use. A theme of yours also has Save the theme, over its file, and Delete this theme.", "Enregistrer comme nouveau thème le garde sur la carte SD et l'utilise. Un thème à vous a aussi Enregistrer le thème, par-dessus son fichier, et Supprimer ce thème."},
         {"\uE001 leaves the editor; with changes, it asks first.", "\uE001 quitte l'éditeur ; s'il y a des changements, il demande d'abord."},
         {"The web page has this editor too, in its Settings: the page and the console show the theme while you change it.", "La page web a aussi cet éditeur, dans ses Paramètres : la page et la console montrent le thème pendant que vous le changez."},
-        {"HOME turns its icon grids sideways, in pages. Your own themes have a chapter of their own.", "HOME fait défiler ses grilles d'icônes de côté, en pages. Vos propres thèmes ont leur propre chapitre."},
+        {"HOME turns its icon grids sideways, in pages: a tap on a dot, or a finger along the bar under them, goes to one. Your own themes have a chapter of their own.", "HOME fait défiler ses grilles d'icônes de côté, en pages : toucher un point, ou glisser le doigt sur la barre en dessous, mène à l'une d'elles. Vos propres thèmes ont leur propre chapitre."},
         {"Blank template", "Modèle vierge"},
         {"Delete the theme \"%s\"? Its file is removed from the SD card.", "Supprimer le thème « %s » ? Son fichier est effacé de la carte SD."},
         {"Delete this theme", "Supprimer ce thème"},

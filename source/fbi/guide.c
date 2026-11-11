@@ -166,7 +166,7 @@ static const coach_step computer_steps[] = {
 static const coach_step look_steps[] = {
         OPEN("menu.settings", "Open Settings.", "v:Settings"),
         INFO("settings.theme", "Three themes: Cards, Pixel and HOME. Left and Right change an option."),
-        INFO_SINCE(GUIDE_VERSION(0, 13), "settings.theme", "HOME turns its icon grids sideways, in pages. Your own themes have a chapter of their own."),
+        INFO_SINCE(GUIDE_VERSION(0, 13), "settings.theme", "HOME turns its icon grids sideways, in pages: a tap on a dot, or a finger along the bar under them, goes to one. Your own themes have a chapter of their own."),
         INFO("settings.accent", "The colour of buttons and selections."),
         INFO("settings.night", "Dark colours, by hand or from 20:00 to 8:00."),
         INFO("settings.language", "NSA speaks 11 languages. System follows the console's own."),

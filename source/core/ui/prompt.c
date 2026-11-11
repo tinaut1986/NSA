@@ -46,6 +46,7 @@ typedef struct {
     float pullStart;
     float pulled;
     float pullSpeed;
+    bool leaving;         // Let go low enough: it slides the rest of the way down, then is answered.
 } prompt_data;
 
 // What the web page sees of the prompt on top: copied while it is updated, so it is gone a moment after the prompt is.
@@ -205,6 +206,19 @@ static void prompt_notify_response(ui_view* view, prompt_data* promptData, u32 r
 static void prompt_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     prompt_data* promptData = (prompt_data*) data;
 
+    // Let go low enough: down the rest of the way, quicker as it goes, then answered as B does (nothing else counts meanwhile).
+    if(promptData->leaving) {
+        float leaveX, leaveY, leaveH, leaveTextH;
+        prompt_layout(promptData, bx1, by1, bx2, by2, &leaveX, &leaveY, &leaveH, &leaveTextH);
+        promptData->pulled += 8 + promptData->pulled * 0.25f;
+        ui_wake();
+        if(promptData->pulled > leaveH + WIDGET_HINT_BAR_HEIGHT) {
+            prompt_notify_response(view, promptData, promptData->numOptions - 1);
+        }
+
+        return;
+    }
+
     const char* webOptions[PROMPT_OPTIONS_MAX];
     u32 webCount = promptData->numOptions < PROMPT_OPTIONS_MAX ? promptData->numOptions : PROMPT_OPTIONS_MAX;
     for(u32 i = 0; i < webCount; i++) {
@@ -242,7 +256,8 @@ static void prompt_update(ui_view* view, void* data, float bx1, float by1, float
 
         promptData->pulling = false;
         if(promptData->numOptions > 0 && (promptData->pulled > cardH * 0.3f || promptData->pullSpeed > 6)) {
-            prompt_notify_response(view, promptData, promptData->numOptions - 1);
+            promptData->leaving = true;
+            ui_wake();
             return;
         }
     } else if(promptData->pulled > 0) {
@@ -250,8 +265,8 @@ static void prompt_update(ui_view* view, void* data, float bx1, float by1, float
         ui_wake();
     }
 
-    // A sheet's top (the handle, the title): a pull.
-    if((hidKeysDown() & KEY_TOUCH) && theme()->def->sheetPrompts && pos.py >= cardY && pos.py < cardY + PROMPT_PAD + PROMPT_HEADER) {
+    // A sheet's top (the handle, the title), or just above it (a finger is wide): a pull.
+    if((hidKeysDown() & KEY_TOUCH) && theme()->def->sheetPrompts && pos.py >= cardY - 18 && pos.py < cardY + PROMPT_PAD + PROMPT_HEADER) {
         widget_press_end(&promptData->press);
         promptData->pulling = true;
         promptData->pullStart = pos.py;

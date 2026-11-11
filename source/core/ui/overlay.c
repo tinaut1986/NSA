@@ -530,11 +530,14 @@ typedef struct {
     bool pulling;
     float pulled;          // How far down it is.
     float pullSpeed;       // The finger's last move, for a flick.
+    bool leaving;          // Let go low enough: it slides the rest of the way down, then goes.
 } sheet_data;
 
 // How far a sheet has to be pulled down, of its height, to be put away when let go; or a flick of this many pixels.
 #define SHEET_PULL_SHARE 0.3f
 #define SHEET_PULL_FLICK 6
+// A touch this far above a sheet still takes its top (a finger is wide); higher up it is outside, and closes it.
+#define SHEET_PULL_MARGIN 18
 
 // Answers that went ahead (Yes, OK...) since NSA started.
 static u32 sheet_confirms = 0;
@@ -674,6 +677,17 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
         }
     }
 
+    // Let go low enough: down the rest of the way, quicker as it goes, then put away (no key counts meanwhile).
+    if(s->leaving) {
+        s->pulled += 8 + s->pulled * 0.25f;
+        ui_wake();
+        if(s->pulled > sheet_height(s) + WIDGET_HINT_BAR_HEIGHT) {
+            sheet_dismiss(view, s);
+        }
+
+        return;
+    }
+
     u32 down = hidKeysDown();
 
     if(down & KEY_B) {
@@ -746,7 +760,8 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
 
         s->pulling = false;
         if(s->pulled > sheet_height(s) * SHEET_PULL_SHARE || s->pullSpeed > SHEET_PULL_FLICK) {
-            sheet_dismiss(view, s);
+            s->leaving = true;
+            ui_wake();
             return;
         }
     } else if(s->pulled > 0) {
@@ -758,12 +773,12 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
         widget_press_end(&s->press);
         s->dragged = false;
         s->lastTouchY = pos.py;
-        if(pos.py < top) {
+        if(pos.py < top - SHEET_PULL_MARGIN) {
             sheet_dismiss(view, s);
             return;
         }
 
-        // Its top (the handle and the header, never the close cross): a pull.
+        // Its top (the handle and the header, never the close cross), or just above it: a pull.
         bool cross = s->title[0] != '\0' && pos.px >= bx2 - SHEET_PAD - 24;
         if(!cross && (pos.py < listTop || pos.py < top + 14)) {
             s->pulling = true;

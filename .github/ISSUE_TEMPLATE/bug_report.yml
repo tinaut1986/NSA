@@ -1,0 +1,123 @@
+name: Bug report
+description: Something in NSA does not work as it should.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. The more of this you fill in, the faster it can be fixed.
+        **No piracy:** issues that ask for, link to or are about pirated games are closed.
+
+  - type: input
+    id: version
+    attributes:
+      label: NSA version
+      description: Settings shows it at the bottom ("Installed:"), and so does the top bar of every screen.
+      placeholder: v0.9.9
+    validations:
+      required: true
+
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Update channel
+      options:
+        - Stable
+        - Beta
+        - A build of my own / not from the releases
+    validations:
+      required: true
+
+  - type: dropdown
+    id: console
+    attributes:
+      label: Console
+      options:
+        - New 3DS XL / LL
+        - New 3DS
+        - New 2DS XL / LL
+        - Old 3DS XL / LL
+        - Old 3DS
+        - Old 2DS
+        - Emulator (Azahar, Citra...)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How NSA is installed
+      options:
+        - CIA (on the HOME Menu)
+        - 3DSX (Homebrew Launcher)
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: System version and custom firmware
+      description: System settings shows the system version; Luma3DS shows its version when you hold SELECT while turning the console on.
+      placeholder: 11.17.0-50E with Luma3DS 13.4
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where it happens
+      multiple: true
+      options:
+        - Installing (SD card, network, URL, QR code)
+        - Titles, tickets, save data
+        - Files (SD card, viewers, player)
+        - Store (Universal-DB)
+        - Console to console (sending to another 3DS)
+        - Web page / FTP server
+        - Updates and changelog
+        - Settings, themes, guide
+        - Advanced (NAND)
+        - Something else
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead. An error code (like D8E08027) helps a lot.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen
+      placeholder: |
+        1. Open Titles
+        2. Hold A on a game
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or photos
+      description: Drag pictures here. A photo of the console's screens is fine.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        If it was a transfer between consoles or a download, attach `sdmc:/nsa/transfer-log.txt` from the SD card (drag the file here).
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before sending
+      options:
+        - label: This is not about pirated content.
+          required: true
+        - label: If an install fails, I checked that the CIA is valid and that the SD card works (counterfeit cards and file system errors are common causes).

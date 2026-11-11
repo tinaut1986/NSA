@@ -68,6 +68,11 @@ typedef struct {
     // of its own, after the marks are gone): `selectCount` strings one after another, each ended by '\0'.
     char* selectNames;
     u32 selectCount;
+
+    // Picking a picture for another screen (files_pick_picture): A on a picture hands its path to `pick` and closes.
+    void (*pick)(void* data, const char* path);
+    void* pickData;
+    bool pickClose;   // Picked: closes on the next update (the list is not touched while it handles a press).
 } files_data;
 
 #define ROW_HEIGHT 34
@@ -804,6 +809,12 @@ static void files_launch(void* data) {
     prompt_display_yes_no("Confirmation", "Start this program? NSA closes first.", COLOR_TEXT, path, NULL, files_launch_response);
 }
 
+// The selected .3dsx as a title of its own in the HOME Menu (homeiconview.c).
+static void files_home_icon(void* data) {
+    files_data* listData = (files_data*) data;
+    homeicon_open(((file_info*) listData->actionSelected->data)->path);
+}
+
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
 
 static void files_extract(files_data* data, bool intoFolder) {
@@ -847,6 +858,7 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
 
     if(files_type_of(info) == TYPE_PROGRAM && data->archiveId == ARCHIVE_SDMC && viewers_has_ext(info->name, "3dsx")) {
         actions[count++] = (sheet_action) {ICON_PLAYER_PLAY, _("Run program"), false, files_launch};
+        actions[count++] = (sheet_action) {ICON_APPS, _("Install in the HOME Menu"), false, files_home_icon};
     }
 
     viewer_kind viewer = viewers_kind_of(info->name);
@@ -1384,6 +1396,15 @@ static void files_free_data(files_data* data) {
     free(data);
 }
 
+static void files_close(ui_view* view, files_data* listData, linked_list* items) {
+    ui_pop();
+
+    files_free_data(listData);
+
+    task_clear_files(items);
+    list_destroy(view);
+}
+
 static void files_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     files_data* listData = (files_data*) data;
     listData->actionItems = items;
@@ -1412,8 +1433,16 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
     }
 
     view->info = _(" open   hold  actions    folder    up");
-    if(listData->selecting) {
+    if(listData->pick != NULL) {
+        view->name = _("Choose a picture");
+        view->info = _(" choose    up");
+    } else if(listData->selecting) {
         view->info = _("\uE000 tick   \uE002 actions   \uE003 all   \uE001 done");
+    }
+
+    if(listData->pick != NULL && listData->pickClose) {
+        files_close(view, listData, items);
+        return;
     }
 
     if(hidKeysDown() & KEY_B) {
@@ -1429,13 +1458,7 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
         }
 
         if(strncmp(listData->currDir, "/", FILE_PATH_MAX) == 0) {
-            ui_pop();
-
-            files_free_data(listData);
-
-            task_clear_files(items);
-            list_destroy(view);
-
+            files_close(view, listData, items);
             return;
         } else {
             char parentDir[FILE_PATH_MAX] = {'\0'};
@@ -1488,6 +1511,21 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
         error_display_res(NULL, NULL, listData->populateData.result, "Failed to populate file list.");
 
         listData->populateData.result = 0;
+    }
+
+    // Picking: only A and B (and the search and filter).
+    if(listData->pick != NULL) {
+        if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A)) && !files_is_base(selected)) {
+            file_info* fileInfo = (file_info*) selected->data;
+            if(files_is_dir(fileInfo)) {
+                files_navigate(listData, items, fileInfo->path);
+            } else if(viewers_kind_of(fileInfo->name) == VIEWER_IMAGE) {
+                listData->pick(listData->pickData, fileInfo->path);
+                listData->pickClose = true;
+            }
+        }
+
+        return;
     }
 
     // Y: selection mode, with the item with the focus ticked; inside it, all or none.
@@ -1547,7 +1585,7 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
     }
 }
 
-void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
+static void files_open_at(FS_ArchiveID archiveId, FS_Path archivePath, const char* dir, void (*pick)(void* data, const char* path), void* pickData) {
     files_data* data = (files_data*) calloc(1, sizeof(files_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate files data.");
@@ -1592,7 +1630,9 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
         data->archivePath.data = NULL;
     }
 
-    snprintf(data->currDir, FILE_PATH_MAX, "/");
+    snprintf(data->currDir, FILE_PATH_MAX, "%s", dir != NULL ? dir : "/");
+    data->pick = pick;
+    data->pickData = pickData;
     files_update_title(data);
 
     Result res = 0;
@@ -1617,6 +1657,11 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
     };
     list_set_style(view, &style);
     list_set_filter(view, files_visible);
+    if(pick != NULL) {
+        list_add_search_tool(view, _("Search files"));
+        return;
+    }
+
     list_set_long_press(view, files_long_press);
 
     // Right to left.
@@ -1625,6 +1670,14 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
     list_add_tool(view, ICON_FILTER, files_filter_active, files_filter_open);
     list_add_tool(view, ICON_CLIPBOARD, files_clipboard_active, files_clipboard_press);
     list_add_tool(view, ICON_SQUARE_CHECK, files_select_active, files_select_press);
+}
+
+void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
+    files_open_at(archiveId, archivePath, NULL, NULL, NULL);
+}
+
+void files_pick_picture(const char* dir, void (*picked)(void* data, const char* path), void* data) {
+    files_open_at(ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), dir, picked, data);
 }
 
 void files_open_sd() {

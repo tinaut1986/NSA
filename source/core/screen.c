@@ -513,6 +513,85 @@ void screen_select_eye(gfxScreen_t screen, gfx3dSide_t side, float shift) {
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), screen == GFX_TOP ? &projection_top : &projection_bottom);
 }
 
+bool screen_render_offscreen(u32 width, u32 height, void (*draw)(void* data), void* data, u8* rgba) {
+    // The GPU draws only into VRAM; the picture is copied out to memory the CPU reads.
+    C3D_Tex tex;
+    if(!C3D_TexInitVRAM(&tex, (u16) width, (u16) height, GPU_RGBA8)) {
+        return false;
+    }
+
+    u8* copy = (u8*) linearAlloc(tex.size);
+    C3D_RenderTarget* target = copy != NULL ? C3D_RenderTargetCreateFromTex(&tex, GPU_TEXFACE_2D, 0, -1) : NULL;
+    if(target == NULL) {
+        linearFree(copy);
+        C3D_TexDelete(&tex);
+        return false;
+    }
+
+    bool drawn = C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    if(drawn) {
+        current_eye = GFX_LEFT;
+        current_width = width;
+        stereo_shift = 0;
+        depth = 0;
+        offset_x = 0;
+        offset_y = 0;
+        content_dx = 0;
+        content_dy = 0;
+        content_alpha = 0xFF;
+        shapes_hidden = false;
+        screen_clear_clip();
+
+        C3D_RenderTargetClear(target, C3D_CLEAR_ALL, 0, 0);
+        drawn = C3D_FrameDrawOn(target);
+        if(drawn) {
+            C3D_Mtx projection;
+            Mtx_Ortho(&projection, 0.0f, (float) width, (float) height, 0.0f, 1.0f, -1.0f, true);
+            C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), &projection);
+            draw(data);
+        }
+
+        C3D_FrameEnd(0);
+
+        // Waits for the GPU to finish it.
+        if(C3D_FrameBegin(C3D_FRAME_SYNCDRAW)) {
+            C3D_FrameEnd(0);
+        }
+    }
+
+    if(drawn) {
+        GSPGPU_InvalidateDataCache(copy, tex.size);
+        C3D_SyncTextureCopy((u32*) tex.data, 0, (u32*) copy, 0, tex.size, 8);
+        GSPGPU_InvalidateDataCache(copy, tex.size);
+
+        // 8x8 tiles in Morton order, the picture's top row first (with this projection). Texels are A, B, G, R.
+        const u8* src = copy;
+        for(u32 y = 0; y < height; y++) {
+            u32 row = y;
+            for(u32 x = 0; x < width; x++) {
+                u32 morton = 0;
+                for(u32 bit = 0; bit < 3; bit++) {
+                    morton |= ((x >> bit) & 1) << (bit * 2);
+                    morton |= ((row >> bit) & 1) << (bit * 2 + 1);
+                }
+
+                const u8* texel = src + (((row / 8) * (width / 8) + x / 8) * 64 + morton) * 4;
+                u8* out = rgba + (y * width + x) * 4;
+                out[0] = texel[3];
+                out[1] = texel[2];
+                out[2] = texel[1];
+                out[3] = texel[0];
+            }
+        }
+    }
+
+    C3D_RenderTargetDelete(target);
+    C3D_TexDelete(&tex);
+    linearFree(copy);
+    current_width = TOP_SCREEN_WIDTH;
+    return drawn;
+}
+
 void screen_set_offset(float x, float y) {
     offset_x = x;
     offset_y = y;

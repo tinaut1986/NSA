@@ -11,7 +11,7 @@
  "lang.label": "Language",
  "hero.icon": "NSA icon",
  "hero.lead": "An open source title manager for the Nintendo 3DS: install and manage titles, browse and view files, send games to another 3DS, and look after the console's own data. A fork of FBI with a new interface, new tools and its own updater.",
- "hero.download": "Download the latest release (v0.8.4)",
+ "hero.download": "Download the latest release",
  "hero.source": "Source on GitHub",
  "hero.small": "A fork of FBI that includes everything FBI does, so you do not need both. It installs as its own app (own title ID, data in <code>sdmc:/nsa/</code>) and never overwrites FBI. MIT license.",
  "notice": "<strong>No piracy.</strong> NSA does not provide, host, link to or support pirated content, and the project will not help with it. NSA is a tool to manage software you legally own, your own backups and homebrew. Requests or links for pirated games will be removed.",
@@ -84,5 +84,11 @@
  "report.3": "<strong>Firmware and CFW</strong> (e.g. 11.17 with Luma3DS)",
  "report.4": "<strong>Steps to reproduce</strong>, what you expected and what happened",
  "report.outro": "If an install fails, also check that the CIA is valid and try another SD card (counterfeit cards and filesystem errors are common causes). No pirated content in reports, please.",
- "footer": "NSA is a fork of <a href=\"https://github.com/Steveice10/FBI\">FBI</a> by Steveice10 (MIT). Not affiliated with Nintendo. Nintendo 3DS is a trademark of Nintendo. NSA does not provide or support pirated content."
+ "footer": "NSA is a fork of <a href=\"https://github.com/Steveice10/FBI\">FBI</a> by Steveice10 (MIT). Not affiliated with Nintendo. Nintendo 3DS is a trademark of Nintendo. NSA does not provide or support pirated content.",
+ "nav.news": "What's new",
+ "news.title": "What's new",
+ "news.more": "Every release on GitHub",
+ "hero.beta": "Latest beta",
+ "accent.label": "Accent colour",
+ "viewer.close": "Close"
 }

@@ -11,7 +11,7 @@
  "lang.label": "Idioma",
  "hero.icon": "Icono de NSA",
  "hero.lead": "Un gestor de títulos de código abierto para Nintendo 3DS: instala y gestiona títulos, explora y abre archivos, envía juegos a otra 3DS y cuida los datos de la consola. Un fork de FBI con interfaz nueva, herramientas nuevas y su propio actualizador.",
- "hero.download": "Descargar la última versión (v0.8.4)",
+ "hero.download": "Descargar la última versión",
  "hero.source": "Código en GitHub",
  "hero.small": "Un fork de FBI que incluye todo lo que hace FBI, así que no necesitas tener los dos. Se instala como app propia (con su propio ID de título y sus datos en <code>sdmc:/nsa/</code>) y nunca sobrescribe FBI. Licencia MIT.",
  "notice": "<strong>Nada de piratería.</strong> NSA no proporciona, aloja, enlaza ni apoya contenido pirata, y el proyecto no ayudará con ello. NSA es una herramienta para gestionar software que posees legalmente, tus propias copias de seguridad y homebrew. Se eliminarán las peticiones o enlaces a juegos pirata.",
@@ -84,5 +84,11 @@
  "report.3": "<strong>Firmware y CFW</strong> (p. ej. 11.17 con Luma3DS)",
  "report.4": "<strong>Pasos para reproducirlo</strong>, lo que esperabas y lo que pasó",
  "report.outro": "Si falla una instalación, comprueba también que el CIA es válido y prueba otra tarjeta SD (las tarjetas falsas y los errores del sistema de archivos son causas comunes). Sin contenido pirata en los reportes, por favor.",
- "footer": "NSA es un fork de <a href=\"https://github.com/Steveice10/FBI\">FBI</a> de Steveice10 (MIT). Sin relación con Nintendo. Nintendo 3DS es marca registrada de Nintendo. NSA no proporciona ni apoya contenido pirata."
+ "footer": "NSA es un fork de <a href=\"https://github.com/Steveice10/FBI\">FBI</a> de Steveice10 (MIT). Sin relación con Nintendo. Nintendo 3DS es marca registrada de Nintendo. NSA no proporciona ni apoya contenido pirata.",
+ "nav.news": "Novedades",
+ "news.title": "Novedades",
+ "news.more": "Todas las versiones en GitHub",
+ "hero.beta": "Última beta",
+ "accent.label": "Color de acento",
+ "viewer.close": "Cerrar"
 }

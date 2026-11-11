@@ -11,7 +11,7 @@
  "lang.label": "Sprache",
  "hero.icon": "NSA-Symbol",
  "hero.lead": "Eine quelloffene Titelverwaltung für den Nintendo 3DS: Titel installieren und verwalten, Dateien durchsuchen und ansehen, Spiele an einen anderen 3DS senden und sich um die Daten der Konsole kümmern. Ein Fork von FBI mit neuer Oberfläche, neuen Werkzeugen und eigenem Updater.",
- "hero.download": "Neueste Version herunterladen (v0.8.4)",
+ "hero.download": "Neueste Version herunterladen",
  "hero.source": "Quellcode auf GitHub",
  "hero.small": "Ein Fork von FBI, der alles enthält, was FBI kann – du brauchst also nicht beide. NSA wird als eigene App installiert (eigene Title-ID, Daten in <code>sdmc:/nsa/</code>) und überschreibt FBI nie. MIT-Lizenz.",
  "notice": "<strong>Keine Piraterie.</strong> NSA stellt keine raubkopierten Inhalte bereit, hostet oder verlinkt sie nicht und unterstützt sie nicht; das Projekt hilft dabei auch nicht. NSA ist ein Werkzeug, um Software zu verwalten, die dir legal gehört, deine eigenen Backups und Homebrew. Anfragen oder Links zu Raubkopien werden gelöscht.",
@@ -84,5 +84,11 @@
  "report.3": "<strong>Firmware und CFW</strong> (z. B. 11.17 mit Luma3DS)",
  "report.4": "<strong>Schritte zur Reproduktion</strong>, was du erwartet hast und was passiert ist",
  "report.outro": "Wenn eine Installation fehlschlägt, prüfe außerdem, ob das CIA gültig ist, und probiere eine andere SD-Karte (gefälschte Karten und Dateisystemfehler sind häufige Ursachen). Bitte keine Raubkopien in Meldungen.",
- "footer": "NSA ist ein Fork von <a href=\"https://github.com/Steveice10/FBI\">FBI</a> von Steveice10 (MIT). Nicht mit Nintendo verbunden. Nintendo 3DS ist eine Marke von Nintendo. NSA stellt keine raubkopierten Inhalte bereit und unterstützt sie nicht."
+ "footer": "NSA ist ein Fork von <a href=\"https://github.com/Steveice10/FBI\">FBI</a> von Steveice10 (MIT). Nicht mit Nintendo verbunden. Nintendo 3DS ist eine Marke von Nintendo. NSA stellt keine raubkopierten Inhalte bereit und unterstützt sie nicht.",
+ "nav.news": "Neuigkeiten",
+ "news.title": "Neuigkeiten",
+ "news.more": "Alle Versionen auf GitHub",
+ "hero.beta": "Neueste Beta",
+ "accent.label": "Akzentfarbe",
+ "viewer.close": "Schließen"
 }

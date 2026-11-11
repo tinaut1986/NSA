@@ -11,7 +11,7 @@
  "lang.label": "Langue",
  "hero.icon": "Icône de NSA",
  "hero.lead": "Un gestionnaire de titres open source pour Nintendo 3DS : installez et gérez des titres, parcourez et ouvrez des fichiers, envoyez des jeux vers une autre 3DS et prenez soin des données de la console. Un fork de FBI avec une nouvelle interface, de nouveaux outils et son propre outil de mise à jour.",
- "hero.download": "Télécharger la dernière version (v0.8.4)",
+ "hero.download": "Télécharger la dernière version",
  "hero.source": "Code source sur GitHub",
  "hero.small": "Un fork de FBI qui inclut tout ce que fait FBI : inutile d'avoir les deux. Il s'installe comme une application à part (son propre ID de titre, ses données dans <code>sdmc:/nsa/</code>) et n'écrase jamais FBI. Licence MIT.",
  "notice": "<strong>Pas de piratage.</strong> NSA ne fournit, n'héberge, ne référence ni ne soutient aucun contenu piraté, et le projet n'aidera pas à en obtenir. NSA est un outil pour gérer les logiciels que vous possédez légalement, vos propres sauvegardes et le homebrew. Les demandes ou liens vers des jeux piratés seront supprimés.",
@@ -84,5 +84,11 @@
  "report.3": "<strong>Le firmware et le CFW</strong> (par ex. 11.17 avec Luma3DS)",
  "report.4": "<strong>Les étapes pour reproduire le problème</strong>, ce que vous attendiez et ce qui s'est passé",
  "report.outro": "Si une installation échoue, vérifiez aussi que le CIA est valide et essayez une autre carte SD (les cartes contrefaites et les erreurs du système de fichiers sont des causes fréquentes). Pas de contenu piraté dans les signalements, merci.",
- "footer": "NSA est un fork de <a href=\"https://github.com/Steveice10/FBI\">FBI</a> de Steveice10 (MIT). Sans lien avec Nintendo. Nintendo 3DS est une marque de Nintendo. NSA ne fournit ni ne soutient aucun contenu piraté."
+ "footer": "NSA est un fork de <a href=\"https://github.com/Steveice10/FBI\">FBI</a> de Steveice10 (MIT). Sans lien avec Nintendo. Nintendo 3DS est une marque de Nintendo. NSA ne fournit ni ne soutient aucun contenu piraté.",
+ "nav.news": "Nouveautés",
+ "news.title": "Nouveautés",
+ "news.more": "Toutes les versions sur GitHub",
+ "hero.beta": "Dernière bêta",
+ "accent.label": "Couleur d'accent",
+ "viewer.close": "Fermer"
 }

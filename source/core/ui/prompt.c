@@ -41,6 +41,12 @@ typedef struct {
     bool textDrag;        // A finger moves the text.
     bool barDrag;         // A finger holds the scrollbar.
     float lastTouchY;
+    // A sheet (HOME) pulled down by its top: let go low enough, or flicked, it is answered as B does (the last option).
+    bool pulling;
+    float pullStart;
+    float pulled;
+    float pullSpeed;
+    bool leaving;         // Let go low enough: it slides the rest of the way down, then is answered.
 } prompt_data;
 
 // What the web page sees of the prompt on top: copied while it is updated, so it is gone a moment after the prompt is.
@@ -200,6 +206,19 @@ static void prompt_notify_response(ui_view* view, prompt_data* promptData, u32 r
 static void prompt_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     prompt_data* promptData = (prompt_data*) data;
 
+    // Let go low enough: down the rest of the way, quicker as it goes, then answered as B does (nothing else counts meanwhile).
+    if(promptData->leaving) {
+        float leaveX, leaveY, leaveH, leaveTextH;
+        prompt_layout(promptData, bx1, by1, bx2, by2, &leaveX, &leaveY, &leaveH, &leaveTextH);
+        promptData->pulled += 8 + promptData->pulled * 0.25f;
+        ui_wake();
+        if(promptData->pulled > leaveH + WIDGET_HINT_BAR_HEIGHT) {
+            prompt_notify_response(view, promptData, promptData->numOptions - 1);
+        }
+
+        return;
+    }
+
     const char* webOptions[PROMPT_OPTIONS_MAX];
     u32 webCount = promptData->numOptions < PROMPT_OPTIONS_MAX ? promptData->numOptions : PROMPT_OPTIONS_MAX;
     for(u32 i = 0; i < webCount; i++) {
@@ -225,6 +244,37 @@ static void prompt_update(ui_view* view, void* data, float bx1, float by1, float
 
     float cardX, cardY, cardH, textH;
     prompt_layout(promptData, bx1, by1, bx2, by2, &cardX, &cardY, &cardH, &textH);
+
+    if(promptData->pulling) {
+        if(hidKeysHeld() & KEY_TOUCH) {
+            float pulled = pos.py - promptData->pullStart;
+            promptData->pullSpeed = pos.py - promptData->lastTouchY;
+            promptData->pulled = pulled > 0 ? pulled : 0;
+            promptData->lastTouchY = pos.py;
+            return;
+        }
+
+        promptData->pulling = false;
+        if(promptData->numOptions > 0 && (promptData->pulled > cardH * 0.3f || promptData->pullSpeed > 6)) {
+            promptData->leaving = true;
+            ui_wake();
+            return;
+        }
+    } else if(promptData->pulled > 0) {
+        promptData->pulled = promptData->pulled < 1 ? 0 : promptData->pulled * 0.6f;
+        ui_wake();
+    }
+
+    // A sheet's top (the handle, the title), or just above it (a finger is wide): a pull.
+    if((hidKeysDown() & KEY_TOUCH) && theme()->def->sheetPrompts && pos.py >= cardY - 18 && pos.py < cardY + PROMPT_PAD + PROMPT_HEADER) {
+        widget_press_end(&promptData->press);
+        promptData->pulling = true;
+        promptData->pullStart = pos.py;
+        promptData->lastTouchY = pos.py;
+        promptData->pulled = 0;
+        promptData->pullSpeed = 0;
+        return;
+    }
 
     // A message that does not fit scrolls.
     float textX, textY, textW, visibleH;
@@ -360,9 +410,12 @@ static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, fl
 
     // The scrim darkens in while the card rises into place.
     float e = widget_ease(promptData->opened, 180);
-    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->scrim, (u32) (((t->palette->scrim >> 24) & 0xFF) * e)));
+    // Pulled down, the scrim lightens with it.
+    float left = 1 - promptData->pulled / (cardH + 1);
+    left = left < 0 ? 0 : left;
+    screen_fill_rect(x1, y1, x2 - x1, y2 - y1, THEME_ALPHA(t->palette->scrim, (u32) (((t->palette->scrim >> 24) & 0xFF) * e * left)));
     bool sheet = t->def->sheetPrompts;
-    screen_set_offset(0, (1 - e) * (sheet ? cardH : 14));
+    screen_set_offset(0, (1 - e) * (sheet ? cardH : 14) + promptData->pulled);
     screen_set_base_alpha((u8) (0x40 + e * 0xBF));
 
     // A sheet is drawn taller than it is, so its bottom corners are off the screen.
@@ -388,7 +441,7 @@ static void prompt_draw_bottom(ui_view* view, void* data, float x1, float y1, fl
     if(prompt_max_scroll(textH, visibleH) > 0) {
         // Too long for the card: clipped to the room above the buttons, with a scrollbar on its right.
         prompt_clamp_scroll(promptData, textH, visibleH);
-        float offsetY = (1 - e) * (sheet ? cardH : 14);
+        float offsetY = (1 - e) * (sheet ? cardH : 14) + promptData->pulled;
         screen_set_clip(textX, textY + offsetY, textW, visibleH);
         screen_draw_text_wrap(promptData->text, textX, textY - promptData->scroll, PROMPT_TEXT_SCALE, textColor, textX + textW - WIDGET_SCROLLBAR_WIDTH - 6);
         screen_clear_clip();

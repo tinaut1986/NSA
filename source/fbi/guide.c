@@ -65,6 +65,7 @@ static const coach_step basics_steps[] = {
         INFO("hints", "This bar lists the buttons that work on each screen."),
         OPEN("menu.titles", "Open Titles: tap it, or bring the focus to it with the D-Pad and press \uE000.", "v:Titles"),
         INFO("list", "Every game and app installed. The top screen shows the one with the focus."),
+        INFO_SINCE(GUIDE_VERSION(0, 13), "list.jump", "When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS."),
         DO("list.selected", "Press \uE000, or tap the one with the focus: its actions open.", KEY_A, true, "sheet|titles.chain"),
         CHAIN_OPEN_GAME,
         DO("sheet", "Its actions. Whatever deletes asks first, in red. Close them with \uE001.", KEY_B, false, "!sheet"),
@@ -154,6 +155,7 @@ static const coach_step computer_steps[] = {
         REACH("settings.web", "Now go to Web server."),
         INFO("settings.web", "Turn it on and open the address on the top screen in your computer's browser, with the PIN: files, titles, saves, installs and the screens live. Only on your own Wi-Fi."),
         INFO("settings.web", "While the web server runs, its row shows a QR code: scan it with your phone and the page opens, already signed in."),
+        INFO_SINCE(GUIDE_VERSION(0, 13), "settings.web", "The page can edit the theme too, in its Settings: you see each change on the page and on the console at once."),
         REACH("settings.web_pin", "Go down to Web PIN."),
         INFO_SINCE(GUIDE_VERSION(0, 12), "settings.web_pin", "Web PIN: Random makes a new PIN each time the server starts, Fixed keeps one between launches (you type it, or make a random one on the keypad), and None opens the page without a PIN, only for a network you trust."),
         INFO_SINCE(GUIDE_VERSION(0, 12), "settings.web_pin", "When a browser asks for the PIN, the console shows it at the bottom of the screen."),
@@ -164,11 +166,30 @@ static const coach_step computer_steps[] = {
 static const coach_step look_steps[] = {
         OPEN("menu.settings", "Open Settings.", "v:Settings"),
         INFO("settings.theme", "Three themes: Cards, Pixel and HOME. Left and Right change an option."),
+        INFO_SINCE(GUIDE_VERSION(0, 13), "settings.theme", "HOME turns its icon grids sideways, in pages: a tap on a dot, or a finger along the bar under them, goes to one. Your own themes have a chapter of their own."),
         INFO("settings.accent", "The colour of buttons and selections."),
         INFO("settings.night", "Dark colours, by hand or from 20:00 to 8:00."),
         INFO("settings.language", "NSA speaks 11 languages. System follows the console's own."),
         REACH("settings.music", "Go down to Background music."),
         INFO("settings.music", "Music the console makes itself, with its own volume. The sounds above have theirs."),
+        BACK_TO_MENU("\uE001 goes back to the menu."),
+};
+
+static const coach_step themes_steps[] = {
+        OPEN("menu.settings", "Open Settings.", "v:Settings"),
+        OPEN("settings.theme_edit", "Go down to Edit the theme and open it with \uE000.", "v:Edit the theme"),
+        INFO("list", "Every value of the theme in use. While you are here, both screens are drawn with what you change."),
+        INFO("Start from", "Start from takes another theme, or a blank template: greys and medium corners."),
+        OPEN("Background", "Go down to Background and open it with \uE000.", "colorpick.square"),
+        INFO("colorpick.square", "Slide a finger over the square for how strong and how light the colour is."),
+        INFO("colorpick.hue", "And along this bar for its hue. L and R go through the hues too, and \uE002 types its code."),
+        DO(NULL, "\uE000 keeps the colour, \uE001 leaves it as it was. Press \uE001 now.", KEY_B, false, "!colorpick.square"),
+        REACH("Corners", "Go down to Corners."),
+        INFO("Corners", "Left and Right change a value, quicker while held: 0 is square, higher is rounder. Below come the font, the dialogs, the main menu and the icon grids: down a column, or in pages sideways as in HOME."),
+        REACH("Save as a new theme", "Go down to Save as a new theme."),
+        INFO("Save as a new theme", "Save as a new theme keeps it on the SD card and puts it in use. A theme of yours also has Save the theme, over its file, and Delete this theme."),
+        DO("back", "\uE001 leaves the editor; with changes, it asks first.", KEY_B, true, "v:Settings"),
+        INFO(NULL, "The web page has this editor too, in its Settings: the page and the console show the theme while you change it."),
         BACK_TO_MENU("\uE001 goes back to the menu."),
 };
 
@@ -261,6 +282,7 @@ static const guide_chapter chapters[] = {
         {"wifi", GUIDE_VERSION(0, 10), false, "basics", ICON_WIFI, "Wi-Fi connections", "Save and restore your Wi-Fi settings", wifi_steps, COUNT_OF(wifi_steps)},
         {"datetime", GUIDE_VERSION(0, 11), false, "basics", ICON_CALENDAR, "Date and time", "Its format, and the clock from the Internet", datetime_steps, COUNT_OF(datetime_steps)},
         {"hwtest", GUIDE_VERSION(0, 12), false, "basics", ICON_FLASK, "Hardware tests", "Buttons, touch screen and motion sensors", hwtest_steps, COUNT_OF(hwtest_steps)},
+        {"themes", GUIDE_VERSION(0, 13), false, "look", ICON_COLOR_SWATCH, "Your own themes", "Make one, colour by colour", themes_steps, COUNT_OF(themes_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)

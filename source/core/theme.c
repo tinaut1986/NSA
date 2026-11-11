@@ -1,10 +1,19 @@
+#include <ctype.h>
+#include <dirent.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <sys/stat.h>
 #include <time.h>
 
 #include <3ds.h>
 
+#include "appinfo.h"
 #include "screen.h"
+#include "stringutil.h"
 #include "theme.h"
+#include "themefile.h"
 
 static const theme_def themes[] = {
         {
@@ -106,6 +115,7 @@ static const theme_def themes[] = {
                 .radiusSmall = 12,
                 .border = 1,
                 .sheetPrompts = true,
+                .pagedGrids = true,
                 .menuLayout = THEME_MENU_TILES
         }
 };
@@ -125,27 +135,284 @@ static const theme_accent accents[] = {
 #define THEME_COUNT (sizeof(themes) / sizeof(*themes))
 #define ACCENT_COUNT (sizeof(accents) / sizeof(*accents))
 
+// Themes from the SD card, after the built-in ones: "sd:<file name without .json>".
+#define THEME_SD_MAX 32
+#define THEME_SD_TEXT 48
+#define THEME_SD_FILE_MAX (32 * 1024)
+
+typedef struct {
+    theme_def def;
+    char id[THEME_SD_TEXT + 4];
+    char name[THEME_SD_TEXT];
+} theme_sd;
+
+static theme_sd sd_themes[THEME_SD_MAX];
+static u32 sd_count = 0;
+static char sd_errors[256] = "";
+
 static u32 selected_theme = 0;
 static u32 selected_accent = 0;
 static theme_night_mode selected_night = THEME_NIGHT_OFF;
 static theme_current current;
 
 u32 theme_count() {
-    return THEME_COUNT;
+    return THEME_COUNT + sd_count;
 }
 
 const theme_def* theme_get(u32 index) {
+    if(index >= THEME_COUNT && index < THEME_COUNT + sd_count) {
+        return &sd_themes[index - THEME_COUNT].def;
+    }
+
     return &themes[index < THEME_COUNT ? index : 0];
 }
 
 u32 theme_find(const char* id) {
-    for(u32 i = 0; id != NULL && i < THEME_COUNT; i++) {
-        if(strcmp(themes[i].id, id) == 0) {
+    for(u32 i = 0; id != NULL && i < theme_count(); i++) {
+        if(strcmp(theme_get(i)->id, id) == 0) {
             return i;
         }
     }
 
     return 0;
+}
+
+const theme_def* theme_builtins(u32* count) {
+    *count = THEME_COUNT;
+    return themes;
+}
+
+bool theme_is_custom(u32 index) {
+    return index >= THEME_COUNT && index < THEME_COUNT + sd_count;
+}
+
+u32 theme_custom_count() {
+    return sd_count;
+}
+
+const char* theme_custom_errors() {
+    return sd_errors;
+}
+
+static int theme_sd_compare(const void* a, const void* b) {
+    return strcasecmp(((const theme_sd*) a)->name, ((const theme_sd*) b)->name);
+}
+
+static void theme_note_error(const char* file, const char* error) {
+    size_t used = strlen(sd_errors);
+    snprintf(sd_errors + used, sizeof(sd_errors) - used, "%s%s: %s", used > 0 ? "\n" : "", file, error);
+}
+
+static void theme_load_sd() {
+    sd_count = 0;
+    sd_errors[0] = '\0';
+
+    DIR* dir = opendir("sdmc:" APP_DATA_DIR "themes");
+    if(dir == NULL) {
+        return;
+    }
+
+    struct dirent* entry;
+    while((entry = readdir(dir)) != NULL && sd_count < THEME_SD_MAX) {
+        size_t len = strlen(entry->d_name);
+        if(len <= 5 || strcasecmp(entry->d_name + len - 5, ".json") != 0 || entry->d_name[0] == '.') {
+            continue;
+        }
+
+        char path[320];
+        snprintf(path, sizeof(path), "sdmc:" APP_DATA_DIR "themes/%s", entry->d_name);
+        FILE* fd = fopen(path, "rb");
+        if(fd == NULL) {
+            theme_note_error(entry->d_name, "cannot be opened");
+            continue;
+        }
+
+        char* text = (char*) malloc(THEME_SD_FILE_MAX + 1);
+        size_t size = text != NULL ? fread(text, 1, THEME_SD_FILE_MAX + 1, fd) : 0;
+        fclose(fd);
+        if(text == NULL || size > THEME_SD_FILE_MAX) {
+            theme_note_error(entry->d_name, "too big");
+            free(text);
+            continue;
+        }
+
+        text[size] = '\0';
+        theme_sd* sd = &sd_themes[sd_count];
+        char error[96];
+        bool ok = themefile_parse(text, themes, THEME_COUNT, &sd->def, sd->name, sizeof(sd->name), error, sizeof(error));
+        free(text);
+        if(!ok) {
+            theme_note_error(entry->d_name, error);
+            continue;
+        }
+
+        char stem[THEME_SD_TEXT];
+        snprintf(stem, sizeof(stem), "%.*s", (int) (len - 5), entry->d_name);
+        snprintf(sd->id, sizeof(sd->id), "sd:%s", stem);
+        if(sd->name[0] == '\0') {
+            string_copy(sd->name, stem, sizeof(sd->name));
+        }
+
+        sd->def.id = sd->id;
+        sd->def.name = sd->name;
+        sd_count++;
+    }
+
+    closedir(dir);
+    qsort(sd_themes, sd_count, sizeof(*sd_themes), theme_sd_compare);
+    // Sorting moved the names: point at them again.
+    for(u32 i = 0; i < sd_count; i++) {
+        sd_themes[i].def.id = sd_themes[i].id;
+        sd_themes[i].def.name = sd_themes[i].name;
+    }
+}
+
+void theme_load_custom() {
+    theme_load_sd();
+}
+
+static void theme_resolve();
+
+u32 theme_reload_custom(u32 selected) {
+    char id[THEME_SD_TEXT + 4];
+    string_copy(id, theme_get(selected)->id, sizeof(id));
+    bool wasCurrent = selected == selected_theme;
+    theme_load_sd();
+    u32 found = theme_find(id);
+    if(wasCurrent) {
+        selected_theme = found;
+        theme_resolve();
+    }
+
+    return found;
+}
+
+// A file name from a theme's name: its letters and digits, in lower case, with dashes between words.
+static void theme_slug(const char* name, char* stem, size_t stemSize) {
+    size_t n = 0;
+    for(const char* c = name; *c != '\0' && n + 1 < stemSize; c++) {
+        if(isalnum((unsigned char) *c)) {
+            stem[n++] = (char) tolower((unsigned char) *c);
+        } else if(n > 0 && stem[n - 1] != '-') {
+            stem[n++] = '-';
+        }
+    }
+
+    while(n > 0 && stem[n - 1] == '-') {
+        n--;
+    }
+
+    stem[n] = '\0';
+    if(n == 0) {
+        string_copy(stem, "theme", stemSize);
+    }
+}
+
+static bool theme_file_exists(const char* path) {
+    FILE* fd = fopen(path, "rb");
+    if(fd != NULL) {
+        fclose(fd);
+    }
+
+    return fd != NULL;
+}
+
+static bool theme_write_file(const theme_def* def, const char* name, const char* path) {
+    mkdir("sdmc:" APP_DATA_DIR, 0777);
+    mkdir("sdmc:" APP_DATA_DIR "themes", 0777);
+
+    char* text = themefile_write(def, name);
+    if(text == NULL) {
+        return false;
+    }
+
+    FILE* fd = fopen(path, "wb");
+    bool ok = fd != NULL && fwrite(text, 1, strlen(text), fd) == strlen(text);
+    if(fd != NULL) {
+        ok = fclose(fd) == 0 && ok;
+    }
+
+    free(text);
+    return ok;
+}
+
+// The start of a theme of one's own that owes nothing to the built-in ones: greys, medium corners.
+static const theme_def blank_theme = {
+        .id = "blank",
+        .name = "Blank template",
+        .day = {
+                .background = THEME_RGB(0xEFEFEF),
+                .surface = THEME_RGB(0xFFFFFF),
+                .border = THEME_RGB(0xD6D6D6),
+                .text = THEME_RGB(0x222222),
+                .textMuted = THEME_RGB(0x6B6B6B),
+                .scrim = THEME_ALPHA(THEME_RGB(0x000000), 0x70),
+                .success = THEME_RGB(0x2E7D4F),
+                .successSoft = THEME_RGB(0xE2F3E8),
+                .danger = THEME_RGB(0xB3261E),
+                .warning = THEME_RGB(0x8A5A00)
+        },
+        .night = {
+                .background = THEME_RGB(0x161616),
+                .surface = THEME_RGB(0x222222),
+                .border = THEME_RGB(0x3A3A3A),
+                .text = THEME_RGB(0xEDEDED),
+                .textMuted = THEME_RGB(0xA0A0A0),
+                .scrim = THEME_ALPHA(THEME_RGB(0x000000), 0xA0),
+                .success = THEME_RGB(0x6CCB94),
+                .successSoft = THEME_RGB(0x173826),
+                .danger = THEME_RGB(0xF28B82),
+                .warning = THEME_RGB(0xF2B84B)
+        },
+        .radius = 8,
+        .radiusSmall = 6,
+        .border = 1,
+        .menuLayout = THEME_MENU_GRID2
+};
+
+const theme_def* theme_blank() {
+    return &blank_theme;
+}
+
+bool theme_delete_custom(u32 index) {
+    if(!theme_is_custom(index)) {
+        return false;
+    }
+
+    char path[THEME_SD_TEXT + 64];
+    snprintf(path, sizeof(path), "sdmc:" APP_DATA_DIR "themes/%s.json", theme_get(index)->id + 3);
+    bool ok = remove(path) == 0;
+    theme_load_sd();
+    return ok;
+}
+
+bool theme_save_custom(const theme_def* def, const char* name, u32 editing, u32* saved, char* path, size_t pathSize) {
+    char stem[THEME_SD_TEXT];
+    if(theme_is_custom(editing)) {
+        // A theme from the SD card is written over its own file.
+        string_copy(stem, theme_get(editing)->id + 3, sizeof(stem));
+        snprintf(path, pathSize, "sdmc:" APP_DATA_DIR "themes/%s.json", stem);
+    } else {
+        // A built-in one becomes a new file named after the name given, with a number when that is taken.
+        char base[THEME_SD_TEXT];
+        theme_slug(name, base, sizeof(base));
+        string_copy(stem, base, sizeof(stem));
+        snprintf(path, pathSize, "sdmc:" APP_DATA_DIR "themes/%s.json", stem);
+        for(u32 number = 2; theme_file_exists(path) && number < 1000; number++) {
+            snprintf(stem, sizeof(stem), "%.*s-%lu", THEME_SD_TEXT - 8, base, number);
+            snprintf(path, pathSize, "sdmc:" APP_DATA_DIR "themes/%s.json", stem);
+        }
+    }
+
+    if(!theme_write_file(def, name, path)) {
+        return false;
+    }
+
+    theme_load_sd();
+    char id[THEME_SD_TEXT + 4];
+    snprintf(id, sizeof(id), "sd:%s", stem);
+    *saved = theme_find(id);
+    return true;
 }
 
 u32 theme_accent_count() {
@@ -204,9 +471,14 @@ static void theme_apply_legacy_colors() {
     screen_set_color(10, p->textMuted);       // Ticket not in use
 }
 
+// The theme editor's copy, drawn in place of the selected theme while it edits (theme_preview).
+static theme_def preview_def;
+static bool previewing = false;
+static int preview_night = -1;
+
 static void theme_resolve() {
-    current.def = &themes[selected_theme];
-    current.night = theme_is_night();
+    current.def = previewing ? &preview_def : theme_get(selected_theme);
+    current.night = previewing && preview_night >= 0 ? preview_night == 1 : theme_is_night();
     current.palette = current.night ? &current.def->night : &current.def->day;
     current.accent = current.night ? accents[selected_accent].night : accents[selected_accent].day;
     // White on the accent, or near black when the accent is a light one (yellow).
@@ -221,14 +493,27 @@ static void theme_resolve() {
 }
 
 void theme_select(u32 theme, u32 accent, theme_night_mode night) {
-    selected_theme = theme < THEME_COUNT ? theme : 0;
+    selected_theme = theme < theme_count() ? theme : 0;
     selected_accent = accent < ACCENT_COUNT ? accent : 0;
     selected_night = night;
     theme_resolve();
 }
 
+void theme_preview(const theme_def* def, int night) {
+    preview_def = *def;
+    previewing = true;
+    preview_night = night;
+    theme_resolve();
+}
+
+void theme_preview_end() {
+    previewing = false;
+    preview_night = -1;
+    theme_resolve();
+}
+
 void theme_update() {
-    if(selected_night == THEME_NIGHT_AUTO && theme_is_night() != current.night) {
+    if(!(previewing && preview_night >= 0) && selected_night == THEME_NIGHT_AUTO && theme_is_night() != current.night) {
         theme_resolve();
     }
 }

@@ -216,6 +216,10 @@ dialog.open::backdrop{background:rgba(0,0,0,.45)}
 .sw .ic{opacity:0;transform:scale(.4);transition:opacity var(--fast),transform var(--fast) var(--spring)}
 .sw.on .ic{opacity:1;transform:none}
 body.pixel .sw{border-radius:0}
+input[type=color]{width:46px;height:30px;padding:2px;border-radius:var(--rs);border:var(--bw) solid var(--line);background:var(--card);cursor:pointer;flex:none}
+input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+input[type=color]::-webkit-color-swatch{border:0;border-radius:calc(var(--rs) - 2px)}
+input[type=color]::-moz-color-swatch{border:0;border-radius:calc(var(--rs) - 2px)}
 input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;padding:0;border:0;width:100%;height:28px}
 input[type=range]:focus{box-shadow:none}
 input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(var(--accent),var(--accent)) 0/var(--v,50%) 100% no-repeat,var(--line)}
@@ -411,6 +415,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
   i_urls:'Install from URLs',i_urlssub:'Paste links to CIAs: the console asks there, downloads and installs.',i_cia:'Install a CIA from this PC',i_ciasub:'Upload it and install it; the copy on the SD card is deleted after.',
   i_hist:'History',i_histsub:'What was sent to Remote Install before.',i_log:'Transfer log',i_logsub:'The end of transfer-log.txt.',urls:'One URL per line',send:'Send to the console',again:'Install again',nohist:'Nothing yet.',nolog:'(no log)',
   live:'Live',nolive:'The console does not answer.',busy:'The console is busy with %k: %n%p. One transfer at a time: try again when it ends.',busylive:'Paused while the console transfers (%k: %n%p).',k_ftp:'FTP',k_web:'this page',k_download:'a download',k_console:'another 3DS',padnote:'Click the bottom screen to touch it, drag up or down to scroll. Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',
+  te_edit:'Edit the theme',te_editsub:'Change it here and see it at once, on this page and on the console. A built-in theme is saved as a new one of yours.',te_name:'Name',te_from:'Start from',te_colours:'Colours of',te_day:'Day',te_night:'Night',te_alpha:'Opacity',te_c:{background:'Background',surface:'Surface',border:'Border',text:'Text',textMuted:'Secondary text',scrim:'Behind dialogs',success:'Success',successSoft:'Success badge',danger:'Danger',warning:'Warning'},te_radius:'Corners',te_blank:'Blank template',te_myname:'My theme',te_savenew:'Save as a new theme',te_delete:'Delete this theme',te_confirmdel:'Delete the theme "%s"? Its file is removed from the SD card.',te_deleted:'Theme deleted.',te_border:'Outline width',te_font:'Font',te_system:'System',te_bars:'Progress bars',te_smooth:'Smooth',te_blocks:'Blocks',te_dialogs:'Dialogs',te_window:'Window',te_sheet:'Sheet from below',te_menu:'Main menu',te_buttons:'Buttons',te_tiles:'Big tiles',te_grid:'Icon grids',te_scroll:'Scroll down',te_pages:'Pages sideways',te_live:'Show it on the console',te_livesub:'The console draws the theme as you edit it.',te_save:'Save',te_discard:'Discard',te_saved:'Theme saved and in use.',
   ap:'Appearance',theme:'Theme',themesub:'How every screen looks, here and on the console.',accent:'Accent colour',night:'Night mode',nightsub:'Auto: from 20:00 to 8:00 by the console\'s clock.',off:'Off',on:'On',auto:'Auto',language:'Language',lsystem:'Console\'s',
   snd:'Sound',sounds:'Interface sounds',soundssub:'Ticks and clicks; Alerts plays only success and error.',alerts:'Alerts',all:'All',music:'Background music',musicsub:'Made on the console as it plays.',m_lift:'Lift',m_calm:'Calm',m_shop:'Shop',
   page:'This page',pmusic:'Console music here',pmusicsub:'Plays the song the console is playing, in its style and volume. Needs the console to have made it once.',psound:'Sounds in this page',psoundsub:'The console\'s tones, played by the browser (as set above).',pmotion:'Animations',pmotionsub:'Movement in lists, sheets and screens.',signout:'Sign out',signoutsub:'Forget the PIN in this browser.',about:'Console',address:'Address'},
@@ -433,6 +438,7 @@ es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wron
   i_urls:'Instalar desde URLs',i_urlssub:'Pega enlaces a CIAs: la consola pregunta allí, descarga e instala.',i_cia:'Instalar un CIA desde este PC',i_ciasub:'Se sube y se instala; la copia en la SD se borra después.',
   i_hist:'Historial',i_histsub:'Lo que se envió antes a Remote Install.',i_log:'Registro de transferencias',i_logsub:'El final de transfer-log.txt.',urls:'Una URL por línea',send:'Enviar a la consola',again:'Instalar otra vez',nohist:'Nada todavía.',nolog:'(sin registro)',
   live:'En vivo',nolive:'La consola no responde.',busy:'La consola está ocupada con %k: %n%p. Una transferencia a la vez: vuelve a probar cuando acabe.',busylive:'En pausa mientras la consola transfiere (%k: %n%p).',k_ftp:'FTP',k_web:'esta página',k_download:'una descarga',k_console:'otra 3DS',padnote:'Pulsa la pantalla de abajo para tocarla, arrastra arriba o abajo para desplazar. Teclas: flechas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Intro = Start, Retroceso = Select.',
+  te_edit:'Editar el tema',te_editsub:'Cámbialo aquí y míralo al momento, en esta página y en la consola. Un tema de serie se guarda como uno nuevo tuyo.',te_name:'Nombre',te_from:'Partir de',te_colours:'Colores de',te_day:'Día',te_night:'Noche',te_alpha:'Opacidad',te_c:{background:'Fondo',surface:'Superficie',border:'Borde',text:'Texto',textMuted:'Texto secundario',scrim:'Detrás de los diálogos',success:'Hecho',successSoft:'Insignia de éxito',danger:'Peligro',warning:'Aviso'},te_radius:'Esquinas',te_blank:'Plantilla en blanco',te_myname:'Mi tema',te_savenew:'Guardar como tema nuevo',te_delete:'Borrar este tema',te_confirmdel:'¿Borrar el tema "%s"? Su archivo se elimina de la tarjeta SD.',te_deleted:'Tema borrado.',te_border:'Grosor del contorno',te_font:'Fuente',te_system:'Sistema',te_bars:'Barras de progreso',te_smooth:'Suave',te_blocks:'Bloques',te_dialogs:'Diálogos',te_window:'Ventana',te_sheet:'Hoja desde abajo',te_menu:'Menú principal',te_buttons:'Botones',te_tiles:'Losetas grandes',te_grid:'Cuadrículas de iconos',te_scroll:'Desplazar hacia abajo',te_pages:'Páginas en horizontal',te_live:'Mostrarlo en la consola',te_livesub:'La consola dibuja el tema mientras lo editas.',te_save:'Guardar',te_discard:'Descartar',te_saved:'Tema guardado y en uso.',
   ap:'Apariencia',theme:'Tema',themesub:'Cómo se ven todas las pantallas, aquí y en la consola.',accent:'Color de acento',night:'Modo noche',nightsub:'Auto: de 20:00 a 8:00 según el reloj de la consola.',off:'No',on:'Sí',auto:'Auto',language:'Idioma',lsystem:'El de la consola',
   snd:'Sonido',sounds:'Sonidos de la interfaz',soundssub:'Ticks y clics; Avisos solo suena al acabar bien o mal.',alerts:'Avisos',all:'Todos',music:'Música de fondo',musicsub:'La consola la compone mientras suena.',m_lift:'Lift',m_calm:'Calma',m_shop:'Tienda',
   page:'Esta página',pmusic:'Música de la consola aquí',pmusicsub:'Suena la canción que reproduce la consola, con su estilo y volumen. La consola tiene que haberla creado alguna vez.',psound:'Sonidos en esta página',psoundsub:'Los tonos de la consola, sonando en el navegador (como arriba).',pmotion:'Animaciones',pmotionsub:'Movimiento en listas, hojas y pantallas.',signout:'Cerrar sesión',signoutsub:'Olvidar el PIN en este navegador.',about:'Consola',address:'Dirección'}
@@ -695,6 +701,7 @@ function searchBox(value, oninput){ const i = h('input', {type:'search', placeho
 // ---- the console's theme ----
 let themeKey = '', themeNow = null;
 async function loadTheme(){
+  if(ted) return;
   try {
     const t = await (await fetch('/theme.json')).json();
     const key = JSON.stringify(t); if(key===themeKey) return; themeKey = key; themeNow = t;
@@ -1541,7 +1548,11 @@ addEventListener('keydown', e => {
 });
 
 // ---- settings: the console's own (they change there too) and this page's ----
-screens.settings = { render(){ const el = screenEl(h('h2', {}, T.settings), null, h('div', {class:'scroll', id:'setscroll'})); setTimeout(renderSettings); return el; } };
+screens.settings = { render(){ const el = screenEl(h('h2', {}, T.settings), null, h('div', {class:'scroll', id:'setscroll'})); setTimeout(renderSettings); return el; },
+  // Leaving with a theme being edited throws it away (the console goes back to the one in use).
+  leave(){ if(ted) tedClose(false); } };
+// A tab closed while the console shows a theme being edited: back to the one in use.
+addEventListener('pagehide', () => { if(ted && ted.live) fetch('/api/theme/preview/end', {method:'POST', headers:{'X-Pin':pin}, keepalive:true}).catch(() => {}); });
 let setBusy = false;
 async function changeSetting(params){
   if(setBusy) return; setBusy = true;
@@ -1557,6 +1568,99 @@ function volume(value, key){
   return h('div', {class:'vol'}, ic('volume', 16), r, out);
 }
 function sw(on, fn){ const b = h('button', {class:'switch'+(on?' on':''), role:'switch'}); b.onclick = () => { b.classList.toggle('on'); sfx('tick'); fn(b.classList.contains('on')); }; return b; }
+// ---- the theme editor: this page wears what is edited, and the console too when asked; saving puts it in use ----
+let ted = null;   // {id, custom, theme (a theme file's JSON), night: 'day'|'night', live}
+const TED_COLORS = ['background','surface','border','text','textMuted','scrim','success','successSoft','danger','warning'];
+async function openThemeEditor(id){
+  try {
+    const r = await api('GET', 'theme/edit', id ? {id} : null);
+    if(r.id==='blank') r.theme.name = T.te_myname;
+    const live = ted ? ted.live : true;
+    ted = {id:r.id, custom:r.custom, theme:r.theme, night:themeNow && themeNow.night ? 'night' : 'day', live};
+    tedApply(); renderSettings();
+  } catch(e){ if(e.auth) showLogin(e.message); else { sfx('error'); toast(T.failed+e.message, 'err'); } }
+}
+function tedApply(){
+  const t = ted.theme, p = t[ted.night], s = document.documentElement.style;
+  const set = {bg:p.background, card:p.surface, line:p.border, ink:p.text, muted:p.textMuted, danger:p.danger, success:p.success, warning:p.warning};
+  for(const k in set) s.setProperty('--'+k, set[k].slice(0,7));
+  s.setProperty('--r', t.radius+'px'); s.setProperty('--rs', t.radiusSmall+'px'); s.setProperty('--bw', t.border+'px');
+  s.colorScheme = ted.night==='night' ? 'dark' : 'light';
+  document.body.classList.toggle('pixel', t.font==='pixel');
+  if(ted.live) tedSend();
+}
+// To the console at most one at a time, the last one wins.
+let tedTimer = 0, tedBusy = false, tedAgain = false;
+function tedSend(){
+  clearTimeout(tedTimer);
+  tedTimer = setTimeout(async () => {
+    if(!ted) return;
+    if(tedBusy){ tedAgain = true; return; }
+    tedBusy = true;
+    try { await api('POST', 'theme/preview', {night:ted.night}, JSON.stringify(ted.theme)); } catch(e){}
+    tedBusy = false;
+    if(tedAgain){ tedAgain = false; tedSend(); }
+  }, 120);
+}
+// save: false discards, 'over' writes over the file of a theme of the SD card, 'new' makes a new one; 'delete' deletes it.
+async function tedClose(save){
+  try {
+    if(save==='delete'){ if(!await confirmAsk(tr('te_confirmdel', {s:ted.theme.name}), true, T.te_delete)) return; await api('POST', 'theme/delete', {id:ted.id}); sfx('success'); toast(T.te_deleted); }
+    else if(save){ await api('POST', 'theme/save', {editing:ted.id, new:save==='new' ? 1 : null}, JSON.stringify(ted.theme)); sfx('success'); toast(T.te_saved); }
+    else await api('POST', 'theme/preview/end');
+  } catch(e){ if(e.auth){ showLogin(e.message); return; } sfx('error'); toast(T.failed+e.message, 'err'); if(save) return; }
+  ted = null; themeKey = '';
+  try { settings = await api('GET', 'settings'); } catch(e){}
+  await loadTheme(); renderSettings();
+}
+function tedColor(key){
+  const t = ted.theme, pal = () => t[ted.night], v = pal()[key];
+  const c = h('input', {type:'color', value:v.slice(0,7), 'aria-label':T.te_c[key]});
+  c.oninput = () => { const old = pal()[key]; pal()[key] = c.value.toUpperCase() + (old.length > 7 ? old.slice(7) : ''); tedApply(); };
+  if(key!=='scrim') return c;
+  // The veil behind dialogs may be see-through: its opacity too.
+  const a = parseInt(v.length > 7 ? v.slice(7) : 'FF', 16), out = h('span', {text:Math.round(a/2.55)+'%'});
+  const r = h('input', {type:'range', min:0, max:255, value:a, 'aria-label':T.te_alpha, style:'width:110px'});
+  const paint = () => { r.style.setProperty('--v', (r.value/2.55)+'%'); out.textContent = Math.round(r.value/2.55)+'%'; };
+  r.oninput = () => { paint(); pal()[key] = pal()[key].slice(0,7) + Number(r.value).toString(16).toUpperCase().padStart(2,'0'); tedApply(); };
+  paint();
+  return h('div', {class:'ctl'}, c, r, out);
+}
+function tedNumber(key, max){
+  const t = ted.theme, out = h('span', {text:t[key]+' px'}), r = h('input', {type:'range', min:0, max, value:t[key], style:'width:160px'});
+  const paint = () => { r.style.setProperty('--v', (r.value/max*100)+'%'); out.textContent = r.value+' px'; };
+  // One value for the corners: those of rows and buttons follow (three quarters), as on the console.
+  r.oninput = () => { t[key] = Number(r.value); if(key==='radius') t.radiusSmall = Math.round(t.radius*0.75); paint(); tedApply(); };
+  paint();
+  return h('div', {class:'ctl'}, r, out);
+}
+function tedChoice(key, options){ return seg(options, ted.theme[key], v => { ted.theme[key] = v; tedApply(); }); }
+function themeEditorCard(s){
+  const t = ted.theme;
+  const name = h('input', {type:'text', value:t.name, maxlength:40, 'aria-label':T.te_name});
+  name.oninput = () => { t.name = name.value; };
+  const from = h('select', {'aria-label':T.te_from}, s.themes.map(x => h('option', {value:x.id, text:x.name, selected:x.id===ted.id})),
+    h('option', {value:'blank', text:T.te_blank, selected:ted.id==='blank'}));
+  from.onchange = () => { sfx('tick'); openThemeEditor(from.value); };
+  return h('div', {class:'card'}, h('h3', {}, ic('pencil', 16), T.te_edit),
+    opt('pencil', T.te_name, null, name),
+    opt('palette', T.te_from, null, from),
+    opt('sun-moon', T.te_colours, null, seg([['day',T.te_day,'sun'],['night',T.te_night,'moon']], ted.night, v => { ted.night = v; tedApply(); renderSettings(); })),
+    ...TED_COLORS.map(k => opt('color-swatch', T.te_c[k], null, tedColor(k))),
+    opt('square', T.te_radius, null, tedNumber('radius', 24)),
+    opt('square', T.te_border, null, tedNumber('border', 4)),
+    opt('abc', T.te_font, null, tedChoice('font', [['system',T.te_system],['pixel','Pixel']])),
+    opt('hourglass', T.te_bars, null, tedChoice('blockBars', [[false,T.te_smooth],[true,T.te_blocks]])),
+    opt('app-window', T.te_dialogs, null, tedChoice('sheetPrompts', [[false,T.te_window],[true,T.te_sheet]])),
+    opt('layout-grid', T.te_menu, null, tedChoice('menu', [['grid',T.te_buttons],['tiles',T.te_tiles]])),
+    opt('layout-grid', T.te_grid, null, tedChoice('grid', [['scroll',T.te_scroll],['pages',T.te_pages]])),
+    opt('device-desktop', T.te_live, T.te_livesub, sw(ted.live, v => { ted.live = v; if(v) tedSend(); else api('POST', 'theme/preview/end').catch(() => {}); })),
+    h('div', {class:'opt'},
+      ted.custom ? h('button', {class:'btn primary', onclick:() => tedClose('over')}, ic('device-floppy', 16), T.te_save) : null,
+      h('button', {class:'btn'+(ted.custom ? '' : ' primary'), onclick:() => tedClose('new')}, ic('plus', 16), T.te_savenew),
+      ted.custom ? h('button', {class:'btn danger', onclick:() => tedClose('delete')}, ic('trash', 16), T.te_delete) : null,
+      h('button', {class:'btn', onclick:() => tedClose(false)}, ic('x', 16), T.te_discard)));
+}
 function renderSettings(){
   const box = $('setscroll'); if(!box) return;
   const keepScroll = box.scrollTop; box.textContent = '';
@@ -1570,7 +1674,9 @@ function renderSettings(){
       h('div', {class:'opt', style:'display:block'}, h('div', {class:'l', style:'margin-bottom:10px'}, h('b', {text:T.accent})),
         h('div', {class:'swatches'}, s.accents.map(a => h('button', {class:'sw'+(a.id===s.accent?' on':''), title:a.name, vars:{c:night ? a.night : a.day}, onclick:() => { sfx('click'); changeSetting({accent:a.id}); }}, ic('check', 16))))),
       opt('moon', T.night, T.nightsub, seg([['off',T.off,'sun'],['on',T.on,'moon'],['auto',T.auto,'sun-moon']], s.night, v => changeSetting({night:v}))),
-      opt('language', T.language, null, langSelect(s.language))),
+      opt('language', T.language, null, langSelect(s.language)),
+      ted ? null : opt('pencil', T.te_edit, T.te_editsub, h('button', {class:'btn', onclick:() => { sfx('click'); openThemeEditor(); }}, ic('pencil', 16), T.te_edit))),
+    ted ? themeEditorCard(s) : null,
     h('div', {class:'card'}, h('h3', {}, ic('volume', 16), T.snd),
       opt('volume', T.sounds, T.soundssub, seg([[0,T.off],[1,T.alerts],[2,T.all]], s.sounds, v => changeSetting({sounds:v}))), volume(s.soundVolume, 'soundVolume'),
       opt('music', T.music, T.musicsub, seg([[0,T.off],[1,T.m_lift],[2,T.m_calm],[3,T.m_shop]], s.music, v => changeSetting({music:v}))), volume(s.musicVolume, 'musicVolume')),
@@ -1581,8 +1687,9 @@ function renderSettings(){
       opt('key', T.signout, T.signoutsub, h('button', {class:'btn danger', onclick:() => { sessionStorage.removeItem('pin'); document.cookie = 'pin=; path=/; max-age=0'; pin = ''; showLogin(); }}, ic('power', 16), T.signout))),
     h('div', {class:'card'}, h('h3', {}, ic('3ds', 16), T.about), cells([['NSA', info.version], [T.about, info.console], [T.address, location.host], ['SD', info.total ? fmtSize(info.free)+' / '+fmtSize(info.total) : '']]))
   ];
-  cards.forEach((c, i) => { c.style.setProperty('--i', i); if(!first) c.style.animation = 'none'; });
-  box.append(h('div', {class:'set'}, cards)); box.scrollTop = keepScroll;
+  const shown = cards.filter(Boolean);
+  shown.forEach((c, i) => { c.style.setProperty('--i', i); if(!first) c.style.animation = 'none'; });
+  box.append(h('div', {class:'set'}, shown)); box.scrollTop = keepScroll;
 }
 
 

@@ -8,6 +8,11 @@
 #define THEME_RGB(rgb) (0xFF000000u | (((rgb) & 0xFF) << 16) | ((rgb) & 0xFF00) | (((rgb) >> 16) & 0xFF))
 #define THEME_ALPHA(color, alpha) (((u32) (alpha) << 24) | ((color) & 0x00FFFFFF))
 
+// The corners of rows and buttons from those of cards: three quarters, as the built-in themes have them.
+static inline float theme_small_radius(float radius) {
+    return (float) (int) (radius * 0.75f + 0.5f);
+}
+
 typedef struct {
     u32 background;     // Behind everything.
     u32 surface;        // Cards, buttons, bars.
@@ -31,12 +36,13 @@ typedef struct {
     const char* name;     // English; shown through the translation layer.
     theme_palette day;
     theme_palette night;
-    float radius;         // Cards and modals.
-    float radiusSmall;    // Buttons and rows.
+    float radius;         // Cards and modals; 0 makes every corner square.
+    float radiusSmall;    // Buttons and rows: theme_small_radius(radius) unless a theme file says otherwise.
     float border;         // Outline width.
     bool pixelFont;       // Text in the bundled pixel font (pixelfont.c) instead of the system's.
     bool blockBars;       // Progress bars as blocks instead of a smooth fill.
     bool sheetPrompts;    // Dialogs rise from the bottom as a full-width sheet.
+    bool pagedGrids;      // Icon grids in pages that turn sideways, with dots under them, instead of scrolling down.
     theme_menu_layout menuLayout;
 } theme_def;
 
@@ -63,9 +69,31 @@ typedef struct {
     bool night;
 } theme_current;
 
+// The built-in themes, then those from the SD card (themefile.h), by name.
 u32 theme_count();
 const theme_def* theme_get(u32 index);
 u32 theme_find(const char* id);
+// Themes from sdmc:/nsa/themes/: read when settings are loaded (theme_load_custom) and again by Settings.
+void theme_load_custom();
+bool theme_is_custom(u32 index);
+// The built-in themes, in a row (what a theme file's "base" names).
+const theme_def* theme_builtins(u32* count);
+u32 theme_custom_count();
+// The files that could not be read, one per line ("name.json: why"); "" when none.
+const char* theme_custom_errors();
+// Reads the folder again; returns where the theme at `selected` is now (the first when it went away).
+u32 theme_reload_custom(u32 selected);
+// The template of a new theme that owes nothing to the built-in ones (greys, medium corners).
+const theme_def* theme_blank();
+// Deletes the file of a theme from the SD card and reads the folder again.
+bool theme_delete_custom(u32 index);
+// Saves an edited theme named `name`: over its file when `editing` is one from the SD card, else as a new file named
+// after `name`. `saved` gets its index in the list read again; `path` the file.
+bool theme_save_custom(const theme_def* def, const char* name, u32 editing, u32* saved, char* path, size_t pathSize);
+// While a theme is edited: everything is drawn with `def` (copied), its night palette when `night` is 1, the day's when 0,
+// as the settings say when -1. theme_preview_end goes back to the selected theme.
+void theme_preview(const theme_def* def, int night);
+void theme_preview_end();
 
 u32 theme_accent_count();
 const theme_accent* theme_accent_get(u32 index);

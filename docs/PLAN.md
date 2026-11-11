@@ -162,6 +162,11 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Guide chapter **Your own themes** (2026-11-11, `docs/guide-themes-chapter`, guide 0.13, after Look and sound): Settings
+  -> Edit the theme, Start from, Background opened in the colour picker (anchors `colorpick.square` and `colorpick.hue`),
+  B to leave it as it was, Corners and the rows below it, Save as a new theme, leaving, and the web page's editor. Look and
+  sound keeps one new step (HOME's pages, and that themes have their own chapter). Claude, 2026-11-11, Azahar: played
+  from Settings -> Guide in Spanish, 15 steps, nothing saved.
 - [ ] Theme editor, second round (2026-11-11, `feat/theme-editor-2`; the owner's notes on the first one). **Corners** is one
   value: 0 made every corner square whatever the other said (`screen_set_square_corners`), so the corners of rows and
   buttons now follow it (`theme_small_radius`, three quarters, as the built-in themes; a file may still give

@@ -78,7 +78,7 @@
  "faq.safe.q": "És segura la pàgina web / el FTP?",
  "faq.safe.a": "La pàgina web està desactivada fins que l'activis i es protegeix amb PIN, però és HTTP sense xifrar: fes-la servir només a la teva pròpia xarxa.",
  "report.title": "Informar d'un problema",
- "report.intro": "Has trobat un error o tens una idea? <a href=\"https://discord.gg/TODO\">Uneix-te al Discord</a> o <a href=\"https://github.com/tinaut1986/NSA/issues/new/choose\">obre un issue a GitHub</a>. Inclou, si us plau:",
+ "report.intro": "Has trobat un error o tens una idea? <a href=\"https://discord.gg/TsE89qj6PE\">Uneix-te al Discord</a> o <a href=\"https://github.com/tinaut1986/NSA/issues/new/choose\">obre un issue a GitHub</a>. Inclou, si us plau:",
  "report.1": "<strong>Versió de NSA</strong> (Configuració / pàgina Sistema, p. ex. v0.8.4 o una beta)",
  "report.2": "<strong>Model de consola:</strong> Old o New 3DS / 2DS, i mida (XL o no)",
  "report.3": "<strong>Firmware i CFW</strong> (p. ex. 11.17 amb Luma3DS)",
@@ -90,5 +90,8 @@
  "news.more": "Totes les versions a GitHub",
  "hero.beta": "Última beta",
  "accent.label": "Color d'accent",
- "viewer.close": "Tanca"
+ "viewer.close": "Tanca",
+ "report.bug": "Informa d'un error",
+ "report.idea": "Proposa una idea",
+ "report.discord": "Entra al Discord"
 }

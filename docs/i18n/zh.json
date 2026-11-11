@@ -78,7 +78,7 @@
  "faq.safe.q": "网页和 FTP 安全吗？",
  "faq.safe.a": "网页在你启用之前是关闭的，并受 PIN 码保护，但使用的是未加密的 HTTP：请只在自己的网络中使用。",
  "report.title": "报告问题",
- "report.intro": "发现了错误，或者有好点子？欢迎<a href=\"https://discord.gg/TODO\">加入 Discord</a>，或<a href=\"https://github.com/tinaut1986/NSA/issues/new/choose\">在 GitHub 上提交 issue</a>。请附上：",
+ "report.intro": "发现了错误，或者有好点子？欢迎<a href=\"https://discord.gg/TsE89qj6PE\">加入 Discord</a>，或<a href=\"https://github.com/tinaut1986/NSA/issues/new/choose\">在 GitHub 上提交 issue</a>。请附上：",
  "report.1": "<strong>NSA 版本</strong>（设置 / 系统页面，例如 v0.8.4 或测试版）",
  "report.2": "<strong>主机型号：</strong>Old 或 New 3DS / 2DS，以及尺寸（是否为 XL）",
  "report.3": "<strong>固件和 CFW</strong>（例如 11.17 搭配 Luma3DS）",
@@ -90,5 +90,8 @@
  "news.more": "GitHub 上的所有版本",
  "hero.beta": "最新测试版",
  "accent.label": "强调色",
- "viewer.close": "关闭"
+ "viewer.close": "关闭",
+ "report.bug": "报告错误",
+ "report.idea": "提出建议",
+ "report.discord": "加入 Discord"
 }

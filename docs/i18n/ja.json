@@ -78,7 +78,7 @@
  "faq.safe.q": "ウェブページやFTPは安全ですか？",
  "faq.safe.a": "ウェブページは有効にするまでオフで、PINで保護されますが、通信は暗号化されないHTTPです。自宅などご自身のネットワーク内だけで使ってください。",
  "report.title": "問題を報告する",
- "report.intro": "不具合やアイデアはありますか？ <a href=\"https://discord.gg/TODO\">Discordに参加</a>するか、<a href=\"https://github.com/tinaut1986/NSA/issues/new/choose\">GitHubでissueを作成</a>してください。次の情報を添えてください。",
+ "report.intro": "不具合やアイデアはありますか？ <a href=\"https://discord.gg/TsE89qj6PE\">Discordに参加</a>するか、<a href=\"https://github.com/tinaut1986/NSA/issues/new/choose\">GitHubでissueを作成</a>してください。次の情報を添えてください。",
  "report.1": "<strong>NSAのバージョン</strong>（設定／システムページ。例：v0.8.4、またはBeta）",
  "report.2": "<strong>本体の機種：</strong>Old／New 3DS・2DS、およびサイズ（LLかどうか）",
  "report.3": "<strong>ファームウェアとCFW</strong>（例：11.17とLuma3DS）",
@@ -90,5 +90,8 @@
  "news.more": "GitHubのすべてのリリース",
  "hero.beta": "最新のベータ",
  "accent.label": "アクセントカラー",
- "viewer.close": "閉じる"
+ "viewer.close": "閉じる",
+ "report.bug": "バグを報告",
+ "report.idea": "アイデアを提案",
+ "report.discord": "Discordに参加"
 }

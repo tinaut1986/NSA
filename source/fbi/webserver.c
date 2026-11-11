@@ -27,6 +27,7 @@
 #include "../core/bgmusic.h"
 #include "../core/core.h"
 #include "../core/speedlog.h"
+#include "../core/themefile.h"
 #include "../core/xferturn.h"
 #include "../core/input.h"
 #include "../core/ui/ui.h"
@@ -1863,6 +1864,230 @@ static void web_api_install_url(web_request* r) {
 
 static const char* web_night_ids[] = {"off", "on", "auto"};
 
+// ---- the theme editor of the page: what it sends is drawn, or saved, by the main thread ----
+
+typedef enum {
+    WEB_THEME_PREVIEW,
+    WEB_THEME_END,
+    WEB_THEME_SAVE
+} web_theme_kind;
+
+static struct {
+    volatile int state;    // 0 nothing, 1 asked, 2 done.
+    web_theme_kind kind;
+    theme_def def;
+    char name[48];
+    int night;             // -1 as the settings say, 0 day, 1 night.
+    u32 editing;
+    bool ok;
+    char id[64];
+} web_theme;
+
+// The body, up to `max` bytes, as text (malloc'd); NULL when it is empty, too big or cut.
+static char* web_read_body(web_request* r, size_t max) {
+    if(r->contentLength == 0 || r->contentLength > max) {
+        return NULL;
+    }
+
+    char* body = (char*) calloc(1, (size_t) r->contentLength + 1);
+    if(body == NULL) {
+        return NULL;
+    }
+
+    u32 early = r->have - r->headLen;
+    if(early > r->contentLength) {
+        early = (u32) r->contentLength;
+    }
+
+    memcpy(body, r->head + r->headLen, early);
+    u32 got = early;
+    while(got < r->contentLength) {
+        if(!web_wait_fd(r->fd, POLLIN, WEB_IDLE_MS)) {
+            break;
+        }
+
+        ssize_t n = net_recv(r->fd, body + got, (size_t) (r->contentLength - got), WEB_IDLE_MS);
+        if(n <= 0) {
+            break;
+        }
+
+        got += (u32) n;
+    }
+
+    if(got < r->contentLength) {
+        free(body);
+        return NULL;
+    }
+
+    return body;
+}
+
+static void web_api_theme_edit(web_request* r) {
+    char id[64];
+    u32 index = settings_get()->theme;
+    if(web_query_get(r->query, "id", id, sizeof(id))) {
+        index = theme_count();
+        for(u32 i = 0; i < theme_count(); i++) {
+            if(strcmp(theme_get(i)->id, id) == 0) {
+                index = i;
+            }
+        }
+
+        if(index == theme_count()) {
+            web_send_error(r, 404, "unknown theme");
+            return;
+        }
+    }
+
+    const theme_def* def = theme_get(index);
+    bool custom = theme_is_custom(index);
+    char name[64];
+    snprintf(name, sizeof(name), custom ? "%s" : "%s 2", def->name);
+    char* text = themefile_write(def, name);
+    json_t* theme = text != NULL ? json_loads(text, 0, NULL) : NULL;
+    free(text);
+    if(theme == NULL) {
+        web_send_error(r, 500, "out of memory");
+        return;
+    }
+
+    web_send_json(r, 200, json_pack("{s:b,s:s,s:b,s:o}", "ok", 1, "id", def->id, "custom", custom, "theme", theme));
+}
+
+// Reads the body into web_theme.def and .name; false (answered) when it is not a theme.
+static bool web_theme_from_body(web_request* r) {
+    char* body = web_read_body(r, 16 * 1024);
+    if(body == NULL) {
+        web_send_error(r, 400, "send a theme file's JSON, up to 16 KB");
+        return false;
+    }
+
+    u32 count;
+    const theme_def* bases = theme_builtins(&count);
+    char error[96];
+    bool ok = themefile_parse(body, bases, count, &web_theme.def, web_theme.name, sizeof(web_theme.name), error, sizeof(error));
+    free(body);
+    if(!ok) {
+        web_send_error(r, 400, error);
+        return false;
+    }
+
+    return true;
+}
+
+// Hands the job to the main thread and waits for it (2 s at most).
+static bool web_theme_run(web_theme_kind kind) {
+    web_theme.kind = kind;
+    web_theme.ok = false;
+    web_theme.state = 1;
+    for(int waited = 0; web_theme.state == 1 && web_run; waited += WEB_NAP_MS) {
+        if(waited > 2000) {
+            break;
+        }
+
+        svcSleepThread((s64) WEB_NAP_MS * 1000000);
+    }
+
+    bool done = web_theme.state == 2;
+    web_theme.state = 0;
+    return done;
+}
+
+static void web_api_theme_preview(web_request* r) {
+    if(web_theme.state == 1) {
+        web_send_error(r, 409, "the console is still drawing the last one");
+        return;
+    }
+
+    if(!web_theme_from_body(r)) {
+        return;
+    }
+
+    char night[8] = "";
+    web_query_get(r->query, "night", night, sizeof(night));
+    web_theme.night = strcmp(night, "night") == 0 ? 1 : strcmp(night, "day") == 0 ? 0 : -1;
+    if(!web_theme_run(WEB_THEME_PREVIEW)) {
+        web_send_error(r, 503, "the console did not answer in time");
+        return;
+    }
+
+    web_send_json(r, 200, json_pack("{s:b}", "ok", 1));
+}
+
+static void web_api_theme_preview_end(web_request* r) {
+    if(web_theme.state == 1) {
+        web_send_error(r, 409, "the console is still drawing the last one");
+        return;
+    }
+
+    web_theme_run(WEB_THEME_END);
+    web_send_json(r, 200, json_pack("{s:b}", "ok", 1));
+}
+
+static void web_api_theme_save(web_request* r) {
+    if(web_theme.state == 1) {
+        web_send_error(r, 409, "the console is still drawing the last one");
+        return;
+    }
+
+    if(!web_theme_from_body(r)) {
+        return;
+    }
+
+    if(web_theme.name[0] == '\0') {
+        web_send_error(r, 400, "the theme needs a name");
+        return;
+    }
+
+    // Which theme it was made from: over its file when it is one from the SD card.
+    char editing[64] = "";
+    web_query_get(r->query, "editing", editing, sizeof(editing));
+    web_theme.editing = 0;
+    for(u32 i = 0; i < theme_count(); i++) {
+        if(strcmp(theme_get(i)->id, editing) == 0) {
+            web_theme.editing = i;
+        }
+    }
+
+    if(!web_theme_run(WEB_THEME_SAVE)) {
+        web_send_error(r, 503, "the console did not answer in time");
+        return;
+    }
+
+    if(!web_theme.ok) {
+        web_send_error(r, 500, "the theme could not be written to the SD card");
+        return;
+    }
+
+    web_send_json(r, 200, json_pack("{s:b,s:s}", "ok", 1, "theme", web_theme.id));
+}
+
+// Main thread.
+static void web_theme_apply() {
+    if(web_theme.kind == WEB_THEME_PREVIEW) {
+        web_theme.def.id = "web";
+        web_theme.def.name = web_theme.name;
+        theme_preview(&web_theme.def, web_theme.night);
+        web_theme.ok = true;
+    } else if(web_theme.kind == WEB_THEME_END) {
+        theme_preview_end();
+        web_theme.ok = true;
+    } else {
+        theme_preview_end();
+        char path[256];
+        u32 saved = 0;
+        web_theme.ok = theme_save_custom(&web_theme.def, web_theme.name, web_theme.editing, &saved, path, sizeof(path));
+        if(web_theme.ok) {
+            settings_get()->theme = saved;
+            settings_apply();
+            settings_save();
+            string_copy(web_theme.id, theme_get(saved)->id, sizeof(web_theme.id));
+        }
+    }
+
+    web_theme.state = 2;
+}
+
 static struct {
     volatile int state;    // 0 nothing, 1 asked, 2 applied.
     settings_data values;
@@ -2190,6 +2415,14 @@ static void web_handle(web_request* r) {
         web_api_settings(r);
     } else if(post && strcmp(api, "settings") == 0) {
         web_api_settings_set(r);
+    } else if(get && strcmp(api, "theme/edit") == 0) {
+        web_api_theme_edit(r);
+    } else if(post && strcmp(api, "theme/preview") == 0) {
+        web_api_theme_preview(r);
+    } else if(post && strcmp(api, "theme/preview/end") == 0) {
+        web_api_theme_preview_end(r);
+    } else if(post && strcmp(api, "theme/save") == 0) {
+        web_api_theme_save(r);
     } else if(post && strcmp(api, "install-url") == 0) {
         web_api_install_url(r);
     } else if(get && strcmp(api, "prompt") == 0) {
@@ -2447,6 +2680,10 @@ void webserver_poll_main() {
     // Settings changed from the page.
     if(web_settings.state == 1) {
         web_settings_apply();
+    }
+
+    if(web_theme.state == 1) {
+        web_theme_apply();
     }
 
     if(web_retry && osGetTime() >= web_retry_next) {

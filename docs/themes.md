@@ -8,6 +8,10 @@ The easiest way is **Settings -> Edit the theme**, on the console: every value b
 picked with a finger, seen at once on both screens. A built-in theme is saved as a new file named
 after the name you give it.
 
+Or from a computer's browser: the web page (Settings -> Web server on the console) has **Edit the
+theme** under Settings -> Appearance, with the same values; the page and the console show the theme
+while you change it, and **Save and use** stores it on the SD card.
+
 To edit a file on a computer instead, start from **Settings -> Save the theme as a file**: it writes the theme in use as
 `/nsa/themes/<name>-2.json` (named "<Name> 2"), with every key. Change its colours on a computer
 and pick it under Theme.

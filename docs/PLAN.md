@@ -162,6 +162,16 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Theme editor on the web page (2026-11-11, `feat/web-theme-editor`; issue #14). Settings -> Appearance -> **Edit the
+  theme** opens a card: name, the theme to start from, day or night, the ten colours (the browser's colour picker, and
+  the opacity of the veil behind dialogs), corners, outline, font, bars, dialogs, main menu, icon grids, and "Show it
+  on the console" (on by default). The page wears what is edited at once (it stops following the console's theme
+  meanwhile); the console draws it too (`POST /api/theme/preview`, the last of a burst wins). **Save and use** writes it
+  as the console's editor does (`/api/theme/save?editing=`) and puts it in use; Discard, leaving Settings or closing the
+  tab go back to the theme in use. API in `webserver.h`; the body is a theme file's JSON, checked by `themefile_parse`
+  on the web thread, drawn or saved by the main one. `tools/web_tests.py` checks the endpoints (and now accepts a
+  theme from the SD card in /theme.json). Claude, 2026-11-11, Azahar and the built-in browser: a colour changed on the
+  page seen on the console, "Arena" saved with pages sideways and in use on both, web tests 0 failures.
 - [ ] Theme editor on the console (2026-11-11, `feat/theme-editor`; issue #14). Settings -> **Edit the theme**
   (`themeedit.c`): the theme in use as a list (list.c with `list_set_side_keys`: Left and Right change the selected
   value, A changes or opens it): its name (keyboard), which palette (day or night: the screens are drawn in that one

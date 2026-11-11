@@ -71,6 +71,8 @@ u32 theme_find(const char* id);
 // Themes from sdmc:/nsa/themes/: read when settings are loaded (theme_load_custom) and again by Settings.
 void theme_load_custom();
 bool theme_is_custom(u32 index);
+// The built-in themes, in a row (what a theme file's "base" names).
+const theme_def* theme_builtins(u32* count);
 u32 theme_custom_count();
 // The files that could not be read, one per line ("name.json: why"); "" when none.
 const char* theme_custom_errors();

@@ -54,12 +54,14 @@
 //   GET    /api/settings                   {theme, themes[{id,name}], accent, accents[{id,name,day,night}], night, language, sounds, soundVolume, music, musicVolume}
 //   POST   /api/settings?theme=&accent=&night=off|on|auto&language=system|en|es|ca|fr|de|it|pt|ru|ja|zh|tw&sounds=0-2&soundVolume=0-100&music=0-3&musicVolume=0-100
 //                                           only the named ones change; applied and saved by the main thread, as the Settings screen does
-//   GET    /api/theme/edit?id=             {id, custom, theme}: a theme (the one in use without id) as a theme file's JSON
-//                                          (docs/themes.md), named for saving: a built-in one "<Name> 2"
+//   GET    /api/theme/edit?id=             {id, custom, theme}: a theme (the one in use without id; id=blank the blank
+//                                          template) as a theme file's JSON (docs/themes.md), named for saving: a built-in one "<Name> 2"
 //   POST   /api/theme/preview?night=day|night   the body is a theme file's JSON: the console draws with it until the end
 //   POST   /api/theme/preview/end          back to the theme in use
-//   POST   /api/theme/save?editing=<id>    the body is a theme file's JSON (with its name): saved over the file of `editing` when
-//                                          that is one from the SD card, else as a new file; then in use. {theme: its id}
+//   POST   /api/theme/save?editing=<id>&new=1   the body is a theme file's JSON (with its name): saved over the file of
+//                                          `editing` when that is one from the SD card and new is not 1, else as a new file;
+//                                          then in use. {theme: its id}
+//   POST   /api/theme/delete?id=sd:<name>  deletes that theme's file (the first built-in one is used if it was in use)
 // What opens a question on the console runs on the main thread, one request at a time (409 while the last one is open).
 //
 // Port 8080 (the ports 5000-5085 are Remote Install, the transfers and the FTP server).

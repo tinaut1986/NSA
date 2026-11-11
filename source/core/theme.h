@@ -8,6 +8,11 @@
 #define THEME_RGB(rgb) (0xFF000000u | (((rgb) & 0xFF) << 16) | ((rgb) & 0xFF00) | (((rgb) >> 16) & 0xFF))
 #define THEME_ALPHA(color, alpha) (((u32) (alpha) << 24) | ((color) & 0x00FFFFFF))
 
+// The corners of rows and buttons from those of cards: three quarters, as the built-in themes have them.
+static inline float theme_small_radius(float radius) {
+    return (float) (int) (radius * 0.75f + 0.5f);
+}
+
 typedef struct {
     u32 background;     // Behind everything.
     u32 surface;        // Cards, buttons, bars.
@@ -31,8 +36,8 @@ typedef struct {
     const char* name;     // English; shown through the translation layer.
     theme_palette day;
     theme_palette night;
-    float radius;         // Cards and modals.
-    float radiusSmall;    // Buttons and rows.
+    float radius;         // Cards and modals; 0 makes every corner square.
+    float radiusSmall;    // Buttons and rows: theme_small_radius(radius) unless a theme file says otherwise.
     float border;         // Outline width.
     bool pixelFont;       // Text in the bundled pixel font (pixelfont.c) instead of the system's.
     bool blockBars;       // Progress bars as blocks instead of a smooth fill.
@@ -78,8 +83,10 @@ u32 theme_custom_count();
 const char* theme_custom_errors();
 // Reads the folder again; returns where the theme at `selected` is now (the first when it went away).
 u32 theme_reload_custom(u32 selected);
-// Writes the theme at `index` to sdmc:/nsa/themes/<name>-N.json, named "<Name> N"; `path` gets the file.
-bool theme_export(u32 index, char* path, size_t pathSize);
+// The template of a new theme that owes nothing to the built-in ones (greys, medium corners).
+const theme_def* theme_blank();
+// Deletes the file of a theme from the SD card and reads the folder again.
+bool theme_delete_custom(u32 index);
 // Saves an edited theme named `name`: over its file when `editing` is one from the SD card, else as a new file named
 // after `name`. `saved` gets its index in the list read again; `path` the file.
 bool theme_save_custom(const theme_def* def, const char* name, u32 editing, u32* saved, char* path, size_t pathSize);

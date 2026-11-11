@@ -203,6 +203,11 @@ bool themefile_parse(const char* text, const theme_def* bases, size_t baseCount,
         goto done;
     }
 
+    // One value for the corners: those of rows and buttons follow it, unless the file gives them too.
+    if(json_object_get(json, "radius") != NULL && json_object_get(json, "radiusSmall") == NULL) {
+        out->radiusSmall = theme_small_radius(out->radius);
+    }
+
     json_t* menu = json_object_get(json, "menu");
     if(menu != NULL) {
         const char* value = json_is_string(menu) ? json_string_value(menu) : "";

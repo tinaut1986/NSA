@@ -162,6 +162,19 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Theme editor, second round (2026-11-11, `feat/theme-editor-2`; the owner's notes on the first one). **Corners** is one
+  value: 0 made every corner square whatever the other said (`screen_set_square_corners`), so the corners of rows and
+  buttons now follow it (`theme_small_radius`, three quarters, as the built-in themes; a file may still give
+  `radiusSmall`). Left and Right step quickly while held (`keys_hold_repeat`; `keys.c` now reads NSA's input, so remote
+  and guided presses reach the keyboards and keypads too). **Start from** (first row) opens a list of the themes and a
+  **blank template** (`theme_blank`: greys, corners 8); with changes it asks first. A theme of the SD card has **Save
+  the theme** (over its file), **Save as a new theme** and **Delete this theme** (red, `theme_delete_custom`; the first
+  built-in theme is used if it was in use); a built-in one only Save as a new theme. **Accent colour** is a row too (the
+  setting, not part of the theme). Settings' row "Save the theme as a file" is gone (the editor writes files). The web
+  page has the same: Start from with the blank template, one Corners slider, Save / Save as a new theme / Delete
+  (`/api/theme/edit?id=blank`, `/api/theme/save?new=1`, `/api/theme/delete`). Claude, 2026-11-11, Azahar: Left held
+  from 10 to 0 in a second, Start from -> blank with the question, saved as new, Save and Delete shown, deleted (back to
+  Cards); the page: blank, Corners 20 -> 15 on both, save as new, delete; web tests 0 failures.
 - [ ] Theme editor on the web page (2026-11-11, `feat/web-theme-editor`; issue #14). Settings -> Appearance -> **Edit the
   theme** opens a card: name, the theme to start from, day or night, the ten colours (the browser's colour picker, and
   the opacity of the veil behind dialogs), corners, outline, font, bars, dialogs, main menu, icon grids, and "Show it

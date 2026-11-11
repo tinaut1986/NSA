@@ -5,16 +5,17 @@ Settings -> Theme after Cards, Pixel and HOME (by name). Settings reads the fold
 it opens, so a file copied over FTP or the web page shows up without restarting NSA.
 
 The easiest way is **Settings -> Edit the theme**, on the console: every value below, the colours
-picked with a finger, seen at once on both screens. A built-in theme is saved as a new file named
-after the name you give it.
+picked with a finger, seen at once on both screens. It starts from the theme in use; **Start from**
+takes any other, or a blank template (greys, medium corners). A built-in theme is saved as a new
+file named after the name you give it; one of yours is saved over its file, or as a new one, or
+deleted.
 
 Or from a computer's browser: the web page (Settings -> Web server on the console) has **Edit the
-theme** under Settings -> Appearance, with the same values; the page and the console show the theme
-while you change it, and **Save and use** stores it on the SD card.
+theme** under Settings -> Appearance, with the same values and buttons; the page and the console
+show the theme while you change it.
 
-To edit a file on a computer instead, start from **Settings -> Save the theme as a file**: it writes the theme in use as
-`/nsa/themes/<name>-2.json` (named "<Name> 2"), with every key. Change its colours on a computer
-and pick it under Theme.
+To edit a file on a computer instead, save one from the editor and change its `.json`: it has every
+key.
 
 A theme is only data: colours, corners and a few switches. It cannot change how a screen is laid
 out. The accent colour and night mode are still chosen in Settings, and work with any theme.
@@ -39,7 +40,6 @@ out. The accent colour and night mode are still chosen in Settings, and work wit
   },
   "night": { "...": "the same keys, for night mode" },
   "radius": 14,
-  "radiusSmall": 12,
   "border": 1,
   "font": "system",
   "blockBars": false,
@@ -63,7 +63,8 @@ Every key may be left out: it then comes from `base`.
 | `scrim` | The veil behind a dialog (usually with transparency). |
 | `success`, `successSoft` | Done and in use, and the background of their badges. |
 | `danger`, `warning` | Deleting and errors, and warnings. |
-| `radius`, `radiusSmall` | Rounded corners of cards and dialogs, and of buttons and rows, in pixels (0 to 24; 0 is square). |
+| `radius` | Rounded corners, in pixels (0 to 24; 0 makes every corner square). Buttons and rows get three quarters of it. |
+| `radiusSmall` | Optional: the corners of buttons and rows, when they should not follow `radius`. The editors do not show it. |
 | `border` (number) | The width of outlines, in pixels (0 to 4). |
 | `font` | `system` (the console's) or `pixel` (the Pixel theme's). Only the fonts NSA carries: a font is baked into a picture on a computer (`tools/make_pixelfont.py`), so a new one comes with an update of NSA. |
 | `blockBars` | `true`: progress bars in blocks. |

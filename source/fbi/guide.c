@@ -166,7 +166,7 @@ static const coach_step computer_steps[] = {
 static const coach_step look_steps[] = {
         OPEN("menu.settings", "Open Settings.", "v:Settings"),
         INFO("settings.theme", "Three themes: Cards, Pixel and HOME. Left and Right change an option."),
-        INFO_SINCE(GUIDE_VERSION(0, 13), "settings.theme", "Your own themes too: .json files in /nsa/themes/ on the SD card, listed after these. The row below saves the theme in use there, to start from."),
+        INFO_SINCE(GUIDE_VERSION(0, 13), "settings.theme", "Your own themes too: .json files in /nsa/themes/ on the SD card, listed after these. Edit the theme, just below, makes them, from any theme or a blank template."),
         INFO_SINCE(GUIDE_VERSION(0, 13), "settings.theme_edit", "Edit the theme changes the one in use value by value, its colours with a finger, and you see it at once on both screens. A built-in theme is saved as a new one of your own."),
         INFO("settings.accent", "The colour of buttons and selections."),
         INFO("settings.night", "Dark colours, by hand or from 20:00 to 8:00."),

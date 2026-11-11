@@ -108,6 +108,9 @@ void widget_skeleton(float x, float y, float width, float height, float icon, bo
 void widget_fade_in(u64 since);
 // A round badge with a number (how many updates and DLC wait under a game), centred on x, y.
 void widget_count_badge(u32 count, float x, float y);
+// A round button floating over a list (jump to its top or end): `icon` in the accent on the surface, `size` wide with x, y
+// its top left corner, at `alpha` (0..1) while it fades in or out; `pressed` while a finger holds it.
+void widget_float_button(float x, float y, float size, u32 icon, float alpha, bool pressed);
 // widget_badge right-aligned at `right`; returns its width.
 float widget_badge_right(float right, float y, const char* text, u32 background, u32 foreground);
 // A box with a small label over its value (the details on the top screen), WIDGET_CELL_HEIGHT tall.

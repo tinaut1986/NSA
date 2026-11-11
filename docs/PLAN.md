@@ -162,6 +162,16 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Lists open at the top, and jump to the top or the end (2026-11-11, `fix/list-selection-on-load`; issue #45). The Store
+  (and Titles) "started in the middle": while a list loaded, the selection stayed on the first item listed (a CIA) and
+  followed it wherever the live sort took it. Now `list.c` keeps the selection on its **index** until it is chosen (D-Pad,
+  a touch, A, ZL/ZR, an arrow, `list_select`), and only then follows its item (sorting, deleting); an emptied list starts
+  over. The Store keeps the app by title across a newer catalogue only when it was chosen (`list_selection_chosen`).
+  While a list scrolls (and 1.5 s after), two round arrows float at its bottom right (`widget_float_button`): the top one
+  selects the first item, the bottom one the last; each shows only the way the list can still go, and they fade out.
+  ZL and ZR do the same on a New 3DS. Claude, 2026-11-11, Azahar: the Store opens on its first app, the arrows after a
+  drag, the end arrow and ZL. Not tried: a console with many titles (Titles' live sort), the Store's newer catalogue
+  arriving after the copy on the SD, ZR, whether the arrows hide a row's badge too long.
 - [ ] A .3dsx installed in the HOME Menu (2026-11-10, `feat/forwarder`; issue #46). SD card -> a .3dsx's actions ->
   "Install in the HOME Menu" opens a screen: the top screen shows the banner (drawn from the icon, the name and the
   publisher, or a picture picked with "Choose a picture for the banner", fitted whole on its average colour; "Make the
@@ -1598,8 +1608,8 @@ current, this list is the summary. What only the owner can test (local wireless)
   marks it `ready`; the screen draws grey blocks until then, fades the contents in,
   sorts as items become ready (ready first, the rest by ID) and shows loaded/total in the
   title bar (`list_set_progress`). The loader goes over the list until none is missing,
-  because the screen reorders it meanwhile. The list keeps the selected row where it was
-  on screen when items move (`list_validate`), and `list_rebuild_visible` never writes past
+  because the screen reorders it meanwhile. Until the user chooses an item the selection keeps its index (the
+  top), then the list keeps the selected row where it was on screen when items move (`list_validate`, issue #45), and `list_rebuild_visible` never writes past
   its array (a populate task adds items concurrently: that was a crash).
 - A press (and its long-press fill) follows the item it began on, not its index.
 - Filters, sort and view of Titles, Tickets, Files and Ext Save Data are stored in

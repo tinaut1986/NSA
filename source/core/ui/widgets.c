@@ -187,6 +187,20 @@ void widget_fade_in(u64 since) {
     screen_set_content_motion(0, 0, (u8) (widget_ease(since, 250) * 0xFF));
 }
 
+void widget_float_button(float x, float y, float size, u32 icon, float alpha, bool pressed) {
+    const theme_current* t = theme();
+    if(alpha <= 0) {
+        return;
+    }
+
+    u32 a = (u32) ((alpha > 1 ? 1 : alpha) * 0xFF);
+    float r = size / 2;
+    float border = t->def->border > 0 ? t->def->border : 1;
+    screen_fill_circle(x + r, y + r, r, THEME_ALPHA(t->palette->border, a));
+    screen_fill_circle(x + r, y + r, r - border, THEME_ALPHA(pressed ? t->accentSoft : t->palette->surface, a));
+    screen_draw_icon(icon, x + r - 8, y + r - 8, 16, THEME_ALPHA(t->accent, a));
+}
+
 void widget_count_badge(u32 count, float x, float y) {
     const theme_current* t = theme();
     char text[8];

@@ -162,6 +162,13 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Pixel theme: digits and B told apart (2026-11-11, `fix/pixel-font-digits`; issue #14, a user saw the 5 as an S).
+  Baked without anti-aliasing at 10, 12 and 16 px, Pixelify Sans's 5 is an S, its 2 a mirrored S, and B, 8, 6, 9, 3
+  differ by a pixel or two. `tools/make_pixelfont.py` now draws 2, 3, 5, 6, 9 and B (and 8 at 12 and 16 px) by hand
+  (`REDRAWN`), each in the box of the font's own glyph: flat-topped 5 and 3, a 2 with a flat bottom, 6 and 9 open, B
+  square on the left. The atlas in the repository was patched in place (only those cells): rebaking with this PC's
+  Pillow moves pixels in every glyph, as the script now says. Claude, 2026-11-11, Azahar: main menu and Store in Pixel.
+  To see on a console: versions, sizes and dates at the three sizes. The font's Z still looks like its old 2.
 - [x] Lists open at the top, and jump to the top or the end (2026-11-11, `fix/list-selection-on-load`; issue #45). The Store
   (and Titles) "started in the middle": while a list loaded, the selection stayed on the first item listed (a CIA) and
   followed it wherever the live sort took it. Now `list.c` keeps the selection on its **index** until it is chosen (D-Pad,

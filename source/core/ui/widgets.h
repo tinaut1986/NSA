@@ -111,6 +111,37 @@ void widget_count_badge(u32 count, float x, float y);
 // A round button floating over a list (jump to its top or end): `icon` in the accent on the surface, `size` wide with x, y
 // its top left corner, at `alpha` (0..1) while it fades in or out; `pressed` while a finger holds it.
 void widget_float_button(float x, float y, float size, u32 icon, float alpha, bool pressed);
+
+// ---- coasting and the jump arrows, for screens that scroll by themselves (list.c has its own) ----
+
+// A drag let go keeps the content moving, slowing down; while it moves, and for a while after, two round arrows float
+// at the bottom right of the area (only the ways it can still go), to its top and its end. `right` is the area's right
+// edge (left of its scrollbar), `bottom` its bottom; `max` how far it scrolls.
+#define WIDGET_JUMP_SIZE 26
+#define WIDGET_JUMP_NONE 0
+#define WIDGET_JUMP_TOP 1
+#define WIDGET_JUMP_END 2
+
+typedef struct {
+    float velocity;   // Left by a flick.
+    float lastScroll;
+    u64 movedTime;
+    float jumpAlpha;
+    int jumpTouch;    // The arrow a finger went down on.
+    bool jumpOn;      // And is still over it.
+} widget_scroller;
+
+// A finger dragging moved by `dy` (its move this frame): the speed is kept for when it lifts.
+void widget_scroller_drag(widget_scroller* s, int dy);
+// Stops the coasting (a touch, a key move, a jump).
+void widget_scroller_stop(widget_scroller* s);
+// Once a frame: coasts `*scroll` unless a finger drags, keeps it in 0..max, and fades the arrows.
+void widget_scroller_step(widget_scroller* s, float* scroll, float max, bool dragging);
+// On a touch down: whether it is on an arrow (it takes the touch).
+bool widget_scroller_jump_down(widget_scroller* s, float scroll, float max, float right, float bottom, const touchPosition* pos);
+// While s->jumpTouch is set, every frame: the arrow let go over (WIDGET_JUMP_TOP or _END), else WIDGET_JUMP_NONE.
+int widget_scroller_jump_track(widget_scroller* s, float scroll, float max, float right, float bottom, const touchPosition* pos);
+void widget_scroller_draw(widget_scroller* s, float scroll, float max, float right, float bottom);
 // widget_badge right-aligned at `right`; returns its width.
 float widget_badge_right(float right, float y, const char* text, u32 background, u32 foreground);
 // A box with a small label over its value (the details on the top screen), WIDGET_CELL_HEIGHT tall.

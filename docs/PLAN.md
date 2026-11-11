@@ -162,7 +162,7 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- [ ] Lists open at the top, and jump to the top or the end (2026-11-11, `fix/list-selection-on-load`; issue #45). The Store
+- [x] Lists open at the top, and jump to the top or the end (2026-11-11, `fix/list-selection-on-load`; issue #45). The Store
   (and Titles) "started in the middle": while a list loaded, the selection stayed on the first item listed (a CIA) and
   followed it wherever the live sort took it. Now `list.c` keeps the selection on its **index** until it is chosen (D-Pad,
   a touch, A, ZL/ZR, an arrow, `list_select`), and only then follows its item (sorting, deleting); an emptied list starts
@@ -174,6 +174,8 @@ What `release` holds, in the order it was built:
   both arrows even if it does not scroll, and the guide points at them (`coach_points_at("list.jump")`). Claude, 2026-11-11, Azahar: the Store opens on its first app, the arrows after a
   drag, the end arrow and ZL. Not tried: a console with many titles (Titles' live sort), the Store's newer catalogue
   arriving after the copy on the SD, ZR, whether the arrows hide a row's badge too long.
+  The owner, 2026-11-11, New 3DS XL (0.9.8 DEBUG, `a41cbab`, with the guide step that shows the arrows): "it works".
+  Issue #45 is closed when the next stable version comes out.
 - [ ] A .3dsx installed in the HOME Menu (2026-11-10, `feat/forwarder`; issue #46). SD card -> a .3dsx's actions ->
   "Install in the HOME Menu" opens a screen: the top screen shows the banner (drawn from the icon, the name and the
   publisher, or a picture picked with "Choose a picture for the banner", fitted whole on its average colour; "Make the

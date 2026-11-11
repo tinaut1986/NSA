@@ -162,6 +162,16 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Themes from the SD card (2026-11-11, `feat/sd-themes`; issue #14). Each `.json` in `sdmc:/nsa/themes/` is a theme
+  (`themefile.c`: colours of day and night as `#RRGGBB[AA]`, radii, border, pixelFont, blockBars, sheetPrompts, menu
+  `grid`/`tiles`, over a built-in `base`), listed in Settings -> Theme after the built-in ones, by name, saved as
+  `sd:<file>`; Settings reads the folder again each time it opens. A file that cannot be read is left out and the
+  Theme row's top screen says which and why. New row **Save the theme as a file** writes the theme in use as
+  `<name>-N.json` ("<Name> N"), every key, as a start. Format for users: `docs/themes.md`. New guide step (0.13) in
+  Look and sound. Host test `tests/themefile_test.c` (parse, base, errors, write and read back). Claude, 2026-11-11,
+  Azahar: a theme on HOME with its own colours chosen and kept after a restart, a broken file reported, the export
+  (`ocean-2.json`). To try on a console: a file copied over FTP while NSA runs shows when Settings opens again, the web
+  page's theme list, Pixel and HOME as bases, night mode.
 - [ ] Pixel theme: digits and B told apart (2026-11-11, `fix/pixel-font-digits`; issue #14, a user saw the 5 as an S).
   Baked without anti-aliasing at 10, 12 and 16 px, Pixelify Sans's 5 is an S, its 2 a mirrored S, and B, 8, 6, 9, 3
   differ by a pixel or two. `tools/make_pixelfont.py` now draws 2, 3, 5, 6, 9 and B (and 8 at 12 and 16 px) by hand
@@ -1501,8 +1511,9 @@ current, this list is the summary. What only the owner can test (local wireless)
    the result to a file the FTP server can fetch, since Azahar cannot answer it.
 5. **Themes "Pixel" and "HOME" (both built, see Pending tests; HOME lacks paged grids)** (mockups were shown and liked): HOME = big icon tiles
    in pages, modals as a sheet from the bottom; Pixel = bundled pixel font (OFL), square
-   corners, thick borders, block progress bars, yellow highlight. Then **themes from the
-   SD card** (`sdmc:/nsa/themes/`), data only.
+   corners, thick borders, block progress bars, yellow highlight. Then ~~**themes from the
+   SD card**~~ done (2026-11-11, `feat/sd-themes`, see Pending tests and `docs/themes.md`). Left: HOME's icon grids in
+   pages that turn sideways, with dots (they still scroll down), and dragging a sheet down to close it.
 6. ~~**NSA icon and banner**~~ done (the boot logo and the banner sound are left in issue #15). It was: still FBI's. Ask the owner for a
    direction first.
 7. **Top-screen information**: the owner wants to restructure what the top screen shows

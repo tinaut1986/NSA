@@ -88,6 +88,8 @@ it in WSL from the repo with `./tools/bin/makerom`; check the TMD's title versio
 - `source/core/theme.c`: themes (palettes for day and night, radii, borders, menu layout),
   accent colours and night mode. Widgets (`source/core/ui/widgets.c`) draw everything
   through the theme; never hard-code a colour in a screen.
+  Themes from the SD card (`sdmc:/nsa/themes/*.json`, data only) are read by `source/core/themefile.c`; the format
+  is in `docs/themes.md`.
 - `source/core/i18n.c`: every user-facing string goes through `_("English")` (literals
   only: lookups are cached by address) or, for text that may be built at run time,
   `i18n_translate_text` (by content, never cached; the dialogs and lists already do it).

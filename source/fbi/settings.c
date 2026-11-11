@@ -109,6 +109,8 @@ void settings_load() {
 
     settings.ftpMusicAsked = json_is_true(json_object_get(json, "ftp_music_asked"));
 
+    // The themes on the SD card first: the one saved may be one of them ("sd:...").
+    theme_load_custom();
     json_t* theme = json_object_get(json, "theme");
     if(json_is_string(theme)) {
         settings.theme = theme_find(json_string_value(theme));

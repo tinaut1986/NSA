@@ -174,9 +174,8 @@ What `release` holds, in the order it was built:
   installed through the screen, the installed banner decoded on the PC (the drawn one and a picture's); a 9-megapixel
   picture and a file that is not a picture refused before decoding. Azahar cannot install a title over itself
   (`BeginImportProgramForOverWrite` unimplemented: it aborts), so a second install there needs the title deleted first.
-  The first version's forwarder for `/3ds/WiFiManagerPlus-fix.3dsx` (000400000D794B00) is on the New 3DS XL; converting
-  that path again replaces it. Not tried: on a console (install, HOME banner and sound, start and quit to HOME, a .3dsx
-  that uses its RomFS, an Old 3DS / 2DS, a big .3dsx's time), a .3dsx without an SMDH.
+  The owner, 2026-11-11, New 3DS XL (0.9.8-dev.7 DEBUG): "it seems to work". Not tried yet: an Old 3DS / 2DS, a big
+  .3dsx's time, a .3dsx without an SMDH.
 - [ ] System in three groups and hardware tests (2026-11-10, `feat/system-hardware-tests`; issue #43): System's list
   is now Information (Console, Network, Storage, Battery: they only show), Console settings (Date and time, Wi-Fi
   connections, which A on Console and on Network used to open) and Hardware tests (`hwtest.c`). **Buttons and touch**:

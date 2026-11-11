@@ -211,6 +211,11 @@ bool coach_active() {
     return phase != COACH_OFF;
 }
 
+bool coach_points_at(const char* id) {
+    const coach_step* step = coach_current();
+    return step != NULL && step->anchor != NULL && strcmp(step->anchor, id) == 0;
+}
+
 // "v:<view>", "<anchor>", "!<anchor>" or "@<anchor>".
 static bool coach_until_one(const char* until) {
     if(strncmp(until, "v:", 2) == 0) {

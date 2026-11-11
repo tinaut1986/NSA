@@ -7,7 +7,8 @@ One folder per interface language (the codes in source/core/i18n.c) with pages o
 UPDATE_HISTORY_PAGE releases, newest first:
 
     changelog/<code>/<n>.json = {"format": 1, "page": n, "pages": total,
-                                 "releases": [{"tag": "vX.Y.Z", "prerelease": bool, "notes": "- ..."}]}
+                                 "releases": [{"tag": "vX.Y.Z", "prerelease": bool, "notes": "- ..."}],
+                                 "index": [{"tag": "vX.Y.Z", "prerelease": bool}]}   (page 1 only: every release)
 
 The releases (which tags are published, and which are betas) come from GitHub's API, or from a file with that list
 (--releases). The notes come from docs/release-notes/<tag>.<code>.md, else <tag>.md (English), else the English
@@ -122,6 +123,9 @@ def main():
         os.makedirs(os.path.join(out, code))
         for n in range(1, pages + 1):
             page = {"format": FORMAT, "page": n, "pages": pages, "releases": entries[(n - 1) * PAGE:n * PAGE]}
+            if n == 1:
+                # Every release, for the index on the bottom screen: what is not loaded yet shows too.
+                page["index"] = [{"tag": e["tag"], "prerelease": e["prerelease"]} for e in entries]
             with open(os.path.join(out, code, f"{n}.json"), "w", encoding="utf-8", newline="\n") as f:
                 json.dump(page, f, ensure_ascii=False, separators=(",", ":"))
                 f.write("\n")

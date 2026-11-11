@@ -23,6 +23,7 @@
 #define UPDATE_HISTORY_URL APP_PAGES_URL "changelog/%s/%u.json"
 #define UPDATE_RESPONSE_MAX (1024 * 1024)
 #define UPDATE_HISTORY_NOTES_MAX (64 * 1024)
+#define UPDATE_HISTORY_INDEX_MAX 512
 
 typedef enum {
     CHECK_UPDATE,         // Offer the newest release of the channel.
@@ -43,6 +44,8 @@ typedef struct {
     unsigned page;
     bool last;
     char* notes;
+    update_history_entry* index;   // Every release, from page 1.
+    unsigned indexCount;
 
     volatile bool done;
     Result res;
@@ -94,6 +97,13 @@ static void update_history_pages(update_check* check, char* response) {
         if(check->found < 0) {
             check->res = R_APP_PARSE_FAILED;
             return;
+        }
+
+        if(check->page == 1 && check->index == NULL) {
+            check->index = (update_history_entry*) malloc(UPDATE_HISTORY_INDEX_MAX * sizeof(update_history_entry));
+            if(check->index != NULL) {
+                check->indexCount = update_parse_history_index(response, size, VERSION_STRING, check->index, UPDATE_HISTORY_INDEX_MAX);
+            }
         }
 
         udslink_log("update: changelog page %u of %u (%s): %d shown (%llu ms after asking)\n", check->page, pages, check->language,
@@ -211,6 +221,8 @@ static struct {
     bool loading;
     bool failed;
     bool end;
+    update_history_entry index[UPDATE_HISTORY_INDEX_MAX];
+    u32 indexCount;
 } history;
 
 static bool update_spawn(update_check* check);
@@ -256,6 +268,10 @@ static void update_history_closed(void* data) {
     history.text = NULL;
 }
 
+static bool update_history_finished(void* data) {
+    return history.end || history.failed;
+}
+
 static void update_history_finish(update_check* check) {
     if(check->more) {
         history.loading = false;
@@ -289,8 +305,19 @@ static void update_history_finish(update_check* check) {
     history.loading = false;
     history.failed = false;
     history.end = check->last;
+    history.indexCount = 0;
+    if(check->index != NULL) {
+        memcpy(history.index, check->index, check->indexCount * sizeof(update_history_entry));
+        history.indexCount = check->indexCount;
+    }
 
-    changelog_source source = {.data = NULL, .more = update_history_more, .status = update_history_status, .closed = update_history_closed};
+    changelog_source source = {.data = NULL,
+                               .more = update_history_more,
+                               .status = update_history_status,
+                               .closed = update_history_closed,
+                               .finished = update_history_finished,
+                               .catalog = history.index,
+                               .catalogCount = history.indexCount};
     changelog_display_paged(_("Changelog"), history.text, &source);
 }
 
@@ -429,5 +456,6 @@ void update_poll() {
     update_check_finish(check);
     udslink_log("update: answer shown %llu ms after asking (%llu ms to show it)\n", osGetTime() - check->started, osGetTime() - shown);
     free(check->notes);
+    free(check->index);
     free(check);
 }

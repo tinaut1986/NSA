@@ -245,6 +245,37 @@ int update_parse_history(const char* data, size_t size, const char* installed, c
     return count;
 }
 
+unsigned update_parse_history_index(const char* data, size_t size, const char* installed, update_history_entry* out, unsigned max) {
+    json_error_t err;
+    json_t* root = json_loadb(data, size, JSON_REJECT_DUPLICATES, &err);
+    json_t* index = root != NULL ? json_object_get(root, "index") : NULL;
+    unsigned count = 0;
+    size_t i;
+    json_t* o;
+    json_array_foreach(index, i, o) {
+        if(count >= max) {
+            break;
+        }
+
+        json_t* pre = json_object_get(o, "prerelease");
+        update_history_entry* e = &out[count];
+        if(!json_is_object(o) || !get_text(o, "tag", e->tag, sizeof(e->tag)) || e->tag[0] != 'v' || strchr(e->tag, '-') != NULL ||
+           !update_valid_version(e->tag) || !json_is_boolean(pre)) {
+            continue;
+        }
+
+        e->prerelease = json_is_true(pre);
+        char cmp[32];
+        snprintf(cmp, sizeof(cmp), "%s%s", e->tag, e->prerelease ? "-beta" : "");
+        if(installed == NULL || !update_is_newer(cmp, installed)) {
+            count++;
+        }
+    }
+
+    json_decref(root);
+    return count;
+}
+
 int update_parse_releases(const char* data, size_t size, bool betas, bool homebrew, const char* installed, update_release* out) {
     memset(out, 0, sizeof(*out));
 

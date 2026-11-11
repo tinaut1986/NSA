@@ -181,6 +181,14 @@ What `release` holds, in the order it was built:
   screen (`update_notes_items` gives the items, `changelog.c` wraps and draws them). Brackets that are not a link stay
   ("[Checkpoint]"). The source notes did not change. Claude, 2026-11-11, New 3DS XL (.144): Spanish, headings, bullets,
   R held (several pages; the owner was pressing too).
+  Third round (the owner: R went from v0.9.9 to v0.9.7; ZL/ZR wanted; the bottom screen unused, then: it does not
+  scroll, group v0.9 / v0.8..., show that there are more releases than the loaded ones): in 3D the top screen is drawn
+  once per eye and the text read the keys in its draw, so a press counted twice; it reads them once a frame now
+  (`ui_frame`). L / R a page exactly, ZL / ZR the start and the end. The bottom screen is an index of every release
+  (page 1 of the pages lists them all, `"index"`), grouped by minor version with a heading each, the one on screen
+  highlighted, betas with a dot, the ones not loaded yet hollow ("Hollow: not loaded yet, tap to load"); a drag scrolls
+  it, a tap goes to a release, loading the pages up to it first. Claude, 2026-11-11, New 3DS XL (.144): R one page
+  exactly, the index (groups, hollow chips), a drag (only the index moves), a tap on v0.6.2 before it was loaded.
 - [ ] Flick and jump arrows in the menus (2026-11-11, `feat/menu-flick`; the owner: the lists coast after a drag and
   have the arrows to the top and the end, the menus do not). Settings and the action sheets drawn as a list now coast
   when a drag is let go, show the two round arrows at their bottom right while they scroll (only the ways they can still

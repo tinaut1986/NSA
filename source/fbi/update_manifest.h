@@ -19,7 +19,8 @@
 #define UPDATE_NOTES_CLOSE "<!-- /nsa-notes -->"
 // The changelog's pages (tools/make_changelog.py, served by GitHub Pages from feat/website):
 // changelog/<language>/<page>.json = {"format": 1, "page": n, "pages": total,
-// "releases": [{"tag": "vX.Y.Z", "prerelease": bool, "notes": "- ..."}]}, newest first.
+// "releases": [{"tag": "vX.Y.Z", "prerelease": bool, "notes": "- ..."}]}, newest first; page 1 also has
+// "index": [{"tag": "vX.Y.Z", "prerelease": bool}], every release.
 #define UPDATE_HISTORY_FORMAT 1
 #define UPDATE_HISTORY_PAGE 10
 
@@ -43,6 +44,14 @@ int update_parse_releases(const char* data, size_t size, bool betas, bool homebr
 // does not fit is left out with the ones after it. *pages: how many pages there are.
 // -1: invalid page, else the number of releases written.
 int update_parse_history(const char* data, size_t size, const char* installed, char* out, size_t cap, unsigned* pages);
+
+typedef struct {
+    char tag[16];
+    bool prerelease;
+} update_history_entry;
+
+// A page's index (page 1): every release not newer than `installed`, newest first, at most `max`. 0 when it has none.
+unsigned update_parse_history_index(const char* data, size_t size, const char* installed, update_history_entry* out, unsigned max);
 
 // Versions: "X.Y.Z" (optionally with a leading 'v'), "X.Y.Z-beta" for a
 // published pre-release build, "X.Y.Z-dev.N+hash" for an unpublished one.

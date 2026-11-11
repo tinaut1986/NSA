@@ -17,9 +17,16 @@ ATLAS_W = 256
 # Glyphs drawn by hand over the font's, per size and character: each row a string, "#" for a pixel. Each keeps
 # the box of the font's own glyph (its bottom on the same line, the same left offset and advance). Without
 # anti-aliasing at these sizes Pixelify Sans's 5 is an S, its 2 a mirrored S, and B, 8, 6, 9 and 3 differ by a
-# pixel or two (issue #14).
+# pixel or two, and its Z looks like a 2 (issue #14).
 REDRAWN = {
     10: {
+        "Z": ["#####",
+              "....#",
+              "...#.",
+              "..#..",
+              ".#...",
+              "#....",
+              "#####"],
         "2": [".###.",
               "#...#",
               "....#",
@@ -64,6 +71,14 @@ REDRAWN = {
               "####."],
     },
     12: {
+        "Z": ["#####",
+              "....#",
+              "....#",
+              "...#.",
+              "..#..",
+              ".#...",
+              "#....",
+              "#####"],
         "2": [".###.",
               "#...#",
               "....#",
@@ -122,6 +137,16 @@ REDRAWN = {
               "####."],
     },
     16: {
+        "Z": ["########",
+              "......##",
+              ".....##.",
+              "....##..",
+              "...##...",
+              "..##....",
+              ".##.....",
+              "##......",
+              "##......",
+              "########"],
         "2": [".######.",
               "##....##",
               "......##",

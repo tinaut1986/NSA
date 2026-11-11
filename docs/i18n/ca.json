@@ -11,7 +11,7 @@
  "lang.label": "Idioma",
  "hero.icon": "Icona de NSA",
  "hero.lead": "Un gestor de títols de codi obert per a Nintendo 3DS: instal·la i gestiona títols, explora i obre fitxers, envia jocs a una altra 3DS i cuida les dades de la consola. Un fork de FBI amb interfície nova, eines noves i el seu propi actualitzador.",
- "hero.download": "Descarrega l'última versió (v0.8.4)",
+ "hero.download": "Baixa l'última versió",
  "hero.source": "Codi a GitHub",
  "hero.small": "Un fork de FBI que inclou tot el que fa FBI, així que no cal tenir-los tots dos. S'instal·la com a app pròpia (amb el seu propi ID de títol i les dades a <code>sdmc:/nsa/</code>) i mai no sobreescriu FBI. Llicència MIT.",
  "notice": "<strong>Res de pirateria.</strong> NSA no proporciona, allotja, enllaça ni dona suport a contingut pirata, i el projecte no ajudarà amb això. NSA és una eina per gestionar programari que tens legalment, les teves pròpies còpies de seguretat i homebrew. S'eliminaran les peticions o enllaços a jocs pirates.",
@@ -84,5 +84,11 @@
  "report.3": "<strong>Firmware i CFW</strong> (p. ex. 11.17 amb Luma3DS)",
  "report.4": "<strong>Passos per reproduir-ho</strong>, què esperaves i què va passar",
  "report.outro": "Si falla una instal·lació, comprova també que el CIA és vàlid i prova una altra targeta SD (les targetes falses i els errors del sistema de fitxers són causes habituals). Sense contingut pirata als informes, si us plau.",
- "footer": "NSA és un fork de <a href=\"https://github.com/Steveice10/FBI\">FBI</a> de Steveice10 (MIT). Sense relació amb Nintendo. Nintendo 3DS és una marca registrada de Nintendo. NSA no proporciona ni dona suport a contingut pirata."
+ "footer": "NSA és un fork de <a href=\"https://github.com/Steveice10/FBI\">FBI</a> de Steveice10 (MIT). Sense relació amb Nintendo. Nintendo 3DS és una marca registrada de Nintendo. NSA no proporciona ni dona suport a contingut pirata.",
+ "nav.news": "Novetats",
+ "news.title": "Novetats",
+ "news.more": "Totes les versions a GitHub",
+ "hero.beta": "Última beta",
+ "accent.label": "Color d'accent",
+ "viewer.close": "Tanca"
 }

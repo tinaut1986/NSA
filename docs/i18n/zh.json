@@ -11,7 +11,7 @@
  "lang.label": "语言",
  "hero.icon": "NSA 图标",
  "hero.lead": "面向任天堂 3DS 的开源标题管理器：安装和管理标题，浏览和查看文件，把游戏发送到另一台 3DS，并照看主机自身的数据。它是 FBI 的分支，拥有全新的界面、新的工具和自己的更新程序。",
- "hero.download": "下载最新版本 (v0.8.4)",
+ "hero.download": "下载最新版本",
  "hero.source": "GitHub 源代码",
  "hero.small": "FBI 的分支，包含 FBI 的全部功能，因此无需两个都装。它作为独立应用安装（拥有自己的 title ID，数据保存在 <code>sdmc:/nsa/</code>），不会覆盖 FBI。MIT 许可证。",
  "notice": "<strong>严禁盗版。</strong> NSA 不提供、托管、链接或支持盗版内容，本项目也不会为此提供帮助。NSA 是用来管理你合法拥有的软件、你自己的备份和自制软件的工具。索取盗版游戏的请求或相关链接将被删除。",
@@ -84,5 +84,11 @@
  "report.3": "<strong>固件和 CFW</strong>（例如 11.17 搭配 Luma3DS）",
  "report.4": "<strong>复现步骤</strong>、你期望的结果和实际发生的情况",
  "report.outro": "如果安装失败，还请检查 CIA 是否有效，并换一张 SD 卡试试（假卡和文件系统错误是常见原因）。报告中请不要包含盗版内容。",
- "footer": "NSA 是 Steveice10 的 <a href=\"https://github.com/Steveice10/FBI\">FBI</a>（MIT）的分支。与任天堂无关。Nintendo 3DS 是任天堂的商标。NSA 不提供也不支持盗版内容。"
+ "footer": "NSA 是 Steveice10 的 <a href=\"https://github.com/Steveice10/FBI\">FBI</a>（MIT）的分支。与任天堂无关。Nintendo 3DS 是任天堂的商标。NSA 不提供也不支持盗版内容。",
+ "nav.news": "更新内容",
+ "news.title": "更新内容",
+ "news.more": "GitHub 上的所有版本",
+ "hero.beta": "最新测试版",
+ "accent.label": "强调色",
+ "viewer.close": "关闭"
 }

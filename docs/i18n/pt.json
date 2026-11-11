@@ -11,7 +11,7 @@
  "lang.label": "Idioma",
  "hero.icon": "Ícone do NSA",
  "hero.lead": "Um gerenciador de títulos de código aberto para Nintendo 3DS: instale e gerencie títulos, explore e abra arquivos, envie jogos para outro 3DS e cuide dos dados do console. Um fork do FBI com interface nova, ferramentas novas e atualizador próprio.",
- "hero.download": "Baixar a versão mais recente (v0.8.4)",
+ "hero.download": "Baixar a versão mais recente",
  "hero.source": "Código no GitHub",
  "hero.small": "Um fork do FBI que inclui tudo o que o FBI faz, então você não precisa ter os dois. Ele é instalado como um app próprio (com ID de título próprio e dados em <code>sdmc:/nsa/</code>) e nunca sobrescreve o FBI. Licença MIT.",
  "notice": "<strong>Sem pirataria.</strong> O NSA não fornece, hospeda, linka nem apoia conteúdo pirata, e o projeto não vai ajudar com isso. O NSA é uma ferramenta para gerenciar software que você possui legalmente, seus próprios backups e homebrew. Pedidos ou links de jogos piratas serão removidos.",
@@ -84,5 +84,11 @@
  "report.3": "<strong>Firmware e CFW</strong> (por ex. 11.17 com Luma3DS)",
  "report.4": "<strong>Passos para reproduzir</strong>, o que você esperava e o que aconteceu",
  "report.outro": "Se uma instalação falhar, verifique também se o CIA é válido e tente outro cartão SD (cartões falsificados e erros no sistema de arquivos são causas comuns). Sem conteúdo pirata nos relatos, por favor.",
- "footer": "O NSA é um fork do <a href=\"https://github.com/Steveice10/FBI\">FBI</a> de Steveice10 (MIT). Sem vínculo com a Nintendo. Nintendo 3DS é uma marca da Nintendo. O NSA não fornece nem apoia conteúdo pirata."
+ "footer": "O NSA é um fork do <a href=\"https://github.com/Steveice10/FBI\">FBI</a> de Steveice10 (MIT). Sem vínculo com a Nintendo. Nintendo 3DS é uma marca da Nintendo. O NSA não fornece nem apoia conteúdo pirata.",
+ "nav.news": "Novidades",
+ "news.title": "Novidades",
+ "news.more": "Todas as versões no GitHub",
+ "hero.beta": "Beta mais recente",
+ "accent.label": "Cor de destaque",
+ "viewer.close": "Fechar"
 }

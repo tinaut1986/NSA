@@ -11,7 +11,7 @@
  "lang.label": "Lingua",
  "hero.icon": "Icona di NSA",
  "hero.lead": "Un gestore di titoli open source per Nintendo 3DS: installa e gestisci titoli, sfoglia e visualizza file, invia giochi a un'altra 3DS e prenditi cura dei dati della console. Un fork di FBI con una nuova interfaccia, nuovi strumenti e un proprio aggiornatore.",
- "hero.download": "Scarica l'ultima versione (v0.8.4)",
+ "hero.download": "Scarica l'ultima versione",
  "hero.source": "Codice su GitHub",
  "hero.small": "Un fork di FBI che include tutto ciò che fa FBI, quindi non ti servono entrambi. Si installa come app a sé (con un proprio ID del titolo e i dati in <code>sdmc:/nsa/</code>) e non sovrascrive mai FBI. Licenza MIT.",
  "notice": "<strong>Niente pirateria.</strong> NSA non fornisce, ospita, linka né sostiene contenuti piratati, e il progetto non aiuterà a ottenerli. NSA è uno strumento per gestire il software che possiedi legalmente, i tuoi backup e l'homebrew. Le richieste o i link a giochi piratati verranno rimossi.",
@@ -84,5 +84,11 @@
  "report.3": "<strong>Firmware e CFW</strong> (ad es. 11.17 con Luma3DS)",
  "report.4": "<strong>Passaggi per riprodurlo</strong>, cosa ti aspettavi e cosa è successo",
  "report.outro": "Se un'installazione fallisce, controlla anche che il CIA sia valido e prova un'altra scheda SD (schede contraffatte ed errori del file system sono cause comuni). Niente contenuti piratati nelle segnalazioni, per favore.",
- "footer": "NSA è un fork di <a href=\"https://github.com/Steveice10/FBI\">FBI</a> di Steveice10 (MIT). Non affiliato a Nintendo. Nintendo 3DS è un marchio di Nintendo. NSA non fornisce né sostiene contenuti piratati."
+ "footer": "NSA è un fork di <a href=\"https://github.com/Steveice10/FBI\">FBI</a> di Steveice10 (MIT). Non affiliato a Nintendo. Nintendo 3DS è un marchio di Nintendo. NSA non fornisce né sostiene contenuti piratati.",
+ "nav.news": "Novità",
+ "news.title": "Novità",
+ "news.more": "Tutte le versioni su GitHub",
+ "hero.beta": "Ultima beta",
+ "accent.label": "Colore di accento",
+ "viewer.close": "Chiudi"
 }

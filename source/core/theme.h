@@ -78,6 +78,13 @@ const char* theme_custom_errors();
 u32 theme_reload_custom(u32 selected);
 // Writes the theme at `index` to sdmc:/nsa/themes/<name>-N.json, named "<Name> N"; `path` gets the file.
 bool theme_export(u32 index, char* path, size_t pathSize);
+// Saves an edited theme named `name`: over its file when `editing` is one from the SD card, else as a new file named
+// after `name`. `saved` gets its index in the list read again; `path` the file.
+bool theme_save_custom(const theme_def* def, const char* name, u32 editing, u32* saved, char* path, size_t pathSize);
+// While a theme is edited: everything is drawn with `def` (copied), its night palette when `night` is 1, the day's when 0,
+// as the settings say when -1. theme_preview_end goes back to the selected theme.
+void theme_preview(const theme_def* def, int night);
+void theme_preview_end();
 
 u32 theme_accent_count();
 const theme_accent* theme_accent_get(u32 index);

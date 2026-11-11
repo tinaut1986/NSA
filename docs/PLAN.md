@@ -162,6 +162,19 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Theme editor on the console (2026-11-11, `feat/theme-editor`; issue #14). Settings -> **Edit the theme**
+  (`themeedit.c`): the theme in use as a list (list.c with `list_set_side_keys`: Left and Right change the selected
+  value, A changes or opens it): its name (keyboard), which palette (day or night: the screens are drawn in that one
+  meanwhile), its ten colours, the corners of cards and of rows, the outline width, font (System, Pixel), progress bars,
+  dialogs (window or sheet), main menu (buttons or tiles), icon grids (scroll or pages), and Save. While it is open
+  everything is drawn with the copy edited (`theme_preview`); the top screen shows a sample (card, rows, button, bar, a
+  dialog on its veil). A colour opens `colorpick.c`: a square of saturation and brightness and a bar of hues (textures
+  of 64x64 drawn larger, so linear filtering makes the gradients), and a bar of opacity for the veil behind dialogs, all
+  for a finger; the D-Pad moves in the square, L/R through the hues, X types #RRGGBB, new over old with its code. A
+  theme from the SD card is saved over its file; a built-in one as a new file named after its name ("HOME 2"), and
+  is then in use. B with changes asks Save / Discard / Keep editing. New guide step (0.13). Claude, 2026-11-11, Azahar:
+  the editor and the picker (Cards and HOME, day and night), a colour changed with a finger seen on both screens, the
+  theme saved as `cards-2.json` and in use, B with changes and Discard.
 - [ ] Icon grids in pages (2026-11-11, `feat/paged-grids`; issue #14): with the HOME theme (`theme_def.pagedGrids`), every
   list's grid (Titles, Tickets, Ext Save Data, Mods, the Store) is in pages that turn sideways: as many rows as fit,
   dots under them (or "3 / 51" past 20 pages), no scrollbar and no jump arrows. Up and Down stay in the page; Left and

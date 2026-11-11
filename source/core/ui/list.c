@@ -23,6 +23,14 @@
 #define LIST_TOOL_SIZE 22
 #define LIST_GRID_GAP 8
 #define LIST_SEARCH_MAX 64
+#define LIST_JUMP_SIZE 26        // The floating arrows to the top and the end.
+#define LIST_JUMP_SHOW 1500      // How long (ms) they stay after the list last scrolled.
+
+enum {
+    LIST_JUMP_NONE,
+    LIST_JUMP_TOP,
+    LIST_JUMP_END
+};
 
 typedef struct {
     u32 icon;
@@ -41,6 +49,11 @@ typedef struct {
 
     u32 selectedIndex;       // Into `visible`.
     list_item* selectedItem;
+    // The selection was chosen (D-Pad, a touch, A, list_select): it follows its item when the list changes (loading,
+    // sorting, deleting). Until then it keeps its index, so a list that loads and sorts live stays at its top instead
+    // of following the first item listed wherever the sort takes it.
+    bool followItem;
+    bool pressPreviousFollow;   // followItem before a touch, back when it turns into a drag.
     float scrollPos;
     float scrollTarget;      // Where a D-Pad move glides to.
     bool scrollGliding;
@@ -57,16 +70,27 @@ typedef struct {
     u16 touchStartX;
     u16 touchStartY;
     u16 lastTouchY;
+    u16 lastTouchX;
 
     // The item held (by touch, or by A when there is a long press), and the
     // title bar target held: -1 back, else a tool's index.
     widget_press press;
     list_item* pressItem;       // What is held: its index changes if the list does.
     list_item* pressPrevious;
-    bool revealPending;   // Scroll the selection into view on the next update.   // Selected before the touch, back when it turns into a drag.
+    bool revealPending;   // Scroll the selection into view on the next update.
     bool barTouching;
     bool scrollbarTouching;   // A finger holds the scrollbar.
     bool held;                // list_hold: items take no presses.
+    bool sideKeys;            // list_set_side_keys: rows do not turn a page with Left and Right.
+    // The arrows to the top and the end show for a while after the list scrolls (they fade in and out).
+    float lastScrollPos;
+    u64 scrollMovedTime;
+    float jumpAlpha;
+    int jumpTouch;            // The arrow a finger went down on (LIST_JUMP_*).
+    bool jumpTouchOn;         // And is still over it.
+    // A finger on the dots or the bar under a grid in pages: the page it is on, gone to when it lifts.
+    bool pageScrub;
+    u32 scrubPage;
     int barTarget;
     void (*longPress)(ui_view* view, void* data, linked_list* items, list_item* item);
 
@@ -96,7 +120,17 @@ typedef struct {
     u32 columns;
     float pitchX, pitchY;   // Distance between items.
     float itemW, itemH;
+    // A grid in pages (the theme's pagedGrids): scrollPos runs sideways, a page `pageW` wide holds `rows` rows.
+    bool paged;
+    u32 rows;
+    u32 perPage;
+    float pageW;
+    float view;             // How much of the list shows at once, along the way it scrolls.
 } list_layout;
+
+#define LIST_DOTS_HEIGHT 18   // Under a grid in pages: its dots, or a bar to drag (a finger fits).
+#define LIST_DOTS_STEP 12
+#define LIST_DOTS_MAX 20       // More pages than this: a bar instead of dots.
 
 static bool list_grid(list_data* listData) {
     return listData->mode == LIST_MODE_GRID && listData->style.drawTile != NULL;
@@ -104,10 +138,15 @@ static bool list_grid(list_data* listData) {
 
 static list_layout list_get_layout(list_data* listData, float x1, float y1, float x2, float y2) {
     list_layout l;
+    l.paged = list_grid(listData) && theme()->def->pagedGrids;
     l.x1 = x1 + 8;
-    l.x2 = x2 - 8 - WIDGET_SCROLLBAR_WIDTH - 4;
+    // Pages have dots under them instead of a scrollbar at the side.
+    l.x2 = l.paged ? x2 - 8 : x2 - 8 - WIDGET_SCROLLBAR_WIDTH - 4;
     l.y1 = y1 + LIST_PAD;
-    l.y2 = y2 - LIST_PAD;
+    l.y2 = l.paged ? y2 - LIST_DOTS_HEIGHT : y2 - LIST_PAD;
+    l.rows = 0;
+    l.perPage = 0;
+    l.pageW = x2 - x1;
 
     if(list_grid(listData)) {
         float size = listData->style.tileSize;
@@ -129,17 +168,80 @@ static list_layout list_get_layout(list_data* listData, float x1, float y1, floa
         l.pitchY = l.itemH + WIDGET_ROW_GAP;
     }
 
+    if(l.paged) {
+        l.rows = (u32) ((l.y2 - l.y1 + LIST_GRID_GAP) / l.pitchY);
+        if(l.rows < 1) {
+            l.rows = 1;
+        }
+
+        l.perPage = l.rows * l.columns;
+        // The page's rows in the middle of the room they have.
+        l.y1 += (l.y2 - l.y1 - (l.rows * l.pitchY - LIST_GRID_GAP)) / 2;
+    }
+
+    l.view = l.paged ? l.pageW : l.y2 - l.y1;
     return l;
 }
 
+static u32 list_page_count(list_data* listData, list_layout* l) {
+    return l->perPage > 0 ? (listData->visibleCount + l->perPage - 1) / l->perPage : 1;
+}
+
+// How long the whole list is along the way it scrolls: down, or sideways for pages.
 static float list_total_height(list_data* listData, list_layout* l) {
+    if(l->paged) {
+        return list_page_count(listData, l) * l->pageW;
+    }
+
     u32 rows = (listData->visibleCount + l->columns - 1) / l->columns;
     return rows > 0 ? rows * l->pitchY - (l->pitchY - l->itemH) : 0;
 }
 
 static void list_item_position(list_data* listData, list_layout* l, u32 index, float* x, float* y) {
+    if(l->paged) {
+        u32 page = index / l->perPage;
+        u32 within = index % l->perPage;
+        *x = l->x1 + page * l->pageW + (within % l->columns) * l->pitchX - listData->scrollPos;
+        *y = l->y1 + (within / l->columns) * l->pitchY;
+        return;
+    }
+
     *x = l->x1 + (index % l->columns) * l->pitchX;
     *y = l->y1 + (index / l->columns) * l->pitchY - listData->scrollPos;
+}
+
+// The dots or the bar under a grid in pages, from `left` to `right` (the first and last page) at height `cy`.
+static void list_pager_geometry(list_data* listData, list_layout* l, float x1, float x2, float y2, float* left, float* right, float* cy) {
+    u32 pages = list_page_count(listData, l);
+    *cy = y2 - LIST_DOTS_HEIGHT / 2 - 1;
+    if(pages <= LIST_DOTS_MAX) {
+        *left = (x1 + x2) / 2 - (pages - 1) * LIST_DOTS_STEP / 2.0f;
+        *right = *left + (pages - 1) * LIST_DOTS_STEP;
+    } else {
+        // Room at the right for "12 / 51".
+        *left = x1 + 24;
+        *right = x2 - 76;
+    }
+}
+
+// The page under a finger at `px` on the dots or the bar.
+static u32 list_pager_page(list_data* listData, list_layout* l, float x1, float x2, float y2, float px) {
+    u32 pages = list_page_count(listData, l);
+    float left, right, cy;
+    list_pager_geometry(listData, l, x1, x2, y2, &left, &right, &cy);
+    if(pages <= 1 || right <= left) {
+        return 0;
+    }
+
+    float at = (px - left) / (right - left);
+    at = at < 0 ? 0 : at > 1 ? 1 : at;
+    return (u32) (at * (pages - 1) + 0.5f);
+}
+
+// The page that shows most (pages only).
+static u32 list_current_page(list_data* listData, list_layout* l) {
+    float from = listData->scrollGliding ? listData->scrollTarget : listData->scrollPos;
+    return (u32) (from / l->pageW + 0.5f);
 }
 
 // ---- search and selection ----
@@ -172,7 +274,7 @@ static void list_rebuild_visible(list_data* listData) {
 }
 
 static void list_clamp_scroll(list_data* listData, list_layout* l) {
-    float max = list_total_height(listData, l) - (l->y2 - l->y1);
+    float max = list_total_height(listData, l) - l->view;
     if(max < 0) {
         max = 0;
     }
@@ -226,19 +328,21 @@ static void list_validate(list_data* listData, list_layout* l, bool reveal) {
     list_rebuild_visible(listData);
 
     if(listData->visibleCount == 0) {
+        // Emptied (loaded again, a search that matches nothing): what fills it next starts at the top.
         listData->selectedIndex = 0;
         listData->selectedItem = NULL;
+        listData->followItem = false;
         listData->scrollPos = 0;
         return;
     }
 
     bool found = false;
-    if(listData->selectedItem != NULL) {
+    if(listData->selectedItem != NULL && listData->followItem) {
         for(u32 i = 0; i < listData->visibleCount; i++) {
             if(listData->visible[i] == listData->selectedItem) {
                 // Items came or went above it (loading, sorting, deleting):
                 // scroll with it so it stays where it was on screen.
-                if(i != listData->selectedIndex && !reveal) {
+                if(i != listData->selectedIndex && !reveal && !l->paged) {
                     float moved = ((float) (i / l->columns) - (float) (listData->selectedIndex / l->columns)) * l->pitchY;
                     listData->scrollPos += moved;
                     listData->scrollTarget += moved;
@@ -276,7 +380,16 @@ static void list_validate(list_data* listData, list_layout* l, bool reveal) {
         listData->selectedItem = listData->visible[listData->selectedIndex];
     }
 
-    if(reveal) {
+    if(reveal && l->paged) {
+        // The selection's page.
+        float to = (listData->selectedIndex / l->perPage) * l->pageW;
+        float from = listData->scrollGliding ? listData->scrollTarget : listData->scrollPos;
+        if(to != from) {
+            listData->scrollTarget = to;
+            listData->scrollGliding = true;
+            listData->scrollVelocity = 0;
+        }
+    } else if(reveal) {
         float top = (listData->selectedIndex / l->columns) * l->pitchY;
         float view = l->y2 - l->y1;
         float from = listData->scrollGliding ? listData->scrollTarget : listData->scrollPos;
@@ -295,6 +408,90 @@ static void list_validate(list_data* listData, list_layout* l, bool reveal) {
     }
 
     list_clamp_scroll(listData, l);
+}
+
+// ---- the arrows to the top and the end ----
+
+static float list_max_scroll(list_data* listData, list_layout* l) {
+    float max = list_total_height(listData, l) - l->view;
+    return max > 0 ? max : 0;
+}
+
+// The guide points at the arrows ("list.jump"): both show, also in a list that does not scroll.
+static bool list_jump_demo() {
+    return coach_active() && coach_points_at("list.jump");
+}
+
+// Where an arrow is (the end's at the bottom right of the list, the top's over it), and whether it shows: only the
+// way the list can still go.
+static bool list_jump_rect(list_data* listData, list_layout* l, int which, float* x, float* y) {
+    *x = l->x2 - LIST_JUMP_SIZE - 2;
+    *y = l->y2 - LIST_JUMP_SIZE - 4;
+    if(l->paged && !list_jump_demo()) {
+        return false;
+    }
+
+    if(list_jump_demo()) {
+        if(which == LIST_JUMP_TOP) {
+            *y -= LIST_JUMP_SIZE + 6;
+        }
+
+        return true;
+    }
+
+    if(which == LIST_JUMP_TOP) {
+        *y -= LIST_JUMP_SIZE + 6;
+        return listData->scrollPos > 1;
+    }
+
+    return listData->scrollPos < list_max_scroll(listData, l) - 1;
+}
+
+static int list_jump_hit(list_data* listData, list_layout* l, touchPosition* pos) {
+    if(listData->jumpAlpha < 0.5f) {
+        return LIST_JUMP_NONE;
+    }
+
+    for(int which = LIST_JUMP_TOP; which <= LIST_JUMP_END; which++) {
+        float x, y;
+        // A little room around it, for a finger.
+        if(list_jump_rect(listData, l, which, &x, &y) && widget_touched(pos, x - 3, y - 3, LIST_JUMP_SIZE + 6, LIST_JUMP_SIZE + 6)) {
+            return which;
+        }
+    }
+
+    return LIST_JUMP_NONE;
+}
+
+// Selects the first or the last item and scrolls to it.
+static void list_jump(list_data* listData, list_layout* l, int which) {
+    if(listData->visibleCount == 0) {
+        return;
+    }
+
+    listData->selectedIndex = which == LIST_JUMP_TOP ? 0 : listData->visibleCount - 1;
+    listData->selectedItem = listData->visible[listData->selectedIndex];
+    listData->followItem = true;
+    listData->scrollVelocity = 0;
+    list_validate(listData, l, true);
+}
+
+// The arrows show while the list scrolls and for LIST_JUMP_SHOW after, only when it is longer than the screen.
+static void list_animate_jump(list_data* listData, list_layout* l) {
+    if(listData->scrollPos != listData->lastScrollPos) {
+        listData->lastScrollPos = listData->scrollPos;
+        listData->scrollMovedTime = osGetTime();
+    }
+
+    bool show = listData->jumpTouch != LIST_JUMP_NONE || list_jump_demo()
+                || (listData->scrollMovedTime != 0 && osGetTime() - listData->scrollMovedTime < LIST_JUMP_SHOW
+                    && list_max_scroll(listData, l) > 0);
+    listData->jumpAlpha += show ? 0.15f : -0.08f;
+    if(listData->jumpAlpha > 1) {
+        listData->jumpAlpha = 1;
+    } else if(listData->jumpAlpha < 0) {
+        listData->jumpAlpha = 0;
+    }
 }
 
 static bool list_repeat(list_data* listData, u32 key) {
@@ -417,6 +614,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
     list_validate(listData, &l, listData->revealPending);
     listData->revealPending = false;
     list_animate_scroll(listData, &l);
+    list_animate_jump(listData, &l);
 
     bool selectedTouched = false;
     u32 last = listData->selectedIndex;
@@ -432,7 +630,42 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
         u32 whole = (u32) ((l.y2 - l.y1 - l.itemH) / l.pitchY) + 1;
         bool paged = false;
 
-        if(list_repeat(listData, KEY_DOWN)) {
+        if(hidKeysDown() & KEY_ZL) {
+            // ZL and ZR (a New 3DS) go to the first and the last item, as the floating arrows do.
+            listData->selectedIndex = 0;
+        } else if(hidKeysDown() & KEY_ZR) {
+            listData->selectedIndex = count - 1;
+        } else if(l.paged) {
+            // Pages: Up and Down stay in the page; Left and Right go on to the page beside at its edge, on the same row.
+            u32 index = listData->selectedIndex;
+            u32 page = index / l.perPage;
+            u32 within = index % l.perPage;
+            u32 row = within / cols;
+            u32 col = within % cols;
+            u32 pages = list_page_count(listData, &l);
+            if(list_repeat(listData, KEY_DOWN)) {
+                if(row + 1 < l.rows && index + cols < count) {
+                    listData->selectedIndex = index + cols;
+                }
+            } else if(list_repeat(listData, KEY_UP)) {
+                if(row > 0) {
+                    listData->selectedIndex = index - cols;
+                }
+            } else if(list_repeat(listData, KEY_RIGHT)) {
+                if(col + 1 < cols && index + 1 < count) {
+                    listData->selectedIndex = index + 1;
+                } else if(page + 1 < pages) {
+                    u32 next = (page + 1) * l.perPage + row * cols;
+                    listData->selectedIndex = next < count ? next : count - 1;
+                }
+            } else if(list_repeat(listData, KEY_LEFT)) {
+                if(col > 0) {
+                    listData->selectedIndex = index - 1;
+                } else if(page > 0) {
+                    listData->selectedIndex = (page - 1) * l.perPage + row * cols + cols - 1;
+                }
+            }
+        } else if(list_repeat(listData, KEY_DOWN)) {
             if(listData->selectedIndex + cols < count) {
                 listData->selectedIndex += cols;
             } else if(listData->selectedIndex / cols < (count - 1) / cols) {
@@ -447,6 +680,8 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
                 u32 lastRow = ((count - 1) / cols) * cols;
                 listData->selectedIndex = lastRow + listData->selectedIndex < count ? lastRow + listData->selectedIndex : count - 1;
             }
+        } else if(listData->sideKeys && cols == 1) {
+            // Left and Right are the screen's (they change the selected row's value).
         } else if(list_repeat(listData, KEY_RIGHT)) {
             if(cols > 1) {
                 listData->selectedIndex = (listData->selectedIndex + 1) % count;
@@ -461,6 +696,11 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
                 listData->selectedIndex = firstShown > whole ? firstShown - whole : 0;
                 paged = true;
             }
+        }
+
+        // Moving, or A on an item (it is acted on: it stays chosen when the list changes), chooses the selection.
+        if(listData->selectedIndex != last || (hidKeysDown() & KEY_A)) {
+            listData->followItem = true;
         }
 
         if(listData->selectedIndex != last) {
@@ -512,12 +752,21 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
         listData->touching = false;
         listData->barTouching = false;
         listData->scrollbarTouching = false;
+        listData->jumpTouch = LIST_JUMP_NONE;
+        listData->pageScrub = false;
         int target = list_title_bar_target(listData, &pos);
         float barTotal = list_total_height(listData, &l);
+        int jump = count > 0 ? list_jump_hit(listData, &l, &pos) : LIST_JUMP_NONE;
         if(pos.py < WIDGET_TITLE_BAR_HEIGHT) {
             listData->barTouching = view->drawTitleBar != NULL && target != -2;
             listData->barTarget = target;
-        } else if(widget_scrollbar_touched(&pos, l.x2 + 4, l.y1, l.y2 - l.y1, l.y2 - l.y1, barTotal)) {
+        } else if(jump != LIST_JUMP_NONE) {
+            listData->jumpTouch = jump;
+            listData->jumpTouchOn = true;
+        } else if(l.paged && count > 0 && list_page_count(listData, &l) > 1 && pos.py >= l.y2) {
+            listData->pageScrub = true;
+            listData->scrubPage = list_pager_page(listData, &l, bx1, bx2, by2, pos.px);
+        } else if(!l.paged && widget_scrollbar_touched(&pos, l.x2 + 4, l.y1, l.y2 - l.y1, l.y2 - l.y1, barTotal)) {
             // The scrollbar: the list follows the finger along it.
             listData->scrollbarTouching = true;
             listData->scrollVelocity = 0;
@@ -530,6 +779,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
             listData->dragged = false;
             listData->touchStartX = pos.px;
             listData->touchStartY = listData->lastTouchY = pos.py;
+            listData->lastTouchX = pos.px;
             listData->scrollVelocity = 0;
             listData->scrollGliding = false;
             widget_press_end(&listData->press);
@@ -540,12 +790,34 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
                     widget_press_begin(&listData->press, (int) i, true, pos.px, pos.py);
                     listData->pressItem = listData->visible[i];
                     listData->pressPrevious = listData->selectedItem;
+                    listData->pressPreviousFollow = listData->followItem;
+                    listData->followItem = true;
                     listData->selectedIndex = i;
                     listData->selectedItem = listData->visible[i];
                     break;
                 }
             }
         }
+    } else if(listData->pageScrub && (hidKeysHeld() & KEY_TOUCH)) {
+        listData->scrubPage = list_pager_page(listData, &l, bx1, bx2, by2, pos.px);
+    } else if(listData->pageScrub && (hidKeysUp() & KEY_TOUCH)) {
+        // To the page chosen, with its first item selected.
+        listData->pageScrub = false;
+        if(count > 0 && l.paged) {
+            u32 index = listData->scrubPage * l.perPage;
+            listData->selectedIndex = index < count ? index : count - 1;
+            listData->selectedItem = listData->visible[listData->selectedIndex];
+            listData->followItem = true;
+            list_validate(listData, &l, true);
+        }
+    } else if(listData->jumpTouch != LIST_JUMP_NONE && (hidKeysHeld() & KEY_TOUCH)) {
+        listData->jumpTouchOn = list_jump_hit(listData, &l, &pos) == listData->jumpTouch;
+    } else if(listData->jumpTouch != LIST_JUMP_NONE && (hidKeysUp() & KEY_TOUCH)) {
+        if(listData->jumpTouchOn) {
+            list_jump(listData, &l, listData->jumpTouch);
+        }
+
+        listData->jumpTouch = LIST_JUMP_NONE;
     } else if(listData->scrollbarTouching && (hidKeysHeld() & KEY_TOUCH)) {
         listData->scrollPos = widget_scrollbar_offset(l.y1, l.y2 - l.y1, l.y2 - l.y1, list_total_height(listData, &l), pos.py);
         listData->scrollTarget = listData->scrollPos;
@@ -560,7 +832,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
     } else if(listData->barTouching && (hidKeysUp() & KEY_TOUCH)) {
         listData->barTouching = false;
         list_title_bar_release(view, listData);
-    } else if(listData->touching && (hidKeysHeld() & KEY_TOUCH) && list_total_height(listData, &l) <= l.y2 - l.y1) {
+    } else if(listData->touching && (hidKeysHeld() & KEY_TOUCH) && list_total_height(listData, &l) <= l.view) {
         // Nothing to scroll: a finger sliding over the items moves the focus to the one under it, and letting go there
         // opens nothing (a tap that only drifts a little still opens).
         int moved = abs((int) pos.px - (int) listData->touchStartX) + abs((int) pos.py - (int) listData->touchStartY);
@@ -572,6 +844,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
                     if(i != listData->selectedIndex) {
                         listData->selectedIndex = i;
                         listData->selectedItem = listData->visible[i];
+                        listData->followItem = true;
                         listData->press.cancelled = true;
                     }
 
@@ -581,13 +854,15 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
         }
 
         listData->lastTouchY = pos.py;
+        listData->lastTouchX = pos.px;
 
         if(listData->longPress != NULL && listData->press.touch && widget_press_long_due(&listData->press)
            && (u32) listData->press.index < count) {
             longPressed = listData->visible[listData->press.index];
         }
     } else if(listData->touching && (hidKeysHeld() & KEY_TOUCH)) {
-        if(!listData->dragged && abs((int) pos.py - (int) listData->touchStartY) > 6) {
+        int away = l.paged ? abs((int) pos.px - (int) listData->touchStartX) : abs((int) pos.py - (int) listData->touchStartY);
+        if(!listData->dragged && away > 6) {
             listData->dragged = true;
             // The touch was not a selection after all: the item selected before comes back,
             // with its index. (The index of the item touched was left, and list_validate took
@@ -596,6 +871,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
             // could never get anywhere.)
             if(listData->press.index >= 0 && listData->pressPrevious != NULL) {
                 listData->selectedItem = listData->pressPrevious;
+                listData->followItem = listData->pressPreviousFollow;
                 for(u32 i = 0; i < listData->visibleCount; i++) {
                     if(listData->visible[i] == listData->pressPrevious) {
                         listData->selectedIndex = i;
@@ -608,7 +884,8 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
         }
 
         if(listData->dragged) {
-            int dy = (int) pos.py - (int) listData->lastTouchY;
+            // Pages follow the finger sideways.
+            int dy = l.paged ? (int) pos.px - (int) listData->lastTouchX : (int) pos.py - (int) listData->lastTouchY;
             listData->scrollPos -= dy;
             // Remembered for the flick when the finger lifts.
             listData->scrollVelocity = listData->scrollVelocity * 0.5f + dy * 0.5f;
@@ -616,6 +893,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
         }
 
         listData->lastTouchY = pos.py;
+        listData->lastTouchX = pos.px;
 
         if(listData->longPress != NULL && listData->press.touch && widget_press_long_due(&listData->press)
            && (u32) listData->press.index < count) {
@@ -627,9 +905,27 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
             listData->scrollVelocity = 0;
         }
 
+        if(l.paged && listData->dragged) {
+            // Pages settle on one: the next or the last when the finger flicked, else the one that shows most.
+            float at = listData->scrollPos / l.pageW;
+            u32 page = listData->scrollVelocity < -2 ? (u32) at + 1 : listData->scrollVelocity > 2 ? (u32) at : (u32) (at + 0.5f);
+            u32 pages = list_page_count(listData, &l);
+            page = page < pages ? page : pages - 1;
+            listData->scrollTarget = page * l.pageW;
+            listData->scrollGliding = true;
+            listData->scrollVelocity = 0;
+            // The selection comes along to the page turned to (its first item), so the D-Pad goes on from there.
+            if(count > 0 && listData->selectedIndex / l.perPage != page) {
+                listData->selectedIndex = page * l.perPage < count ? page * l.perPage : count - 1;
+                listData->selectedItem = listData->visible[listData->selectedIndex];
+                listData->followItem = true;
+            }
+        }
+
         if(listData->press.touch && widget_press_on(&listData->press, listData->press.index) && (u32) listData->press.index < count) {
             listData->selectedIndex = (u32) listData->press.index;
             listData->selectedItem = listData->visible[listData->selectedIndex];
+            listData->followItem = true;
             selectedTouched = true;
         }
 
@@ -710,12 +1006,12 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
 
     screen_set_clip(x1, y1 + LIST_PAD / 2, x2 - x1, y2 - y1 - LIST_PAD);
 
-    // Only the rows on screen.
-    u32 firstRow = (u32) (listData->scrollPos / l.pitchY);
-    for(u32 i = firstRow * l.columns; i < listData->visibleCount; i++) {
+    // Only the rows on screen (with pages: the two that may show while one turns).
+    u32 first = l.paged ? (u32) (listData->scrollPos / l.pageW) * l.perPage : (u32) (listData->scrollPos / l.pitchY) * l.columns;
+    for(u32 i = first; i < listData->visibleCount; i++) {
         float x, y;
         list_item_position(listData, &l, i, &x, &y);
-        if(y > y2) {
+        if(l.paged ? x > x2 : y > y2) {
             break;
         }
 
@@ -744,7 +1040,57 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
 
     screen_clear_clip();
 
-    widget_scrollbar(x2 - 8 - WIDGET_SCROLLBAR_WIDTH, l.y1, l.y2 - l.y1, listData->scrollPos, l.y2 - l.y1, list_total_height(listData, &l));
+    if(l.paged) {
+        u32 pages = list_page_count(listData, &l);
+        u32 current = list_current_page(listData, &l);
+        u32 shown = listData->pageScrub ? listData->scrubPage : current;
+        float left, right, cy;
+        list_pager_geometry(listData, &l, x1, x2, y2, &left, &right, &cy);
+        float shownX = pages > 1 ? left + (right - left) * shown / (pages - 1) : left;
+        if(pages > LIST_DOTS_MAX) {
+            // Too many for dots: a bar to drag along, and which of how many.
+            float thumb = (right - left) / pages;
+            thumb = thumb < 14 ? 14 : thumb;
+            screen_fill_round_rect(left - thumb / 2, cy - 2, right - left + thumb, 4, 2, t->palette->border);
+            screen_fill_round_rect(shownX - thumb / 2, cy - 3, thumb, 6, 3, t->accent);
+            char text[16];
+            snprintf(text, sizeof(text), "%lu / %lu", shown + 1, pages);
+            screen_draw_text(text, right + thumb / 2 + 8, cy - widget_text_height(WIDGET_SMALL_SCALE) / 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
+        } else if(pages > 1) {
+            // A dot for each page, the one showing in the accent; a tap goes to one.
+            for(u32 p = 0; p < pages; p++) {
+                screen_fill_circle(left + p * LIST_DOTS_STEP, cy, p == shown ? 3.5f : 2.5f, p == shown ? t->accent : t->palette->border);
+            }
+        }
+
+        if(listData->pageScrub && pages > 1) {
+            // Where the finger will land: the page's number over it.
+            char text[16];
+            snprintf(text, sizeof(text), "%lu", shown + 1);
+            float w = widget_text_width(text, WIDGET_SMALL_SCALE) + 12;
+            float h = widget_text_height(WIDGET_SMALL_SCALE) + 6;
+            float bx = shownX - w / 2;
+            bx = bx < x1 + 2 ? x1 + 2 : bx + w > x2 - 2 ? x2 - 2 - w : bx;
+            screen_fill_round_rect(bx, cy - 10 - h, w, h, t->def->radiusSmall, t->accent);
+            screen_draw_text(text, bx + 6, cy - 10 - h + 3, WIDGET_SMALL_SCALE, t->onAccent);
+        }
+    } else {
+        widget_scrollbar(x2 - 8 - WIDGET_SCROLLBAR_WIDTH, l.y1, l.y2 - l.y1, listData->scrollPos, l.y2 - l.y1, list_total_height(listData, &l));
+    }
+
+    for(int which = LIST_JUMP_TOP; which <= LIST_JUMP_END && listData->jumpAlpha > 0; which++) {
+        float x, y;
+        if(list_jump_rect(listData, &l, which, &x, &y)) {
+            widget_float_button(x, y, LIST_JUMP_SIZE, which == LIST_JUMP_TOP ? ICON_CHEVRON_UP : ICON_CHEVRON_DOWN, listData->jumpAlpha,
+                                listData->jumpTouch == which && listData->jumpTouchOn);
+        }
+    }
+
+    if(list_jump_demo()) {
+        float x, y;
+        list_jump_rect(listData, &l, LIST_JUMP_TOP, &x, &y);
+        coach_anchor("list.jump", x - 3, y - 3, LIST_JUMP_SIZE + 6, 2 * LIST_JUMP_SIZE + 12, false);
+    }
 }
 
 ui_view* list_display(const char* name, const char* info, void* data, void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched),
@@ -809,6 +1155,8 @@ void list_set_mode(ui_view* view, list_mode mode) {
     listData->mode = mode;
     listData->scrollPos = listData->scrollTarget = listData->scrollVelocity = 0;
     listData->scrollGliding = false;
+    // Rows and grid (and a grid's pages) lay it out apart: the selection is shown again.
+    listData->revealPending = true;
 }
 
 list_mode list_get_mode(ui_view* view) {
@@ -964,11 +1312,24 @@ void list_set_long_press(ui_view* view, void (*longPress)(ui_view* view, void* d
 void list_select(ui_view* view, list_item* item) {
     list_data* listData = (list_data*) view->data;
     listData->selectedItem = item;
+    listData->followItem = item != NULL;
     listData->revealPending = true;
+}
+
+bool list_selection_chosen(ui_view* view) {
+    return ((list_data*) view->data)->followItem;
 }
 
 void list_hold(ui_view* view, bool held) {
     ((list_data*) view->data)->held = held;
+}
+
+linked_list* list_get_items(ui_view* view) {
+    return &((list_data*) view->data)->items;
+}
+
+void list_set_side_keys(ui_view* view, bool own) {
+    ((list_data*) view->data)->sideKeys = own;
 }
 
 void list_show_title_bar(ui_view* view) {

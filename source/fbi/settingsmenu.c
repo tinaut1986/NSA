@@ -15,6 +15,7 @@
 #include "../core/bgmusic.h"
 #include "update.h"
 #include "pinpad.h"
+#include "themeedit.h"
 #include "../core/core.h"
 
 // Settings: one list. Options change in place with Left/Right (or A, or a
@@ -22,6 +23,7 @@
 
 typedef enum {
     OPTION_THEME,
+    OPTION_THEME_EDIT,     // The theme editor (themeedit.c).
     OPTION_ACCENT,
     OPTION_NIGHT,
     OPTION_LANGUAGE,
@@ -108,7 +110,7 @@ typedef struct {
 
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
-            ICON_PALETTE, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
+            ICON_PALETTE, ICON_PENCIL, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
             ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
     };
 
@@ -118,6 +120,7 @@ static icon_id settingsmenu_icon(settings_option option) {
 static const char* settingsmenu_label(settings_option option) {
     switch(option) {
         case OPTION_THEME: return _("Theme");
+        case OPTION_THEME_EDIT: return _("Edit the theme");
         case OPTION_ACCENT: return _("Accent colour");
         case OPTION_NIGHT: return _("Night mode");
         case OPTION_LANGUAGE: return _("Language");
@@ -145,7 +148,8 @@ static const char* settingsmenu_on_off(bool on) {
 static const char* settingsmenu_value(settings_option option) {
     settings_data* settings = settings_get();
     switch(option) {
-        case OPTION_THEME: return _(theme_get(settings->theme)->name);
+        // A theme from the SD card has the name its file gives: by content, never cached by address.
+        case OPTION_THEME: return i18n_translate_text(theme_get(settings->theme)->name);
         case OPTION_ACCENT: return _(theme_accent_get(settings->accent)->name);
         case OPTION_NIGHT:
             return settings->night == THEME_NIGHT_ON ? _("On") : settings->night == THEME_NIGHT_AUTO ? _("Automatic") : _("Off");
@@ -196,6 +200,11 @@ static void settingsmenu_change(settings_option option, int direction) {
         case OPTION_THEME:
             settings->theme = settingsmenu_step(settings->theme, theme_count(), step);
             break;
+        case OPTION_THEME_EDIT:
+            if(direction == 0) {
+                themeedit_open();
+            }
+            return;
         case OPTION_ACCENT:
             settings->accent = settingsmenu_step(settings->accent, theme_accent_count(), step);
             break;
@@ -481,7 +490,8 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
 static const char* settingsmenu_help(settings_option option) {
     settings_data* settings = settings_get();
     switch(option) {
-        case OPTION_THEME: return _("How the menus look.");
+        case OPTION_THEME: return _("How the menus look. Your own themes are .json files in /nsa/themes/ on the SD card: they are listed after the others.");
+        case OPTION_THEME_EDIT: return _("Change the theme in use value by value, its colours with a finger, and see it at once. A built-in theme is saved as a new one of your own.");
         case OPTION_ACCENT: return _("The colour of buttons, selections and bars.");
         case OPTION_NIGHT: return _("Dark colours. Automatic: from 20:00 to 8:00.");
         case OPTION_LANGUAGE: return _("Pick NSA's language from a list. System: the console's language when NSA has it, else English.");
@@ -608,6 +618,24 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
         // Theme and language: a sample of the widgets in the current look.
         widget_button(x, y, 120, 28, ICON_CHECK, _("Button"), true);
         widget_progress(x + 132, y + 10, width - 132, 8, 0.64f);
+        if(option == OPTION_THEME) {
+            // Over the sample: whether the theme is one of the SD card's, and the first file in /nsa/themes/ that could
+            // not be read, with why (in English: it is about the file's contents).
+            const char* errors = theme_custom_errors();
+            bool custom = theme_is_custom(settings->theme);
+            float ly = y - (custom && errors[0] != '\0' ? 30 : 16);
+            if(custom) {
+                screen_draw_text(_("From the SD card"), x, ly, WIDGET_SMALL_SCALE, t->palette->textMuted);
+                ly += 14;
+            }
+
+            if(errors[0] != '\0') {
+                char first[160];
+                snprintf(first, sizeof(first), "%s %.*s", _("Not read:"), (int) strcspn(errors, "\n"), errors);
+                widget_text_fit(first, x, ly, WIDGET_SMALL_SCALE, t->palette->danger, width);
+            }
+        }
+
         return;
     }
 
@@ -721,7 +749,7 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
 
         // Where a guided tour finds it (coach.h).
         static const char* const anchors[OPTION_COUNT] = {
-                "settings.theme", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
+                "settings.theme", "settings.theme_edit", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
                 "settings.ftp", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.channel", "settings.auto_update",
                 "settings.check_updates", "settings.changelog", "settings.guide"
         };
@@ -770,6 +798,8 @@ void settingsmenu_open() {
 
     data->press.index = -1;
     data->sliding = -1;
+    // Themes copied to the SD card since NSA started show up.
+    settings_get()->theme = theme_reload_custom(settings_get()->theme);
 
     ui_view* view = ui_create();
     view->name = _("Settings");

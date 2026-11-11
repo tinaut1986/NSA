@@ -49,6 +49,7 @@ start. Merged topic branches are kept on the remote and can be deleted.
 | `release` | The working line. Holds everything below, but "Advanced". |
 | `advanced` | **The risky tools**: Dump NAND as its own screen (space, progress, SHA-256 and a `.sha256`), Pending titles and System save data on the Titles pattern, Advanced's red look. Cut from `release` on 2026-10-31; the owner wants what is about the console's own data merged there first. Keep `release` merged into it (`git merge release`). |
 | `master` | Stable. Moves only by merging `release`. |
+| tag `v0.9.9` | **Stable**, published 2026-11-11 (notes: `docs/release-notes/v0.9.9.md`): lists open at the top and jump arrows (#45), themes of one's own with editors on the console and the web page, HOME's paged grids and sheets pulled down, the Pixel font's digits (#14). |
 | tag `v0.6.2` | **Stable**, published 2026-11-02 (notes: `docs/release-notes/v0.6.2.md`): a steady speed on screen for console to console transfers. |
 | tag `v0.6.1` | **Stable**, published 2026-11-02 (notes: `docs/release-notes/v0.6.1.md`): v0.6.0 plus Remote Install's Save (issue #22). |
 | tag `v0.6.0` | **Beta**, published 2026-11-02 (notes: `docs/release-notes/v0.6.0.md`): download, FTP and web speed (issue #21), titles cache, System details, row chevrons. Promoted with v0.6.1. |
@@ -162,6 +163,104 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [x] Sheets pulled down to close (2026-11-11, `feat/sheet-drag`; issue #14, the last of HOME's mockup). An action sheet
+  (`overlay.c`, every theme; it now has a handle) and a dialog drawn as a sheet (`prompt.c`, a theme with sheetPrompts)
+  follow a finger put on their top (the handle and the header, not the close cross) and the scrim lightens; let go past
+  30% of their height, or flicked down, they are put away as B does (a question takes its last answer: No, Cancel, Keep
+  editing; never one that goes ahead), else they go back up. Claude, 2026-11-11, Azahar (HOME): a title's actions pulled
+  away, the editor's "Save the changes?" pulled away (Keep editing), a short slow pull going back.
+  Second round (the owner on the New 3DS XL: it vanished when let go, and a touch just above the handle closed it):
+  let go low enough, it slides the rest of the way down before it goes (no key counts meanwhile); a touch up to 18 px
+  above its top takes its top too (`fix/sheet-drag-slide`). Claude, Azahar: a tap just above the handle keeps it, a long
+  pull closes it.
+  The owner, 2026-11-11, New 3DS XL (`a92ec4e`): "it works".
+- [ ] Pages of a grid, second round (2026-11-11, `feat/page-scrubber`; the owner: no way to go to a page from the dots,
+  and a bar when there are too many). Under a grid in pages (18 px now): up to 20 pages, dots 12 px apart, a tap on one
+  (or a finger along them) goes to it; more pages, a bar with a thumb and "N / M" beside it, and a finger along it
+  shows a bubble with the page it lands on, gone to when it lifts (first item selected). Switching rows and grid shows the
+  selection again (it went back to the top). The guide's step on HOME says it. Claude, 2026-11-11, Azahar: the Store's 54
+  pages, a drag along the bar (bubble "30", let go at 51), Tickets' 2 dots (a tap on the second), the selection's page
+  after Y Y.
+- [ ] Guide chapter **Your own themes** (2026-11-11, `docs/guide-themes-chapter`, guide 0.13, after Look and sound): Settings
+  -> Edit the theme, Start from, Background opened in the colour picker (anchors `colorpick.square` and `colorpick.hue`),
+  B to leave it as it was, Corners and the rows below it, Save as a new theme, leaving, and the web page's editor. Look and
+  sound keeps one new step (HOME's pages, and that themes have their own chapter). Claude, 2026-11-11, Azahar: played
+  from Settings -> Guide in Spanish, 15 steps, nothing saved.
+- [ ] Theme editor, second round (2026-11-11, `feat/theme-editor-2`; the owner's notes on the first one). **Corners** is one
+  value: 0 made every corner square whatever the other said (`screen_set_square_corners`), so the corners of rows and
+  buttons now follow it (`theme_small_radius`, three quarters, as the built-in themes; a file may still give
+  `radiusSmall`). Left and Right step quickly while held (`keys_hold_repeat`; `keys.c` now reads NSA's input, so remote
+  and guided presses reach the keyboards and keypads too). **Start from** (first row) opens a list of the themes and a
+  **blank template** (`theme_blank`: greys, corners 8); with changes it asks first. A theme of the SD card has **Save
+  the theme** (over its file), **Save as a new theme** and **Delete this theme** (red, `theme_delete_custom`; the first
+  built-in theme is used if it was in use); a built-in one only Save as a new theme. **Accent colour** is a row too (the
+  setting, not part of the theme). Settings' row "Save the theme as a file" is gone (the editor writes files). The web
+  page has the same: Start from with the blank template, one Corners slider, Save / Save as a new theme / Delete
+  (`/api/theme/edit?id=blank`, `/api/theme/save?new=1`, `/api/theme/delete`). Claude, 2026-11-11, Azahar: Left held
+  from 10 to 0 in a second, Start from -> blank with the question, saved as new, Save and Delete shown, deleted (back to
+  Cards); the page: blank, Corners 20 -> 15 on both, save as new, delete; web tests 0 failures.
+- [ ] Theme editor on the web page (2026-11-11, `feat/web-theme-editor`; issue #14). Settings -> Appearance -> **Edit the
+  theme** opens a card: name, the theme to start from, day or night, the ten colours (the browser's colour picker, and
+  the opacity of the veil behind dialogs), corners, outline, font, bars, dialogs, main menu, icon grids, and "Show it
+  on the console" (on by default). The page wears what is edited at once (it stops following the console's theme
+  meanwhile); the console draws it too (`POST /api/theme/preview`, the last of a burst wins). **Save and use** writes it
+  as the console's editor does (`/api/theme/save?editing=`) and puts it in use; Discard, leaving Settings or closing the
+  tab go back to the theme in use. API in `webserver.h`; the body is a theme file's JSON, checked by `themefile_parse`
+  on the web thread, drawn or saved by the main one. `tools/web_tests.py` checks the endpoints (and now accepts a
+  theme from the SD card in /theme.json). Claude, 2026-11-11, Azahar and the built-in browser: a colour changed on the
+  page seen on the console, "Arena" saved with pages sideways and in use on both, web tests 0 failures.
+- [ ] Theme editor on the console (2026-11-11, `feat/theme-editor`; issue #14). Settings -> **Edit the theme**
+  (`themeedit.c`): the theme in use as a list (list.c with `list_set_side_keys`: Left and Right change the selected
+  value, A changes or opens it): its name (keyboard), which palette (day or night: the screens are drawn in that one
+  meanwhile), its ten colours, the corners of cards and of rows, the outline width, font (System, Pixel), progress bars,
+  dialogs (window or sheet), main menu (buttons or tiles), icon grids (scroll or pages), and Save. While it is open
+  everything is drawn with the copy edited (`theme_preview`); the top screen shows a sample (card, rows, button, bar, a
+  dialog on its veil). A colour opens `colorpick.c`: a square of saturation and brightness and a bar of hues (textures
+  of 64x64 drawn larger, so linear filtering makes the gradients), and a bar of opacity for the veil behind dialogs, all
+  for a finger; the D-Pad moves in the square, L/R through the hues, X types #RRGGBB, new over old with its code. A
+  theme from the SD card is saved over its file; a built-in one as a new file named after its name ("HOME 2"), and
+  is then in use. B with changes asks Save / Discard / Keep editing. New guide step (0.13). Claude, 2026-11-11, Azahar:
+  the editor and the picker (Cards and HOME, day and night), a colour changed with a finger seen on both screens, the
+  theme saved as `cards-2.json` and in use, B with changes and Discard.
+- [ ] Icon grids in pages (2026-11-11, `feat/paged-grids`; issue #14): with the HOME theme (`theme_def.pagedGrids`), every
+  list's grid (Titles, Tickets, Ext Save Data, Mods, the Store) is in pages that turn sideways: as many rows as fit,
+  dots under them (or "3 / 51" past 20 pages), no scrollbar and no jump arrows. Up and Down stay in the page; Left and
+  Right go on to the page beside at its edge, on the same row; ZL/ZR to the first and last item. A finger slides the
+  pages and they settle on one (a flick turns one), and the selection comes to the first item of the page turned to.
+  Rows are unchanged. New `SITE SWIPE <x1> <y> <x2> [frames]` for tests. Claude, 2026-11-11, Azahar: the Store's 406
+  apps in 51 pages, the D-Pad across a page edge, swipes both ways, rows afterwards.
+- [ ] Themes from the SD card (2026-11-11, `feat/sd-themes`; issue #14). Each `.json` in `sdmc:/nsa/themes/` is a theme
+  (`themefile.c`: colours of day and night as `#RRGGBB[AA]`, radii, border, font (system/pixel), blockBars, sheetPrompts, menu
+  `grid`/`tiles`, grid `scroll`/`pages`, over a built-in `base`), listed in Settings -> Theme after the built-in ones, by name, saved as
+  `sd:<file>`; Settings reads the folder again each time it opens. A file that cannot be read is left out and the
+  Theme row's top screen says which and why. New row **Save the theme as a file** writes the theme in use as
+  `<name>-N.json` ("<Name> N"), every key, as a start. Format for users: `docs/themes.md`. New guide step (0.13) in
+  Look and sound. Host test `tests/themefile_test.c` (parse, base, errors, write and read back). Claude, 2026-11-11,
+  Azahar: a theme on HOME with its own colours chosen and kept after a restart, a broken file reported, the export
+  (`ocean-2.json`). To try on a console: a file copied over FTP while NSA runs shows when Settings opens again, the web
+  page's theme list, Pixel and HOME as bases, night mode.
+- [ ] Pixel theme: digits and B told apart (2026-11-11, `fix/pixel-font-digits`; issue #14, a user saw the 5 as an S).
+  Baked without anti-aliasing at 10, 12 and 16 px, Pixelify Sans's 5 is an S, its 2 a mirrored S, and B, 8, 6, 9, 3
+  differ by a pixel or two. `tools/make_pixelfont.py` now draws 2, 3, 5, 6, 9 and B (and 8 at 12 and 16 px) by hand
+  (`REDRAWN`), each in the box of the font's own glyph: flat-topped 5 and 3, a 2 with a flat bottom, 6 and 9 open, B
+  square on the left. The atlas in the repository was patched in place (only those cells): rebaking with this PC's
+  Pillow moves pixels in every glyph, as the script now says. Claude, 2026-11-11, Azahar: main menu and Store in Pixel.
+  To see on a console: versions, sizes and dates at the three sizes. The Z too (`fix/pixel-font-z`): the font's looked
+  like its old 2; now a flat top and bottom with a diagonal (seen in Azahar on the Store's Zelda apps).
+- [x] Lists open at the top, and jump to the top or the end (2026-11-11, `fix/list-selection-on-load`; issue #45). The Store
+  (and Titles) "started in the middle": while a list loaded, the selection stayed on the first item listed (a CIA) and
+  followed it wherever the live sort took it. Now `list.c` keeps the selection on its **index** until it is chosen (D-Pad,
+  a touch, A, ZL/ZR, an arrow, `list_select`), and only then follows its item (sorting, deleting); an emptied list starts
+  over. The Store keeps the app by title across a newer catalogue only when it was chosen (`list_selection_chosen`).
+  While a list scrolls (and 1.5 s after), two round arrows float at its bottom right (`widget_float_button`): the top one
+  selects the first item, the bottom one the last; each shows only the way the list can still go, and they fade out.
+  ZL and ZR do the same on a New 3DS. The guide says it (a step of guide version 0.13 in Getting around, on Titles'
+  list; `docs/guide-list-jump`), so whoever updates is offered that chapter again. While that step plays, the list shows
+  both arrows even if it does not scroll, and the guide points at them (`coach_points_at("list.jump")`). Claude, 2026-11-11, Azahar: the Store opens on its first app, the arrows after a
+  drag, the end arrow and ZL. Not tried: a console with many titles (Titles' live sort), the Store's newer catalogue
+  arriving after the copy on the SD, ZR, whether the arrows hide a row's badge too long.
+  The owner, 2026-11-11, New 3DS XL (0.9.8 DEBUG, `a41cbab`, with the guide step that shows the arrows): "it works".
+  Issue #45 is closed when the next stable version comes out.
 - [ ] A .3dsx installed in the HOME Menu (2026-11-10, `feat/forwarder`; issue #46). SD card -> a .3dsx's actions ->
   "Install in the HOME Menu" opens a screen: the top screen shows the banner (drawn from the icon, the name and the
   publisher, or a picture picked with "Choose a picture for the banner", fitted whole on its average colour; "Make the
@@ -989,17 +1088,18 @@ every model, but after the last NCSD partition only zeros come; the dump stops t
 the system wrote since (header and FIRMs equal).
 
 **Pixel theme** (Settings -> Theme, `tools/make_pixelfont.py`)
-- [ ] On a console: the pixel font (Pixelify Sans 10/12/16 px, `romfs/pixelfont.png`) is readable on
+- [x] On a console: the pixel font (Pixelify Sans 10/12/16 px, `romfs/pixelfont.png`) is readable on
       both screens, Spanish accents included (the acute i is built from a dotless i), the button
       glyphs come out of the system font, texts fit in tiles, rows, prompts and the top card; day and
-      night, every accent (the new Yellow gets dark text). Seen only in Azahar.
+      night, every accent (the new Yellow gets dark text). The owner checked it on a console (said 2026-11-11).
 - [ ] Cards is unchanged (same positions as before the text layer was split in two).
 - Bundled font: Pixelify Sans, SIL OFL 1.1 (`tools/fonts/OFL-PixelifySans.txt`). HOME theme next.
 
 **HOME theme** (Settings -> Theme)
-- [ ] On a console: the main menu as four big tiles per row with the name under each (two lines
+- [x] On a console: the main menu as four big tiles per row with the name under each (two lines
       fit), D-Pad moves through the grid, a tap on the name opens too; dialogs rise as a sheet from
-      the bottom (red for Advanced and deletes), day and night, every accent. Seen only in Azahar.
+      the bottom (red for Advanced and deletes), day and night, every accent. The owner checked it on a console
+      (said 2026-11-11).
 - [ ] Not done yet from the mockup: icon grids (Titles, Tickets, Ext Save Data) **in pages with dots**
       (they still scroll), and the sheet's drag-to-dismiss (it has the handle only).
 
@@ -1478,8 +1578,9 @@ current, this list is the summary. What only the owner can test (local wireless)
    the result to a file the FTP server can fetch, since Azahar cannot answer it.
 5. **Themes "Pixel" and "HOME" (both built, see Pending tests; HOME lacks paged grids)** (mockups were shown and liked): HOME = big icon tiles
    in pages, modals as a sheet from the bottom; Pixel = bundled pixel font (OFL), square
-   corners, thick borders, block progress bars, yellow highlight. Then **themes from the
-   SD card** (`sdmc:/nsa/themes/`), data only.
+   corners, thick borders, block progress bars, yellow highlight. Then ~~**themes from the
+   SD card**~~ done (2026-11-11, `feat/sd-themes`, see Pending tests and `docs/themes.md`). Left: HOME's icon grids in
+   pages that turn sideways (done, `feat/paged-grids`), and dragging a sheet down to close it (done, `feat/sheet-drag`).
 6. ~~**NSA icon and banner**~~ done (the boot logo and the banner sound are left in issue #15). It was: still FBI's. Ask the owner for a
    direction first.
 7. **Top-screen information**: the owner wants to restructure what the top screen shows
@@ -1598,8 +1699,8 @@ current, this list is the summary. What only the owner can test (local wireless)
   marks it `ready`; the screen draws grey blocks until then, fades the contents in,
   sorts as items become ready (ready first, the rest by ID) and shows loaded/total in the
   title bar (`list_set_progress`). The loader goes over the list until none is missing,
-  because the screen reorders it meanwhile. The list keeps the selected row where it was
-  on screen when items move (`list_validate`), and `list_rebuild_visible` never writes past
+  because the screen reorders it meanwhile. Until the user chooses an item the selection keeps its index (the
+  top), then the list keeps the selected row where it was on screen when items move (`list_validate`, issue #45), and `list_rebuild_visible` never writes past
   its array (a populate task adds items concurrently: that was a crash).
 - A press (and its long-press fill) follows the item it began on, not its index.
 - Filters, sort and view of Titles, Tickets, Files and Ext Save Data are stored in

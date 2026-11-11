@@ -75,9 +75,16 @@ void list_set_search(ui_view* view, const char* text);
 const char* list_get_search(ui_view* view);
 // Selects an item and scrolls it into view.
 void list_select(ui_view* view, list_item* item);
+// Whether the selection was chosen (moved to, touched, A, list_select) and so follows its item when the list changes;
+// until then it stays on its index (the top), whatever loading and sorting bring there.
+bool list_selection_chosen(ui_view* view);
 // While held, D-Pad, A and taps on items do nothing (the screen's update still runs):
 // for a selection still to come, so a press does not land on the wrong item.
 void list_hold(ui_view* view, bool held);
+// Rows leave Left and Right to the screen (a value to change) instead of turning a page with them.
+void list_set_side_keys(ui_view* view, bool own);
+// The list's items (the same the screen's update gets), for a screen that closes from a dialog's answer.
+linked_list* list_get_items(ui_view* view);
 // While items load (`loading`), the title bar shows how many of `items` are `ready` of how many; once loaded, the count.
 // Returns how many are ready (0 once loaded).
 u32 list_count_progress(ui_view* view, linked_list* items, bool loading, bool (*ready)(list_item* item));

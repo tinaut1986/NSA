@@ -88,6 +88,8 @@ it in WSL from the repo with `./tools/bin/makerom`; check the TMD's title versio
 - `source/core/theme.c`: themes (palettes for day and night, radii, borders, menu layout),
   accent colours and night mode. Widgets (`source/core/ui/widgets.c`) draw everything
   through the theme; never hard-code a colour in a screen.
+  Themes from the SD card (`sdmc:/nsa/themes/*.json`, data only) are read by `source/core/themefile.c`; the format
+  is in `docs/themes.md`.
 - `source/core/i18n.c`: every user-facing string goes through `_("English")` (literals
   only: lookups are cached by address) or, for text that may be built at run time,
   `i18n_translate_text` (by content, never cached; the dialogs and lists already do it).
@@ -137,7 +139,7 @@ turn it off; DEBUG builds ignore it):
 `SITE SCREENSHOT` (both screens to `/nsa/screenshots/top.bmp` and `bottom.bmp`),
 `SITE PRESS <A|B|X|Y|L|R|ZL|ZR|START|SELECT|UP|DOWN|LEFT|RIGHT>[+...] [frames]`,
 `SITE TAP <x> <y> [frames]` (bottom screen), `SITE DRAG <x> <y1> <y2> [frames]` (a finger sliding
-from y1 to y2, to scroll). For example:
+from y1 to y2, to scroll), `SITE SWIPE <x1> <y> <x2> [frames]` (sideways: a grid's pages). For example:
 `curl -Q "SITE PRESS DOWN" ftp://IP:5021/`.
 
 To look at the real console, wait a few seconds after `SITE SCREENSHOT` (it answers

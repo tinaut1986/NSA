@@ -162,7 +162,7 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- [ ] Sheets pulled down to close (2026-11-11, `feat/sheet-drag`; issue #14, the last of HOME's mockup). An action sheet
+- [x] Sheets pulled down to close (2026-11-11, `feat/sheet-drag`; issue #14, the last of HOME's mockup). An action sheet
   (`overlay.c`, every theme; it now has a handle) and a dialog drawn as a sheet (`prompt.c`, a theme with sheetPrompts)
   follow a finger put on their top (the handle and the header, not the close cross) and the scrim lightens; let go past
   30% of their height, or flicked down, they are put away as B does (a question takes its last answer: No, Cancel, Keep
@@ -172,6 +172,7 @@ What `release` holds, in the order it was built:
   let go low enough, it slides the rest of the way down before it goes (no key counts meanwhile); a touch up to 18 px
   above its top takes its top too (`fix/sheet-drag-slide`). Claude, Azahar: a tap just above the handle keeps it, a long
   pull closes it.
+  The owner, 2026-11-11, New 3DS XL (`a92ec4e`): "it works".
 - [ ] Pages of a grid, second round (2026-11-11, `feat/page-scrubber`; the owner: no way to go to a page from the dots,
   and a bar when there are too many). Under a grid in pages (18 px now): up to 20 pages, dots 12 px apart, a tap on one
   (or a finger along them) goes to it; more pages, a bar with a thumb and "N / M" beside it, and a finger along it

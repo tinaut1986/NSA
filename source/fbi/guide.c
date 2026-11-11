@@ -165,6 +165,7 @@ static const coach_step computer_steps[] = {
 static const coach_step look_steps[] = {
         OPEN("menu.settings", "Open Settings.", "v:Settings"),
         INFO("settings.theme", "Three themes: Cards, Pixel and HOME. Left and Right change an option."),
+        INFO_SINCE(GUIDE_VERSION(0, 13), "settings.theme", "Your own themes too: .json files in /nsa/themes/ on the SD card, listed after these. The row below saves the theme in use there, to start from."),
         INFO("settings.accent", "The colour of buttons and selections."),
         INFO("settings.night", "Dark colours, by hand or from 20:00 to 8:00."),
         INFO("settings.language", "NSA speaks 11 languages. System follows the console's own."),

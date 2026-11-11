@@ -63,9 +63,20 @@ typedef struct {
     bool night;
 } theme_current;
 
+// The built-in themes, then those from the SD card (themefile.h), by name.
 u32 theme_count();
 const theme_def* theme_get(u32 index);
 u32 theme_find(const char* id);
+// Themes from sdmc:/nsa/themes/: read when settings are loaded (theme_load_custom) and again by Settings.
+void theme_load_custom();
+bool theme_is_custom(u32 index);
+u32 theme_custom_count();
+// The files that could not be read, one per line ("name.json: why"); "" when none.
+const char* theme_custom_errors();
+// Reads the folder again; returns where the theme at `selected` is now (the first when it went away).
+u32 theme_reload_custom(u32 selected);
+// Writes the theme at `index` to sdmc:/nsa/themes/<name>-N.json, named "<Name> N"; `path` gets the file.
+bool theme_export(u32 index, char* path, size_t pathSize);
 
 u32 theme_accent_count();
 const theme_accent* theme_accent_get(u32 index);

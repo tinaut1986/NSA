@@ -2398,7 +2398,8 @@ static void store_fill(store_data* store, ui_view* view, linked_list* items, con
 // A catalogue from the loading thread: the first one (the copy on the SD card) or a newer one from the server.
 static void store_take(store_data* store, ui_view* view, linked_list* items, list_item* selected) {
     char keep[80] = "";
-    if(selected != NULL) {
+    // Only an app the user chose: an untouched selection stays at the top of the new catalogue.
+    if(selected != NULL && list_selection_chosen(view)) {
         string_copy(keep, store_of(selected)->title, sizeof(keep));
     }
 

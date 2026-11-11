@@ -75,6 +75,9 @@ void list_set_search(ui_view* view, const char* text);
 const char* list_get_search(ui_view* view);
 // Selects an item and scrolls it into view.
 void list_select(ui_view* view, list_item* item);
+// Whether the selection was chosen (moved to, touched, A, list_select) and so follows its item when the list changes;
+// until then it stays on its index (the top), whatever loading and sorting bring there.
+bool list_selection_chosen(ui_view* view);
 // While held, D-Pad, A and taps on items do nothing (the screen's update still runs):
 // for a selection still to come, so a press does not land on the wrong item.
 void list_hold(ui_view* view, bool held);

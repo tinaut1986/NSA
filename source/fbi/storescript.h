@@ -6,8 +6,10 @@
 // files, take what is needed out of a .zip or .7z, install the CIAs, move and delete. Only these steps, downloads first:
 // downloadFile, extractFile, installCia, deleteFile and move.
 //
-// Safety: a script may only write under the SD card's own folders (never /luma, /boot.firm, /Nintendo 3DS or NSA's
-// /nsa), and may only delete, move or install what it wrote itself. Anything else and the Store does not offer that file.
+// Safety: a script never writes to /Nintendo 3DS or NSA's /nsa, and may only delete, move or install what it wrote
+// itself; anything else and the Store does not offer that file. Where the console starts from (boot.firm, every .firm)
+// and Luma's, GodMode9's and /private's folders (but a game's /luma/titles/<id> and /luma/plugins) it writes only after
+// a warning the user says yes to.
 
 // Whether NSA can run `script` (the JSON array of steps).
 bool storescript_supported(json_t* script);

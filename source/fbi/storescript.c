@@ -35,6 +35,7 @@ typedef enum {
 typedef struct {
     u8 type;
     bool prerelease;   // STEP_RELEASE: the newest release, even a pre-release.
+    bool sensitive;    // It writes where the user is warned first (script_sensitive).
     u16 count;
     char a[DOWNLOAD_URL_MAX];
     char b[SCRIPT_PATH_MAX];
@@ -65,6 +66,8 @@ typedef struct {
     // What it wrote, the only things it may delete or move.
     char created[SCRIPT_CREATED_MAX][SCRIPT_PATH_MAX];
     u32 createdCount;
+
+    bool sensitive;     // A step writes where the user is warned first; after the warning an extraction may too.
 } script_run;
 
 // ---- reading a script ----
@@ -156,18 +159,27 @@ static bool script_under(const char* path, const char* folder) {
     return strncasecmp(path, folder, len) == 0 && (path[len] == '\0' || path[len] == '/');
 }
 
-// Where a script may write: not where the console starts from, not its system data, not NSA's own. Of /luma, only a
-// game's own folder in /luma/titles (its mods, which Luma loads into that game alone) and /luma/plugins (the .3gx
-// plugins Luma's plugin loader offers, such as Vapecord's).
-static bool script_writable(const char* path) {
+// Where a script may never write: the console's own data (/Nintendo 3DS) and NSA's (/nsa).
+static bool script_forbidden(const char* path) {
+    return script_under(path, "/Nintendo 3DS") || script_under(path, "/nsa");
+}
+
+// Where a script may write only once the user has been warned (script_warn): what the console starts from (boot.firm,
+// the payloads: every .firm), Luma's folders (its system modules and patches), GodMode9's and /private. Of /luma, a
+// game's own folder in /luma/titles (its mods, which Luma loads into that game alone) and /luma/plugins (the .3gx plugins
+// Luma's plugin loader offers, such as Vapecord's) need no warning.
+static bool script_sensitive(const char* path) {
     if(script_under(path, "/luma")) {
-        return (script_under(path, "/luma/titles") && strlen(path) > strlen("/luma/titles/")) || script_under(path, "/luma/plugins");
+        return !((script_under(path, "/luma/titles") && strlen(path) > strlen("/luma/titles/")) || script_under(path, "/luma/plugins"));
     }
 
     size_t len = strlen(path);
-    bool firm = len >= 5 && strcasecmp(path + len - 5, ".firm") == 0;
-    return !firm && !script_under(path, "/Nintendo 3DS")
-           && !script_under(path, "/nsa") && !script_under(path, "/gm9") && !script_under(path, "/private");
+    return (len >= 5 && strcasecmp(path + len - 5, ".firm") == 0) || script_under(path, "/gm9") || script_under(path, "/private");
+}
+
+// Where a script may write without a warning.
+static bool script_writable(const char* path) {
+    return !script_forbidden(path) && !script_sensitive(path);
 }
 
 // A folder a script may delete with everything in it (the user is asked first): one it may write to, and not a folder of
@@ -239,7 +251,7 @@ static bool script_parse(json_t* script, script_step* steps, u32* count) {
 
             s->type = STEP_DOWNLOAD;
             string_copy(s->a, url, sizeof(s->a));
-            if(!script_resolve(script_str(step, "output"), s->b, sizeof(s->b)) || !script_writable(s->b)) {
+            if(!script_resolve(script_str(step, "output"), s->b, sizeof(s->b)) || script_forbidden(s->b)) {
                 return false;
             }
 
@@ -256,7 +268,7 @@ static bool script_parse(json_t* script, script_step* steps, u32* count) {
             string_copy(s->a, repo, sizeof(s->a));
             string_copy(s->c, file, sizeof(s->c));
             s->prerelease = json_is_true(json_object_get(step, "includePrereleases"));
-            if(!script_resolve(script_str(step, "output"), s->b, sizeof(s->b)) || !script_writable(s->b)) {
+            if(!script_resolve(script_str(step, "output"), s->b, sizeof(s->b)) || script_forbidden(s->b)) {
                 return false;
             }
 
@@ -264,7 +276,7 @@ static bool script_parse(json_t* script, script_step* steps, u32* count) {
         } else if(strcmp(type, "extractFile") == 0) {
             const char* input = script_str(step, "input");
             if(input == NULL || strlen(input) >= sizeof(s->b) || !script_resolve(script_str(step, "file"), s->a, sizeof(s->a))
-               || !script_resolve_folder(script_str(step, "output"), s->c, sizeof(s->c)) || !script_writable(s->c)
+               || !script_resolve_folder(script_str(step, "output"), s->c, sizeof(s->c)) || script_forbidden(s->c)
                || !script_made_before(steps, *count, s->a)) {
                 return false;
             }
@@ -285,13 +297,13 @@ static bool script_parse(json_t* script, script_step* steps, u32* count) {
             s->type = STEP_DELETE;
         } else if(strcmp(type, "move") == 0) {
             if(!script_resolve(script_str(step, "old"), s->a, sizeof(s->a)) || !script_made_before(steps, *count, s->a)
-               || !script_resolve(script_str(step, "new"), s->b, sizeof(s->b)) || !script_writable(s->b)) {
+               || !script_resolve(script_str(step, "new"), s->b, sizeof(s->b)) || script_forbidden(s->b)) {
                 return false;
             }
 
             s->type = STEP_MOVE;
         } else if(strcmp(type, "mkdir") == 0) {
-            if(!script_resolve(script_str(step, "directory"), s->b, sizeof(s->b)) || !script_writable(s->b)) {
+            if(!script_resolve(script_str(step, "directory"), s->b, sizeof(s->b)) || script_forbidden(s->b)) {
                 return false;
             }
 
@@ -318,6 +330,12 @@ static bool script_parse(json_t* script, script_step* steps, u32* count) {
             s->type = STEP_SKIP;
         } else {
             return false;
+        }
+
+        if(s->type == STEP_EXTRACT) {
+            s->sensitive = script_sensitive(s->c);
+        } else if(s->type == STEP_DOWNLOAD || s->type == STEP_RELEASE || s->type == STEP_MOVE || s->type == STEP_MKDIR) {
+            s->sensitive = script_sensitive(s->b);
         }
 
         (*count)++;
@@ -431,9 +449,11 @@ static void script_extracted(void* userData, const char* sdPath) {
 }
 
 // Each file an archive would put on the card goes only where a script may write ("sdmc:/Nintendo 3DS/..." from a pack
-// extracted to the root is refused, and the extraction with it).
+// extracted to the root is refused, and the extraction with it); where script_sensitive says, only in a run the user was
+// warned about.
 static bool script_extract_allowed(void* userData, const char* sdPath) {
-    return script_writable(strncmp(sdPath, "sdmc:", 5) == 0 ? sdPath + 5 : sdPath);
+    const char* path = strncmp(sdPath, "sdmc:", 5) == 0 ? sdPath + 5 : sdPath;
+    return !script_forbidden(path) && (((script_run*) userData)->sensitive || !script_sensitive(path));
 }
 
 static void script_finish(script_run* run, bool ok) {
@@ -819,10 +839,71 @@ static void script_next(script_run* run) {
     script_end(run);
 }
 
+static void script_warning_answered(ui_view* view, void* data, u32 response) {
+    script_run* run = (script_run*) data;
+    if(response != PROMPT_YES) {
+        script_finish(run, false);
+        return;
+    }
+
+    script_next(run);
+}
+
+static const char* script_step_target(const script_step* s) {
+    return s->type == STEP_EXTRACT ? s->c : s->b;
+}
+
+// Before a script that writes where the console starts from or where Luma keeps its system files: where (a few of the
+// places, once each), and what a bad file there can do.
+static void script_warn(script_run* run) {
+    char list[640] = "";
+    size_t used = 0;
+    u32 more = 0;
+    for(u32 i = 0; i < run->count; i++) {
+        const script_step* s = &run->steps[i];
+        if(!s->sensitive) {
+            continue;
+        }
+
+        const char* path = script_step_target(s);
+        bool seen = false;
+        for(u32 j = 0; j < i && !seen; j++) {
+            seen = run->steps[j].sensitive && strcasecmp(script_step_target(&run->steps[j]), path) == 0;
+        }
+
+        if(seen) {
+            continue;
+        }
+
+        if(used < 400 && used + strlen(path) + 2 < sizeof(list)) {
+            used += snprintf(list + used, sizeof(list) - used, "%s%s", used > 0 ? "\n" : "", path);
+        } else {
+            more++;
+        }
+    }
+
+    char extra[64] = "";
+    if(more > 0) {
+        extra[0] = '\n';
+        snprintf(extra + 1, sizeof(extra) - 1, _("and %lu more"), (unsigned long) more);
+    }
+
+    static char text[1024];
+    snprintf(text, sizeof(text),
+             _("Careful: this writes to protected places on the SD card, where the console starts from or where Luma keeps its system files:\n\n%s%s\n\nA wrong or broken file there can stop the console from starting. Go on only if you trust it.\n\nContinue?"),
+             list, extra);
+    prompt_display_warning("Confirmation", text, COLOR_TEXT, run, NULL, script_warning_answered);
+}
+
 static void script_question_answered(ui_view* view, void* data, u32 response) {
     script_run* run = (script_run*) data;
     if(response != PROMPT_YES) {
         script_finish(run, false);
+        return;
+    }
+
+    if(run->sensitive) {
+        script_warn(run);
         return;
     }
 
@@ -847,6 +928,10 @@ void storescript_run(const char* scriptText, const char* question, void* userDat
     json_decref(script);
     run->userData = userData;
     run->done = done;
+    for(u32 i = 0; i < run->count; i++) {
+        run->sensitive |= run->steps[i].sensitive;
+    }
+
     run->progress.cancel = &run->cancel;
     run->progress.userData = run;
     run->progress.created = script_extracted;

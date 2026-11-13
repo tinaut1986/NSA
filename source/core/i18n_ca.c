@@ -1126,6 +1126,7 @@ const i18n_entry i18n_ca[] = {
         {"Looking for the latest release...", "S'està cercant l'última versió..."},
         {"Failed to find the release's file.", "No s'ha trobat el fitxer de la versió."},
         {"Delete this folder and everything in it?\n\n%s", "Vols esborrar aquesta carpeta i tot el que conté?\n\n%s"},
+        {"Careful: this writes to protected places on the SD card, where the console starts from or where Luma keeps its system files:\n\n%s%s\n\nA wrong or broken file there can stop the console from starting. Go on only if you trust it.\n\nContinue?", "Compte: això escriu en zones protegides de la SD, des d'on arrenca la consola o on Luma desa els seus fitxers de sistema:\n\n%s%s\n\nUn fitxer erroni o malmès allà pot impedir que la consola arrenqui. Continua només si hi confies.\n\nVols continuar?"},
         {"Game mods", "Mods de jocs"},
         {"Mods in /luma/titles (LayeredFS): see which games are no longer installed and delete their mods.", "Mods a /luma/titles (LayeredFS): mira quins jocs ja no estan instal·lats i esborra'n els mods."},
         {"LayeredFS in /luma/titles", "LayeredFS a /luma/titles"},

@@ -1126,6 +1126,8 @@ const i18n_entry i18n_ca[] = {
         {"Looking for the latest release...", "S'està cercant l'última versió..."},
         {"Failed to find the release's file.", "No s'ha trobat el fitxer de la versió."},
         {"Delete this folder and everything in it?\n\n%s", "Vols esborrar aquesta carpeta i tot el que conté?\n\n%s"},
+        {"This downloads over plain http, without encryption, from:\n\n%s\n\nSomeone on the same network could change the file on its way. Go on only if you trust the network.\n\nContinue?", "Això descarrega per http normal, sense xifrar, des de:\n\n%s\n\nAlgú a la mateixa xarxa podria canviar el fitxer pel camí. Continua només si confies en la xarxa.\n\nVols continuar?"},
+        {"The store has nothing to download for %s: it lists the app, but no files.", "La botiga no té res a descarregar per a %s: mostra l'app, però sense fitxers."},
         {"Careful: this writes to protected places on the SD card, where the console starts from or where Luma keeps its system files:\n\n%s%s\n\nA wrong or broken file there can stop the console from starting. Go on only if you trust it.\n\nContinue?", "Compte: això escriu en zones protegides de la SD, des d'on arrenca la consola o on Luma desa els seus fitxers de sistema:\n\n%s%s\n\nUn fitxer erroni o malmès allà pot impedir que la consola arrenqui. Continua només si hi confies.\n\nVols continuar?"},
         {"Game mods", "Mods de jocs"},
         {"Mods in /luma/titles (LayeredFS): see which games are no longer installed and delete their mods.", "Mods a /luma/titles (LayeredFS): mira quins jocs ja no estan instal·lats i esborra'n els mods."},

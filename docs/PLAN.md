@@ -163,14 +163,19 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- [ ] Store: protected places after a warning (2026-11-13, `feat/store-sensitive-writes`, `source/fbi/storescript.c`).
-  Scripts that write to boot.firm or any .firm, to /luma (but a game's /luma/titles/<id> and /luma/plugins), /gm9 or
-  /private are no longer left out: after the usual question a red warning lists where (up to a few paths, "and N more")
-  and says a bad file there can stop the console from starting; No stops before anything is downloaded. Only
-  /Nintendo 3DS and /nsa stay refused. Universal-DB then lists 441 of its 448 apps (427 before; the 7 left: two over
-  plain http, five with nothing to download). An extraction to the SD root in a run without the warning still refuses
-  files in those places. Try: Luma3DS or GodMode9 in the Store (warning, No; then Yes on a card you can restore), a
-  CTRPluginFramework plugin (extracts to /luma), and an ordinary .3dsx (no warning).
+- [ ] Store: every app and step as in Universal-Updater (2026-11-13, `feat/store-sensitive-writes`,
+  `source/fbi/storescript.c`). Universal-DB now lists all its 448 apps (427 before). Scripts that write to or delete from
+  boot.firm or any .firm, /luma (but a game's /luma/titles/<id> and /luma/plugins), /gm9 or /private get, after the usual
+  question, a red warning listing where (a few paths, "and N more") and saying a bad file there can stop the console from
+  starting. Downloads over plain http are allowed with a second warning naming the servers (a plain CIA over http goes
+  through the script, so it gets it too). Scripts may now delete, move, extract and install files they did not download
+  (Shut The Cam Up's "Remove the patch"), need no download at all (the Ukrainian translation's removal: rmdir only), may
+  delete any folder (asked each time) and have up to 64 steps; new steps `copy` (source/destination or old/new) and
+  `exit`; `bootTitle` is taken as done without starting the title. Only /Nintendo 3DS and /nsa stay refused. The five
+  entries with no file in Universal-DB (Monty Hall DS, 3DS-linux-installer, snemulds, toolchaingenericds-multimediaplayer,
+  emerald-online-3ds) show among the "others" and say there is nothing to download. Store cache format 8 -> 9 (rebuilt
+  once). Try: Luma3DS or GodMode9 (warning, No; then Yes on a card you can restore), TasmanQuest (http warning), a
+  CTRPluginFramework plugin, Shut The Cam Up's remove, an empty entry, an ordinary .3dsx (no warning).
 - [ ] Changelog in pages and in every language (2026-11-11, `feat/changelog-pages`). Settings -> Changelog no longer
   downloads the last 100 releases of GitHub's API: it reads `https://tinaut1986.github.io/NSA/changelog/<code>/<n>.json`
   (10 releases a page, in the interface language; English if that language has no pages, a 404) and asks for the next

@@ -1118,6 +1118,8 @@ const i18n_entry i18n_zh[] = {
         {"Looking for the latest release...", "正在查找最新版本..."},
         {"Failed to find the release's file.", "找不到该版本的文件。"},
         {"Delete this folder and everything in it?\n\n%s", "删除此文件夹及其中的所有内容吗？\n\n%s"},
+        {"This downloads over plain http, without encryption, from:\n\n%s\n\nSomeone on the same network could change the file on its way. Go on only if you trust the network.\n\nContinue?", "此操作通过未加密的普通 http 下载，来源：\n\n%s\n\n同一网络中的人可能会在传输途中篡改文件。仅在你信任该网络时继续。\n\n要继续吗？"},
+        {"The store has nothing to download for %s: it lists the app, but no files.", "商店没有可为 %s 下载的内容：列出了该应用，但没有文件。"},
         {"Careful: this writes to protected places on the SD card, where the console starts from or where Luma keeps its system files:\n\n%s%s\n\nA wrong or broken file there can stop the console from starting. Go on only if you trust it.\n\nContinue?", "注意：此操作会写入 SD 卡的受保护位置，即主机启动所用的位置或 Luma 存放系统文件的位置：\n\n%s%s\n\n那里的文件出错或损坏可能导致主机无法启动。仅在你信任它时继续。\n\n要继续吗？"},
         {"Game mods", "游戏MOD"},
         {"Mods in /luma/titles (LayeredFS): see which games are no longer installed and delete their mods.", "/luma/titles 中的MOD（LayeredFS）：查看哪些游戏已不再安装，并删除其MOD。"},

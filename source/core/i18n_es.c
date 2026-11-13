@@ -1148,6 +1148,8 @@ const i18n_entry i18n_es[] = {
         {"Looking for the latest release...", "Buscando la última versión..."},
         {"Failed to find the release's file.", "No se ha encontrado el archivo de la versión."},
         {"Delete this folder and everything in it?\n\n%s", "¿Borrar esta carpeta y todo lo que contiene?\n\n%s"},
+        {"This downloads over plain http, without encryption, from:\n\n%s\n\nSomeone on the same network could change the file on its way. Go on only if you trust the network.\n\nContinue?", "Esto descarga por http normal, sin cifrar, desde:\n\n%s\n\nAlguien en la misma red podría cambiar el archivo por el camino. Sigue solo si confías en la red.\n\n¿Continuar?"},
+        {"The store has nothing to download for %s: it lists the app, but no files.", "La tienda no tiene nada que descargar para %s: muestra la app, pero sin archivos."},
         {"Careful: this writes to protected places on the SD card, where the console starts from or where Luma keeps its system files:\n\n%s%s\n\nA wrong or broken file there can stop the console from starting. Go on only if you trust it.\n\nContinue?", "Cuidado: esto escribe en zonas protegidas de la SD, desde donde arranca la consola o donde Luma guarda sus archivos de sistema:\n\n%s%s\n\nUn archivo erróneo o dañado ahí puede impedir que la consola arranque. Sigue solo si confías en él.\n\n¿Continuar?"},
         {"Game mods", "Mods de juegos"},
         {"Mods in /luma/titles (LayeredFS): see which games are no longer installed and delete their mods.", "Mods en /luma/titles (LayeredFS): mira qué juegos ya no están instalados y borra sus mods."},

@@ -14,7 +14,7 @@
 #include "../core/speedlog.h"
 #include "../core/unarchive.h"
 
-#define SCRIPT_STEPS_MAX 40
+#define SCRIPT_STEPS_MAX 64
 #define SCRIPT_PATH_MAX 256
 #define SCRIPT_CREATED_MAX 64
 #define SCRIPT_RELEASES_MAX (512 * 1024)
@@ -29,13 +29,17 @@ typedef enum {
     STEP_MKDIR,      // b: the folder.
     STEP_RMDIR,      // b: the folder (deleted with everything in it, once the user says yes).
     STEP_PROMPT,     // a: the message; a No skips `count` steps (0: stops the script).
-    STEP_SKIP        // Skips `count` steps (after a prompt's Yes, the steps for its No).
+    STEP_SKIP,       // Skips `count` steps (after a prompt's Yes, the steps for its No).
+    STEP_COPY,       // a: from, b: to.
+    STEP_EXIT,       // Ends the script there, as if it had reached its end.
+    STEP_NONE        // A step NSA takes as done without doing anything (bootTitle: the title is not started).
 } script_step_type;
 
 typedef struct {
     u8 type;
     bool prerelease;   // STEP_RELEASE: the newest release, even a pre-release.
     bool sensitive;    // It writes where the user is warned first (script_sensitive).
+    bool insecure;     // STEP_DOWNLOAD: over plain http (the user is warned first).
     u16 count;
     char a[DOWNLOAD_URL_MAX];
     char b[SCRIPT_PATH_MAX];
@@ -68,6 +72,9 @@ typedef struct {
     u32 createdCount;
 
     bool sensitive;     // A step writes where the user is warned first; after the warning an extraction may too.
+    bool insecure;      // A download is over plain http.
+    bool warnedSensitive;
+    bool warnedInsecure;
 } script_run;
 
 // ---- reading a script ----
@@ -177,38 +184,10 @@ static bool script_sensitive(const char* path) {
     return (len >= 5 && strcasecmp(path + len - 5, ".firm") == 0) || script_under(path, "/gm9") || script_under(path, "/private");
 }
 
-// Where a script may write without a warning.
-static bool script_writable(const char* path) {
-    return !script_forbidden(path) && !script_sensitive(path);
-}
-
-// A folder a script may delete with everything in it (the user is asked first): one it may write to, and not a folder of
-// the card's root such as /3ds or /roms, nor /luma/titles or /luma/plugins themselves (every game's, every plugin).
+// A folder a script may delete with everything in it, as in Universal-Updater (the user is asked first, and warned in a
+// protected place): any but where a script may never write.
 static bool script_removable(const char* path) {
-    if(!script_writable(path) || strcasecmp(path, "/luma/plugins") == 0) {
-        return false;
-    }
-
-    const char* second = strchr(path + 1, '/');
-    return second != NULL && second[1] != '\0';
-}
-
-// Whether `path` is something the script wrote before step `upTo`.
-static bool script_made_before(const script_step* steps, u32 upTo, const char* path) {
-    for(u32 i = 0; i < upTo; i++) {
-        const script_step* s = &steps[i];
-        if((s->type == STEP_DOWNLOAD || s->type == STEP_RELEASE || s->type == STEP_MOVE) && strcasecmp(s->b, path) == 0) {
-            return true;
-        }
-
-        // An extract writes its output, or a whole folder under it.
-        if(s->type == STEP_EXTRACT && (strcasecmp(s->c, path) == 0 || (s->c[strlen(s->c) - 1] == '/' && strncasecmp(s->c, path, strlen(s->c)) == 0)
-                                       || script_under(path, s->c))) {
-            return true;
-        }
-    }
-
-    return false;
+    return !script_forbidden(path);
 }
 
 static bool script_count(json_t* step, u16* out) {
@@ -232,7 +211,6 @@ static bool script_parse(json_t* script, script_step* steps, u32* count) {
     }
 
     *count = 0;
-    u32 downloads = 0;
     size_t index;
     json_t* step;
     json_array_foreach(script, index, step) {
@@ -245,17 +223,17 @@ static bool script_parse(json_t* script, script_step* steps, u32* count) {
         memset(s, 0, sizeof(*s));
         if(strcmp(type, "downloadFile") == 0) {
             const char* url = script_str(step, "file");
-            if(url == NULL || strncmp(url, "https://", 8) != 0 || strlen(url) >= sizeof(s->a)) {
+            if(url == NULL || (strncmp(url, "https://", 8) != 0 && strncmp(url, "http://", 7) != 0) || strlen(url) >= sizeof(s->a)) {
                 return false;
             }
 
             s->type = STEP_DOWNLOAD;
+            s->insecure = strncmp(url, "http://", 7) == 0;
             string_copy(s->a, url, sizeof(s->a));
             if(!script_resolve(script_str(step, "output"), s->b, sizeof(s->b)) || script_forbidden(s->b)) {
                 return false;
             }
 
-            downloads++;
         } else if(strcmp(type, "downloadRelease") == 0) {
             const char* repo = script_str(step, "repo");
             const char* file = script_str(step, "file");
@@ -272,31 +250,29 @@ static bool script_parse(json_t* script, script_step* steps, u32* count) {
                 return false;
             }
 
-            downloads++;
         } else if(strcmp(type, "extractFile") == 0) {
             const char* input = script_str(step, "input");
             if(input == NULL || strlen(input) >= sizeof(s->b) || !script_resolve(script_str(step, "file"), s->a, sizeof(s->a))
-               || !script_resolve_folder(script_str(step, "output"), s->c, sizeof(s->c)) || script_forbidden(s->c)
-               || !script_made_before(steps, *count, s->a)) {
+               || !script_resolve_folder(script_str(step, "output"), s->c, sizeof(s->c)) || script_forbidden(s->c)) {
                 return false;
             }
 
             s->type = STEP_EXTRACT;
             string_copy(s->b, input, sizeof(s->b));
         } else if(strcmp(type, "installCia") == 0) {
-            if(!script_resolve(script_str(step, "file"), s->a, sizeof(s->a)) || !script_made_before(steps, *count, s->a)) {
+            if(!script_resolve(script_str(step, "file"), s->a, sizeof(s->a))) {
                 return false;
             }
 
             s->type = STEP_INSTALL;
         } else if(strcmp(type, "deleteFile") == 0) {
-            if(!script_resolve(script_str(step, "file"), s->a, sizeof(s->a)) || !script_made_before(steps, *count, s->a)) {
+            if(!script_resolve(script_str(step, "file"), s->a, sizeof(s->a)) || script_forbidden(s->a)) {
                 return false;
             }
 
             s->type = STEP_DELETE;
         } else if(strcmp(type, "move") == 0) {
-            if(!script_resolve(script_str(step, "old"), s->a, sizeof(s->a)) || !script_made_before(steps, *count, s->a)
+            if(!script_resolve(script_str(step, "old"), s->a, sizeof(s->a)) || script_forbidden(s->a)
                || !script_resolve(script_str(step, "new"), s->b, sizeof(s->b)) || script_forbidden(s->b)) {
                 return false;
             }
@@ -328,20 +304,38 @@ static bool script_parse(json_t* script, script_step* steps, u32* count) {
             }
 
             s->type = STEP_SKIP;
+        } else if(strcmp(type, "copy") == 0) {
+            // Universal-Updater's names, or move's.
+            const char* from = script_str(step, "source") != NULL ? script_str(step, "source") : script_str(step, "old");
+            const char* to = script_str(step, "destination") != NULL ? script_str(step, "destination") : script_str(step, "new");
+            if(!script_resolve(from, s->a, sizeof(s->a)) || !script_resolve(to, s->b, sizeof(s->b)) || script_forbidden(s->b)) {
+                return false;
+            }
+
+            s->type = STEP_COPY;
+        } else if(strcmp(type, "exit") == 0) {
+            s->type = STEP_EXIT;
+        } else if(strcmp(type, "bootTitle") == 0) {
+            s->type = STEP_NONE;
         } else {
             return false;
         }
 
         if(s->type == STEP_EXTRACT) {
             s->sensitive = script_sensitive(s->c);
-        } else if(s->type == STEP_DOWNLOAD || s->type == STEP_RELEASE || s->type == STEP_MOVE || s->type == STEP_MKDIR) {
+        } else if(s->type == STEP_DELETE) {
+            s->sensitive = script_sensitive(s->a);
+        } else if(s->type == STEP_MOVE) {
+            s->sensitive = script_sensitive(s->a) || script_sensitive(s->b);
+        } else if(s->type == STEP_DOWNLOAD || s->type == STEP_RELEASE || s->type == STEP_COPY || s->type == STEP_MKDIR
+                  || s->type == STEP_RMDIR) {
             s->sensitive = script_sensitive(s->b);
         }
 
         (*count)++;
     }
 
-    return downloads > 0;
+    return true;
 }
 
 // Large: kept off the stack (the catalogue is read on one thread).
@@ -360,7 +354,9 @@ static bool script_has_ext(const char* path, const char* ext) {
 
 bool storescript_plain_cia(json_t* script) {
     u32 count = 0;
-    if(!script_parse(script, script_scratch, &count) || script_scratch[0].type != STEP_DOWNLOAD || !script_has_ext(script_scratch[0].b, ".cia")) {
+    // One that needs a warning (http, a protected place) goes through storescript_run, which gives it.
+    if(!script_parse(script, script_scratch, &count) || script_scratch[0].type != STEP_DOWNLOAD || !script_has_ext(script_scratch[0].b, ".cia")
+       || script_scratch[0].insecure || script_scratch[0].sensitive) {
         return false;
     }
 
@@ -474,9 +470,10 @@ static bool script_installing(script_run* run, const char* path) {
     return false;
 }
 
-static void script_delete(script_run* run, const char* path) {
-    if(!script_created(run, path)) {
-        return;   // Only what this run wrote.
+// A file the script deletes (`any`), or one it leaves behind when it stops half way (only what this run wrote).
+static void script_delete(script_run* run, const char* path, bool any) {
+    if(!any && !script_created(run, path)) {
+        return;
     }
 
     char sd[SCRIPT_PATH_MAX + 8];
@@ -489,7 +486,7 @@ static void script_delete(script_run* run, const char* path) {
 static void script_abandon(script_run* run) {
     for(u32 i = 0; i < run->count; i++) {
         if(run->steps[i].type == STEP_DELETE) {
-            script_delete(run, run->steps[i].a);
+            script_delete(run, run->steps[i].a, false);
         }
     }
 
@@ -548,7 +545,8 @@ static bool script_start_thread(script_run* run, void (*entry)(void* arg)) {
 // ---- the steps that only touch the SD card, on a thread ----
 
 static bool script_file_step(u8 type) {
-    return type == STEP_EXTRACT || type == STEP_INSTALL || type == STEP_DELETE || type == STEP_MOVE || type == STEP_MKDIR;
+    return type == STEP_EXTRACT || type == STEP_INSTALL || type == STEP_DELETE || type == STEP_MOVE || type == STEP_MKDIR
+           || type == STEP_COPY;
 }
 
 static void script_make_dirs(char* sdPath) {
@@ -557,6 +555,36 @@ static void script_make_dirs(char* sdPath) {
         mkdir(sdPath, 0777);
         *c = '/';
     }
+}
+
+// A file copied whole; false if it could not be read or written.
+static bool script_copy_file(const char* from, const char* to) {
+    FILE* in = fopen(from, "rb");
+    if(in == NULL) {
+        return false;
+    }
+
+    FILE* out = fopen(to, "wb");
+    if(out == NULL) {
+        fclose(in);
+        return false;
+    }
+
+    static u8 buffer[64 * 1024];
+    bool ok = true;
+    size_t got;
+    while(ok && (got = fread(buffer, 1, sizeof(buffer), in)) > 0) {
+        ok = fwrite(buffer, 1, got, out) == got;
+    }
+
+    ok = ok && !ferror(in);
+    fclose(in);
+    ok = fclose(out) == 0 && ok;
+    if(!ok) {
+        remove(to);
+    }
+
+    return ok;
 }
 
 static void script_files_thread(void* arg) {
@@ -573,9 +601,7 @@ static void script_files_thread(void* arg) {
         script_step* s = &run->steps[run->pc];
         char from[SCRIPT_PATH_MAX + 8];
         char to[SCRIPT_PATH_MAX + 8];
-        if(s->type == STEP_EXTRACT && !script_created(run, s->a)) {
-            res = R_APP_BAD_DATA;   // An archive this run did not write.
-        } else if(s->type == STEP_EXTRACT) {
+        if(s->type == STEP_EXTRACT) {
             script_sd(from, sizeof(from), s->a);
             script_sd(to, sizeof(to), s->c);
             run->progress.done = 0;
@@ -590,26 +616,27 @@ static void script_files_thread(void* arg) {
             // and did not come out fails that step (installs and extractions check that this run wrote their file).
             (void) extracted;
         } else if(s->type == STEP_MOVE) {
-            if(!script_created(run, s->a)) {
-                res = R_APP_BAD_DATA;   // Not written by this run (a step for it was skipped).
+            script_sd(from, sizeof(from), s->a);
+            script_sd(to, sizeof(to), s->b);
+            remove(to);
+            script_make_dirs(to);
+            if(rename(from, to) != 0) {
+                res = R_APP_IO_ERROR;
             } else {
-                script_sd(from, sizeof(from), s->a);
-                script_sd(to, sizeof(to), s->b);
-                remove(to);
-                script_make_dirs(to);
-                if(rename(from, to) != 0) {
-                    res = R_APP_IO_ERROR;
-                } else {
-                    script_note_created(run, s->b);
-                }
+                script_note_created(run, s->b);
+            }
+        } else if(s->type == STEP_COPY) {
+            script_sd(from, sizeof(from), s->a);
+            script_sd(to, sizeof(to), s->b);
+            script_make_dirs(to);
+            if(!script_copy_file(from, to)) {
+                res = R_APP_IO_ERROR;
+            } else {
+                script_note_created(run, s->b);
             }
         } else if(s->type == STEP_MKDIR) {
             snprintf(to, sizeof(to), "sdmc:%s/", s->b);
             script_make_dirs(to);
-        } else if(s->type == STEP_INSTALL && !script_created(run, s->a)) {
-            // Only a CIA this run wrote: the parse lets anything under a folder it extracts to through (the card's root is
-            // one), and an install deletes its CIA afterwards.
-            res = R_APP_BAD_DATA;
         } else if(s->type == STEP_INSTALL) {
             size_t used = strlen(run->installs);
             snprintf(run->installs + used, sizeof(run->installs) - used, "%s%s", used > 0 ? "\n" : "", s->a);
@@ -618,7 +645,7 @@ static void script_files_thread(void* arg) {
             if(script_installing(run, s->a)) {
                 run->deleteInstalled = true;
             } else {
-                script_delete(run, s->a);
+                script_delete(run, s->a, true);
             }
         }
 
@@ -797,6 +824,12 @@ static void script_next(script_run* run) {
             case STEP_SKIP:
                 run->pc += 1 + s->count;
                 continue;
+            case STEP_EXIT:
+                run->pc = run->count;
+                continue;
+            case STEP_NONE:
+                run->pc++;
+                continue;
             case STEP_PROMPT:
                 // The store's own words, as it wrote them.
                 prompt_display_yes_no("Confirmation", s->a, COLOR_TEXT, run, NULL, script_prompt_answered);
@@ -839,6 +872,8 @@ static void script_next(script_run* run) {
     script_end(run);
 }
 
+static void script_warnings(script_run* run);
+
 static void script_warning_answered(ui_view* view, void* data, u32 response) {
     script_run* run = (script_run*) data;
     if(response != PROMPT_YES) {
@@ -846,11 +881,20 @@ static void script_warning_answered(ui_view* view, void* data, u32 response) {
         return;
     }
 
-    script_next(run);
+    script_warnings(run);
 }
 
+// The protected place a step touches.
 static const char* script_step_target(const script_step* s) {
-    return s->type == STEP_EXTRACT ? s->c : s->b;
+    if(s->type == STEP_EXTRACT) {
+        return s->c;
+    }
+
+    if(s->type == STEP_DELETE || (s->type == STEP_MOVE && !script_sensitive(s->b))) {
+        return s->a;
+    }
+
+    return s->b;
 }
 
 // Before a script that writes where the console starts from or where Luma keeps its system files: where (a few of the
@@ -895,6 +939,56 @@ static void script_warn(script_run* run) {
     prompt_display_warning("Confirmation", text, COLOR_TEXT, run, NULL, script_warning_answered);
 }
 
+// Before a script that downloads over plain http: from where (each server once).
+static void script_warn_http(script_run* run) {
+    char list[512] = "";
+    size_t used = 0;
+    for(u32 i = 0; i < run->count; i++) {
+        const script_step* s = &run->steps[i];
+        if(!s->insecure) {
+            continue;
+        }
+
+        // "http://host/path" as "host".
+        char host[128];
+        const char* start = s->a + 7;
+        size_t len = strcspn(start, "/?#");
+        if(len >= sizeof(host)) {
+            len = sizeof(host) - 1;
+        }
+
+        memcpy(host, start, len);
+        host[len] = '\0';
+        bool seen = false;
+        for(const char* line = list; *line != '\0' && !seen; line = strchr(line, '\n') != NULL ? strchr(line, '\n') + 1 : line + strlen(line)) {
+            seen = strncasecmp(line, host, len) == 0 && (line[len] == '\n' || line[len] == '\0');
+        }
+
+        if(!seen && used + len + 2 < sizeof(list)) {
+            used += snprintf(list + used, sizeof(list) - used, "%s%s", used > 0 ? "\n" : "", host);
+        }
+    }
+
+    static char text[1024];
+    snprintf(text, sizeof(text),
+             _("This downloads over plain http, without encryption, from:\n\n%s\n\nSomeone on the same network could change the file on its way. Go on only if you trust the network.\n\nContinue?"),
+             list);
+    prompt_display_warning("Confirmation", text, COLOR_TEXT, run, NULL, script_warning_answered);
+}
+
+// The warnings a script needs, one after the other, then its steps.
+static void script_warnings(script_run* run) {
+    if(run->sensitive && !run->warnedSensitive) {
+        run->warnedSensitive = true;
+        script_warn(run);
+    } else if(run->insecure && !run->warnedInsecure) {
+        run->warnedInsecure = true;
+        script_warn_http(run);
+    } else {
+        script_next(run);
+    }
+}
+
 static void script_question_answered(ui_view* view, void* data, u32 response) {
     script_run* run = (script_run*) data;
     if(response != PROMPT_YES) {
@@ -902,12 +996,7 @@ static void script_question_answered(ui_view* view, void* data, u32 response) {
         return;
     }
 
-    if(run->sensitive) {
-        script_warn(run);
-        return;
-    }
-
-    script_next(run);
+    script_warnings(run);
 }
 
 void storescript_run(const char* scriptText, const char* question, void* userData, void (*done)(void* userData, bool ok)) {
@@ -930,6 +1019,7 @@ void storescript_run(const char* scriptText, const char* question, void* userDat
     run->done = done;
     for(u32 i = 0; i < run->count; i++) {
         run->sensitive |= run->steps[i].sensitive;
+        run->insecure |= run->steps[i].insecure;
     }
 
     run->progress.cancel = &run->cancel;

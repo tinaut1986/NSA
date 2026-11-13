@@ -1119,6 +1119,7 @@ const i18n_entry i18n_tw[] = {
         {"Looking for the latest release...", "正在尋找最新版本..."},
         {"Failed to find the release's file.", "找不到該版本的檔案。"},
         {"Delete this folder and everything in it?\n\n%s", "刪除此資料夾及其中的所有內容嗎？\n\n%s"},
+        {"Careful: this writes to protected places on the SD card, where the console starts from or where Luma keeps its system files:\n\n%s%s\n\nA wrong or broken file there can stop the console from starting. Go on only if you trust it.\n\nContinue?", "注意：此操作會寫入 SD 卡的受保護位置，即主機啟動所用的位置或 Luma 存放系統檔案的位置：\n\n%s%s\n\n那裡的檔案出錯或損壞可能導致主機無法啟動。僅在你信任它時繼續。\n\n要繼續嗎？"},
         {"Game mods", "遊戲模組"},
         {"Mods in /luma/titles (LayeredFS): see which games are no longer installed and delete their mods.", "/luma/titles 中的模組（LayeredFS）：查看哪些遊戲已不再安裝，並刪除其模組。"},
         {"LayeredFS in /luma/titles", "/luma/titles 中的 LayeredFS"},

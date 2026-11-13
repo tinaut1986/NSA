@@ -1148,6 +1148,7 @@ const i18n_entry i18n_es[] = {
         {"Looking for the latest release...", "Buscando la última versión..."},
         {"Failed to find the release's file.", "No se ha encontrado el archivo de la versión."},
         {"Delete this folder and everything in it?\n\n%s", "¿Borrar esta carpeta y todo lo que contiene?\n\n%s"},
+        {"Careful: this writes to protected places on the SD card, where the console starts from or where Luma keeps its system files:\n\n%s%s\n\nA wrong or broken file there can stop the console from starting. Go on only if you trust it.\n\nContinue?", "Cuidado: esto escribe en zonas protegidas de la SD, desde donde arranca la consola o donde Luma guarda sus archivos de sistema:\n\n%s%s\n\nUn archivo erróneo o dañado ahí puede impedir que la consola arranque. Sigue solo si confías en él.\n\n¿Continuar?"},
         {"Game mods", "Mods de juegos"},
         {"Mods in /luma/titles (LayeredFS): see which games are no longer installed and delete their mods.", "Mods en /luma/titles (LayeredFS): mira qué juegos ya no están instalados y borra sus mods."},
         {"LayeredFS in /luma/titles", "LayeredFS en /luma/titles"},

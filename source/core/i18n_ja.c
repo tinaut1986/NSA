@@ -1131,6 +1131,8 @@ const i18n_entry i18n_ja[] = {
         {"Looking for the latest release...", "最新のリリースを探しています..."},
         {"Failed to find the release's file.", "リリースのファイルが見つかりませんでした。"},
         {"Delete this folder and everything in it?\n\n%s", "このフォルダと中身をすべて削除しますか？\n\n%s"},
+        {"This downloads over plain http, without encryption, from:\n\n%s\n\nSomeone on the same network could change the file on its way. Go on only if you trust the network.\n\nContinue?", "暗号化されていない通常の http でダウンロードします。接続先：\n\n%s\n\n同じネットワーク上の誰かが途中でファイルを書き換える可能性があります。ネットワークを信頼できる場合のみ続けてください。\n\n続けますか？"},
+        {"The store has nothing to download for %s: it lists the app, but no files.", "%s にはダウンロードできるものがありません：ストアにアプリは載っていますが、ファイルがありません。"},
         {"Careful: this writes to protected places on the SD card, where the console starts from or where Luma keeps its system files:\n\n%s%s\n\nA wrong or broken file there can stop the console from starting. Go on only if you trust it.\n\nContinue?", "注意：SDカードの保護された場所（本体の起動に使われる場所や、Lumaがシステムファイルを置く場所）に書き込みます：\n\n%s%s\n\nそこに誤ったファイルや壊れたファイルがあると、本体が起動しなくなることがあります。信頼できる場合のみ続けてください。\n\n続けますか？"},
         {"Game mods", "ゲームのMOD"},
         {"Mods in /luma/titles (LayeredFS): see which games are no longer installed and delete their mods.", "/luma/titles のMOD（LayeredFS）：もうインストールされていないゲームを確認し、そのMODを削除します。"},

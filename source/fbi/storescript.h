@@ -3,13 +3,14 @@
 #include <jansson.h>
 
 // Universal-DB's install scripts (what Universal-Updater follows for each file of an app), for the Store: download the
-// files, take what is needed out of a .zip or .7z, install the CIAs, move and delete. Only these steps, downloads first:
-// downloadFile, extractFile, installCia, deleteFile and move.
+// files, take what is needed out of a .zip or .7z, install the CIAs, copy, move and delete, as Universal-Updater does:
+// downloadFile, downloadRelease, extractFile, installCia, deleteFile, move, copy, mkdir, rmdir, promptMessage, skip and
+// exit (bootTitle is taken as done, without starting the title).
 //
-// Safety: a script never writes to /Nintendo 3DS or NSA's /nsa, and may only delete, move or install what it wrote
-// itself; anything else and the Store does not offer that file. Where the console starts from (boot.firm, every .firm)
-// and Luma's, GodMode9's and /private's folders (but a game's /luma/titles/<id> and /luma/plugins) it writes only after
-// a warning the user says yes to.
+// Safety: a script never writes to or deletes from /Nintendo 3DS or NSA's /nsa; anything else and the Store does not offer
+// that file. Where the console starts from (boot.firm, every .firm) and Luma's, GodMode9's and /private's folders (but a
+// game's /luma/titles/<id> and /luma/plugins) it touches only after a warning the user says yes to; a download over plain
+// http gets a warning too.
 
 // Whether NSA can run `script` (the JSON array of steps).
 bool storescript_supported(json_t* script);

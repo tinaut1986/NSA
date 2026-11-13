@@ -48,7 +48,7 @@
 #define STORE_ICON_SIDE 48   // The icons are kept as textures this many pixels square, for as long as the Store is open.
 #define STORE_PREFETCH_PAUSE 4000   // ms between the icons fetched in the background, when no row is waiting for one.
 #define STORE_RECORDS_MAX 512
-#define STORE_CACHE_FORMAT 8   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
+#define STORE_CACHE_FORMAT 9   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
 
 typedef enum {
     ICON_NONE,      // Not asked for yet.
@@ -441,7 +441,8 @@ static void store_read_meta(json_t* root, const char* text, size_t size, const c
     }
 }
 
-// The apps for 3DS that publish a CIA or a .3dsx, from the catalogue (a .unistore, the file Universal-Updater reads).
+// Every app of the catalogue (a .unistore, the file Universal-Updater reads), as Universal-Updater lists them: even one
+// with nothing to download.
 static int store_parse_full(const char* text, size_t size, const char* baseUrl, store_app** out, store_meta* meta) {
     json_error_t error;
     json_t* root = json_loadb(text, size, 0, &error);
@@ -516,7 +517,7 @@ static int store_parse_full(const char* text, size_t size, const char* baseUrl, 
         }
 
         string_copy(app->title, store_str(info, "title"), sizeof(app->title));
-        if((app->ciaUrl == NULL && app->dsxUrl == NULL && app->otherCount == 0) || app->title[0] == '\0') {
+        if(app->title[0] == '\0') {
             free(app->ciaUrl);
             free(app->dsxUrl);
             free(app->ciaScript);
@@ -2111,6 +2112,14 @@ static void store_open_app(store_data* store, store_app* app) {
 
     // Only one thing to get: nothing to choose.
     u32 total = (app->ciaUrl != NULL ? 1 : 0) + (app->dsxUrl != NULL ? 1 : 0) + app->otherCount;
+    if(total == 0) {
+        // Listed by the store with no file at all (Universal-Updater shows it the same way).
+        static char text[256];
+        snprintf(text, sizeof(text), _("The store has nothing to download for %s: it lists the app, but no files."), app->title);
+        prompt_display_notify("Store", text, COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
     if(total == 1) {
         if(app->ciaUrl != NULL) {
             store_install_cia(app);
@@ -2166,8 +2175,10 @@ static void store_view_changed(void* data) {
 static bool store_visible(void* data, list_item* item) {
     store_data* store = (store_data*) data;
     store_app* app = store_of(item);
+    // An app with nothing to download goes with the "others".
+    bool nothing = app->ciaUrl == NULL && app->dsxUrl == NULL && app->otherCount == 0;
     bool kind = ((store->kinds & 1) != 0 && app->ciaUrl != NULL) || ((store->kinds & 2) != 0 && app->dsxUrl != NULL)
-                || ((store->kinds & 4) != 0 && app->otherCount > 0);
+                || ((store->kinds & 4) != 0 && (app->otherCount > 0 || nothing));
     if(!kind || ((store->categories >> app->category) & 1) == 0) {
         return false;
     }

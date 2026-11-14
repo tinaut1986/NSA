@@ -325,8 +325,9 @@ static Result unarchive_zip(const char* archive, const char* pattern, const char
     char name[UNARCHIVE_PATH_MAX];
     char target[UNARCHIVE_PATH_MAX];
 
-    // Two passes: how much will come out (for the bar), then the files.
-    for(int pass = 0; pass < 2 && R_SUCCEEDED(res); pass++) {
+    // Two passes: how much will come out (for the bar), then the files (one, when only listing).
+    bool listing = progress != NULL && progress->listed != NULL;
+    for(int pass = 0; pass < (listing ? 1 : 2) && R_SUCCEEDED(res); pass++) {
         u32 at = 0;
         for(u32 i = 0; i < entries && R_SUCCEEDED(res); i++) {
             if(at + 46 > dirSize || unarchive_u32(dir + at) != 0x02014B50) {
@@ -363,10 +364,20 @@ static Result unarchive_zip(const char* archive, const char* pattern, const char
                 continue;
             }
 
+            if(progress != NULL && progress->wanted != NULL && !progress->wanted(progress->userData, name)) {
+                continue;
+            }
+
             // Pass 0 asks for every entry, so a refused one stops it before anything is written.
             if(!unarchive_allowed(progress, target)) {
                 res = R_APP_BAD_DATA;
                 break;
+            }
+
+            if(listing) {
+                bool isDir = unarchive_is_dir_name(name);
+                progress->listed(progress->userData, name, isDir ? 0 : unpacked, isDir);
+                continue;
             }
 
             if(unarchive_is_dir_name(name)) {
@@ -887,10 +898,20 @@ static Result unarchive_7z(const char* archive, const char* pattern, const char*
             continue;
         }
 
+        if(progress != NULL && progress->wanted != NULL && !progress->wanted(progress->userData, name)) {
+            continue;
+        }
+
         // Every entry is asked before the blocks are read, so a refused one stops it before any file is written.
         if(!unarchive_allowed(progress, target)) {
             res = R_APP_BAD_DATA;
             break;
+        }
+
+        // Only listing: no folder made and no file wanted, so no block is read below.
+        if(progress != NULL && progress->listed != NULL) {
+            progress->listed(progress->userData, name, isDir ? 0 : (u64) SzArEx_GetFileSize(&db, i), isDir);
+            continue;
         }
 
         if(isDir) {

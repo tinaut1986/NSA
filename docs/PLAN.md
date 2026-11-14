@@ -163,6 +163,19 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Remote install: a .zip or .7z is offered for extraction (2026-11-14, `feat/remote-extract`, issue #51 from
+  monkeymaximus, for Brewology's store). In a remote install (QR code, typed URL, URLs from a computer, the web page,
+  a request: `action_install_url_remote`) an archive is saved to /nsa/received/ (even with "Install") and, once the
+  downloads end, each one is listed (`unarchive_progress.listed`) and asked about: laid out as the SD card
+  (3ds/, cias/, luma/plugins/, luma/titles/<ID>/...) it goes to the root; the same inside one top folder ("App-1.0/3ds/
+  ...") goes to the root without that folder; loose files beside them (README, LICENSE) stay in the archive
+  (`unarchive_progress.wanted`); otherwise a .3dsx with what it holds goes to /3ds/<top folder or archive name>/; else
+  it stays saved and NSA says why. The question names the places; "Install" and "Save, install and delete" delete
+  the archive once all of it is out, "Save and install" keeps it, "Save" only saves. `action_extract_archive_to`
+  refuses the whole archive if anything would go to a .firm, /boot.3dsx, /luma (but titles/plugins), /gm9, /private,
+  /Nintendo 3DS or /nsa. The URL's own parameters (3dsDL's ?extract=1) are not needed: NSA always asks. CIAs from the
+  same request install after the archives. Host-tested (stored zips: root, top folder, loose .3dsx, sysmodule patch
+  refused, ".." refused); built only (DEBUG 0.9.10). Try: a Brewology zip by QR, a 7z, No, a zip in Save and install.
 - [ ] Store: uninstall a CIA or delete a .3dsx (2026-11-14, `feat/store-uninstall`, issue #40, from Cosmosx007 in #33:
   TemperPCE was hard to find once installed). An app's sheet gets "Uninstall the CIA" when its title is installed (by the
   catalogue's unique ID; an app without one gets nothing) and "Delete the 3DSX" when its .3dsx is in /3ds/; with one of

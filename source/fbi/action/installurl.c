@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <dirent.h>
 #include <malloc.h>
 #include <stdio.h>
@@ -12,6 +13,7 @@
 #include "../resources.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
+#include "../../core/unarchive.h"
 
 typedef enum content_type_e {
     CONTENT_CIA,
@@ -50,6 +52,9 @@ typedef struct {
     u32 mode;        // INSTALL_URL_CHOICE_*.
     bool currIsCia;  // The file being saved is a CIA.
     char* toInstall; // The CIAs saved, one a line, to install once the downloads end ("Save and install").
+    bool archives;   // A remote install: a .zip or .7z is saved and offered to be extracted (issue #51).
+    bool currIsArchive;
+    char* toExtract; // The archives saved, one a line, to offer once the downloads end.
     char confirm[256];
     content_type contentType;
     u64 currTitleId;
@@ -87,19 +92,31 @@ static void action_install_url_free_data(install_url_data* data) {
     }
 
     free(data->toInstall);
+    free(data->toExtract);
     free(data);
 }
 
-static void action_install_url_queue_install(install_url_data* data, const char* path) {
-    size_t have = data->toInstall != NULL ? strlen(data->toInstall) : 0;
+static void action_install_url_queue(char** list, const char* path) {
+    size_t have = *list != NULL ? strlen(*list) : 0;
     size_t len = strlen(path);
-    char* grown = (char*) realloc(data->toInstall, have + len + 2);
+    char* grown = (char*) realloc(*list, have + len + 2);
     if(grown != NULL) {
         memcpy(grown + have, path, len);
         grown[have + len] = '\n';
         grown[have + len + 1] = '\0';
-        data->toInstall = grown;
+        *list = grown;
     }
+}
+
+static void action_install_url_queue_install(install_url_data* data, const char* path) {
+    action_install_url_queue(&data->toInstall, path);
+}
+
+// A .zip or a .7z, from its first bytes.
+static bool action_install_url_is_archive(const void* block) {
+    const u8* b = (const u8*) block;
+    return b != NULL && ((b[0] == 'P' && b[1] == 'K' && b[2] == 3 && b[3] == 4)
+                         || (b[0] == '7' && b[1] == 'z' && b[2] == 0xBC && b[3] == 0xAF && b[4] == 0x27 && b[5] == 0x1C));
 }
 
 static void action_install_url_install_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2);
@@ -290,6 +307,7 @@ static Result action_install_url_resume_from(void* data, u32 index, u64* from, u
 static Result action_install_url_open_save(install_url_data* installData, u32 index, void* initialReadBlock, u64 size, u32* handle) {
     installData->contentType = CONTENT_SAVED;
     installData->currIsCia = initialReadBlock != NULL && *(u16*) initialReadBlock == 0x2020;
+    installData->currIsArchive = installData->archives && action_install_url_is_archive(initialReadBlock);
     installData->currIsPart = false;
 
     // What an earlier try left: on from it (the server agreed), or gone (it starts again).
@@ -299,6 +317,8 @@ static Result action_install_url_open_save(install_url_data* installData, u32 in
             installData->currIsPart = true;
             size_t len = strlen(installData->currPath);
             installData->currIsCia = len > 4 && strcasecmp(installData->currPath + len - 4, ".cia") == 0;
+            installData->currIsArchive = installData->archives && len > 4
+                                         && (strcasecmp(installData->currPath + len - 4, ".zip") == 0 || strcasecmp(installData->currPath + len - 3, ".7z") == 0);
 
             char part[FILE_PATH_MAX + 16];
             char info[FILE_PATH_MAX + 16];
@@ -406,7 +426,8 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
     memset(&installData->ticketInfo, 0, sizeof(installData->ticketInfo));
     memset(&installData->currPath, 0, sizeof(installData->currPath));
 
-    if(installData->saveOnly) {
+    // A .zip or .7z in a remote install is saved, to be offered for extraction once the downloads end.
+    if(installData->saveOnly || (installData->archives && action_install_url_is_archive(initialReadBlock))) {
         return action_install_url_open_save(installData, index, initialReadBlock, size, handle);
     }
 
@@ -566,6 +587,11 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
         if(installData->contentType == CONTENT_SAVED && installData->currIsCia && installData->mode != INSTALL_URL_CHOICE_SAVE) {
             action_install_url_queue_install(installData, installData->currPath);
         }
+
+        // An archive: offered for extraction once the downloads end (a plain "Save" only saves it).
+        if(installData->contentType == CONTENT_SAVED && installData->currIsArchive && installData->mode != INSTALL_URL_CHOICE_SAVE) {
+            action_install_url_queue(&installData->toExtract, installData->currPath);
+        }
     }
 
     if(R_SUCCEEDED(res) && installData->finishedURL != NULL) {
@@ -651,6 +677,255 @@ static u32 action_install_url_count(install_url_data* data, url_state state) {
     return count;
 }
 
+// ---- archives in a remote install (issue #51): where each one goes, asked one after the other ----
+
+typedef struct {
+    char* archives;      // Still to offer, one a line (taken from the front).
+    char* cias;          // To install once the archives are done (or NULL).
+    bool deleteCias;
+    bool deleteArchives;
+    char path[FILE_PATH_MAX];
+    char pattern[FILE_PATH_MAX + 8];
+    char output[FILE_PATH_MAX + 8];
+    char shown[FILE_PATH_MAX];
+    bool sdLayout;           // Only what goes in the SD card's own folders (the loose files stay in the archive)...
+    char top[FILE_NAME_MAX]; // ... under this top folder of it ("" at its root).
+} url_extract;
+
+// What an archive holds, read before it is taken out.
+typedef struct {
+    u32 files;
+    bool allKnown;        // Every file is under a folder of the SD card's own layout (action_extract_sd_place), or loose.
+    bool allKnownInTop;   // Every file is under one top folder, and under it in such a folder (or loose in it).
+    bool has3dsx;
+    bool oneTop;          // Every entry is under the same top folder (`top`).
+    char top[FILE_NAME_MAX];
+    u32 known;            // Files in such folders, at the root and under the top folder.
+    u32 knownInTop;
+    char places[96];      // The SD card's folders it fills, as the question names them ("/3ds/, /luma/").
+    char placesInTop[96]; // The same for what its one top folder holds.
+} url_archive_plan;
+
+// A file with no folder that is no app (a README, a LICENSE): left in the archive when the rest goes to the SD card.
+static bool action_install_url_loose(const char* path) {
+    size_t len = strlen(path);
+    return strchr(path, '/') == NULL && !(len > 5 && strcasecmp(path + len - 5, ".3dsx") == 0) && !(len > 4 && strcasecmp(path + len - 4, ".cia") == 0)
+           && !(len > 5 && strcasecmp(path + len - 5, ".firm") == 0);
+}
+
+static void action_install_url_add_place(char* places, size_t size, const char* path) {
+    char place[16];
+    const char* slash = strchr(path, '/');
+    size_t len = slash != NULL ? (size_t) (slash - path) : strlen(path);
+    if(len == 0 || len + 3 > sizeof(place)) {
+        return;
+    }
+
+    snprintf(place, sizeof(place), "/%.*s/", (int) len, path);
+    for(char* c = place; *c != '\0'; c++) {
+        *c = (char) tolower((unsigned char) *c);
+    }
+
+    if(strstr(places, place) == NULL && strlen(places) + strlen(place) + 3 < size) {
+        if(places[0] != '\0') {
+            strcat(places, ", ");
+        }
+
+        strcat(places, place);
+    }
+}
+
+static void action_install_url_plan_entry(void* userData, const char* name, u64 size, bool dir) {
+    url_archive_plan* plan = (url_archive_plan*) userData;
+    while(name[0] == '/' || (name[0] == '.' && name[1] == '/')) {
+        name += name[0] == '/' ? 1 : 2;
+    }
+
+    // The same top folder for every entry?
+    const char* slash = strchr(name, '/');
+    size_t topLen = slash != NULL ? (size_t) (slash - name) : strlen(name);
+    bool inFolder = slash != NULL && (slash[1] != '\0' || dir);
+    if(!inFolder && !dir) {
+        plan->oneTop = false;
+    } else if(plan->top[0] == '\0' && plan->oneTop) {
+        if(topLen < sizeof(plan->top)) {
+            memcpy(plan->top, name, topLen);
+            plan->top[topLen] = '\0';
+        } else {
+            plan->oneTop = false;
+        }
+    } else if(strlen(plan->top) != topLen || strncmp(plan->top, name, topLen) != 0) {
+        plan->oneTop = false;
+    }
+
+    if(dir) {
+        return;
+    }
+
+    plan->files++;
+    size_t len = strlen(name);
+    if(len > 5 && strcasecmp(name + len - 5, ".3dsx") == 0) {
+        plan->has3dsx = true;
+    }
+
+    if(action_extract_sd_place(name)) {
+        plan->known++;
+        action_install_url_add_place(plan->places, sizeof(plan->places), name);
+    } else if(!action_install_url_loose(name)) {
+        plan->allKnown = false;
+    }
+
+    if(slash != NULL && action_extract_sd_place(slash + 1)) {
+        plan->knownInTop++;
+        action_install_url_add_place(plan->placesInTop, sizeof(plan->placesInTop), slash + 1);
+    } else if(slash == NULL || !action_install_url_loose(slash + 1)) {
+        plan->allKnownInTop = false;
+    }
+}
+
+// "^Name/" for one folder, its special characters taken as they are (minire.h).
+static void action_install_url_folder_pattern(char* out, size_t size, const char* folder) {
+    size_t at = 0;
+    if(at + 1 < size) {
+        out[at++] = '^';
+    }
+
+    for(const char* c = folder; *c != '\0' && at + 3 < size; c++) {
+        if(strchr(".[]*+?^$\\", *c) != NULL) {
+            out[at++] = '\\';
+        }
+
+        out[at++] = *c;
+    }
+
+    if(at + 1 < size) {
+        out[at++] = '/';
+    }
+
+    out[at] = '\0';
+}
+
+static void action_install_url_extract_next(url_extract* run);
+
+static void action_install_url_extract_done(void* userData) {
+    action_install_url_extract_next((url_extract*) userData);
+}
+
+static void action_install_url_extract_answered(ui_view* view, void* data, u32 response) {
+    url_extract* run = (url_extract*) data;
+    if(response == PROMPT_YES) {
+        action_extract_archive_to(run->path, run->pattern, run->output, run->shown, run->deleteArchives, run->sdLayout ? run->top : NULL,
+                                  action_install_url_extract_done, run);
+    } else {
+        // No: it stays in /nsa/received/.
+        action_install_url_extract_next(run);
+    }
+}
+
+static void action_install_url_extract_skipped(ui_view* view, void* data, u32 response) {
+    action_install_url_extract_next((url_extract*) data);
+}
+
+static void action_install_url_extract_next(url_extract* run) {
+    char* line = run->archives;
+    char* end = line != NULL ? strchr(line, '\n') : NULL;
+    if(line == NULL || *line == '\0') {
+        if(run->cias != NULL) {
+            action_install_cia_paths_now(run->cias, run->deleteCias);
+        }
+
+        free(run->archives);
+        free(run->cias);
+        free(run);
+        return;
+    }
+
+    size_t len = end != NULL ? (size_t) (end - line) : strlen(line);
+    string_copy(run->path, line, len + 1 < sizeof(run->path) ? len + 1 : sizeof(run->path));
+    memmove(line, end != NULL ? end + 1 : line + len, strlen(end != NULL ? end + 1 : line + len) + 1);
+
+    const char* slash = strrchr(run->path, '/');
+    const char* name = slash != NULL ? slash + 1 : run->path;
+
+    url_archive_plan plan;
+    memset(&plan, 0, sizeof(plan));
+    plan.allKnown = true;
+    plan.allKnownInTop = true;
+    plan.oneTop = true;
+    unarchive_progress listing;
+    memset(&listing, 0, sizeof(listing));
+    listing.userData = &plan;
+    listing.listed = action_install_url_plan_entry;
+    char local[FILE_PATH_MAX + 8];
+    snprintf(local, sizeof(local), "sdmc:%s", run->path);
+    u32 count = 0;
+    Result res = unarchive_extract(local, "^", "", &listing, &count);
+
+    static char text[FILE_PATH_MAX * 2 + 512];
+    const char* sdLayoutTop = NULL;
+    if(R_SUCCEEDED(res) && plan.known > 0 && plan.allKnown) {
+        // Laid out as the SD card is (3ds/..., luma/...): onto its root.
+        string_copy(run->pattern, "^", sizeof(run->pattern));
+        string_copy(run->output, "sdmc:/", sizeof(run->output));
+        string_copy(run->shown, "/", sizeof(run->shown));
+        sdLayoutTop = "";
+    } else if(R_SUCCEEDED(res) && plan.knownInTop > 0 && plan.oneTop && plan.top[0] != '\0' && plan.allKnownInTop) {
+        // The same in one folder ("App-1.0/3ds/..."): what that folder holds, onto the root.
+        action_install_url_folder_pattern(run->pattern, sizeof(run->pattern), plan.top);
+        string_copy(run->output, "sdmc:/", sizeof(run->output));
+        string_copy(run->shown, "/", sizeof(run->shown));
+        string_copy(plan.places, plan.placesInTop, sizeof(plan.places));
+        sdLayoutTop = plan.top;
+    } else if(R_SUCCEEDED(res) && plan.has3dsx) {
+        // A .3dsx and what goes with it: into a folder of its own in /3ds/ (its top folder's name, or the archive's).
+        char folder[FILE_NAME_MAX];
+        if(plan.oneTop && plan.top[0] != '\0') {
+            action_install_url_folder_pattern(run->pattern, sizeof(run->pattern), plan.top);
+            string_escape_file_name(folder, plan.top, sizeof(folder));
+        } else {
+            string_copy(run->pattern, "^", sizeof(run->pattern));
+            string_get_file_name(folder, name, sizeof(folder));
+        }
+
+        snprintf(run->shown, sizeof(run->shown), "/3ds/%s/", folder);
+        snprintf(run->output, sizeof(run->output), "sdmc:%s", run->shown);
+        string_copy(plan.places, run->shown, sizeof(plan.places));
+    } else {
+        snprintf(text, sizeof(text),
+                 R_FAILED(res) ? _("%s is saved in /nsa/received/, but it could not be read as an archive.")
+                               : _("%s is saved in /nsa/received/. Its files are not laid out for the SD card (3ds/, luma/...) and it holds no .3dsx, so it is not extracted: extract it from Files where you want it."),
+                 name);
+        prompt_display_notify(_("Remote install"), text, COLOR_TEXT, run, NULL, action_install_url_extract_skipped);
+        return;
+    }
+
+    run->sdLayout = sdLayoutTop != NULL;
+    string_copy(run->top, sdLayoutTop != NULL ? sdLayoutTop : "", sizeof(run->top));
+    snprintf(text, sizeof(text), run->deleteArchives ? _("Extract %s?\n\nIts files go to %s on the SD card; files with the same names are replaced. The archive is deleted afterwards. No keeps it in /nsa/received/.")
+                                                     : _("Extract %s?\n\nIts files go to %s on the SD card; files with the same names are replaced. The archive stays in /nsa/received/."),
+             name, plan.places);
+    prompt_display_yes_no(_("Extract"), text, COLOR_TEXT, run, NULL, action_install_url_extract_answered);
+}
+
+static void action_install_url_extract_all(char* archives, char* cias, bool deleteCias, bool deleteArchives) {
+    url_extract* run = (url_extract*) calloc(1, sizeof(url_extract));
+    if(run == NULL) {
+        free(archives);
+        if(cias != NULL) {
+            action_install_cia_paths_now(cias, deleteCias);
+            free(cias);
+        }
+
+        return;
+    }
+
+    run->archives = archives;
+    run->cias = cias;
+    run->deleteCias = deleteCias;
+    run->deleteArchives = deleteArchives;
+    action_install_url_extract_next(run);
+}
+
 static void action_install_url_install_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     install_url_data* installData = (install_url_data*) data;
 
@@ -664,10 +939,11 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
         u32 failed = action_install_url_count(installData, URL_FAILED);
         u32 skipped = action_install_url_count(installData, URL_SKIPPED);
         bool installAfter = installData->toInstall != NULL && installData->installInfo.result != R_APP_CANCELLED;
+        bool extractAfter = installData->toExtract != NULL && installData->installInfo.result != R_APP_CANCELLED;
         // A failure lit it as its error showed; the summary of several URLs lights it again. Saved to install
         // next: the install says when it is done.
         if(installData->installInfo.result != R_APP_CANCELLED) {
-            if(failed == 0 && skipped == 0 && (installed > 0 || (saved > 0 && !installAfter))) {
+            if(failed == 0 && skipped == 0 && (installed > 0 || (saved > 0 && !installAfter && !extractAfter))) {
                 led_blink(true);
             } else if(failed > 0 && installData->installInfo.total > 1) {
                 led_blink(false);
@@ -675,8 +951,8 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
         }
         if(installData->installInfo.result != R_APP_CANCELLED && !installData->quiet) {
             if(failed == 0 && skipped == 0) {
-                if(saved > 0 && installAfter) {
-                    // The install says when it is done.
+                if(saved > 0 && (installAfter || extractAfter)) {
+                    // The install, or the extraction, says when it is done.
                 } else if(saved > 0) {
                     char text[FILE_PATH_MAX + 64];
                     if(saved == 1) {
@@ -706,9 +982,19 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
             installData->toInstall = NULL;
         }
 
+        // "Install" keeps nothing on the card, nor does "Save, install and delete": the archive goes once extracted.
+        char* archives = extractAfter ? installData->toExtract : NULL;
+        bool deleteArchives = installData->mode == INSTALL_URL_CHOICE_INSTALL || installData->mode == INSTALL_URL_CHOICE_SAVE_INSTALL_DELETE;
+        if(archives != NULL) {
+            installData->toExtract = NULL;
+        }
+
         action_install_url_free_data(installData);
 
-        if(paths != NULL) {
+        if(archives != NULL) {
+            // The archives first, one question each; then the CIAs.
+            action_install_url_extract_all(archives, paths, delete, deleteArchives);
+        } else if(paths != NULL) {
             action_install_cia_paths_now(paths, delete);
             free(paths);
         }
@@ -1028,7 +1314,7 @@ static void action_install_url_start(const char* confirmMessage, const char* url
                                      void (*finishedURL)(void* data, u32 index),
                                      void (*finishedAll)(void* data),
                                      void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index),
-                                     int choice, bool exactPaths) {
+                                     int choice, bool exactPaths, bool archives) {
     install_url_data* data = (install_url_data*) calloc(1, sizeof(install_url_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate URL install data.");
@@ -1092,6 +1378,7 @@ static void action_install_url_start(const char* confirmMessage, const char* url
     }
 
     data->exactPaths = exactPaths;
+    data->archives = archives;
     data->quiet = exactPaths;
     data->userData = userData;
     data->finishedURL = finishedURL;
@@ -1153,13 +1440,17 @@ void action_install_url_choice(const char* confirmMessage, const char* urls, con
                                void (*finishedAll)(void* data),
                                void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index),
                                int choice) {
-    action_install_url_start(confirmMessage, urls, paths, userData, finishedURL, finishedAll, drawTop, choice, false);
+    action_install_url_start(confirmMessage, urls, paths, userData, finishedURL, finishedAll, drawTop, choice, false, false);
+}
+
+void action_install_url_remote(const char* confirmMessage, const char* urls, void* userData, void (*finishedAll)(void* data)) {
+    action_install_url_start(confirmMessage, urls, NULL, userData, NULL, finishedAll, NULL, -1, false, true);
 }
 
 // The Store's scripts: each URL saved to its path (one a line), with no question and nothing said at the end.
 void action_download_urls_to(const char* urls, const char* paths, void* userData, void (*finishedURL)(void* data, u32 index),
                              void (*finishedAll)(void* data)) {
-    action_install_url_start(NULL, urls, paths, userData, finishedURL, finishedAll, NULL, INSTALL_URL_CHOICE_SAVE, true);
+    action_install_url_start(NULL, urls, paths, userData, finishedURL, finishedAll, NULL, INSTALL_URL_CHOICE_SAVE, true, false);
 }
 
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,

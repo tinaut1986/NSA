@@ -1584,7 +1584,7 @@ static void web_job_run() {
             action_save_pack_web_start(&web_job.title, web_job.name, web_job.saveKind, web_job.extId);
             break;
         case REQ_INSTALL_URL:
-            action_install_url("Install from the URL(s) sent from the web page?", web_job.urls, NULL, NULL, NULL, NULL, NULL);
+            action_install_url_remote("Install from the URL(s) sent from the web page?", web_job.urls, NULL, NULL);
             break;
         default:
             break;

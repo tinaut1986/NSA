@@ -66,6 +66,16 @@ void action_new_folder(linked_list* items, list_item* selected);
 // Everything in the .zip or .7z at `path` (on the SD card) into its folder, or into a new folder named after it;
 // `done` once it ends (to list the folder again), before the message.
 void action_extract_archive(const char* path, bool intoFolder, void (*done)(void* userData), void* userData);
+// What of the archive at `path` matches `pattern` (unarchive.h) into `output` ("sdmc:/..."; `shown` is how the message
+// names it), with no question first, refusing the whole archive if anything would go where the console starts from or
+// NSA's data (see extractarchive.c); the archive is deleted afterwards if `deleteAfter` and it all came out. With
+// `sdLayoutTop` (not NULL), only the entries in the SD card's own folders (action_extract_sd_place) under that top folder
+// of the archive ("" for its root) come out, the loose files beside them (a README) staying in it.
+void action_extract_archive_to(const char* path, const char* pattern, const char* output, const char* shown, bool deleteAfter,
+                               const char* sdLayoutTop, void (*done)(void* userData), void* userData);
+// Where homebrew archives put their files on the SD card's root: "3ds/...", "cias/...", "luma/plugins/...", and a game's
+// mods in "luma/titles/<ID>/..." (a path inside the archive, with no leading slash).
+bool action_extract_sd_place(const char* path);
 void action_paste_contents(linked_list* items, list_item* selected);
 // Like it, but a cut item on the same medium (`archiveId`) is renamed into the folder instead of copied.
 void action_paste_contents_in(linked_list* items, list_item* selected, FS_ArchiveID archiveId);
@@ -168,6 +178,9 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
                         void (*finishedURL)(void* data, u32 index),
                         void (*finishedAll)(void* data),
                         void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index));
+// A remote install (QR code, a typed URL, URLs from a computer or the web page): the same, and a .zip or .7z that arrives
+// is saved to /nsa/received/ and offered to be taken out onto the SD card (issue #51).
+void action_install_url_remote(const char* confirmMessage, const char* urls, void* userData, void (*finishedAll)(void* data));
 // The same with the choice made for the user (>= 0, one of installurl.c's INSTALL_URL_CHOICE_*), or -1 to ask.
 void action_install_url_choice(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                                void (*finishedURL)(void* data, u32 index),

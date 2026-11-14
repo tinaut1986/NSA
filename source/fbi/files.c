@@ -823,6 +823,10 @@ static void files_extract(files_data* data, bool intoFolder) {
 }
 
 static void files_extract_folder(void* data) { files_extract((files_data*) data, true); }
+static void files_view_archive(void* data) {
+    files_data* listData = (files_data*) data;
+    archiveview_open(((file_info*) listData->actionSelected->data)->path, files_refresh, listData);
+}
 static void files_extract_here(void* data) { files_extract((files_data*) data, false); }
 static void files_player(void* data) { audioview_resume(); }
 
@@ -884,6 +888,7 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
     }
 
     if(data->archiveId == ARCHIVE_SDMC && viewers_has_ext(info->name, "zip 7z")) {
+        actions[count++] = (sheet_action) {ICON_FILE_ZIP, _("View contents"), false, files_view_archive};
         actions[count++] = (sheet_action) {ICON_FILE_ZIP, _("Extract to a folder"), false, files_extract_folder};
         actions[count++] = (sheet_action) {ICON_FILE_ZIP, _("Extract here"), false, files_extract_here};
     }

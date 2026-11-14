@@ -23,6 +23,7 @@ typedef struct {
     char pattern[FILE_PATH_MAX + 8];   // What to take (minire.h): "^" for everything, "^Folder/" for one folder's.
     bool guarded;                      // To the SD card's own folders: never where the console starts from, or NSA's.
     bool deleteAfter;                  // The archive goes once all of it is out.
+    bool offerDelete;                  // Files: the message at the end asks whether to delete the archive (issue #47).
     bool sdLayout;                     // Only what goes in the SD card's own folders (action_extract_sd_place)...
     char top[FILE_NAME_MAX];           // ... under this top folder of the archive ("": at its root).
 
@@ -102,6 +103,25 @@ static void action_extract_thread(void* arg) {
     data->finished = true;
 }
 
+typedef struct {
+    char archive[FILE_PATH_MAX + 8];
+    void (*done)(void* userData);
+    void* userData;
+} extract_delete;
+
+static void action_extract_delete_answered(ui_view* view, void* data, u32 response) {
+    extract_delete* del = (extract_delete*) data;
+    if(response == PROMPT_YES) {
+        if(remove(del->archive) != 0) {
+            error_display(NULL, NULL, _("Failed to delete the archive."));
+        } else if(del->done != NULL) {
+            del->done(del->userData);
+        }
+    }
+
+    free(del);
+}
+
 static void action_extract_update(ui_view* view, void* data, float* progress, char* text) {
     extract_data* extractData = (extract_data*) data;
 
@@ -120,10 +140,20 @@ static void action_extract_update(ui_view* view, void* data, float* progress, ch
         } else if(extractData->count == 0) {
             prompt_display_notify("Success", _("The archive had no files."), COLOR_TEXT, NULL, NULL, NULL);
         } else {
-            char message[FILE_PATH_MAX + 64];
+            char message[FILE_PATH_MAX + 256];
             snprintf(message, sizeof(message), extractData->count == 1 ? _("%lu file extracted to %s") : _("%lu files extracted to %s"),
                      extractData->count, extractData->shown);
-            prompt_display_notify("Success", message, COLOR_TEXT, NULL, NULL, NULL);
+            extract_delete* del = extractData->offerDelete ? (extract_delete*) calloc(1, sizeof(extract_delete)) : NULL;
+            if(del != NULL) {
+                string_copy(del->archive, extractData->archive, sizeof(del->archive));
+                del->done = extractData->done;
+                del->userData = extractData->userData;
+                size_t used = strlen(message);
+                snprintf(message + used, sizeof(message) - used, "\n\n%s", _("Delete the archive now?"));
+                prompt_display_yes_no("Success", message, COLOR_TEXT, del, NULL, action_extract_delete_answered);
+            } else {
+                prompt_display_notify("Success", message, COLOR_TEXT, NULL, NULL, NULL);
+            }
         }
 
         free(extractData);
@@ -196,7 +226,8 @@ void action_extract_archive_to(const char* path, const char* pattern, const char
 
     data->done = done;
     data->userData = userData;
-    data->guarded = true;
+    // Onto the SD card's root only: in a folder of its own, nothing it holds can stop the console from starting.
+    data->guarded = strcmp(output, "sdmc:/") == 0;
     data->deleteAfter = deleteAfter;
     data->sdLayout = sdLayoutTop != NULL;
     string_copy(data->top, sdLayoutTop != NULL ? sdLayoutTop : "", sizeof(data->top));
@@ -218,6 +249,7 @@ void action_extract_archive(const char* path, bool intoFolder, void (*done)(void
 
     data->done = done;
     data->userData = userData;
+    data->offerDelete = true;
     snprintf(data->archive, sizeof(data->archive), "sdmc:%s", path);
 
     const char* slash = strrchr(path, '/');

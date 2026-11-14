@@ -163,6 +163,15 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Files: view what a .zip or .7z holds, and delete it after extracting (2026-11-14, `feat/archive-view`, issue #47
+  from Cosmosx007). A .zip/.7z's sheet has "View contents" first (`archiveview.c`): its files and folders (also the
+  folders only named in a path), folders first; the top screen shows the archive, its file count and unpacked size, the
+  folder and the selected item's size. A opens a folder, B goes up (the folder left stays selected) and closes at the
+  root; A on a file or X on a file or folder takes only that out into the archive's own folder
+  (`action_extract_archive_to`, no guard there) after a question. "Extract to a folder" / "Extract here" now end with
+  "N files extracted to X. Delete the archive now?" (Yes deletes it and lists the folder again). Claude, 2026-11-14,
+  Azahar (Japanese): listing, folders, one file (20000 bytes, deflated), a folder with X, Extract to a folder + Yes
+  deleted the zip, B selects the folder left. Not tried: a .7z, an archive over 8192 entries, on a console.
 - [ ] Remote install: a .zip or .7z is offered for extraction (2026-11-14, `feat/remote-extract`, issue #51 from
   monkeymaximus, for Brewology's store). In a remote install (QR code, typed URL, URLs from a computer, the web page,
   a request: `action_install_url_remote`) an archive is saved to /nsa/received/ (even with "Install") and, once the

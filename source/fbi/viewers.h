@@ -33,6 +33,10 @@ void audioview_exit();
 #define TEXTVIEW_MAX_SIZE (256 * 1024)
 void textview_open(FS_Archive archive, const char* path, const char* name, bool readOnly);
 
+// What the .zip or .7z at `path` (on the SD card, no "sdmc:") holds, folder by folder (archiveview.c); a file or a
+// folder of it can be taken out into the archive's folder, and `done` then runs (to list that folder again).
+void archiveview_open(const char* path, void (*done)(void* userData), void* userData);
+
 // Reads up to `maxSize` bytes of a file into a new buffer (NUL after the data, free() it).
 // `fullSize` is the file's real size when longer than what was read.
 Result viewers_read_file(FS_Archive archive, const char* path, u32 maxSize, u8** data, u32* size, u64* fullSize);

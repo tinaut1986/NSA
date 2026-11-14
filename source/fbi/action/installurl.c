@@ -14,6 +14,7 @@
 #include "../task/uitask.h"
 #include "../../core/core.h"
 #include "../../core/unarchive.h"
+#include "../dlqueue.h"
 
 typedef enum content_type_e {
     CONTENT_CIA,
@@ -60,6 +61,11 @@ typedef struct {
     bool paused;
     u32 pausedAt;            // The URL that was coming when it paused.
     u32 before[URL_SAVED + 1];   // What the URLs done before a pause came to, for the summary.
+    // A run of the download queue (dlqueue.c): in the background from the start, quiet, no retry questions; queueDone
+    // tells it how it ended, and the queue (not this) runs finishedAll.
+    void* queueItem;
+    void (*queueDone)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error);
+    char queueError[160];
     bool archives;   // A remote install: a .zip or .7z is saved and offered to be extracted (issue #51).
     bool currIsArchive;
     char* toExtract; // The archives saved, one a line, to offer once the downloads end.
@@ -83,15 +89,17 @@ typedef struct {
 #define INSTALL_URL_CHOICE_SAVE_INSTALL 1
 #define INSTALL_URL_CHOICE_SAVE_INSTALL_DELETE 2
 #define INSTALL_URL_CHOICE_SAVE 3
-#define INSTALL_URL_CHOICES 4
-#define INSTALL_URL_CHOICE_CANCEL 4
+#define INSTALL_URL_CHOICE_QUEUE 4
+#define INSTALL_URL_CHOICES 5
+#define INSTALL_URL_CHOICE_CANCEL 5
 
-static const char* action_install_url_choice_names[INSTALL_URL_CHOICES] = {"Install", "Save and install", "Save, install and delete", "Save"};
+static const char* action_install_url_choice_names[INSTALL_URL_CHOICES] = {"Install", "Save and install", "Save, install and delete", "Save", "Add to the download queue"};
 static const char* action_install_url_choice_infos[INSTALL_URL_CHOICES] = {
         "Downloads and installs at the same time, with no extra space on the SD card. With links good for one request (Dropbox) it comes over one connection. If it fails, it starts again from the beginning.",
         "Downloads the file to /nsa/received/ first (it needs room on the SD card for all of it), over the connections that make it faster; then installs it and keeps the file.",
         "Downloads the file to /nsa/received/ first (it needs room on the SD card for all of it), over the connections that make it faster; then installs it and deletes the file.",
-        "Only downloads the file to /nsa/received/ (it needs room on the SD card for all of it), over the connections that make it faster, to install it later from Files."
+        "Only downloads the file to /nsa/received/ (it needs room on the SD card for all of it), over the connections that make it faster, to install it later from Files.",
+        "Waits its turn in the download queue and installs in the background, one after the other, while you do something else. The queue pauses, reorders and cancels downloads."
 };
 
 static void action_install_url_free_data(install_url_data* data) {
@@ -618,9 +626,26 @@ static Result action_install_url_write_dst(void* data, u32 handle, u32* bytesWri
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 
+static void action_install_url_file_name(const char* url, char* out, size_t size);
+
 static bool action_install_url_error(void* data, u32 index, Result res, ui_view** errorView) {
     install_url_data* installData = (install_url_data*) data;
     installData->states[index] = URL_FAILED;
+
+    // The queue shows it on its item, and goes on with the next one.
+    if(installData->queueItem != NULL) {
+        char name[FILE_NAME_MAX];
+        action_install_url_file_name(installData->urls[index], name, sizeof(name));
+        if((u32) res >= (u32) R_APP_HTTP_ERROR_BASE && (u32) res < (u32) R_APP_HTTP_ERROR_END) {
+            snprintf(installData->queueError, sizeof(installData->queueError), "%s: HTTP %lu", name, (u32) res - (u32) R_APP_HTTP_ERROR_BASE);
+        } else {
+            snprintf(installData->queueError, sizeof(installData->queueError), "%s: %s (%08lX)", name,
+                     res == R_APP_BUSY ? _("another transfer has the connection") : _("failed"), (u32) res);
+        }
+        *errorView = NULL;
+        return true;
+    }
+
     led_blink(false);
 
     char* url = installData->urls[index];
@@ -1044,8 +1069,9 @@ bool action_install_url_notice(char* out, size_t size, float* progress) {
 static void action_install_url_install_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     install_url_data* installData = (install_url_data*) data;
     // The Store's scripts drive their downloads step by step: those stay on screen.
-    bool canHide = !installData->exactPaths && (installurl_bg == NULL || installurl_bg == installData);
-    bool canPause = installData->saveOnly && !installData->exactPaths;
+    bool queued = installData->queueItem != NULL;
+    bool canHide = queued || (!installData->exactPaths && (installurl_bg == NULL || installurl_bg == installData));
+    bool canPause = queued || (installData->saveOnly && !installData->exactPaths);
     u32 down = hidKeysDown();
 
     if(installData->paused) {
@@ -1071,7 +1097,7 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
     }
 
     if(installData->installInfo.finished) {
-        if(installData->pausing && installData->installInfo.result == R_APP_CANCELLED) {
+        if(!queued && installData->pausing && installData->installInfo.result == R_APP_CANCELLED) {
             action_install_url_paused(installData);
             return;
         }
@@ -1083,9 +1109,13 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
     view->info = canHide ? (canPause ? _(" background    cancel    pause") : _(" background    cancel")) : _(" cancel");
     if(canHide && (down & KEY_B)) {
         installData->background = true;
-        installurl_bg = installData;
+        if(!queued) {
+            installurl_bg = installData;
+        }
+
         ui_pop();
     } else if((canHide && (down & KEY_X)) || (!canHide && (down & KEY_B))) {
+        installData->installInfo.quietCancel = queued;
         svcSignalEvent(installData->installInfo.cancelEvent);
     } else if(canPause && (down & KEY_Y)) {
         installData->pausing = true;
@@ -1164,7 +1194,22 @@ static void action_install_url_finish(ui_view* view, install_url_data* installDa
             installData->toExtract = NULL;
         }
 
+        // A queue run: how it went, to the queue (which runs finishedAll itself when the item is over).
+        void (*queueDone)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error) = installData->queueDone;
+        void* queueItem = installData->queueItem;
+        bool queuePaused = installData->pausing && installData->installInfo.result == R_APP_CANCELLED;
+        bool queueCancelled = !queuePaused && installData->installInfo.result == R_APP_CANCELLED;
+        char queueError[160];
+        string_copy(queueError, installData->queueError, sizeof(queueError));
+        if(queueDone != NULL) {
+            installData->finishedAll = NULL;
+        }
+
         action_install_url_free_data(installData);
+
+        if(queueDone != NULL) {
+            queueDone(queueItem, installed + saved, failed, queuePaused, queueCancelled, queueError);
+        }
 
         if(archives != NULL) {
             // The archives first, one question each; then the CIAs.
@@ -1304,6 +1349,9 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
     }
 }
 
+// The queue run install_show has just made (action_install_url_run_queued takes it).
+static install_url_data* action_install_url_last_queued = NULL;
+
 static void action_install_url_install_show(install_url_data* data) {
     ui_view* view = ui_create();
     view->name = data->saveOnly ? _("Downloading") : _("Installing");
@@ -1314,7 +1362,11 @@ static void action_install_url_install_show(install_url_data* data) {
     view->update = action_install_url_install_update;
     view->drawTop = action_install_url_install_draw_top;
     view->drawBottom = action_install_url_install_draw_bottom;
-    ui_push(view);
+    if(data->queueItem == NULL) {
+        ui_push(view);
+    } else {
+        action_install_url_last_queued = data;
+    }
 }
 
 static bool action_install_url_in_order = true;
@@ -1323,8 +1375,45 @@ void action_install_url_save_in_order(bool inOrder) {
     action_install_url_in_order = inOrder;
 }
 
+// "Add to the download queue": the URLs, and the caller's callbacks, go to the queue; this request ends here.
+static void action_install_url_to_queue(install_url_data* installData) {
+    size_t size = 1;
+    for(u32 i = 0; i < installData->installInfo.total; i++) {
+        size += strlen(installData->urls[i]) + 1;
+    }
+
+    char* urls = (char*) calloc(1, size);
+    if(urls == NULL) {
+        action_install_url_free_data(installData);
+        return;
+    }
+
+    for(u32 i = 0; i < installData->installInfo.total; i++) {
+        strcat(urls, installData->urls[i]);
+        strcat(urls, "\n");
+    }
+
+    char name[FILE_NAME_MAX + 16];
+    action_install_url_file_name(installData->urls[0], name, sizeof(name));
+    if(installData->installInfo.total > 1) {
+        size_t used = strlen(name);
+        snprintf(name + used, sizeof(name) - used, " (+%lu)", installData->installInfo.total - 1);
+    }
+
+    if(dlqueue_add(name, urls, installData->archives, installData->userData, installData->finishedURL, installData->finishedAll)) {
+        installData->finishedAll = NULL;   // The queue's now.
+    }
+
+    free(urls);
+    action_install_url_free_data(installData);
+}
+
 static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32 response) {
     install_url_data* installData = (install_url_data*) data;
+    if(response == INSTALL_URL_CHOICE_QUEUE) {
+        action_install_url_to_queue(installData);
+        return;
+    }
 
     installData->mode = response;
     installData->saveOnly = response != INSTALL_URL_CHOICE_INSTALL;
@@ -1337,6 +1426,12 @@ static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32
         Result res = task_data_op(&installData->installInfo);
         if(R_SUCCEEDED(res)) {
             action_install_url_install_show(installData);
+        } else if(installData->queueDone != NULL) {
+            // A queue run that did not start: the queue says it on the item.
+            void (*queueDone)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error) = installData->queueDone;
+            void* queueItem = installData->queueItem;
+            action_install_url_free_data(installData);
+            queueDone(queueItem, 0, 1, false, false, _("The download did not start."));
         } else {
             error_display_res(NULL, NULL, res, "Failed to initiate installation.");
 
@@ -1487,17 +1582,19 @@ static void action_install_url_choose_draw_top(ui_view* view, void* data, float 
                             COLOR_TEXT, false, x + width - 4);
 }
 
-static void action_install_url_start(const char* confirmMessage, const char* urls, const char* paths, void* userData,
+static install_url_data* action_install_url_start(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                                      void (*finishedURL)(void* data, u32 index),
                                      void (*finishedAll)(void* data),
                                      void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index),
-                                     int choice, bool exactPaths, bool archives) {
+                                     int choice, bool exactPaths, bool archives, void* queueItem,
+                                     void (*queueDone)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error)) {
     install_url_data* data = (install_url_data*) calloc(1, sizeof(install_url_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate URL install data.");
 
-        return;
+        return NULL;
     }
+
 
     data->installInfo.total = 0;
 
@@ -1557,6 +1654,14 @@ static void action_install_url_start(const char* confirmMessage, const char* url
     data->exactPaths = exactPaths;
     data->archives = archives;
     data->quiet = exactPaths;
+    // A run of the download queue: in the background from the start, with no message and no retry question.
+    if(queueItem != NULL) {
+        data->queueItem = queueItem;
+        data->queueDone = queueDone;
+        data->quiet = true;
+        data->background = true;
+        data->installInfo.noRetry = true;
+    }
     data->userData = userData;
     data->finishedURL = finishedURL;
     data->finishedAll = finishedAll;
@@ -1590,13 +1695,13 @@ static void action_install_url_start(const char* confirmMessage, const char* url
     // A choice made by the caller (a plain download, say): no question.
     if(choice >= 0) {
         action_install_url_confirm_onresponse(NULL, data, (u32) choice);
-        return;
+        return data;
     }
 
     // No message: the caller already asked (the updater shows its own prompt).
     if(confirmMessage == NULL) {
         action_install_url_confirm_onresponse(NULL, data, INSTALL_URL_CHOICE_INSTALL);
-        return;
+        return data;
     }
 
     // Install, save, or both (issues #22 and #29): what each one does on the top screen.
@@ -1605,11 +1710,12 @@ static void action_install_url_start(const char* confirmMessage, const char* url
                                  action_install_url_choose_draw_top);
     if(view == NULL) {
         action_install_url_free_data(data);
-        return;
+        return NULL;
     }
 
     list_show_title_bar(view);
     view->id = "Confirmation";
+    return data;
 }
 
 void action_install_url_choice(const char* confirmMessage, const char* urls, const char* paths, void* userData,
@@ -1617,17 +1723,17 @@ void action_install_url_choice(const char* confirmMessage, const char* urls, con
                                void (*finishedAll)(void* data),
                                void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index),
                                int choice) {
-    action_install_url_start(confirmMessage, urls, paths, userData, finishedURL, finishedAll, drawTop, choice, false, false);
+    action_install_url_start(confirmMessage, urls, paths, userData, finishedURL, finishedAll, drawTop, choice, false, false, NULL, NULL);
 }
 
 void action_install_url_remote(const char* confirmMessage, const char* urls, void* userData, void (*finishedAll)(void* data)) {
-    action_install_url_start(confirmMessage, urls, NULL, userData, NULL, finishedAll, NULL, -1, false, true);
+    action_install_url_start(confirmMessage, urls, NULL, userData, NULL, finishedAll, NULL, -1, false, true, NULL, NULL);
 }
 
 // The Store's scripts: each URL saved to its path (one a line), with no question and nothing said at the end.
 void action_download_urls_to(const char* urls, const char* paths, void* userData, void (*finishedURL)(void* data, u32 index),
                              void (*finishedAll)(void* data)) {
-    action_install_url_start(NULL, urls, paths, userData, finishedURL, finishedAll, NULL, INSTALL_URL_CHOICE_SAVE, true, false);
+    action_install_url_start(NULL, urls, paths, userData, finishedURL, finishedAll, NULL, INSTALL_URL_CHOICE_SAVE, true, false, NULL, NULL);
 }
 
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
@@ -1640,4 +1746,54 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
 // Only downloads the file(s) to INSTALL_URL_SAVE_DIR, to install later from Files: no question first.
 void action_save_url(const char* urls, void* userData, void (*finishedURL)(void* data, u32 index), void (*finishedAll)(void* data)) {
     action_install_url_choice(NULL, urls, NULL, userData, finishedURL, finishedAll, NULL, INSTALL_URL_CHOICE_SAVE);
+}
+
+// ---- the download queue's runs (dlqueue.c) ----
+
+void* action_install_url_run_queued(const char* urls, bool archives, void* userData, void (*finishedURL)(void* data, u32 index),
+                                    void (*done)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error), void* item) {
+    action_install_url_last_queued = NULL;
+    action_install_url_start(NULL, urls, NULL, userData, finishedURL, NULL, NULL, INSTALL_URL_CHOICE_INSTALL, false, archives, item, done);
+    // A run that did not start has already ended (and said so to the queue).
+    install_url_data* data = action_install_url_last_queued;
+    action_install_url_last_queued = NULL;
+    return data;
+}
+
+void action_install_url_queued_poll(void* run) {
+    install_url_data* data = (install_url_data*) run;
+    if(data->installInfo.finished && ui_top() != data->view) {
+        data->background = false;
+        action_install_url_finish(data->view, data, false);
+    }
+}
+
+void action_install_url_queued_stop(void* run, bool pause) {
+    install_url_data* data = (install_url_data*) run;
+    data->pausing = pause;
+    data->installInfo.quietCancel = true;
+    if(!data->installInfo.finished) {
+        svcSignalEvent(data->installInfo.cancelEvent);
+    }
+}
+
+void action_install_url_queued_open(void* run) {
+    install_url_data* data = (install_url_data*) run;
+    if(ui_top() != data->view) {
+        data->background = false;
+        ui_push(data->view);
+    }
+}
+
+bool action_install_url_queued_on_screen(void* run) {
+    return ui_top() == ((install_url_data*) run)->view;
+}
+
+void action_install_url_queued_progress(void* run, u64* done, u64* total, char* name, size_t size) {
+    install_url_data* data = (install_url_data*) run;
+    data_op_data* info = &data->installInfo;
+    u32 index = info->processed < info->total ? info->processed : (info->total > 0 ? info->total - 1 : 0);
+    *done = info->currProcessed;
+    *total = info->currTotal;
+    action_install_url_file_name(data->urls[index], name, size);
 }

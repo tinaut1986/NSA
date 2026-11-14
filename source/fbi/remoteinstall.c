@@ -18,6 +18,7 @@
 #include "webserver.h"
 #include "transfer.h"
 #include "action/action.h"
+#include "dlqueue.h"
 #include "task/uitask.h"
 #include "../core/core.h"
 #include "../libs/quirc/quirc_internal.h"
@@ -866,6 +867,11 @@ static void remoteinstall_history_long_press(ui_view* view, void* data, linked_l
     sheet_display(NULL, 0, translated, 2, item);
 }
 
+// The title bar's queue button: the download queue (dlqueue.c).
+static void remoteinstall_history_queue_tool(ui_view* view, void* data) {
+    dlqueue_open();
+}
+
 static void remoteinstall_history_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     remoteinstall_history_data* historyData = (remoteinstall_history_data*) data;
 
@@ -921,6 +927,7 @@ static void remoteinstall_history_open() {
     }
 
     view->id = "History";
+    list_add_tool(view, ICON_LIST, NULL, remoteinstall_history_queue_tool);
     list_style style = {
             .rowHeight = 36,
             .drawRow = remoteinstall_history_draw_row

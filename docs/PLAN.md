@@ -163,6 +163,22 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Download queue, phase 2a (2026-11-14, `feat/download-queue`, issue #41). The install question of a URL download (a
+  Store CIA/3DSX, remote install, QR code, web page) has a fifth choice, "Add to the download queue" (`dlqueue.c`). The
+  queue runs one item at a time in the background (`action_install_url_run_queued`: Install mode, quiet, no retry
+  question; errors kept on the item: "HTTP 404", busy...), when the turn is free. Its screen (a tap on its toast, or the
+  list button in Remote install -> History): X pause now / resume queue, Y pause after this one, R clear finished; A on an
+  item: show its progress, pause / resume this one, put first, move up / down, cancel, retry, remove. A paused item is
+  skipped; a queue paused now puts the running one back first. Install mode, so a pause restarts that file from 0. An
+  FTP or web transfer refused because the queue has the turn (`xferturn_wanted`) makes the console ask "Pause the queue
+  until that transfer ends?" (no answer: it waits; asked again only after 60 s): Yes pauses it and it goes on 4 s
+  after the turn is free. The web page's install-url no longer answers busy (its question offers the queue). The toast
+  says how far it is, that it is paused (for a transfer), that items failed (until the queue is opened), or "finished:
+  N done" for 6 s; LED at the end. Not kept across restarts. Claude, 2026-11-14, Azahar (3 fake 3DSX at 200 KB/s): the
+  three queued from the web page ran in order; X paused (qa back to queued); qc put first; X + Y installed only qc and
+  paused; a web upload during the queue got busy + the question, Yes paused it, the upload went through and the queue
+  went on 4 s later; R cleared; a 404 showed as failed with HTTP 404. Not tried: a Store install queued (and the Store
+  closed meanwhile), FTP (Azahar's FTP does not greet), on a console. Phase 2b: Store scripts with their answers.
 - [ ] Downloads in the background, phase 1 of the queue (2026-11-14, `feat/download-background`, issue #41; the design is
   in #41's comment). On a URL download's progress screen (Store CIA/3DSX, remote install, QR, web page; not the Store's
   scripts, which drive their downloads step by step) B now hides it and the download goes on (X cancels): a toast

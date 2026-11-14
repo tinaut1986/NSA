@@ -181,6 +181,17 @@ void action_install_url_save_in_order(bool inOrder);
 void action_install_url_tick();
 bool action_install_url_notice(char* out, size_t size, float* progress);
 bool action_install_url_reopen();
+// The download queue's runs (dlqueue.c): one item's URLs installed in the background, with no question and no message;
+// `done` says how it ended. NULL when it could not start (`done` has run then).
+void* action_install_url_run_queued(const char* urls, bool archives, void* userData, void (*finishedURL)(void* data, u32 index),
+                                    void (*done)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error), void* item);
+// Ends the run there once it has finished (its screen does it while it is shown).
+void action_install_url_queued_poll(void* run);
+// Pauses (it comes back later from the start of the current file) or cancels the run.
+void action_install_url_queued_stop(void* run, bool pause);
+void action_install_url_queued_open(void* run);
+bool action_install_url_queued_on_screen(void* run);
+void action_install_url_queued_progress(void* run, u64* done, u64* total, char* name, size_t size);
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                         void (*finishedURL)(void* data, u32 index),
                         void (*finishedAll)(void* data),

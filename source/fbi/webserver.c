@@ -1786,15 +1786,9 @@ static void web_api_title_delete(web_request* r) {
     web_send_ok(r);
 }
 
-// The body is the URLs, one per line: the console asks before installing them.
+// The body is the URLs, one per line: the console asks before installing them. Even while another transfer has the
+// connection: its question offers the download queue (issue #41), which waits for it.
 static void web_api_install_url(web_request* r) {
-    xferturn_status status;
-    xferturn_get(&status);
-    if(status.busy) {
-        web_send_busy(r);
-        return;
-    }
-
     if(r->contentLength == 0 || r->contentLength >= sizeof(web_job.urls)) {
         web_send_error(r, 400, "send between 1 and 4000 bytes of URLs");
         return;

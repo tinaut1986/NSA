@@ -1850,6 +1850,47 @@ static void store_draw_row(void* data, list_item* item, float x, float y, float 
     widget_text_fit(sub, tx, top + lineH + 1, WIDGET_SMALL_SCALE, muted, right - tx);
 }
 
+// How many pictures the catalogue gives an app (the first STORE_SHOTS_MAX).
+static u32 store_shot_count(const store_app* app) {
+    if(app->shots == NULL) {
+        return 0;
+    }
+
+    u32 count = 1;
+    for(const char* c = app->shots; *c != '\0'; c++) {
+        count += *c == '\n';
+    }
+
+    return count > STORE_SHOTS_MAX ? STORE_SHOTS_MAX : count;
+}
+
+// What A does on an app: the choices its sheet has (0: nothing to download), and whether there is only one, which A then
+// starts at once (the install question) instead of opening the sheet. store_open_app goes by it, and the top screen says it.
+static u32 store_app_choices(store_data* store, const store_app* app, bool* direct) {
+    u8 status = store_status(store, app);
+    u32 downloads = (app->ciaUrl != NULL ? 1 : 0) + (app->dsxUrl != NULL ? 1 : 0) + app->otherCount;
+    u32 extra = (app->ciaUrl != NULL && app->uniqueId != 0 && (status & STATUS_CIA) != 0 ? 1 : 0)   // Uninstall the CIA.
+                + (app->dsxUrl != NULL && (status & STATUS_DSX) != 0 ? 1 : 0)                        // Delete the 3DSX.
+                + (app->shots != NULL ? 1 : 0);                                                      // Pictures.
+    *direct = downloads == 1 && extra == 0;
+    return downloads == 0 ? 0 : downloads + extra;
+}
+
+// A small badge with an icon and a number (an app's pictures), ending at `right`; returns where it starts.
+static float store_draw_count_badge(int icon, u32 number, float right, float y) {
+    const theme_current* t = theme();
+    char text[16];
+    snprintf(text, sizeof(text), "%lu", number);
+    float textW = widget_text_width(text, WIDGET_SMALL_SCALE);
+    float height = widget_text_height(WIDGET_SMALL_SCALE) + 4;
+    float width = 6 + 14 + 3 + textW + 7;
+    float x = right - width;
+    screen_fill_round_rect(x, y, width, height, height / 2, t->accentSoft);
+    screen_draw_icon(icon, x + 6, y + (height - 14) / 2, 14, t->accent);
+    screen_draw_text(text, x + 6 + 14 + 3, y + 2, WIDGET_SMALL_SCALE, t->accent);
+    return x;
+}
+
 static void store_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     store_data* store = (store_data*) data;
     const theme_current* t = theme();
@@ -1884,7 +1925,14 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
     float icon = 48;
     store_draw_app_icon(store, app, textX, cardY + 12, icon, false);
     float titleX = textX + icon + 10;
-    widget_text_fit(app->title, titleX, cardY + 12, WIDGET_TITLE_SCALE, t->palette->text, right - titleX);
+    // Its pictures (issue #38): how many, at the top right.
+    float titleRight = right;
+    u32 shots = store_shot_count(app);
+    if(shots > 0) {
+        titleRight = store_draw_count_badge(ICON_PHOTO, shots, right, cardY + 14) - 8;
+    }
+
+    widget_text_fit(app->title, titleX, cardY + 12, WIDGET_TITLE_SCALE, t->palette->text, titleRight - titleX);
 
     char line[160];
     snprintf(line, sizeof(line), "%s%s%s", app->author, app->author[0] != '\0' && app->version[0] != '\0' ? "  -  " : "", app->version);
@@ -1902,6 +1950,21 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
     u8 status = store_status(store, app);
     float smallH = widget_text_height(WIDGET_SMALL_SCALE);
     float by = cardY + cardH - smallH - 14;
+    // What A does, at the right of the badges' line (above it if the badges reach that far): the install at once, or a
+    // sheet of choices.
+    char hint[64] = "";
+    bool direct = false;
+    u32 choices = store_app_choices(store, app, &direct);
+    if(choices > 0) {
+        if(direct) {
+            string_copy(hint, app->ciaUrl != NULL ? _(" Install") : app->dsxUrl != NULL ? _(" Download") : _(" Get"), sizeof(hint));
+        } else {
+            snprintf(hint, sizeof(hint), _(" %lu options"), choices);
+        }
+    }
+
+    float hintW = hint[0] != '\0' ? widget_text_width(hint, WIDGET_SMALL_SCALE) : 0;
+
     if(status & (STATUS_CIA | STATUS_DSX)) {
         char have[96] = "";
         size_t used = 0;
@@ -1949,6 +2012,12 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
 
     if(app->categoryId[0] != '\0') {
         widget_badge(bx, by, app->categoryId, t->palette->border, t->palette->text);
+        bx += widget_text_width(app->categoryId, WIDGET_SMALL_SCALE) + 18;
+    }
+
+    if(hint[0] != '\0') {
+        float hy = bx + 8 <= right - hintW ? by + 1 : by - smallH - 8;
+        screen_draw_text(hint, right - hintW, hy, WIDGET_SMALL_SCALE, t->accent);
     }
 }
 
@@ -2484,7 +2553,9 @@ static void store_open_app(store_data* store, store_app* app) {
     u8 status = store_status(store, app);
     bool uninstallCia = app->ciaUrl != NULL && app->uniqueId != 0 && (status & STATUS_CIA) != 0;
     bool deleteDsx = app->dsxUrl != NULL && (status & STATUS_DSX) != 0;
-    if(total == 1 && !uninstallCia && !deleteDsx && app->shots == NULL) {
+    bool direct = false;
+    store_app_choices(store, app, &direct);
+    if(direct) {
         if(app->ciaUrl != NULL) {
             store_install_cia(app);
         } else if(app->dsxUrl != NULL) {
@@ -2499,13 +2570,8 @@ static void store_open_app(store_data* store, store_app* app) {
     sheet_action actions[5 + STORE_OTHERS_MAX];
     u32 count = 0;
     if(app->shots != NULL) {
-        u32 shots = 1;
-        for(const char* c = app->shots; *c != '\0'; c++) {
-            shots += *c == '\n';
-        }
-
         static char shotsLabel[64];
-        snprintf(shotsLabel, sizeof(shotsLabel), _("Pictures (%lu)"), shots > STORE_SHOTS_MAX ? STORE_SHOTS_MAX : shots);
+        snprintf(shotsLabel, sizeof(shotsLabel), _("Pictures (%lu)"), store_shot_count(app));
         actions[count++] = (sheet_action) {ICON_PHOTO, shotsLabel, false, store_view_shots, false, NULL};
     }
 

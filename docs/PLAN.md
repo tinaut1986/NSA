@@ -163,12 +163,19 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Store: the top card says what A does and how many pictures there are (2026-11-14, `feat/store-hints`; the owner:
+  one could not tell which apps open a sheet and which ask to install at once). `store_app_choices` counts the sheet's
+  choices (downloads, Uninstall the CIA, Delete the 3DSX, Pictures) and says whether A goes straight to the only one;
+  `store_open_app` goes by it, and the card shows, at the right of the badges' line (above it when they reach that
+  far), "A Install" / "A Download" / "A Get" or "A N options" in the accent colour, and a picture badge with the count
+  at the top right (the title kept clear of it). Claude, 2026-11-14, Azahar: .hack (Download, long description
+  clear), 3D Pinball (3 options, 1 picture).
 - [ ] Store: an app's pictures (2026-11-14, `feat/store-pictures`, issue #38 from #33). The catalogue's "screenshots"
   (116 of Universal-DB's 448 apps; the first 8 URLs, `store_app.shots`, cache format 9 -> 10) give the app's sheet a
   first action "Pictures (N)" (so an app with one download and pictures opens its sheet). It downloads what is not on
   the card yet to /nsa/store-shots/<slug>-<n>.<ext> (`action_download_urls_to`; the other apps' pictures there are
   deleted first, so one app's are kept) and opens them in the picture viewer (L/R). Built only (DEBUG 0.9.10; HTTPS
-  does not work in Azahar). Try: an app with several pictures, again (no download), Wi-Fi off (error, then what is
+  did not work in Azahar before). Claude, 2026-11-14, Azahar: Universal-DB downloaded there, 3D Pinball's picture downloaded and shown. Try: an app with several pictures, again (no download), Wi-Fi off (error, then what is
   there), B while downloading, a JPEG one.
 - [ ] Files: view what a .zip or .7z holds, and delete it after extracting (2026-11-14, `feat/archive-view`, issue #47
   from Cosmosx007). A .zip/.7z's sheet has "View contents" first (`archiveview.c`): its files and folders (also the

@@ -2161,7 +2161,7 @@ static void store_start(store_data* store, store_app* app, bool cia, const char*
         return;
     }
 
-    storescript_run(script, what, ctx, store_script_done);
+    storescript_run(script, what, app->title, ctx, store_script_done);
 }
 
 // The question (about `name`), followed by what the author asks to be read first (if anything).
@@ -2213,7 +2213,9 @@ static void store_get_other(u32 index) {
     string_copy(ctx->version, app->version, sizeof(ctx->version));
     char message[700];
     store_ask_text(message, sizeof(message), app, _("Get \"%s\"?"), app->others[index].name);
-    storescript_run(app->others[index].script, message, ctx, store_script_done);
+    char name[160];
+    snprintf(name, sizeof(name), "%s: %s", app->title, app->others[index].name);
+    storescript_run(app->others[index].script, message, name, ctx, store_script_done);
 }
 
 // A sheet's action knows only its data: one function for each place in the list.

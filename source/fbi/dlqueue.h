@@ -11,6 +11,8 @@
 // finishedAll runs once the item is done, cancelled or removed. False (and nothing kept) when the queue is full.
 bool dlqueue_add(const char* name, const char* urls, bool archives, void* userData, void (*finishedURL)(void* data, u32 index),
                  void (*finishedAll)(void* data));
+// A Store script asked beforehand (storescript.c): the queue runs it with its answers. False when the queue is full.
+bool dlqueue_add_script(const char* name, void* script);
 // The main loop: starts the next item, ends the running one's turn, asks about a transfer waiting for the connection.
 void dlqueue_tick();
 // The toast while the queue has work (or failures nobody has seen); a tap on it opens the queue (dlqueue_open_any).

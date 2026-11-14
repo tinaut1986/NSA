@@ -959,6 +959,8 @@ static void action_install_url_extract_all(char* archives, char* cias, bool dele
     action_install_url_extract_next(run);
 }
 
+static char action_install_url_error_text[160];
+
 // The one download that runs, or waits paused, behind the screens (NULL: none).
 static install_url_data* installurl_bg = NULL;
 
@@ -1201,6 +1203,9 @@ static void action_install_url_finish(ui_view* view, install_url_data* installDa
         bool queueCancelled = !queuePaused && installData->installInfo.result == R_APP_CANCELLED;
         char queueError[160];
         string_copy(queueError, installData->queueError, sizeof(queueError));
+        if(queueItem != NULL && queueDone == NULL) {
+            string_copy(action_install_url_error_text, queueError, sizeof(action_install_url_error_text));
+        }
         if(queueDone != NULL) {
             installData->finishedAll = NULL;
         }
@@ -1749,6 +1754,23 @@ void action_save_url(const char* urls, void* userData, void (*finishedURL)(void*
 }
 
 // ---- the download queue's runs (dlqueue.c) ----
+
+// The last error of a queued download that no queue item hears about (a Store script's step), for the script to keep.
+
+const char* action_install_url_last_error() {
+    return action_install_url_error_text;
+}
+
+void* action_download_urls_to_queued(const char* urls, const char* paths, void* userData, void (*finishedURL)(void* data, u32 index),
+                                     void (*finishedAll)(void* data)) {
+    action_install_url_last_queued = NULL;
+    action_install_url_error_text[0] = '\0';
+    // The script is the queue item it belongs to: quiet, in the background; with no queueDone, its finishedAll runs.
+    action_install_url_start(NULL, urls, paths, userData, finishedURL, finishedAll, NULL, INSTALL_URL_CHOICE_SAVE, true, false, userData, NULL);
+    install_url_data* data = action_install_url_last_queued;
+    action_install_url_last_queued = NULL;
+    return data;
+}
 
 void* action_install_url_run_queued(const char* urls, bool archives, void* userData, void (*finishedURL)(void* data, u32 index),
                                     void (*done)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error), void* item) {

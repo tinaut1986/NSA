@@ -192,6 +192,12 @@ void action_install_url_queued_stop(void* run, bool pause);
 void action_install_url_queued_open(void* run);
 bool action_install_url_queued_on_screen(void* run);
 void action_install_url_queued_progress(void* run, u64* done, u64* total, char* name, size_t size);
+// A Store script's download in the download queue: saved to `paths` in the background, quiet; finishedAll runs at the end
+// (the queue polls it with action_install_url_queued_poll). NULL when it could not start.
+void* action_download_urls_to_queued(const char* urls, const char* paths, void* userData, void (*finishedURL)(void* data, u32 index),
+                                     void (*finishedAll)(void* data));
+// Why the last such download failed ("" when it did not).
+const char* action_install_url_last_error();
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                         void (*finishedURL)(void* data, u32 index),
                         void (*finishedAll)(void* data),

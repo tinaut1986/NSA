@@ -17,6 +17,7 @@
 
 #include "ftpserver.h"
 #include "relaunch.h"
+#include "remotehelp.h"
 #include "homeicon.h"
 #include "selftest.h"
 #include "../core/core.h"
@@ -1125,6 +1126,25 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         if(*c >= 'a' && *c <= 'z') {
             *c = (char) (*c - 32);
         }
+    }
+
+    // The reference of these commands and of the web API (remotehelp.c), one reply line each: it drives nothing, so it
+    // answers with remote use off too.
+    if(strcmp(sub, "HELP") == 0) {
+        ftp_reply(s, "214-NSA remote control reference");
+        const char* line = remote_help_text;
+        while(*line != '\0') {
+            const char* end = strchr(line, '\n');
+            int len = end != NULL ? (int) (end - line) : (int) strlen(line);
+            ftp_reply(s, " %.*s", len, line);
+            line += len;
+            if(*line == '\n') {
+                line++;
+            }
+        }
+
+        ftp_reply(s, "214 End of help.");
+        return;
     }
 
     if(!ftp_remote_allowed()) {

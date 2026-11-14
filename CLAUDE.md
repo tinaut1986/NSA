@@ -138,6 +138,8 @@ With the FTP server on (always in DEBUG builds), port 5021 (5000 until v0.3.0). 
 the FTP server (on by default) only serves files; the `SITE` commands below (and installing with `SITE INSTALL`) answer
 `502` unless the file `sdmc:/nsa/remote.flag` exists (create it to turn remote use on, delete it to
 turn it off; DEBUG builds ignore it):
+(the whole reference, for people and AIs, is `source/fbi/remotehelp.c`, sent by `SITE HELP` and by the web page's
+`GET /api/help` with no PIN: update it when a SITE command or an /api/ route changes)
 `SITE SCREENSHOT` (both screens to `/nsa/screenshots/top.bmp` and `bottom.bmp`),
 `SITE PRESS <A|B|X|Y|L|R|ZL|ZR|START|SELECT|UP|DOWN|LEFT|RIGHT>[+...] [frames]`,
 `SITE TAP <x> <y> [frames]` (bottom screen), `SITE DRAG <x> <y1> <y2> [frames]` (a finger sliding

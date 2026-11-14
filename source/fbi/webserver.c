@@ -20,6 +20,7 @@
 #include "settings.h"
 #include "section.h"
 #include "relaunch.h"
+#include "remotehelp.h"
 #include "transfer.h"
 #include "webserver.h"
 #include "action/action.h"
@@ -2393,6 +2394,17 @@ static void web_handle(web_request* r) {
 
     if(strncmp(r->path, "/api/", 5) != 0) {
         web_send_error(r, 404, "not found");
+        return;
+    }
+
+    // What the API is (remotehelp.c): free to read, so a client learns how to sign in before it has the PIN.
+    if(strcmp(r->path, "/api/help") == 0) {
+        if(strcmp(r->method, "GET") == 0) {
+            web_send_text(r, 200, "text/plain; charset=utf-8", remote_help_text);
+        } else {
+            web_send_error(r, 405, "method not allowed");
+        }
+
         return;
     }
 

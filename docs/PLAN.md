@@ -163,6 +163,17 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Store: uninstall a CIA or delete a .3dsx (2026-11-14, `feat/store-uninstall`, issue #40, from Cosmosx007 in #33:
+  TemperPCE was hard to find once installed). An app's sheet gets "Uninstall the CIA" when its title is installed (by the
+  catalogue's unique ID; an app without one gets nothing) and "Delete the 3DSX" when its .3dsx is in /3ds/; with one of
+  them, an app with a single download opens the sheet instead of the install question. The CIA: a red question, the
+  save copied to /nsa/saves/<ID>/<date>-before-uninstall/ (`action_save_backup`, installsave.c; if the copy fails
+  nothing is deleted), then AM_DeleteTitle (the ticket and the game's /luma/titles mods stay). The .3dsx: the file, and
+  its own folder (/3ds/<name>/) only if nothing else is left in it. Scripts and archives (the "others") get no
+  uninstall on the owner's word: their `installed_files` can be wrong, name whole folders, files two apps share
+  (/luma/plugins/<id>/plugin.3gx, /boot.3dsx) or /boot.firm (Luma3DS). Built only (DEBUG 0.9.10).
+  Try: TemperPCE as CIA (save backup shown, title gone from HOME, badge goes) and as 3DSX, an app never started (no
+  save: "Uninstalled."), a 3DSX in a folder with other files (the folder stays).
 - [x] Store: every app and step as in Universal-Updater (2026-11-13, `feat/store-sensitive-writes`,
   `source/fbi/storescript.c`). Universal-DB now lists all its 448 apps (427 before). Scripts that write to or delete from
   boot.firm or any .firm, /luma (but a game's /luma/titles/<id> and /luma/plugins), /gm9 or /private get, after the usual

@@ -140,7 +140,7 @@ static Result install_save_copy_out(FS_Archive save, const char* from, const cha
 }
 
 // Copies the title's save to a new backup folder (`dir` gets it, empty when the title has no save).
-static Result install_save_backup(u64 titleId, FS_MediaType media, u16 version, const char* name, char* dir, size_t size) {
+static Result install_save_backup(u64 titleId, FS_MediaType media, u16 version, const char* name, const char* why, char* dir, size_t size) {
     dir[0] = '\0';
 
     u32 pathData[3];
@@ -164,7 +164,7 @@ static Result install_save_backup(u64 titleId, FS_MediaType media, u16 version, 
         snprintf(stamp, sizeof(stamp), "%llu", (unsigned long long) osGetTime());
     }
 
-    snprintf(dir, size, INSTALL_SAVE_DIR "%016llX/%s-before-install/", (unsigned long long) titleId, stamp);
+    snprintf(dir, size, INSTALL_SAVE_DIR "%016llX/%s-%s/", (unsigned long long) titleId, stamp, why);
 
     char local[FILE_PATH_MAX + 16];
     if(R_SUCCEEDED(res)) {
@@ -408,7 +408,7 @@ Result action_install_cia_lower(FS_MediaType dest, u64 titleId, u16 version, u16
     install_save_pending.active = false;
     char dir[FILE_PATH_MAX] = "";
     if(hasSave) {
-        Result res = install_save_backup(titleId, dest, installedVersion, name, dir, sizeof(dir));
+        Result res = install_save_backup(titleId, dest, installedVersion, name, "before-install", dir, sizeof(dir));
         if(R_FAILED(res)) {
             // Nothing deleted: the install stops here with this error.
             return res;
@@ -420,6 +420,12 @@ Result action_install_cia_lower(FS_MediaType dest, u64 titleId, u16 version, u16
     install_save_pending.media = dest;
     string_copy(install_save_pending.dir, dir, sizeof(install_save_pending.dir));
     return 0;
+}
+
+Result action_save_backup(u64 titleId, FS_MediaType media, u16 version, const char* why, char* dir, size_t size) {
+    char name[FILE_NAME_MAX];
+    install_save_title_name(name, sizeof(name), titleId, media);
+    return install_save_backup(titleId, media, version, name, why, dir, size);
 }
 
 void action_install_cia_ended(u64 titleId, bool installed) {

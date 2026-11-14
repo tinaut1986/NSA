@@ -163,6 +163,20 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Downloads in the background, phase 1 of the queue (2026-11-14, `feat/download-background`, issue #41; the design is
+  in #41's comment). On a URL download's progress screen (Store CIA/3DSX, remote install, QR, web page; not the Store's
+  scripts, which drive their downloads step by step) B now hides it and the download goes on (X cancels): a toast
+  "In the background, N %: tap to open" shows over any screen, and a tap on it opens the screen again
+  (`ui_set_status_tap`, `input_swallow`). In the modes that save to the card, Y pauses: the data op is cancelled quietly
+  (`data_op_data.quietCancel`), the .part keeps the contiguous part, the screen shows "Paused" (A resume, X cancel and
+  delete the .part, B background) and the toast says "Download paused: tap to open". Resume runs the URLs not done again
+  (the .part resumes by Range); the summary counts the ones done before. It ends behind the screens through
+  `action_install_url_tick` (main loop), its messages over whatever is open. The Store keeps its data (`store_retain`) until
+  an install ends, so closing the Store while one goes on is safe. Claude, 2026-11-14, Azahar (local slow server):
+  B kept it going; tap reopened it; Y paused (4.5 of 12 MB, 3 connections) and A resumed from 2 MB, same SHA-256; a
+  background download ended with "Saved in" over the main menu; Y then X left no files. A pause in the first second
+  keeps nothing (no contiguous part yet) and resumes from 0. Not tried: closing the Store with one in the background,
+  an install (Install mode: B hides, no pause), on a console.
 - [ ] Store: the top card says what A does and how many pictures there are (2026-11-14, `feat/store-hints`; the owner:
   one could not tell which apps open a sheet and which ask to install at once). `store_app_choices` counts the sheet's
   choices (downloads, Uninstall the CIA, Delete the 3DSX, Pictures) and says whether A goes straight to the only one;

@@ -176,6 +176,11 @@ void action_delete_secure_value(linked_list* items, list_item* selected);
 // Tests (SITE SAVEORDER, DEBUG): false makes "Save" take the file in long pieces written where they go (http_download_file)
 // instead of in order, as an install does (the default).
 void action_install_url_save_in_order(bool inOrder);
+// A download sent to the background with B (issue #41): the main loop's tick ends it there, its toast says how far it
+// is, and a tap on the toast opens its screen again (false when there is none).
+void action_install_url_tick();
+bool action_install_url_notice(char* out, size_t size, float* progress);
+bool action_install_url_reopen();
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                         void (*finishedURL)(void* data, u32 index),
                         void (*finishedAll)(void* data),

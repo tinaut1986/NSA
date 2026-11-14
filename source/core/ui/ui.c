@@ -33,6 +33,32 @@ static Handle ui_stack_mutex = 0;
 static void (*ui_status_corner)(char* out, size_t size) = NULL;
 static bool (*ui_status_notice)(char* out, size_t size, float* progress) = NULL;
 static u32 (*ui_status_activity)() = NULL;
+static bool (*ui_status_tap)() = NULL;
+
+void ui_set_status_tap(bool (*tap)()) {
+    ui_status_tap = tap;
+}
+
+// A touch on the bottom toast goes to ui_status_tap (a download in the background opens again), not to the view.
+static void ui_toast_touch() {
+    if(ui_status_tap == NULL || ui_status_notice == NULL || !(hidKeysDown() & KEY_TOUCH)) {
+        return;
+    }
+
+    char notice[256];
+    float progress = -1;
+    if(!ui_status_notice(notice, sizeof(notice), &progress)) {
+        return;
+    }
+
+    touchPosition pos;
+    hidTouchRead(&pos);
+    float bottom = BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT;
+    float top = bottom - 6 - widget_toast_height(notice, progress);
+    if(pos.py >= top && pos.py < bottom - 6 && pos.px >= 8 && pos.px < BOTTOM_SCREEN_WIDTH - 8 && ui_status_tap()) {
+        input_swallow(KEY_TOUCH);
+    }
+}
 
 static u64 ui_fade_begin_time = 0;
 static u8 ui_fade_alpha = 0;
@@ -429,6 +455,7 @@ bool ui_update() {
     bgmusic_update();
     coach_update();
 
+    ui_toast_touch();
     ui = ui_top();
     ui_update_back_arrow(ui);
     if(ui != NULL && ui->update != NULL) {

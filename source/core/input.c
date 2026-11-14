@@ -58,6 +58,11 @@ void input_scan() {
     injected_last = injected;
 }
 
+void input_swallow(u32 keys) {
+    keys_down &= ~keys;
+    keys_held &= ~keys;
+}
+
 u32 input_keys_down() {
     return keys_down;
 }

@@ -35,7 +35,7 @@ jobs:
       - name: Install host build tools
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends xxd qrencode >/dev/null
+          apt-get install -y -qq --no-install-recommends xxd qrencode python3 >/dev/null
 
       - name: Determine release tag and channel
         id: vars
@@ -153,3 +153,64 @@ jobs:
             release/NSA-${{ steps.vars.outputs.tag }}.3dsx
             release/SHA256SUMS.txt
             release/QR-${{ steps.vars.outputs.tag }}.png
+
+      # Announce the release on Discord (Tinaut's 3DS Ports server). A stable goes to
+      # #announcements and pings the project's role; a beta goes to #beta-testing
+      # without a ping. The webhook URLs live in the repo secrets DISCORD_WEBHOOK_RELEASE
+      # and DISCORD_WEBHOOK_BETA: without them this step does nothing, and a Discord
+      # error never fails the release. Re-running the workflow posts again.
+      - name: Announce on Discord
+        continue-on-error: true
+        env:
+          WEBHOOK_RELEASE: ${{ secrets.DISCORD_WEBHOOK_RELEASE }}
+          WEBHOOK_BETA: ${{ secrets.DISCORD_WEBHOOK_BETA }}
+          PROJECT: "NSA"
+          ROLE_ID: "1570479655432224898"
+          TAG: ${{ steps.vars.outputs.tag }}
+          CHANNEL: ${{ steps.vars.outputs.channel }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$CHANNEL" = "Release" ]; then HOOK="$WEBHOOK_RELEASE"; else HOOK="$WEBHOOK_BETA"; fi
+          if [ -z "$HOOK" ]; then echo "No Discord webhook secret for the $CHANNEL channel: not announcing"; exit 0; fi
+          URL="https://github.com/$REPO/releases/tag/$TAG"
+          NOTES="docs/release-notes/${TAG}.md"
+          DESC="Download it from the release page."
+          if [ -f "$NOTES" ]; then
+            DESC=$(head -c 3500 "$NOTES")
+            [ "$(wc -c < "$NOTES")" -gt 3500 ] && DESC="$DESC"$'\n\n'"... (full notes on the release page)"
+          fi
+          if [ "$CHANNEL" = "Release" ]; then
+            CONTENT="<@&$ROLE_ID> **$PROJECT $TAG** is out!"; ROLES="[\"$ROLE_ID\"]"
+            TITLE="$PROJECT $TAG"; COLOR=5763719
+          else
+            CONTENT="**$PROJECT $TAG** beta is ready for testing."; ROLES="[]"
+            TITLE="$PROJECT $TAG (beta)"; COLOR=16705372
+          fi
+          jq -n --arg content "$CONTENT" --arg title "$TITLE" --arg url "$URL" --arg desc "$DESC" \
+                --argjson color "$COLOR" --argjson roles "$ROLES" \
+            '{content: $content, allowed_mentions: {parse: [], roles: $roles},
+              embeds: [{title: $title, url: $url, description: $desc, color: $color}]}' > discord.json
+          curl -fsS -H "Content-Type: application/json" -d @discord.json "$HOOK"
+
+      # NSA's Settings -> Changelog (v0.10 on) reads pages of the notes in its language from GitHub Pages
+      # (branch feat/website, folder /docs): see tools/make_changelog.py. The release bodies stay English only,
+      # because NSA v0.9.9 and older read every body at once and must keep getting what they always did.
+      - name: Publish the changelog pages
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 --branch feat/website \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" site
+          python3 tools/make_changelog.py --repo "${{ github.repository }}" --out site/docs/changelog
+          cd site
+          git add -A docs/changelog
+          if git diff --cached --quiet; then
+            echo "The changelog pages are unchanged"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Changelog pages for ${{ steps.vars.outputs.tag }}"
+          # Someone may have pushed to the site meanwhile: the pages are regenerated whole, so rebasing onto it is safe.
+          git push -q origin HEAD:feat/website || { git pull -q --rebase origin feat/website && git push -q origin HEAD:feat/website; }

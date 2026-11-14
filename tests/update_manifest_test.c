@@ -11,7 +11,7 @@
 static json_t* make(const char* tag, bool pre, const char* notes) {
     char name[100];
     char url[512];
-    char body[256];
+    char body[1024];
     snprintf(name, sizeof(name), APP_NAME "-%s.cia", tag);
     snprintf(url, sizeof(url), "https://github.com/" APP_REPOSITORY "/releases/download/%s/%s", tag, name);
     snprintf(body, sizeof(body), "intro\n" UPDATE_NOTES_OPEN "\n%s\n" UPDATE_NOTES_CLOSE "\nfooter", notes);
@@ -24,6 +24,49 @@ static int parse(json_t* list, bool betas, bool homebrew, const char* installed,
     int result = update_parse_releases(s, strlen(s), betas, homebrew, installed, out);
     free(s);
     return result;
+}
+
+static int history(const char* page, const char* installed, char* out, size_t cap, unsigned* pages) {
+    return update_parse_history(page, strlen(page), installed, out, cap, pages);
+}
+
+static void test_history() {
+    static char out[4096];
+    unsigned pages = 0;
+    const char* page = "{\"format\":1,\"page\":1,\"pages\":3,\"releases\":["
+                       "{\"tag\":\"v0.4.0\",\"prerelease\":true,\"notes\":\"- beta cuatro\\n\"},"
+                       "{\"tag\":\"v0.3.0\",\"prerelease\":false,\"notes\":\"- estable tres, ñandú\\n\"},"
+                       "{\"tag\":\"v0.2.1\",\"prerelease\":true,\"notes\":\"- beta two one\\n\"},"
+                       "{\"tag\":\"../x\",\"prerelease\":false,\"notes\":\"- evil\\n\"},"
+                       "{\"tag\":\"v0.2.0\",\"prerelease\":false}"
+                       "]}";
+
+    // Up to the installed build, betas and stables alike, newest first.
+    assert(history(page, "0.3.0", out, sizeof(out), &pages) == 2 && pages == 3);
+    assert(!strcmp(out, "## v0.3.0\n- estable tres, ñandú\n\n## v0.2.1 BETA\n- beta two one\n"));
+    // A newer dev build sees them all; a beta build of 0.4.0 too; the bad entries never.
+    assert(history(page, "0.4.1-dev.2+abc", out, sizeof(out), &pages) == 3 && strstr(out, "## v0.4.0 BETA\n- beta cuatro"));
+    assert(history(page, "0.4.0-beta", out, sizeof(out), &pages) == 3 && !strstr(out, "evil"));
+    assert(history(page, "0.4.0-dev.1+abc", out, sizeof(out), &pages) == 2);
+
+    // What does not fit is left out, never cut in half.
+    assert(history(page, "0.4.0", out, 40, &pages) == 1 && !strcmp(out, "## v0.4.0 BETA\n- beta cuatro\n"));
+
+    assert(history("{\"format\":1,\"page\":4,\"pages\":3,\"releases\":[]}", "0.1.0", out, sizeof(out), &pages) == 0 && pages == 3 && !out[0]);
+    assert(history("{\"format\":2,\"pages\":3,\"releases\":[]}", "0.1.0", out, sizeof(out), &pages) == -1);
+    assert(history("[]", "0.1.0", out, sizeof(out), &pages) == -1);
+    assert(history("<html>404</html>", "0.1.0", out, sizeof(out), &pages) == -1);
+
+    // The index: every release up to the installed one, bad entries left out; none on a page without it.
+    const char* first = "{\"format\":1,\"page\":1,\"pages\":2,\"releases\":[],\"index\":["
+                        "{\"tag\":\"v0.4.0\",\"prerelease\":true},{\"tag\":\"v0.3.0\",\"prerelease\":false},"
+                        "{\"tag\":\"x\",\"prerelease\":false},{\"tag\":\"v0.2.1\",\"prerelease\":true},{\"tag\":\"v0.2.0\"}]}";
+    update_history_entry entries[8];
+    assert(update_parse_history_index(first, strlen(first), "0.3.0", entries, 8) == 2);
+    assert(!strcmp(entries[0].tag, "v0.3.0") && !entries[0].prerelease && !strcmp(entries[1].tag, "v0.2.1") && entries[1].prerelease);
+    assert(update_parse_history_index(first, strlen(first), "1.0.0", entries, 2) == 2 && !strcmp(entries[0].tag, "v0.4.0"));
+    assert(update_parse_history_index(page, strlen(page), "1.0.0", entries, 8) == 0);
+    assert(update_parse_history_index("nope", 4, "1.0.0", entries, 8) == 0);
 }
 
 static void test_versions() {
@@ -45,28 +88,39 @@ static void test_versions() {
     assert(!update_allowed_download_url("https://github.com/Steveice10/FBI/releases/download/2.6.1/FBI.cia"));
 }
 
+static void expect_items(const char* md, const char* expected) {
+    char* items = update_notes_items(md);
+    if(strcmp(items, expected) != 0) {
+        printf("got:\n%s\nexpected:\n%s\n", items, expected);
+        assert(0);
+    }
+
+    free(items);
+}
+
 static void test_format() {
-    static char lines[512][UPDATE_LINE_MAX];
-    unsigned count = update_format_notes("## Changelog\n\n- **Fixed** [colors](https://example.com).\n![QR](https://example.com/qr.png)", lines, 512, 50);
-    assert(count == 3 && !strcmp(lines[0], "Changelog") && !lines[1][0] && !strcmp(lines[2], "- Fixed colors."));
+    expect_items("## Changelog\n\n- **Fixed** [colors](https://example.com).\n![QR](https://example.com/qr.png)",
+                 "HChangelog\nBFixed colors.\n");
+    expect_items("> Beta\n" UPDATE_NOTES_OPEN "\n## What's new\n\n- Faster\n" UPDATE_NOTES_CLOSE "\n## Changelog\n- x (abc)",
+                 "HWhat's new\nBFaster\n");
+    expect_items("", "");
+    expect_items(NULL, "");
 
-    count = update_format_notes("> Beta\n" UPDATE_NOTES_OPEN "\n## What's new\n\n- Faster\n" UPDATE_NOTES_CLOSE "\n## Changelog\n- x (abc)", lines, 512, 50);
-    assert(count == 3 && !strcmp(lines[0], "What's new") && !strcmp(lines[2], "- Faster"));
+    // Lines broken by hand go on their item; literal brackets stay; a blank line ends an item.
+    expect_items("## v0.6.3 BETA\n- Downloads from Dropbox links work, to save and to install\n  (they failed with \"Forbidden\").\n"
+                 "- Badges instead of \"[Checkpoint]\".\r\n\nA note\nthat goes on.\n<!-- x -->\n## v0.6.2\n* Star",
+                 "Hv0.6.3 BETA\nBDownloads from Dropbox links work, to save and to install (they failed with \"Forbidden\").\n"
+                 "BBadges instead of \"[Checkpoint]\".\nPA note that goes on.\nHv0.6.2\nBStar\n");
 
-    assert(update_format_notes("", lines, 512, 50) == 1 && !strcmp(lines[0], "No changelog provided."));
-    assert(update_format_notes("ignored", lines, 0, 50) == 0);
+    // UTF-8 stays; emoji go.
+    expect_items("- Pantalla de diseño 🎨 ñ\n- テーマ", "BPantalla de diseño  ñ\nBテーマ\n");
 
     static char long_notes[UPDATE_NOTES_MAX];
     memset(long_notes, 'x', sizeof(long_notes) - 1);
     long_notes[sizeof(long_notes) - 1] = '\0';
-    count = update_format_notes(long_notes, lines, 512, 50);
-    assert(count == 328);
-    for(unsigned i = 0; i < count; i++) {
-        assert(strlen(lines[i]) <= 50);
-    }
-
-    count = update_format_notes("one two three four", lines, 512, 10);
-    assert(count == 2 && !strcmp(lines[0], "one two") && !strcmp(lines[1], "three four"));
+    char* items = update_notes_items(long_notes);
+    assert(items[0] == 'P' && strlen(items) == sizeof(long_notes) + 1);
+    free(items);
 }
 
 static void test_channels() {
@@ -138,6 +192,7 @@ int main() {
     test_versions();
     test_format();
     test_channels();
+    test_history();
     puts("PASS: update_manifest");
     return 0;
 }

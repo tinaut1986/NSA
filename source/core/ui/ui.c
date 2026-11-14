@@ -402,9 +402,16 @@ static bool ui_should_draw(ui_view* ui) {
     return false;
 }
 
+static u32 ui_frames = 0;
+
+u32 ui_frame() {
+    return ui_frames;
+}
+
 bool ui_update() {
     ui_view* ui = NULL;
 
+    ui_frames++;
     input_scan();
 
     // Feedback for the buttons, wherever they are pressed.

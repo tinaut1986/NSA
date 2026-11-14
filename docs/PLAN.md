@@ -163,6 +163,51 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Store: every app and step as in Universal-Updater (2026-11-13, `feat/store-sensitive-writes`,
+  `source/fbi/storescript.c`). Universal-DB now lists all its 448 apps (427 before). Scripts that write to or delete from
+  boot.firm or any .firm, /luma (but a game's /luma/titles/<id> and /luma/plugins), /gm9 or /private get, after the usual
+  question, a red warning listing where (a few paths, "and N more") and saying a bad file there can stop the console from
+  starting. Downloads over plain http are allowed with a second warning naming the servers (a plain CIA over http goes
+  through the script, so it gets it too). Scripts may now delete, move, extract and install files they did not download
+  (Shut The Cam Up's "Remove the patch"), need no download at all (the Ukrainian translation's removal: rmdir only), may
+  delete any folder (asked each time) and have up to 64 steps; new steps `copy` (source/destination or old/new) and
+  `exit`; `bootTitle` is taken as done without starting the title. Only /Nintendo 3DS and /nsa stay refused. The five
+  entries with no file in Universal-DB (Monty Hall DS, 3DS-linux-installer, snemulds, toolchaingenericds-multimediaplayer,
+  emerald-online-3ds) show among the "others" and say there is nothing to download. Store cache format 8 -> 9 (rebuilt
+  once). Try: Luma3DS or GodMode9 (warning, No; then Yes on a card you can restore), TasmanQuest (http warning), a
+  CTRPluginFramework plugin, Shut The Cam Up's remove, an empty entry, an ordinary .3dsx (no warning).
+- [ ] Changelog in pages and in every language (2026-11-11, `feat/changelog-pages`). Settings -> Changelog no longer
+  downloads the last 100 releases of GitHub's API: it reads `https://tinaut1986.github.io/NSA/changelog/<code>/<n>.json`
+  (10 releases a page, in the interface language; English if that language has no pages, a 404) and asks for the next
+  page when the end of the text is on screen ("Loading older releases..." on the bottom screen; a failure says
+  " retry"). It lists every release up to the installed one, betas and stables, on both channels. The notes keep
+  accents, Cyrillic and CJK (the formatter dropped every byte above 127) and lines never break inside a character.
+  Try: Changelog in Spanish and in Japanese (UTF-8 on screen, lines), scroll to the end (pages 2 to 4 load), B while a
+  page loads, Wi-Fi off at the end (retry with A), the update offer (unchanged, English). Built only (DEBUG 0.9.9): HTTPS
+  does not work in Azahar; the parser was run on the host over the real pages of all 11 languages.
+  Also to check after the next release: the workflow's new step pushes the pages to `feat/website` with GITHUB_TOKEN and
+  that push starts the Pages build (if it does not, Pages needs a manual run or a token of the owner's).
+  Second round (the owner on the New 3DS XL: "it works", but L/R had to be pressed once per page, lines were cut where
+  the Markdown had a line break, and versions and their points looked alike): L / R held turn a page every 8 frames;
+  each release is a heading in the accent colour (a BETA badge, a hairline between releases), each point a bullet with
+  its lines indented under it; lines the Markdown broke by hand are joined, and lines are wrapped once, by width on
+  screen (`update_notes_items` gives the items, `changelog.c` wraps and draws them). Brackets that are not a link stay
+  ("[Checkpoint]"). The source notes did not change. Claude, 2026-11-11, New 3DS XL (.144): Spanish, headings, bullets,
+  R held (several pages; the owner was pressing too).
+  Third round (the owner: R went from v0.9.9 to v0.9.7; ZL/ZR wanted; the bottom screen unused, then: it does not
+  scroll, group v0.9 / v0.8..., show that there are more releases than the loaded ones): in 3D the top screen is drawn
+  once per eye and the text read the keys in its draw, so a press counted twice; it reads them once a frame now
+  (`ui_frame`). L / R a page exactly, ZL / ZR the start and the end. The bottom screen is an index of every release
+  (page 1 of the pages lists them all, `"index"`), grouped by minor version with a heading each, the one on screen
+  highlighted, betas with a dot, the ones not loaded yet hollow ("Hollow: not loaded yet, tap to load"); a drag scrolls
+  it, a tap goes to a release, loading the pages up to it first. Claude, 2026-11-11, New 3DS XL (.144): R one page
+  exactly, the index (groups, hollow chips), a drag (only the index moves), a tap on v0.6.2 before it was loaded.
+- [ ] Flick and jump arrows in the menus (2026-11-11, `feat/menu-flick`; the owner: the lists coast after a drag and
+  have the arrows to the top and the end, the menus do not). Settings and the action sheets drawn as a list now coast
+  when a drag is let go, show the two round arrows at their bottom right while they scroll (only the ways they can still
+  go; a tap selects the first or the last row) and take ZL / ZR for the same; the filter popovers coast too (no arrows:
+  the card is small). One helper, `widget_scroller` (`widgets.c`), which the lists (`list.c`) now use too for theirs.
+  Built only (DEBUG 0.9.9), not tried in Azahar or on a console.
 - [x] Sheets pulled down to close (2026-11-11, `feat/sheet-drag`; issue #14, the last of HOME's mockup). An action sheet
   (`overlay.c`, every theme; it now has a handle) and a dialog drawn as a sheet (`prompt.c`, a theme with sheetPrompts)
   follow a finger put on their top (the handle and the header, not the close cross) and the scrim lightens; let go past
@@ -1667,6 +1712,12 @@ current, this list is the summary. What only the owner can test (local wireless)
   once), own versions from `v0.1.0`. Upstream is noted as "based on FBI 2.6.1".
 - Updates: Stable/Beta channels from GitHub releases; the changelog joins every
   release since the installed one. Ported from `../zelda-tmc-3ds` (host tests in `tests/`).
+- The changelog (2026-11-11): pages of 10 releases in each interface language on GitHub Pages
+  (`tools/make_changelog.py`, run by the release workflow, pushed to `feat/website` `docs/changelog/`), from
+  `docs/release-notes/<tag>.md` and `<tag>.<code>.md` (every language, for every tag: see that folder's README). Not in the
+  release bodies, as dusklight does: NSA v0.9.9 and older read `releases?per_page=100` whole (1 MB at most) for updates and
+  their changelog, and the translations would have nearly doubled it. Those bodies stay English and unchanged. The
+  update offer still joins the English notes of the releases since the installed one.
 - FTP server on port 5021 (passive 5022-5085), SD card only; `SITE INSTALL` refuses NAND
   titles and never deletes a title to force a downgrade (it would delete the game's saves).
   It was on 5000 until v0.3.0 and paused while Remote install's "Receive URLs" was open;

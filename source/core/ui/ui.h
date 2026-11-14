@@ -29,6 +29,8 @@ u32 ui_depth();
 bool ui_push(ui_view* view);
 void ui_pop();
 bool ui_update();
+// Counts ui_update calls: what draws more than once a frame (the top screen, once per eye in 3D) reads input once.
+u32 ui_frame();
 // Draws every frame again for a moment: for what moves without input.
 void ui_wake();
 

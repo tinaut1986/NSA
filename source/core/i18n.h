@@ -26,6 +26,8 @@ typedef enum {
 
 void i18n_set_language(language_id language);
 language_id i18n_get_language();
+// The language the text is in: the selected one, or the console's for LANGUAGE_SYSTEM.
+language_id i18n_effective_language();
 // The name of a language in that language ("Español"), or "System" translated.
 const char* i18n_language_name(language_id language);
 // The short code kept in settings.json and used by the web API ("system", "en", "es"...).

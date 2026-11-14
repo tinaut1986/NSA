@@ -17,6 +17,12 @@
 // The release workflow puts docs/release-notes/<tag>.md between these markers.
 #define UPDATE_NOTES_OPEN "<!-- nsa-notes -->"
 #define UPDATE_NOTES_CLOSE "<!-- /nsa-notes -->"
+// The changelog's pages (tools/make_changelog.py, served by GitHub Pages from feat/website):
+// changelog/<language>/<page>.json = {"format": 1, "page": n, "pages": total,
+// "releases": [{"tag": "vX.Y.Z", "prerelease": bool, "notes": "- ..."}]}, newest first; page 1 also has
+// "index": [{"tag": "vX.Y.Z", "prerelease": bool}], every release.
+#define UPDATE_HISTORY_FORMAT 1
+#define UPDATE_HISTORY_PAGE 10
 
 typedef struct {
     char version[48];
@@ -33,6 +39,20 @@ typedef struct {
 // -1: invalid response, 0: nothing in this channel, 1: valid candidate.
 int update_parse_releases(const char* data, size_t size, bool betas, bool homebrew, const char* installed, update_release* out);
 
+// One page of the changelog: every release in it, betas and stables alike, that is not newer than `installed`, newest
+// first, as "## vX.Y.Z[ BETA]" headings and their notes. Written to out (cap bytes, always terminated); a release that
+// does not fit is left out with the ones after it. *pages: how many pages there are.
+// -1: invalid page, else the number of releases written.
+int update_parse_history(const char* data, size_t size, const char* installed, char* out, size_t cap, unsigned* pages);
+
+typedef struct {
+    char tag[16];
+    bool prerelease;
+} update_history_entry;
+
+// A page's index (page 1): every release not newer than `installed`, newest first, at most `max`. 0 when it has none.
+unsigned update_parse_history_index(const char* data, size_t size, const char* installed, update_history_entry* out, unsigned max);
+
 // Versions: "X.Y.Z" (optionally with a leading 'v'), "X.Y.Z-beta" for a
 // published pre-release build, "X.Y.Z-dev.N+hash" for an unpublished one.
 // Order of one number: dev < beta < plain.
@@ -40,5 +60,8 @@ bool update_is_newer(const char* candidate, const char* installed);
 bool update_valid_version(const char* version);
 bool update_allowed_download_url(const char* url);
 
-// Plain-text, word-wrapped notes, at most `width` (< UPDATE_LINE_MAX) columns.
-unsigned update_format_notes(const char* markdown, char lines[][UPDATE_LINE_MAX], unsigned capacity, unsigned width);
+// The notes as plain text, one item a line, each line starting with its kind: 'H' a heading ("## v0.9.9 BETA"),
+// 'B' a bullet ("- ..."), 'P' a paragraph. Lines the Markdown broke by hand are joined to their item; tags, images,
+// link destinations, emphasis and emoji are left out. Only the notes block of a release body when it has one (else
+// its commit list). Empty when there is nothing; NULL when out of memory. Free it.
+char* update_notes_items(const char* markdown);

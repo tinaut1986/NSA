@@ -73,6 +73,6 @@ const char remote_help_text[] =
         "SITE INSTALL <path to a .cia>     installs a CIA from the SD card at once (NSA itself restarts into the new one).\n"
         "SITE SDBENCH <MB> [buffer KB] [PRE]   SD card write and read speed.\n"
         "DEBUG builds also answer: TEST (UI describes the screen; TITLES, EXPORT, SEND...), MEM, CPU, CPULIMIT, SHA256, FAULT,\n"
-        "  UNARCHIVE, MINIRE, EXEFS, HOMEICON, LED, NETDUMP, EXTIDS, TESTSAVE, POLL, SAVEORDER, FTPPRIO, SENDCHUNK, PASVBUF, CONNS,\n"
+        "  UNARCHIVE, MINIRE, EXEFS, HOMEICON, LED, NETDUMP, CFG, EXTIDS, TESTSAVE, POLL, SAVEORDER, FTPPRIO, SENDCHUNK, PASVBUF, CONNS,\n"
         "  WIFIREAD, WIFIKEYCHECK, WIFIROUNDTRIP (test helpers; see source/fbi/ftpserver.c).\n"
         "Example, install a CIA: curl -T app.cia ftp://IP:5021/nsa/app.cia -Q \"+ALLO <size>\" -Q \"-SITE INSTALL /nsa/app.cia\"\n";

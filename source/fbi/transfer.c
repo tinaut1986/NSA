@@ -525,8 +525,9 @@ static void transfer_batch_end(ui_view* view, transfer_send_session* session, co
         session->check = 0;
         string_copy(session->name, "end", sizeof(session->name));
         if(transfer_send_connect(session)) {
-            // It closes once it has read the hello; closing first could lose it.
-            transfer_link_wait_closed(&session->link, 1500);
+            // It closes once it has read the hello; closing first could lose it. It may still be finishing the last
+            // title (an answer to a connection that is gone takes it up to 15 s), so it is given time.
+            transfer_link_wait_closed(&session->link, 25000);
         }
     }
 
@@ -565,7 +566,7 @@ static void transfer_batch_end(ui_view* view, transfer_send_session* session, co
                 break;
             }
 
-            snprintf(text + used, sizeof(text) - used, "\n%.*s: %.*s", transfer_utf8_cut(item->name, 40), item->name,
+            snprintf(text + used, sizeof(text) - used, "\n%.*s: %.*s", transfer_utf8_cut(item->name, 64), item->name,
                      transfer_utf8_cut(item->error, 90), item->error);
             listed++;
         }
@@ -2941,7 +2942,7 @@ static void transfer_batch_summary(transfer_receive_data* data) {
             break;
         }
 
-        snprintf(text + used, sizeof(text) - used, "\n%.*s: %.*s", transfer_utf8_cut(entry->name, 40), entry->name,
+        snprintf(text + used, sizeof(text) - used, "\n%.*s: %.*s", transfer_utf8_cut(entry->name, 64), entry->name,
                  transfer_utf8_cut(entry->error, 90), entry->error);
         listed++;
     }

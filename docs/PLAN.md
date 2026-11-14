@@ -163,6 +163,16 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Batches choose each title's way from the receiver's free space (2026-11-14, `feat/send-batch-space`, issue #53
+  phase 2; both consoles need this build: the list and the answer changed). With little room on the receiver, the
+  question's top screen says how many install as they arrive and how many do not fit; those are read once on the
+  sender ("Reading it first") and installed while they arrive, with no CIA on either SD card. Claude, 2026-11-14, Azahar
+  as the receiver (`fake_peer.py batch ... --cias`, `/nsa/batch-free.txt` = 19337408): ways [1, 2, 0], title 1
+  installed the usual way, title 2 installed as it arrived (its contents and TMD in the title folder), title 3 skipped
+  with "No room for it on the SD card"; title 2 cut at 50 %: the install cancelled and done again from byte 0. Fixed
+  then: the space lines moved to the top screen (the sheet's header holds one line), summaries cut between characters.
+  Not tried: the sender's reading and in-order sending (Azahar has no export), a big title in order (AM's finish time),
+  a game that needs a seed, over a title already installed (Azahar lacks the overwrite call).
 - [ ] Send several titles at once (2026-11-14, `feat/send-batch`, issue #53; protocol 9, so both consoles need this build).
   Titles' picking tool (square-check): mark some titles (a grouped game takes its update and DLC), START, pick the
   other console; there, one question (Install all / Save all / Reject) and nothing else to touch: each title arrives,
@@ -1450,7 +1460,8 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
 - Titles has a picking mode (the square-check tool): A or a tap marks a title (a grouped game takes its update and DLC),
   START sends the marked ones, B leaves it. Only SD titles that are not DSiWare or NSA itself can be marked.
 - The sender reads each title's package size (opening and closing its stream), then sends a hello of kind 3 with the
-  batch's list after it (`NSAB`, count, then size (8) and CIA name (256) per title; at most 64). The receiver asks once
+  batch's list after it (`NSAB`, count, then per title its package size (8), title ID (8), version (4), 4 zero bytes
+  and CIA name (256); at most 64). The receiver asks once
   (Install all / Save all / Reject, with a line when the SD card looks too small: total + the largest title), answers
   with a number for the batch and closes. Each title then goes as a normal title package whose hello quotes that
   number and its index: the receiver takes it with no question, into `nsa/received/`. One that fails is tried again
@@ -1462,7 +1473,19 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
   with the overwrite call, which Azahar lacks), deletes the CIA when it went in and keeps it otherwise; no sender is
   taken meanwhile (the next one waits in the connection's backlog). The reasons are English, translated on the UI
   thread (i18n's cache is not for other threads).
-- `tools/fake_peer.py batch HOST N MB [I] [--drop F] [--no-end]` plays a sender's batch against Azahar or a console.
+- **The way each title comes** (phase 2, `feat/send-batch-space`): when the batch is accepted the receiver chooses,
+  from its free space less 16 MiB and in the list's order, and sends one byte per title after its 13-byte answer:
+  1 *package* (today's: twice the size free; also every title when saving), 2 *in order* (installing, the size once),
+  0 *skipped* (no room). The top screen says it while asking ("Little room: N will install as they arrive", "N do
+  not fit"). In order (kind 5, `TRANSFER_KIND_CIA_ORDERED`): the sender reads every content once first to hash it
+  (`action_export_cia_ordered_hash`, on a thread, "Reading it first"), builds the CIA's head (header, certificates,
+  ticket, TMD) and tail (meta) in memory and sends the CIA itself as segments; the receiver starts the install
+  (`AM_StartCiaInstall`, or the overwrite call over an installed one, never over a newer one) and writes each chunk
+  into it once the ones before it are in (`transfer_ordered_write`: the chunks come in order on each connection, so a
+  chunk waits for its turn, up to 12 s); AM finishes it on the finalizer thread, and the seed is fetched when needed.
+  A cut cancels the install and the title starts again from byte 0 (no resume). DEBUG: `/nsa/batch-free.txt` (bytes)
+  stands for the free space.
+- `tools/fake_peer.py batch HOST N MB [I] [--drop F] [--no-end]` plays a sender's batch against Azahar or a console. `--cias DIR` gives the CIAs sent for titles wanted in order.
 
 **Local wireless (no router)**
 - UDS (`udslink.c`): a console **without Wi-Fi** that opens Receive creates a network named

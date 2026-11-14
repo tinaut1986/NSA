@@ -112,6 +112,13 @@ u32 action_export_cia_stream_content_count(export_cia_data* data);
 u64 action_export_cia_stream_content_size(export_cia_data* data, u32 index);
 Result action_export_cia_stream_read(export_cia_data* data, u32 index, u64 offset, void* buffer, u32 size);
 void action_export_cia_stream_free(export_cia_data* data);
+// A title opened for sending, sent as a CIA in order, for a receiver that installs it as it arrives (issue #53): hash
+// the contents first (`done` counts the bytes read; `cancel` stops it), then make the parts around the contents (the
+// CIA's size in `size`), then cut it in segments (head, each content, tail: up to contents + 2) and read them.
+Result action_export_cia_ordered_hash(export_cia_data* data, volatile u64* done, volatile bool* cancel);
+Result action_export_cia_ordered_make(export_cia_data* data, u64* size);
+u32 action_export_cia_ordered_segments(export_cia_data* data, u64* segments);
+Result action_export_cia_ordered_read(export_cia_data* data, u32 segment, u64 offset, void* buffer, u32 size);
 Result action_export_cia_sink_open(const char* path, u64 size, bool resume, export_cia_data** out);
 Result action_export_cia_sink_write_at(export_cia_data* data, u64 offset, const void* buffer, u32 size);
 void action_export_cia_sink_progress(export_cia_data* data, u64* done, u64* total);

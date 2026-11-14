@@ -340,7 +340,7 @@ static void remoteinstall_network_update(ui_view* view, void* data, float* progr
         }
 
         history_add(urls);
-        action_install_url("Install from the received URL(s)?", urls, NULL, data, NULL, remoteinstall_network_close_client, NULL);
+        action_install_url_remote("Install from the received URL(s)?", urls, data, remoteinstall_network_close_client);
 
         free(urls);
     } else if(errno != EAGAIN) {
@@ -616,7 +616,7 @@ static void remoteinstall_qr_update(ui_view* view, void* data, float* progress, 
 
             history_add((const char*) qrData.payload);
 
-            action_install_url("Install from the scanned QR code?", (const char*) qrData.payload, NULL, NULL, NULL, NULL, NULL);
+            action_install_url_remote("Install from the scanned QR code?", (const char*) qrData.payload, NULL, NULL);
             return;
         }
     }
@@ -682,7 +682,7 @@ static void remoteinstall_manually_enter_urls_onresponse(ui_view* view, void* da
     if(button == SWKBD_BUTTON_CONFIRM) {
         history_add(response);
 
-        action_install_url("Install from the entered URL(s)?", response, NULL, NULL, NULL, NULL, NULL);
+        action_install_url_remote("Install from the entered URL(s)?", response, NULL, NULL);
     }
 }
 
@@ -703,7 +703,7 @@ static void remoteinstall_install_entry(u32 index) {
     }
 
     history_add(urls);
-    action_install_url("Install from the selected request?", urls, NULL, NULL, NULL, NULL, NULL);
+    action_install_url_remote("Install from the selected request?", urls, NULL, NULL);
     free(urls);
 }
 

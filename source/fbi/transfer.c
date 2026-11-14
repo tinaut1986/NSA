@@ -41,12 +41,22 @@
 // The receiver writes that place down after this many more bytes.
 #define TRANSFER_POSITION_EVERY (4 * 1024 * 1024)
 #define TRANSFER_CHECK_BYTES 4096
-#define TRANSFER_PROTOCOL 8
+#define TRANSFER_PROTOCOL 9
 
 // What the bytes after the hello are.
 #define TRANSFER_KIND_FILE 0
 #define TRANSFER_KIND_TITLE 1   // A title package (exportcia.c): the receiver builds a CIA.
 #define TRANSFER_KIND_FOLDER 2  // A folder (transferfolder.c): its manifest, then each file; `head` is the manifest's size.
+#define TRANSFER_KIND_BATCH 3   // Titles sent together (issue #53): their list (`head` bytes) follows; the receiver's
+                                // user answers once for all, the answer's number is the batch's, and each title comes
+                                // then as a transfer of its own (TRANSFER_KIND_TITLE) that quotes it.
+#define TRANSFER_KIND_BATCH_END 4   // The sender has nothing more for the batch it quotes: no payload, no answer.
+
+// A batch's list: "NSAB", the count (4, big endian), then for each title its package's size (8) and its CIA's name
+// (FILE_NAME_MAX bytes, zero padded).
+#define TRANSFER_BATCH_MAX 64
+#define TRANSFER_BATCH_HEAD 8
+#define TRANSFER_BATCH_ENTRY (8 + FILE_NAME_MAX)
 
 // The answer: a status (1 go ahead, 0 refused), the byte to go on from and the
 // transfer's number, which the extra connections quote.
@@ -77,7 +87,7 @@ static const char TRANSFER_MAGIC[4] = {'N', 'S', 'A', 'T'};
 static const char TRANSFER_PROBE[4] = {'N', 'S', 'A', '?'};
 static const char TRANSFER_ANSWER[4] = {'N', 'S', 'A', '!'};
 
-// What a sender says first. Numbers are big endian; 828 bytes, no padding. For a folder, the
+// What a sender says first. Numbers are big endian; 836 bytes, no padding. For a folder, the
 // manifest (`head` bytes) follows at once, before the receiver answers, so that it can say what
 // would be overwritten when the user chooses the original path.
 // `check` is the CRC-32 of the file's first 4 KB (of a title package's header):
@@ -94,6 +104,8 @@ typedef struct {
     u32 kind;
     u32 head;
     char origin[FILE_PATH_MAX];   // Where it was on the sender's SD card ("" when it was not there): the file's path, or the folder's.
+    u32 batch;                    // The batch this title belongs to (the receiver's number for it), 0 when none.
+    u32 batchIndex;               // Its place in the batch's list.
 } transfer_hello;
 
 // ---- shared ----
@@ -262,13 +274,58 @@ typedef struct {
     u32 udsCount;
     struct in_addr known[8];   // Consoles listed in /nsa/peers.txt, asked directly.
     u32 knownCount;
+
+    struct transfer_batch_send_s* batch;   // Titles sent together, instead of one thing (owned).
+    ui_view* listView;
 } transfer_send_data;
 
 typedef enum {
     SEND_WAITING,
     SEND_SENDING,
-    SEND_FINISHING
+    SEND_FINISHING,
+    SEND_PAUSE          // A batch between two tries: the next connection waits until `retryAt`.
 } transfer_send_state;
+
+// ---- a batch of titles (issue #53) ----
+//
+// The receiver is asked once, with the list (TRANSFER_KIND_BATCH); its answer gives the batch a number. Each title then
+// goes as a transfer of its own that quotes it, which the receiver takes without asking. One that fails is tried again
+// (from where it was) a few times and then given up; the batch goes on with the next. TRANSFER_KIND_BATCH_END closes it.
+
+#define TRANSFER_BATCH_TRIES 3
+#define TRANSFER_BATCH_PAUSE 3000
+#define TRANSFER_BATCH_ERROR_MAX 96
+
+typedef enum {
+    BATCH_ITEM_WAITING,
+    BATCH_ITEM_SENT,
+    BATCH_ITEM_FAILED
+} transfer_batch_item_state;
+
+typedef struct {
+    char name[FILE_NAME_MAX];   // The CIA's name (the title's, from export).
+    u64 size;                   // As a package.
+    transfer_batch_item_state state;
+    char error[TRANSFER_BATCH_ERROR_MAX];
+} transfer_batch_item;
+
+typedef struct transfer_batch_send_s {
+    title_info* titles;         // Owned (copies).
+    transfer_batch_item* items;
+    u32 count;
+    u64 total;
+    u8* list;                   // The batch's list, as it is sent.
+    u32 listSize;
+
+    bool asking;                // The question for all of them is out.
+    u32 id;                     // The receiver's number for the batch.
+    u32 current;                // The title being sent.
+    u32 tries;                  // Of that one.
+    u64 retryAt;
+    bool stopped;               // Cancelled here or on the other console: what is left is not sent.
+} transfer_batch_send;
+
+static void transfer_batch_free(transfer_batch_send* batch);
 
 typedef struct {
     FS_Archive archive;
@@ -299,6 +356,11 @@ typedef struct {
     u32 speed;
     u64 engineStart;
     u32 turn;           // The transfer turn (xferturn.h), from connecting (sending) or accepting (receiving) to the end.
+
+    u32 kind;           // TRANSFER_KIND_*: what the hello says.
+    transfer_batch_send* batch;   // Owned by the list (`list`), which the end of the batch closes.
+    transfer_send_data* list;
+    char error[TRANSFER_BATCH_ERROR_MAX];   // In a batch, why the connection failed (nothing is shown).
 } transfer_send_session;
 
 // Fills the chunk from the file, or from the package: its header is in memory
@@ -351,8 +413,14 @@ static Result transfer_send_read(void* user, const transfer_chunk* chunk, void* 
 static void transfer_send_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     transfer_send_session* session = (transfer_send_session*) data;
 
-    char size[32];
+    char size[64];
     transfer_size_text(size, sizeof(size), session->size);
+    if(session->batch != NULL && !session->batch->asking && session->batch->current < session->batch->count) {
+        // Which of the batch's titles this is.
+        size_t used = strlen(size);
+        snprintf(size + used, sizeof(size) - used, "  (%lu/%lu)", (unsigned long) session->batch->current + 1, (unsigned long) session->batch->count);
+    }
+
     char line[TRANSFER_NAME_MAX + 32];
     snprintf(line, sizeof(line), _("To %s"), session->peerName);
     transfer_draw_card(x1, y1, x2, y2, ICON_3DS, session->name, line, size);
@@ -374,6 +442,190 @@ static void transfer_send_finish(ui_view* view, transfer_send_session* session) 
 
 static bool transfer_send_connect(transfer_send_session* session);
 static void transfer_send_update(ui_view* view, void* data, float* progress, char* text);
+static void transfer_send_list_exit(ui_view* view, transfer_send_data* data, linked_list* items);
+
+// ---- a batch's steps (each takes the session: after one, the caller only returns) ----
+
+// The batch is over: everything tried, stopped, or not accepted. The receiver is told (it shows its own summary),
+// the sending screen and the list of consoles close, and a summary says what went. `why` is said of the titles left.
+static void transfer_batch_end(ui_view* view, transfer_send_session* session, const char* why) {
+    transfer_batch_send* batch = session->batch;
+    transfer_send_data* list = session->list;
+
+    if(session->stream != NULL) {
+        action_export_cia_stream_free(session->stream);
+        session->stream = NULL;
+    }
+
+    transfer_sender_free(session->engine);
+    session->engine = NULL;
+
+    bool accepted = batch->id != 0;
+    if(accepted) {
+        batch->asking = false;
+        session->kind = TRANSFER_KIND_BATCH_END;
+        session->size = 0;
+        session->head = 0;
+        session->check = 0;
+        string_copy(session->name, "end", sizeof(session->name));
+        if(transfer_send_connect(session)) {
+            // It closes once it has read the hello; closing first could lose it.
+            transfer_link_wait_closed(&session->link, 1500);
+        }
+    }
+
+    u32 sent = 0;
+    u32 failed = 0;
+    for(u32 i = 0; i < batch->count; i++) {
+        transfer_batch_item* item = &batch->items[i];
+        if(item->state == BATCH_ITEM_WAITING) {
+            item->state = BATCH_ITEM_FAILED;
+            string_copy(item->error, why != NULL ? why : _("Not sent."), sizeof(item->error));
+        }
+
+        if(item->state == BATCH_ITEM_SENT) {
+            sent++;
+        } else {
+            failed++;
+        }
+    }
+
+    // Kept short: the dialog holds 512 bytes.
+    char text[512];
+    if(!accepted) {
+        string_copy(text, why != NULL ? why : _("The other console declined the titles."), sizeof(text));
+    } else {
+        snprintf(text, sizeof(text), _("Sent %lu of %lu titles to %s."), (unsigned long) sent, (unsigned long) batch->count, session->peerName);
+        u32 listed = 0;
+        for(u32 i = 0; i < batch->count; i++) {
+            transfer_batch_item* item = &batch->items[i];
+            if(item->state != BATCH_ITEM_FAILED) {
+                continue;
+            }
+
+            size_t used = strlen(text);
+            if(listed == 3) {
+                snprintf(text + used, sizeof(text) - used, "\n%s", _("And more."));
+                break;
+            }
+
+            snprintf(text + used, sizeof(text) - used, "\n%.40s: %.60s", item->name, item->error);
+            listed++;
+        }
+    }
+
+    transfer_log("send batch: %lu sent, %lu not\n", (unsigned long) sent, (unsigned long) failed);
+
+    ui_pop();
+    info_destroy(view);
+    transfer_send_free(session);
+
+    ui_view* listView = list->listView;
+    transfer_send_list_exit(listView, list, list_get_items(listView));
+
+    led_blink(accepted && failed == 0);
+    prompt_display_notify(accepted && failed == 0 ? "Success" : "Failure", text, COLOR_TEXT, NULL, NULL, NULL);
+}
+
+// The next title that has not been tried: read from the system, then its own connection. The end when none is left.
+static void transfer_batch_start_next(ui_view* view, transfer_send_session* session) {
+    transfer_batch_send* batch = session->batch;
+
+    if(session->stream != NULL) {
+        action_export_cia_stream_free(session->stream);
+        session->stream = NULL;
+    }
+
+    transfer_sender_free(session->engine);
+    session->engine = NULL;
+    transfer_link_close(&session->link);
+
+    for(; batch->current < batch->count; batch->current++) {
+        transfer_batch_item* item = &batch->items[batch->current];
+        if(item->state != BATCH_ITEM_WAITING) {
+            continue;
+        }
+
+        export_cia_data* stream = NULL;
+        u64 size = 0;
+        char name[FILE_NAME_MAX];
+        Result res = action_export_cia_stream_open(&batch->titles[batch->current], &stream, &size, name, sizeof(name));
+        if(R_FAILED(res)) {
+            item->state = BATCH_ITEM_FAILED;
+            snprintf(item->error, sizeof(item->error), "%s (%08lX)", _("Could not read the title."), res);
+            transfer_log("send batch: %s could not be read (%08lX)\n", item->name, res);
+            continue;
+        }
+
+        u32 headerSize = 0;
+        const u8* header = action_export_cia_stream_header(stream, &headerSize);
+        session->stream = stream;
+        string_copy(session->name, name, sizeof(session->name));
+        session->size = size;
+        session->head = headerSize;
+        session->check = transfer_crc32(0, header, headerSize < TRANSFER_CHECK_BYTES ? headerSize : TRANSFER_CHECK_BYTES);
+        session->kind = TRANSFER_KIND_TITLE;
+        session->start = 0;
+        session->sent = 0;
+        session->error[0] = '\0';
+        batch->tries = 0;
+
+        if(!transfer_send_connect(session)) {
+            batch->tries = 1;
+            session->state = SEND_PAUSE;
+            batch->retryAt = osGetTime() + TRANSFER_BATCH_PAUSE;
+        }
+
+        return;
+    }
+
+    transfer_batch_end(view, session, NULL);
+}
+
+// The title being sent is done with, well or not; then the next one.
+static void transfer_batch_item_over(ui_view* view, transfer_send_session* session, bool ok, const char* error) {
+    transfer_batch_send* batch = session->batch;
+    transfer_batch_item* item = &batch->items[batch->current];
+    item->state = ok ? BATCH_ITEM_SENT : BATCH_ITEM_FAILED;
+    string_copy(item->error, ok || error == NULL ? "" : error, sizeof(item->error));
+    transfer_log("send batch: %s %s%s\n", item->name, ok ? "sent" : "given up: ", item->error);
+
+    batch->current++;
+    transfer_batch_start_next(view, session);
+}
+
+// This try failed: again in a moment (the receiver goes on from where it was), or given up after a few.
+static void transfer_batch_retry(ui_view* view, transfer_send_session* session, const char* error) {
+    transfer_batch_send* batch = session->batch;
+
+    transfer_sender_free(session->engine);
+    session->engine = NULL;
+    transfer_link_close(&session->link);
+
+    if(++batch->tries >= TRANSFER_BATCH_TRIES) {
+        transfer_batch_item_over(view, session, false, error);
+        return;
+    }
+
+    if(error != NULL && error != session->error) {
+        string_copy(session->error, error, sizeof(session->error));
+    }
+
+    session->state = SEND_PAUSE;
+    batch->retryAt = osGetTime() + TRANSFER_BATCH_PAUSE;
+}
+
+// Cancelled, here or there: the rest is not sent.
+static void transfer_batch_stop(ui_view* view, transfer_send_session* session, const char* error) {
+    transfer_batch_send* batch = session->batch;
+    batch->stopped = true;
+    if(!batch->asking && batch->current < batch->count) {
+        batch->items[batch->current].state = BATCH_ITEM_FAILED;
+        string_copy(batch->items[batch->current].error, error, sizeof(batch->items[batch->current].error));
+    }
+
+    transfer_batch_end(view, session, batch->asking ? error : _("Not sent: the batch was stopped."));
+}
 
 static void transfer_send_retry_onresponse(ui_view* view, void* data, u32 response) {
     transfer_send_session* session = (transfer_send_session*) data;
@@ -390,6 +642,32 @@ static void transfer_send_retry_onresponse(ui_view* view, void* data, u32 respon
 // with the same console and the same file. Unless the user of the other console
 // cancelled: then it is said, and that is all (sending again is a new request).
 static void transfer_send_failed(ui_view* view, transfer_send_session* session, Result res) {
+    if(session->batch != NULL) {
+        // A batch asks nothing: the title is tried again by itself, unless the other console cancelled.
+        transfer_sender_free(session->engine);
+        session->engine = NULL;
+
+        u8 status = 0;
+        int got = -1;
+        for(u64 begin = osGetTime(); osGetTime() - begin < 1500; svcSleepThread(20000000)) {
+            got = transfer_link_recv_some(&session->link, &status, 1);
+            if(got != -1) {
+                break;
+            }
+        }
+
+        if(got == 1 && status == 2) {
+            transfer_log("send: the other console cancelled\n");
+            transfer_batch_stop(view, session, _("The other console cancelled the transfer."));
+            return;
+        }
+
+        char error[TRANSFER_BATCH_ERROR_MAX];
+        snprintf(error, sizeof(error), "%s (%08lX)", _("Failed to send the file."), res);
+        transfer_batch_retry(view, session, error);
+        return;
+    }
+
     ui_pop();
     info_destroy(view);
 
@@ -480,6 +758,27 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
     // Every frame, also while the other console's user decides: the turn stays alive.
     xferturn_progress(session->turn, session->sent);
 
+    transfer_batch_send* batch = session->batch;
+    if(session->state == SEND_PAUSE) {
+        // A batch's title between two tries.
+        if(hidKeysDown() & KEY_B) {
+            transfer_batch_stop(view, session, _("Cancelled."));
+            return;
+        }
+
+        if(osGetTime() >= batch->retryAt) {
+            if(!transfer_send_connect(session)) {
+                transfer_batch_retry(view, session, session->error);
+            }
+
+            return;
+        }
+
+        *progress = 0;
+        snprintf(text, PROGRESS_TEXT_MAX, _("Title %lu of %lu\nTrying again in a moment..."), (unsigned long) batch->current + 1, (unsigned long) batch->count);
+        return;
+    }
+
     if(session->state == SEND_SENDING) {
         Result result = 0;
         bool done = transfer_sender_progress(session->engine, &session->sent, &result);
@@ -488,7 +787,9 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
             transfer_log("send %s link=%s sent=%llu secs=%.1f result=%08lX\n", session->name, session->uds ? "uds" : "ip",
                          session->sent, (osGetTime() - session->engineStart) / 1000.0, result);
 
-            if(result == R_APP_CANCELLED) {
+            if(result == R_APP_CANCELLED && batch != NULL) {
+                transfer_batch_stop(view, session, _("Cancelled."));
+            } else if(result == R_APP_CANCELLED) {
                 transfer_send_finish(view, session);
             } else if(R_FAILED(result)) {
                 transfer_send_failed(view, session, result);
@@ -525,6 +826,14 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
 
         u64 total = session->size;
         *progress = total != 0 ? (float) ((double) at / (double) total) : 0;
+        if(batch != NULL) {
+            snprintf(text, PROGRESS_TEXT_MAX, _("Title %lu of %lu\n%.2f %s / %.2f %s\n%.2f %s/s"), (unsigned long) batch->current + 1, (unsigned long) batch->count,
+                     ui_get_display_size(at), ui_get_display_size_units(at),
+                     ui_get_display_size(total), ui_get_display_size_units(total),
+                     ui_get_display_size(session->speed), ui_get_display_size_units(session->speed));
+            return;
+        }
+
         snprintf(text, PROGRESS_TEXT_MAX, _("To %s\n%.2f %s / %.2f %s\n%.2f %s/s"), session->peerName,
                  ui_get_display_size(at), ui_get_display_size_units(at),
                  ui_get_display_size(total), ui_get_display_size_units(total),
@@ -533,7 +842,12 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
     }
 
     if(hidKeysDown() & KEY_B) {
-        transfer_send_finish(view, session);
+        if(batch != NULL) {
+            transfer_batch_stop(view, session, _("Cancelled."));
+        } else {
+            transfer_send_finish(view, session);
+        }
+
         return;
     }
 
@@ -544,6 +858,12 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
         int n = transfer_link_recv_some(&session->link, &ack, 1);
         if(n == 1 || n == 0 || n == -2) {
             bool ok = n == 1 && ack == 1;
+            if(n == 1 && ack == 2 && batch != NULL) {
+                transfer_log("send: the other console cancelled\n");
+                transfer_batch_stop(view, session, _("The other console cancelled the transfer."));
+                return;
+            }
+
             if(n == 1 && ack == 2) {
                 transfer_log("send: the other console cancelled\n");
                 transfer_send_finish(view, session);
@@ -554,7 +874,9 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
 
             transfer_log("send: final answer %s (n=%d)\n", ok ? "whole" : "NOT whole", n);
 
-            if(ok) {
+            if(ok && batch != NULL) {
+                transfer_batch_item_over(view, session, true, NULL);
+            } else if(ok) {
                 transfer_send_finish(view, session);
 
                 led_blink(true);
@@ -583,6 +905,17 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
         if(answered && session->answer[0] == 1) {
             u64 start = transfer_get64(session->answer + 1);
             u32 id = ((u32) session->answer[9] << 24) | ((u32) session->answer[10] << 16) | ((u32) session->answer[11] << 8) | session->answer[12];
+
+            if(batch != NULL && batch->asking) {
+                // Yes for all of them: the number is the batch's, which each title quotes.
+                transfer_log("send batch: accepted (%08lX), %lu titles\n", id, (unsigned long) batch->count);
+                batch->id = id != 0 ? id : 1;
+                batch->asking = false;
+                batch->current = 0;
+                transfer_batch_start_next(view, session);
+                return;
+            }
+
             session->start = start < session->size && (session->head == 0 || start >= session->head) ? start : 0;
 
             transfer_log("send: accepted, going on from byte %llu\n", session->start);
@@ -598,9 +931,26 @@ static void transfer_send_update(ui_view* view, void* data, float* progress, cha
         }
 
         transfer_log("send: %s\n", answered ? "declined by the other console" : "the other console closed the connection");
+        if(batch != NULL && batch->asking) {
+            transfer_batch_end(view, session, answered ? _("The other console declined the titles.") : _("The other console closed the connection."));
+            return;
+        } else if(batch != NULL && answered) {
+            transfer_batch_item_over(view, session, false, _("The other console refused it."));
+            return;
+        } else if(batch != NULL) {
+            transfer_batch_retry(view, session, _("The other console closed the connection."));
+            return;
+        }
+
         transfer_send_finish(view, session);
 
         prompt_display_notify("Failure", answered ? "The other console declined the file." : "The other console closed the connection.", COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    if(batch != NULL && !batch->asking) {
+        // The receiver may still be installing the last one.
+        snprintf(text, PROGRESS_TEXT_MAX, _("Title %lu of %lu\nWaiting for %s..."), (unsigned long) batch->current + 1, (unsigned long) batch->count, session->peerName);
         return;
     }
 
@@ -631,8 +981,29 @@ static u32 transfer_file_check(FS_Archive archive, const char* path, u64 size) {
     return crc;
 }
 
+// A batch's titles say nothing on the screen when they can not connect: the reason is kept for the summary.
+static bool transfer_send_quiet(transfer_send_session* session) {
+    return session->batch != NULL && !session->batch->asking;
+}
+
+static void transfer_send_connect_failed(transfer_send_session* session, Result res, int err, const char* text) {
+    if(transfer_send_quiet(session)) {
+        if(err != 0) {
+            snprintf(session->error, sizeof(session->error), "%s (errno %d)", _(text), err);
+        } else {
+            snprintf(session->error, sizeof(session->error), "%s (%08lX)", _(text), res);
+        }
+
+        transfer_log("send: %s\n", session->error);
+    } else if(err != 0) {
+        error_display_errno(NULL, NULL, err, text);
+    } else {
+        error_display_res(NULL, NULL, res, text);
+    }
+}
+
 // Opens the connection to the receiver and says what is coming. False (the
-// reason shown) when it could not.
+// reason shown, or kept in `error` for a batch's title) when it could not.
 static bool transfer_send_connect(transfer_send_session* session) {
     transfer_link_close(&session->link);
     session->answerGot = 0;
@@ -640,14 +1011,14 @@ static bool transfer_send_connect(transfer_send_session* session) {
 
     // One transfer at a time: an FTP, web page or download under way is let finish.
     if(session->turn == 0 && (session->turn = xferturn_take(XFER_CONSOLE, session->name, session->size)) == 0) {
-        error_display_res(NULL, NULL, R_APP_BUSY, "Could not send the file.");
+        transfer_send_connect_failed(session, R_APP_BUSY, 0, "Could not send the file.");
         return false;
     }
 
     if(session->uds) {
         Result res = udslink_connect(&session->udsPeer, &session->link.uds);
         if(R_FAILED(res)) {
-            error_display_res(NULL, NULL, res, "Could not connect to the other console.");
+            transfer_send_connect_failed(session, res, 0, "Could not connect to the other console.");
             return false;
         }
 
@@ -655,7 +1026,7 @@ static bool transfer_send_connect(transfer_send_session* session) {
     } else {
         session->link.fd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if(session->link.fd < 0) {
-            error_display_errno(NULL, NULL, errno, "Failed to open socket.");
+            transfer_send_connect_failed(session, 0, errno, "Failed to open socket.");
             return false;
         }
 
@@ -670,14 +1041,14 @@ static bool transfer_send_connect(transfer_send_session* session) {
         // Blocking: the console answered a probe a moment ago, and a non-blocking
         // connect does not report its outcome reliably on the 3DS.
         if(connect(session->link.fd, (struct sockaddr*) &to, sizeof(to)) < 0) {
-            error_display_errno(NULL, NULL, errno, "Could not connect to the other console.");
+            transfer_send_connect_failed(session, 0, errno, "Could not connect to the other console.");
             return false;
         }
 
         transfer_set_nonblocking(session->link.fd);
     }
 
-    transfer_log("send: %s (%llu bytes, %s) to %s over %s\n", session->name, session->size, session->folder != NULL ? "folder" : session->stream != NULL ? "title" : "file", session->peerName, session->uds ? "nearby" : "Wi-Fi");
+    transfer_log("send: %s (%llu bytes, kind %lu) to %s over %s\n", session->name, session->size, session->kind, session->peerName, session->uds ? "nearby" : "Wi-Fi");
 
     transfer_hello hello;
     memset(&hello, 0, sizeof(hello));
@@ -688,9 +1059,13 @@ static bool transfer_send_connect(transfer_send_session* session) {
     hello.sizeHigh = htonl((u32) (session->size >> 32));
     hello.sizeLow = htonl((u32) (session->size & 0xFFFFFFFF));
     hello.check = htonl(session->check);
-    hello.kind = htonl(session->folder != NULL ? TRANSFER_KIND_FOLDER : session->stream != NULL ? TRANSFER_KIND_TITLE : TRANSFER_KIND_FILE);
+    hello.kind = htonl(session->kind);
     hello.head = htonl(session->head);
     string_copy(hello.origin, session->origin, sizeof(hello.origin));
+    if(session->batch != NULL) {
+        hello.batch = htonl(session->batch->id);
+        hello.batchIndex = htonl(session->batch->current);
+    }
 
     Result res = transfer_link_io(&session->link, true, &hello, sizeof(hello), 0, NULL);
     if(R_SUCCEEDED(res) && session->folder != NULL) {
@@ -698,10 +1073,13 @@ static bool transfer_send_connect(transfer_send_session* session) {
         u32 manifestSize = 0;
         const u8* manifest = transfer_folder_send_manifest(session->folder, &manifestSize);
         res = transfer_link_io(&session->link, true, (void*) manifest, manifestSize, 0, NULL);
+    } else if(R_SUCCEEDED(res) && session->kind == TRANSFER_KIND_BATCH) {
+        // The titles that come, for the question.
+        res = transfer_link_io(&session->link, true, session->batch->list, session->batch->listSize, 0, NULL);
     }
 
     if(R_FAILED(res)) {
-        error_display_res(NULL, NULL, res, "Could not connect to the other console.");
+        transfer_send_connect_failed(session, res, 0, "Could not connect to the other console.");
         return false;
     }
 
@@ -723,7 +1101,26 @@ static void transfer_send_to(transfer_send_data* source, const transfer_peer* pe
     session->stream = source->stream;
     session->folder = source->folder;
     string_copy(session->origin, source->origin, sizeof(session->origin));
-    if(source->folder != NULL) {
+    session->kind = source->folder != NULL ? TRANSFER_KIND_FOLDER : source->stream != NULL ? TRANSFER_KIND_TITLE : TRANSFER_KIND_FILE;
+    if(source->batch != NULL) {
+        // The question for all the titles first; each one is sent once it is answered.
+        transfer_batch_send* batch = source->batch;
+        batch->asking = true;
+        batch->id = 0;
+        batch->current = 0;
+        batch->tries = 0;
+        batch->stopped = false;
+        for(u32 i = 0; i < batch->count; i++) {
+            batch->items[i].state = BATCH_ITEM_WAITING;
+            batch->items[i].error[0] = '\0';
+        }
+
+        session->batch = batch;
+        session->list = source;
+        session->kind = TRANSFER_KIND_BATCH;
+        session->head = batch->listSize;
+        session->check = transfer_crc32(0, batch->list, batch->listSize < TRANSFER_CHECK_BYTES ? batch->listSize : TRANSFER_CHECK_BYTES);
+    } else if(source->folder != NULL) {
         u32 manifestSize = 0;
         const u8* manifest = transfer_folder_send_manifest(source->folder, &manifestSize);
         session->head = manifestSize;
@@ -918,6 +1315,7 @@ static void transfer_send_list_exit(ui_view* view, transfer_send_data* data, lin
     }
 
     transfer_folder_send_free(data->folder);
+    transfer_batch_free(data->batch);
 
     list_destroy(view);
     free(data);
@@ -1142,10 +1540,11 @@ static void transfer_send_tool_press(ui_view* view, void* data) {
     ((transfer_send_data*) data)->toggleRequested = true;
 }
 
-static void transfer_send_begin(FS_Archive archive, const char* path, const char* name, u64 size, export_cia_data* stream, transfer_folder_send* folder, const char* origin) {
+static void transfer_send_begin(FS_Archive archive, const char* path, const char* name, u64 size, export_cia_data* stream, transfer_folder_send* folder, const char* origin, transfer_batch_send* batch) {
     if(size == 0) {
         prompt_display_notify("Failure", "The file is empty.", COLOR_TEXT, NULL, NULL, NULL);
         transfer_folder_send_free(folder);
+        transfer_batch_free(batch);
         return;
     }
 
@@ -1158,11 +1557,13 @@ static void transfer_send_begin(FS_Archive archive, const char* path, const char
         }
 
         transfer_folder_send_free(folder);
+        transfer_batch_free(batch);
         return;
     }
 
     data->stream = stream;
     data->folder = folder;
+    data->batch = batch;
     string_copy(data->origin, origin != NULL ? origin : "", sizeof(data->origin));
 
     data->archive = archive;
@@ -1185,6 +1586,7 @@ static void transfer_send_begin(FS_Archive archive, const char* path, const char
             }
 
             transfer_folder_send_free(folder);
+            transfer_batch_free(batch);
             free(data);
             return;
         }
@@ -1202,9 +1604,12 @@ static void transfer_send_begin(FS_Archive archive, const char* path, const char
         }
 
         transfer_folder_send_free(folder);
+        transfer_batch_free(batch);
         free(data);
         return;
     }
+
+    data->listView = view;
 
     list_style style = {
             .rowHeight = 30,
@@ -1216,7 +1621,7 @@ static void transfer_send_begin(FS_Archive archive, const char* path, const char
 }
 
 void transfer_send_file(FS_Archive archive, const char* path, const char* name, u64 size, const char* origin) {
-    transfer_send_begin(archive, path, name, size, NULL, NULL, origin);
+    transfer_send_begin(archive, path, name, size, NULL, NULL, origin, NULL);
 }
 
 void transfer_send_folder(FS_Archive archive, const char* path, const char* name, const char* origin) {
@@ -1246,11 +1651,88 @@ void transfer_send_folder(FS_Archive archive, const char* path, const char* name
         where[--len] = '\0';
     }
 
-    transfer_send_begin(archive, path, name, transfer_folder_send_total(folder), NULL, folder, where);
+    transfer_send_begin(archive, path, name, transfer_folder_send_total(folder), NULL, folder, where, NULL);
 }
 
 void transfer_send_stream(export_cia_data* stream, const char* name, u64 size) {
-    transfer_send_begin(0, "", name, size, stream, NULL, NULL);
+    transfer_send_begin(0, "", name, size, stream, NULL, NULL, NULL);
+}
+
+static void transfer_batch_free(transfer_batch_send* batch) {
+    if(batch == NULL) {
+        return;
+    }
+
+    free(batch->titles);
+    free(batch->items);
+    free(batch->list);
+    free(batch);
+}
+
+void transfer_send_titles(title_info* titles, u32 count) {
+    if(count > TRANSFER_BATCH_MAX) {
+        free(titles);
+        char text[128];
+        snprintf(text, sizeof(text), _("At most %u titles can be sent at once."), TRANSFER_BATCH_MAX);
+        prompt_display_notify("Failure", text, COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    transfer_batch_send* batch = (transfer_batch_send*) calloc(1, sizeof(transfer_batch_send));
+    if(batch != NULL) {
+        batch->titles = titles;
+        batch->count = count;
+        batch->items = (transfer_batch_item*) calloc(count, sizeof(transfer_batch_item));
+        batch->listSize = TRANSFER_BATCH_HEAD + count * TRANSFER_BATCH_ENTRY;
+        batch->list = (u8*) calloc(1, batch->listSize);
+    }
+
+    if(batch == NULL || batch->items == NULL || batch->list == NULL) {
+        if(batch == NULL) {
+            free(titles);
+        }
+
+        transfer_batch_free(batch);
+        error_display(NULL, NULL, "Failed to allocate transfer data.");
+        return;
+    }
+
+    // Each title's size as a package and its name: read from the system now, then let go (each is opened again when
+    // its turn comes).
+    u8* list = batch->list;
+    memcpy(list, "NSAB", 4);
+    list[4] = (u8) (count >> 24);
+    list[5] = (u8) (count >> 16);
+    list[6] = (u8) (count >> 8);
+    list[7] = (u8) count;
+
+    for(u32 i = 0; i < count; i++) {
+        export_cia_data* stream = NULL;
+        u64 size = 0;
+        Result res = action_export_cia_stream_open(&titles[i], &stream, &size, batch->items[i].name, sizeof(batch->items[i].name));
+        if(R_FAILED(res)) {
+            if(res == R_APP_NOT_IMPLEMENTED) {
+                error_display(NULL, NULL, "Exporting a CIA needs Luma3DS.");
+            } else {
+                error_display_res(&titles[i], task_draw_title_info, res, "Failed to prepare the CIA.");
+            }
+
+            transfer_batch_free(batch);
+            return;
+        }
+
+        action_export_cia_stream_free(stream);
+        batch->items[i].size = size;
+        batch->total += size;
+
+        u8* entry = list + TRANSFER_BATCH_HEAD + i * TRANSFER_BATCH_ENTRY;
+        transfer_put64(entry, size);
+        string_copy((char*) entry + 8, batch->items[i].name, FILE_NAME_MAX);
+    }
+
+    char name[FILE_NAME_MAX];
+    snprintf(name, sizeof(name), _("%lu titles"), (unsigned long) count);
+    transfer_send_begin(0, "", name, batch->total, NULL, NULL, NULL, batch);
 }
 
 // ---- receiving ----
@@ -1260,8 +1742,34 @@ typedef enum {
     RECEIVE_HELLO,
     RECEIVE_MANIFEST,
     RECEIVE_ASKING,
-    RECEIVE_RECEIVING
+    RECEIVE_RECEIVING,
+    RECEIVE_INSTALLING   // A batch's title, received, is being installed: no sender is taken meanwhile.
 } transfer_receive_state;
+
+// A batch the user here said yes to (issue #53): its titles come one by one, taken without asking.
+typedef enum {
+    BATCH_ENTRY_WAITING,
+    BATCH_ENTRY_SAVED,
+    BATCH_ENTRY_INSTALLED,
+    BATCH_ENTRY_FAILED
+} transfer_batch_entry_state;
+
+typedef struct {
+    char name[FILE_NAME_MAX];
+    u64 size;
+    transfer_batch_entry_state state;
+    char error[TRANSFER_BATCH_ERROR_MAX];
+} transfer_batch_entry;
+
+typedef struct {
+    bool active;
+    u32 id;
+    char sender[TRANSFER_NAME_MAX + 1];
+    bool install;
+    u32 count;
+    u64 total;
+    transfer_batch_entry entries[TRANSFER_BATCH_MAX];
+} transfer_batch_recv;
 
 typedef struct {
     int udp;
@@ -1351,6 +1859,24 @@ typedef struct {
     u32 speed;
     u64 engineStart;
     u32 turn;           // The transfer turn (xferturn.h), from connecting (sending) or accepting (receiving) to the end.
+
+    // Batches (issue #53): the one accepted, the one being asked about, and what the hello said of this transfer.
+    transfer_batch_recv batch;
+    transfer_batch_recv* offer;
+    u32 helloBatch;
+    u32 helloIndex;
+    bool batchItem;          // This transfer is a title of `batch`, at `batchIndex`.
+    u32 batchIndex;
+
+    // A batch's title being installed (RECEIVE_INSTALLING), on its own thread.
+    Thread installer;
+    volatile bool installDone;
+    bool installOk;
+    volatile u64 installAt;
+    volatile u64 installTotal;
+    const char* installReason;
+    Result installResult;
+    char installPath[FILE_PATH_MAX];
 } transfer_receive_data;
 
 static FS_Archive transfer_sd_archive() {
@@ -1522,8 +2048,12 @@ static void transfer_receive_draw_top(ui_view* view, void* data, float x1, float
 
     char from[TRANSFER_NAME_MAX + 32];
     snprintf(from, sizeof(from), _("From %s"), receive->sender);
-    char line[sizeof(from) + 48];
+    char line[sizeof(from) + 64];
     snprintf(line, sizeof(line), "%s  (%s)", from, size);
+    if(receive->batchItem) {
+        size_t used = strlen(line);
+        snprintf(line + used, sizeof(line) - used, "  %lu/%lu", (unsigned long) receive->batchIndex + 1, (unsigned long) receive->batch.count);
+    }
 
     // Where it is going, once the user has chosen.
     char where[FILE_PATH_MAX + 32];
@@ -1559,6 +2089,9 @@ static void transfer_receive_reset(transfer_receive_data* data) {
         folder_layout_free(&data->layout);
         data->haveLayout = false;
     }
+
+    free(data->offer);
+    data->offer = NULL;
 }
 
 // Answers the sender: 1 to go ahead from byte `offset` (and the transfer's
@@ -1941,6 +2474,312 @@ static Result transfer_receive_place_original(transfer_receive_data* data) {
     return res;
 }
 
+// ---- a batch, received (issue #53) ----
+
+static u64 transfer_sd_free() {
+    FS_ArchiveResource resource = {0};
+    if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_SD))) {
+        return (u64) resource.freeClusters * resource.clusterSize;
+    }
+
+    return 0;
+}
+
+// The batch's list (`head` bytes, see TRANSFER_BATCH_HEAD), read after the hello: into `offer`. False when it is not one.
+static bool transfer_batch_parse(transfer_receive_data* data) {
+    const u8* list = data->preManifest;
+    u32 count = list != NULL && data->head >= TRANSFER_BATCH_HEAD && memcmp(list, "NSAB", 4) == 0
+                ? ((u32) list[4] << 24) | ((u32) list[5] << 16) | ((u32) list[6] << 8) | list[7] : 0;
+    if(count == 0 || count > TRANSFER_BATCH_MAX || data->head != TRANSFER_BATCH_HEAD + count * TRANSFER_BATCH_ENTRY) {
+        return false;
+    }
+
+    transfer_batch_recv* offer = (transfer_batch_recv*) calloc(1, sizeof(transfer_batch_recv));
+    if(offer == NULL) {
+        return false;
+    }
+
+    offer->count = count;
+    for(u32 i = 0; i < count; i++) {
+        const u8* entry = list + TRANSFER_BATCH_HEAD + i * TRANSFER_BATCH_ENTRY;
+        offer->entries[i].size = transfer_get64(entry);
+        memcpy(offer->entries[i].name, entry + 8, FILE_NAME_MAX);
+        offer->entries[i].name[FILE_NAME_MAX - 1] = '\0';
+        offer->total += offer->entries[i].size;
+    }
+
+    if(offer->total != data->size) {
+        free(offer);
+        return false;
+    }
+
+    free(data->offer);
+    data->offer = offer;
+    return true;
+}
+
+// The top screen while the batch is asked about: how many, from whom, and their names.
+static void transfer_batch_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    transfer_receive_data* receive = (transfer_receive_data*) data;
+    transfer_batch_recv* offer = receive->offer;
+    if(offer == NULL) {
+        return;
+    }
+
+    char size[32];
+    transfer_size_text(size, sizeof(size), offer->total);
+    char title[64];
+    snprintf(title, sizeof(title), _("%lu titles"), (unsigned long) offer->count);
+    char from[TRANSFER_NAME_MAX + 64];
+    snprintf(from, sizeof(from), _("From %s"), receive->sender);
+    size_t used = strlen(from);
+    snprintf(from + used, sizeof(from) - used, "  (%s)", size);
+
+    char names[400];
+    names[0] = '\0';
+    for(u32 i = 0; i < offer->count; i++) {
+        used = strlen(names);
+        if(used + 4 >= sizeof(names)) {
+            break;
+        }
+
+        snprintf(names + used, sizeof(names) - used, "%s%s", i > 0 ? ", " : "", offer->entries[i].name);
+    }
+
+    transfer_draw_card(x1, y1, x2, y2, ICON_DOWNLOAD, title, from, names);
+}
+
+static void transfer_batch_accept(transfer_receive_data* data, bool install) {
+    if(data->offer == NULL) {
+        transfer_receive_reset(data);
+        return;
+    }
+
+    data->batch = *data->offer;
+    data->batch.active = true;
+    data->batch.install = install;
+    string_copy(data->batch.sender, data->sender, sizeof(data->batch.sender));
+    do {
+        data->batch.id = (u32) osGetTime() ^ (u32) svcGetSystemTick();
+    } while(data->batch.id == 0);
+
+    transfer_log("receive batch: %lu titles from %s accepted (%08lX), %s\n", (unsigned long) data->batch.count, data->sender,
+                 data->batch.id, install ? "to install" : "to save");
+
+    transfer_receive_answer(data, 1, 0, data->batch.id);
+    // The sender closes once it has the answer: closing first could lose it.
+    transfer_link_wait_closed(&data->client, 1500);
+    transfer_receive_reset(data);
+}
+
+static void transfer_batch_accept_install(void* data) {
+    transfer_batch_accept((transfer_receive_data*) data, true);
+}
+
+static void transfer_batch_accept_save(void* data) {
+    transfer_batch_accept((transfer_receive_data*) data, false);
+}
+
+static void transfer_batch_reject(void* data) {
+    transfer_receive_data* receive = (transfer_receive_data*) data;
+    transfer_receive_answer(receive, 0, 0, 0);
+    transfer_receive_reset(receive);
+}
+
+// One question for all the titles: install them, keep their CIAs, or say no. It says when the SD card looks too small.
+static void transfer_batch_ask(transfer_receive_data* data) {
+    transfer_batch_recv* offer = data->offer;
+
+    u64 largest = 0;
+    for(u32 i = 0; i < offer->count; i++) {
+        if(offer->entries[i].size > largest) {
+            largest = offer->entries[i].size;
+        }
+    }
+
+    char size[32];
+    transfer_size_text(size, sizeof(size), offer->total);
+    snprintf(data->message, sizeof(data->message), _("%s wants to send you %lu titles (%s)."), data->sender, (unsigned long) offer->count, size);
+
+    // Installing: the titles installed so far, and the CIA of the one being installed (deleted after).
+    u64 freeSpace = transfer_sd_free();
+    u64 needed = offer->total + largest;
+    if(freeSpace < needed) {
+        char freeText[32];
+        char neededText[32];
+        transfer_size_text(freeText, sizeof(freeText), freeSpace);
+        transfer_size_text(neededText, sizeof(neededText), needed);
+        size_t used = strlen(data->message);
+        snprintf(data->message + used, sizeof(data->message) - used, "\n%s", _("The SD card may be too small for them:"));
+        used = strlen(data->message);
+        snprintf(data->message + used, sizeof(data->message) - used, " %s / %s", freeText, neededText);
+    }
+
+    transfer_log("receive batch: %s offers %lu titles (%llu bytes), %llu free\n", data->sender, (unsigned long) offer->count, offer->total, freeSpace);
+
+    sheet_action actions[3];
+    u32 count = 0;
+    actions[count++] = (sheet_action) {.icon = ICON_PACKAGE, .label = _("Install all"), .run = transfer_batch_accept_install,
+                                       .detail = _("Each one is installed as it arrives, and its CIA deleted")};
+    actions[count++] = (sheet_action) {.icon = ICON_FOLDER, .label = _("Save all"), .run = transfer_batch_accept_save,
+                                       .detail = _("Their CIAs are kept in /nsa/received/")};
+    actions[count++] = (sheet_action) {.icon = ICON_X, .label = _("Reject"), .run = transfer_batch_reject,
+                                       .detail = _("Tells the other console no")};
+
+    data->state = RECEIVE_ASKING;
+    sheet_display_choice(data->message, actions, count, data, transfer_batch_draw_top, transfer_batch_reject);
+    sheet_set_id("Incoming titles");
+}
+
+// The sender said the batch is over (or the user here cancelled it): what arrived, what did not, and why.
+static void transfer_batch_summary(transfer_receive_data* data) {
+    transfer_batch_recv* batch = &data->batch;
+    batch->active = false;
+
+    u32 done = 0;
+    for(u32 i = 0; i < batch->count; i++) {
+        transfer_batch_entry* entry = &batch->entries[i];
+        if(entry->state == BATCH_ENTRY_WAITING) {
+            entry->state = BATCH_ENTRY_FAILED;
+            string_copy(entry->error, _("Not received."), sizeof(entry->error));
+        }
+
+        if(entry->state != BATCH_ENTRY_FAILED) {
+            done++;
+        }
+    }
+
+    char text[512];
+    if(batch->install) {
+        snprintf(text, sizeof(text), _("Installed %lu of %lu titles from %s."), (unsigned long) done, (unsigned long) batch->count, batch->sender);
+    } else {
+        snprintf(text, sizeof(text), _("Received %lu of %lu titles from %s, in %s."), (unsigned long) done, (unsigned long) batch->count, batch->sender, TRANSFER_RECEIVED_DIR);
+    }
+
+    u32 listed = 0;
+    for(u32 i = 0; i < batch->count; i++) {
+        transfer_batch_entry* entry = &batch->entries[i];
+        if(entry->state != BATCH_ENTRY_FAILED) {
+            continue;
+        }
+
+        size_t used = strlen(text);
+        if(listed == 3) {
+            snprintf(text + used, sizeof(text) - used, "\n%s", _("And more."));
+            break;
+        }
+
+        snprintf(text + used, sizeof(text) - used, "\n%.40s: %.60s", entry->name, entry->error);
+        listed++;
+    }
+
+    transfer_log("receive batch: over, %lu of %lu\n", (unsigned long) done, (unsigned long) batch->count);
+
+    bool ok = done == batch->count;
+    led_blink(ok);
+    prompt_display_notify(ok ? "Success" : "Failure", text, COLOR_TEXT, NULL, NULL, NULL);
+}
+
+// Every title is here: the summary now, without waiting for the sender's end (which a lost connection could keep away).
+static void transfer_batch_check_all(transfer_receive_data* data) {
+    for(u32 i = 0; i < data->batch.count; i++) {
+        if(data->batch.entries[i].state != BATCH_ENTRY_SAVED && data->batch.entries[i].state != BATCH_ENTRY_INSTALLED) {
+            return;
+        }
+    }
+
+    transfer_batch_summary(data);
+}
+
+static void transfer_batch_install_thread(void* arg) {
+    transfer_receive_data* data = (transfer_receive_data*) arg;
+    data->installOk = action_install_cia_quietly(data->installPath, &data->installAt, &data->installTotal, &data->installReason, &data->installResult);
+    data->installDone = true;
+}
+
+// A batch's title is over here: kept, or installed next (on a thread, while the waiting screen says so).
+static void transfer_batch_received(transfer_receive_data* data, bool ok, Result res) {
+    transfer_batch_entry* entry = &data->batch.entries[data->batchIndex];
+    data->batchItem = false;
+
+    if(!ok) {
+        // The sender tries it again by itself, unless it was cancelled; a later success replaces this.
+        entry->state = BATCH_ENTRY_FAILED;
+        snprintf(entry->error, sizeof(entry->error), "%s (%08lX)", res == R_APP_CANCELLED ? _("Cancelled.") : _("Failed to receive the file."), res);
+        return;
+    }
+
+    if(!data->batch.install) {
+        entry->state = BATCH_ENTRY_SAVED;
+        entry->error[0] = '\0';
+        transfer_batch_check_all(data);
+        return;
+    }
+
+    string_copy(data->installPath, data->dst, sizeof(data->installPath));
+    data->installDone = false;
+    data->installOk = false;
+    data->installAt = 0;
+    data->installTotal = entry->size;
+    data->installReason = NULL;
+    data->installResult = 0;
+    data->installer = threadCreate(transfer_batch_install_thread, data, 0x8000, 0x30, -2, false);
+    if(data->installer == NULL) {
+        entry->state = BATCH_ENTRY_FAILED;
+        string_copy(entry->error, _("Could not start the install."), sizeof(entry->error));
+        return;
+    }
+
+    transfer_log("receive batch: installing %s\n", data->dst);
+    data->state = RECEIVE_INSTALLING;
+}
+
+// RECEIVE_INSTALLING, each frame: true while the install goes on (its line in `text`).
+static bool transfer_batch_installing(transfer_receive_data* data, char* text) {
+    transfer_batch_entry* entry = &data->batch.entries[data->batchIndex];
+
+    if(!data->installDone) {
+        u64 total = data->installTotal;
+        u32 percent = total != 0 ? (u32) (data->installAt * 100 / total) : 0;
+        // The name on a line of its own, cut to what the box holds (between two characters, not inside one).
+        size_t cut = strlen(entry->name);
+        if(cut > 34) {
+            cut = 34;
+            while(cut > 0 && ((u8) entry->name[cut] & 0xC0) == 0x80) {
+                cut--;
+            }
+        }
+
+        snprintf(text, PROGRESS_TEXT_MAX, _("Installing title %lu of %lu...\n%.*s\n%lu %%"), (unsigned long) data->batchIndex + 1,
+                 (unsigned long) data->batch.count, (int) cut, entry->name, (unsigned long) percent);
+        return true;
+    }
+
+    threadJoin(data->installer, U64_MAX);
+    threadFree(data->installer);
+    data->installer = NULL;
+
+    if(data->installOk) {
+        entry->state = BATCH_ENTRY_INSTALLED;
+        entry->error[0] = '\0';
+        transfer_receive_delete(data->installPath);
+    } else {
+        // The CIA stays, to install by hand.
+        entry->state = BATCH_ENTRY_FAILED;
+        const char* reason = data->installReason != NULL ? _(data->installReason) : _("The install failed.");
+        if(data->installResult != 0) {
+            snprintf(entry->error, sizeof(entry->error), "%s (%08lX)", reason, data->installResult);
+        } else {
+            string_copy(entry->error, reason, sizeof(entry->error));
+        }
+    }
+
+    transfer_log("receive batch: %s %s\n", data->installPath, data->installOk ? "installed" : "not installed");
+    data->state = RECEIVE_IDLE;
+    transfer_batch_check_all(data);
+    return false;
+}
+
 static void transfer_receive_progress_update(ui_view* view, void* data, float* progress, char* text) {
     transfer_receive_data* receive = (transfer_receive_data*) data;
 
@@ -2054,6 +2893,12 @@ static void transfer_receive_progress_update(ui_view* view, void* data, float* p
     transfer_link_wait_closed(&receive->client, 1500);
 
     transfer_receive_reset(receive);
+
+    // A batch's title: nothing to answer here, the summary comes at the end.
+    if(receive->batchItem) {
+        transfer_batch_received(receive, ok, res);
+        return;
+    }
 
     // A cancelled or failed transfer keeps its choices for a retry.
     if(ok || res == R_APP_CANCELLED) {
@@ -2201,6 +3046,11 @@ static void transfer_receive_start(transfer_receive_data* data) {
 
     transfer_receive_answer(data, 0, 0, 0);
     transfer_receive_reset(data);
+
+    if(data->batchItem) {
+        transfer_batch_received(data, false, res);
+        return;
+    }
 
     led_blink(false);
     error_display_res(NULL, NULL, res, "Failed to receive the file.");
@@ -2548,8 +3398,23 @@ static void transfer_receive_hello_done(transfer_receive_data* data) {
     data->check = ntohl(hello->check);
     data->kind = ntohl(hello->kind);
     data->head = ntohl(hello->head);
+    data->helloBatch = ntohl(hello->batch);
+    data->helloIndex = ntohl(hello->batchIndex);
+    data->batchItem = false;
 
-    if(data->kind > TRANSFER_KIND_FOLDER || (data->kind == TRANSFER_KIND_FOLDER && (data->head < 8 || data->head >= data->size))) {
+    // The end of a batch: its summary, when it is the one accepted here.
+    if(data->kind == TRANSFER_KIND_BATCH_END) {
+        bool ours = data->batch.active && data->helloBatch == data->batch.id && strcmp(data->sender, data->batch.sender) == 0;
+        transfer_receive_reset(data);
+        if(ours) {
+            transfer_batch_summary(data);
+        }
+
+        return;
+    }
+
+    if(data->kind > TRANSFER_KIND_BATCH || (data->kind == TRANSFER_KIND_FOLDER && (data->head < 8 || data->head >= data->size))
+       || (data->kind == TRANSFER_KIND_BATCH && (data->head < TRANSFER_BATCH_HEAD || data->head > TRANSFER_BATCH_HEAD + TRANSFER_BATCH_MAX * TRANSFER_BATCH_ENTRY))) {
         transfer_receive_reset(data);
         return;
     }
@@ -2576,10 +3441,10 @@ static void transfer_receive_hello_done(transfer_receive_data* data) {
     data->existing = 0;
     data->fileCount = 0;
 
-    if(data->kind == TRANSFER_KIND_FOLDER) {
-        // The manifest follows the hello: read it before asking anything.
+    if(data->kind == TRANSFER_KIND_FOLDER || data->kind == TRANSFER_KIND_BATCH) {
+        // The manifest (a batch's list) follows the hello: read it before asking anything.
         free(data->preManifest);
-        data->preManifest = data->head <= FOLDER_MANIFEST_MAX_SIZE ? (u8*) malloc(data->head) : NULL;
+        data->preManifest = data->kind == TRANSFER_KIND_BATCH || data->head <= FOLDER_MANIFEST_MAX_SIZE ? (u8*) malloc(data->head) : NULL;
         if(data->preManifest == NULL) {
             transfer_receive_reset(data);
             return;
@@ -2596,6 +3461,41 @@ static void transfer_receive_hello_done(transfer_receive_data* data) {
 
 // Everything the hello (and a folder's manifest) said is known: asks the user, or goes ahead.
 static void transfer_receive_hello_ready(transfer_receive_data* data) {
+    // A title of a batch: taken as the batch was (saved in the default folder, installed afterwards when so chosen).
+    // One of a batch not accepted here (an old one, or another console's) is refused without a question.
+    if(data->helloBatch != 0) {
+        if(data->batch.active && data->helloBatch == data->batch.id && strcmp(data->sender, data->batch.sender) == 0
+           && data->helloIndex < data->batch.count && data->kind == TRANSFER_KIND_TITLE) {
+            data->batchItem = true;
+            data->batchIndex = data->helloIndex;
+            data->install = false;
+            data->keepPath = false;
+            data->overwrite = TRANSFER_OVERWRITE_ASK;
+            string_copy(data->dir, TRANSFER_RECEIVED_DIR, sizeof(data->dir));
+            transfer_log("receive batch: title %lu of %lu, %s\n", (unsigned long) data->helloIndex + 1, (unsigned long) data->batch.count, data->file);
+
+            data->state = RECEIVE_ASKING;
+            transfer_receive_start(data);
+            return;
+        }
+
+        transfer_log("receive: a title of a batch not accepted here, refused\n");
+        transfer_receive_answer(data, 0, 0, 0);
+        transfer_receive_reset(data);
+        return;
+    }
+
+    if(data->kind == TRANSFER_KIND_BATCH) {
+        // Tests: saved, with no question.
+        if(udslink_auto()) {
+            transfer_batch_accept(data, false);
+            return;
+        }
+
+        transfer_batch_ask(data);
+        return;
+    }
+
     // Tests: no questions.
     if(udslink_auto()) {
         data->install = false;
@@ -2663,6 +3563,7 @@ static void transfer_receive_free(transfer_receive_data* data) {
         folder_layout_free(&data->layout);
     }
 
+    free(data->offer);
     free(data);
 }
 
@@ -2739,6 +3640,11 @@ static void transfer_receive_update(ui_view* view, void* data, float* progress, 
         transfer_receive_answer_probes(receive);
     }
 
+    // A batch's title being installed: the next one waits (its connection is taken once this is done).
+    if(receive->state == RECEIVE_INSTALLING && transfer_batch_installing(receive, text)) {
+        return;
+    }
+
     if(receive->state == RECEIVE_IDLE) {
         if(receive->uds) {
             u64 now = osGetTime();
@@ -2791,6 +3697,16 @@ static void transfer_receive_update(ui_view* view, void* data, float* progress, 
 
         if(n == 0 || n == -2 || osGetTime() - receive->preStart > 3 * TRANSFER_HELLO_TIMEOUT) {
             transfer_receive_reset(receive);
+        } else if(receive->preGot == receive->head && receive->kind == TRANSFER_KIND_BATCH) {
+            bool ok = transfer_batch_parse(receive);
+            free(receive->preManifest);
+            receive->preManifest = NULL;
+
+            if(ok) {
+                transfer_receive_hello_ready(receive);
+            } else {
+                transfer_receive_reset(receive);
+            }
         } else if(receive->preGot == receive->head) {
             folder_layout layout;
             bool ok = folder_manifest_parse(receive->preManifest, receive->head, &layout);
@@ -2809,6 +3725,17 @@ static void transfer_receive_update(ui_view* view, void* data, float* progress, 
                 transfer_receive_reset(receive);
             }
         }
+    }
+
+    if(receive->batch.active) {
+        u32 done = 0;
+        for(u32 i = 0; i < receive->batch.count; i++) {
+            done += receive->batch.entries[i].state == BATCH_ENTRY_SAVED || receive->batch.entries[i].state == BATCH_ENTRY_INSTALLED ? 1 : 0;
+        }
+
+        snprintf(text, PROGRESS_TEXT_MAX, _("Titles from %s: %lu of %lu here.\nWaiting for the next one..."), receive->batch.sender,
+                 (unsigned long) done, (unsigned long) receive->batch.count);
+        return;
     }
 
     if(receive->uds) {

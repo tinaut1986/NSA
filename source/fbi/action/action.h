@@ -37,6 +37,11 @@ void action_install_cia_delete_now(linked_list* items, list_item* selected);
 // Installs CIAs on the SD card one after another with no question (Remote Install's "Save and install"):
 // `paths` one a line; `delete` deletes each once it is installed.
 void action_install_cia_paths_now(const char* paths, bool delete);
+// Installs a CIA of the SD card with no screen and no question, on the caller's thread (the receiver of a batch,
+// transfer.c): a title that installs to the SD card only, never over a newer version (the installed one is kept), the
+// seed fetched when the title needs one. `done` and `total` follow it (may be NULL). False with the reason (English, to
+// translate on the UI thread: i18n's cache is not for other threads) and the error code.
+bool action_install_cia_quietly(const char* path, volatile u64* done, volatile u64* total, const char** reason, Result* result);
 // Starts installing a CIA of `titleId` / `version` on `dest`: over the installed title when this is the same version or
 // a higher one (nothing deleted, the save kept), else deleting the installed one first.
 Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Handle* handle);

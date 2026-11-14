@@ -163,6 +163,16 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Send several titles at once (2026-11-14, `feat/send-batch`, issue #53; protocol 9, so both consoles need this build).
+  Titles' picking tool (square-check): mark some titles (a grouped game takes its update and DLC), START, pick the
+  other console; there, one question (Install all / Save all / Reject) and nothing else to touch: each title arrives,
+  is installed (CIA deleted) or kept in /nsa/received/, and both consoles show a summary at the end. Claude,
+  2026-11-14, Azahar as the receiver with `fake_peer.py batch`: the question with the titles' names, Save all (3
+  CIAs in /nsa/received/, nsa/tmp empty, summary at once), Install all with title 2 cut at 50 % (sent again from byte
+  786496, installed; a made-up title that looked like a NAND one kept with its reason in the summary); Titles' picking
+  in rows and grid, START reaching the export (Azahar has no Luma). Not tried: a real sender (export) on a console,
+  the sender's summary and retries, the nearby (no Wi-Fi) mode with several connections one after another, a game
+  that needs a seed, a title installed over a lower version, a cancel from either side in the middle.
 - [ ] Download queue, phase 3: the web page (2026-11-14, `feat/queue-web`, issue #41). API (in /api/help): GET /api/queue
   ({paused, pauseAfter, forTransfer, items:[{id, name, state, done, total, file, error, script}]}), POST /api/queue/add
   (body: URLs, straight to the queue, no question on the console), /api/queue/pause?when=now|after, /api/queue/resume,
@@ -1382,8 +1392,8 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
 - Discovery: on the Wi-Fi, UDP broadcast on 5001 (the receiver answers `NSA!` and its
   name; `/nsa/peers.txt` lists addresses to ask directly, one per line). Nearby: UDS
   beacons (below).
-- Control connection (TCP 5002, or the UDS stream): the sender sends a 828 byte hello
-  (protocol 8: magic, version, sender name, file name, size, `check` = CRC-32 of the first
+- Control connection (TCP 5002, or the UDS stream): the sender sends a 836 byte hello
+  (protocol 9; 8 had no `batch`/`batchIndex` at the end: magic, version, sender name, file name, size, `check` = CRC-32 of the first
   4 KB of the file or of a package's header, `kind` 0 file / 1 title package / 2 folder, `head` = the
   package header's or folder manifest's size, `origin` = where the file or folder is on the sender's
   SD card, "" when it is not there). For a folder the manifest (`head` bytes) follows the hello at
@@ -1435,6 +1445,24 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
   with what was chosen).
 - "Install now" installs from `sdmc:/nsa/received/` and deletes the CIA, with no second
   question (`action_install_cia_delete_now`).
+
+**Batches of titles** (issue #53, protocol 9; `feat/send-batch`)
+- Titles has a picking mode (the square-check tool): A or a tap marks a title (a grouped game takes its update and DLC),
+  START sends the marked ones, B leaves it. Only SD titles that are not DSiWare or NSA itself can be marked.
+- The sender reads each title's package size (opening and closing its stream), then sends a hello of kind 3 with the
+  batch's list after it (`NSAB`, count, then size (8) and CIA name (256) per title; at most 64). The receiver asks once
+  (Install all / Save all / Reject, with a line when the SD card looks too small: total + the largest title), answers
+  with a number for the batch and closes. Each title then goes as a normal title package whose hello quotes that
+  number and its index: the receiver takes it with no question, into `nsa/received/`. One that fails is tried again
+  by itself after 3 s, from where it was, up to 3 times, then given up; one the receiver refuses is given up at once.
+  The sender's turn (xferturn) is held for the whole batch. At the end the sender sends a hello of kind 4 (the end),
+  closes both screens and shows a summary; the receiver shows its own on that end, or as soon as every title is in.
+- Install all: once a title is whole, the receiver installs it on a thread (`action_install_cia_quietly`: SD titles,
+  never over a newer version, the seed fetched when needed; a new title with `AM_StartCiaInstall`, an installed one
+  with the overwrite call, which Azahar lacks), deletes the CIA when it went in and keeps it otherwise; no sender is
+  taken meanwhile (the next one waits in the connection's backlog). The reasons are English, translated on the UI
+  thread (i18n's cache is not for other threads).
+- `tools/fake_peer.py batch HOST N MB [I] [--drop F] [--no-end]` plays a sender's batch against Azahar or a console.
 
 **Local wireless (no router)**
 - UDS (`udslink.c`): a console **without Wi-Fi** that opens Receive creates a network named

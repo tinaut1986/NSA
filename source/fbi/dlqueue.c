@@ -644,6 +644,9 @@ static void dlq_act_open(void* data) {
             action_install_url_queued_open(dlq_run);
         }
     }
+
+    // Back from the progress (hidden with B) the item may be done: the queue, not this sheet.
+    sheet_confirmed();
 }
 
 static void dlq_act_pause(void* data) {
@@ -735,9 +738,16 @@ static void dlq_show_actions(dlq_item* item) {
                 actions[count++] = (sheet_action) {ICON_PLAYER_PLAY, _("Resume this one"), false, dlq_act_resume, false, NULL};
             }
 
-            actions[count++] = (sheet_action) {ICON_ARROWS_SORT, _("Put first"), false, dlq_act_first, false, NULL};
-            actions[count++] = (sheet_action) {ICON_CHEVRON_UP, _("Move up"), false, dlq_act_up, false, NULL};
-            actions[count++] = (sheet_action) {ICON_CHEVRON_DOWN, _("Move down"), false, dlq_act_down, false, NULL};
+            // Only the moves that change something: the first goes no higher, the last no lower.
+            if(dlq_index(item) > 0) {
+                actions[count++] = (sheet_action) {ICON_ARROWS_SORT, _("Put first"), false, dlq_act_first, false, NULL};
+                actions[count++] = (sheet_action) {ICON_CHEVRON_UP, _("Move up"), false, dlq_act_up, false, NULL};
+            }
+
+            if(dlq_index(item) + 1 < (s32) dlq_count) {
+                actions[count++] = (sheet_action) {ICON_CHEVRON_DOWN, _("Move down"), false, dlq_act_down, false, NULL};
+            }
+
             actions[count++] = (sheet_action) {ICON_X, _("Cancel"), true, dlq_act_cancel, false, NULL};
             break;
         case DLQ_FAILED:

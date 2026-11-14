@@ -2326,10 +2326,50 @@ static void web_settings_apply() {
 // ---- serving ----
 
 // The question the console shows now, so the page can show it too (and answer it).
+// The last titles deleted (webserver_title_deleted), each with a number that only grows: the page drops each one once.
+// Written on the main thread, read on the server's: the number is written last.
+#define WEB_DELETED_MAX 8
+
+static struct {
+    u64 titleId;
+    FS_MediaType media;
+    volatile u32 seq;   // 0: empty.
+} web_deleted[WEB_DELETED_MAX];
+static u32 web_deleted_count;
+
+void webserver_title_deleted(u64 titleId, FS_MediaType media) {
+    u32 seq = web_deleted_count + 1;
+    u32 slot = web_deleted_count % WEB_DELETED_MAX;
+    web_deleted[slot].seq = 0;
+    web_deleted[slot].titleId = titleId;
+    web_deleted[slot].media = media;
+    __atomic_store_n(&web_deleted[slot].seq, seq, __ATOMIC_RELEASE);
+    web_deleted_count = seq;
+}
+
+// [{id, media, seq}] of the last titles deleted.
+static json_t* web_deleted_json() {
+    json_t* list = json_array();
+    for(u32 i = 0; i < WEB_DELETED_MAX; i++) {
+        u32 seq = __atomic_load_n(&web_deleted[i].seq, __ATOMIC_ACQUIRE);
+        if(seq == 0) {
+            continue;
+        }
+
+        char id[17];
+        snprintf(id, sizeof(id), "%016llX", (unsigned long long) web_deleted[i].titleId);
+        FS_MediaType media = web_deleted[i].media;
+        const char* where = media == MEDIATYPE_NAND ? "nand" : media == MEDIATYPE_GAME_CARD ? "card" : "sd";
+        json_array_append_new(list, json_pack("{s:s,s:s,s:I}", "id", id, "media", where, "seq", (json_int_t) seq));
+    }
+
+    return list;
+}
+
 static void web_api_prompt(web_request* r) {
     prompt_web_info info;
     if(!prompt_web_get(&info)) {
-        web_send_json(r, 200, json_pack("{s:b,s:n}", "ok", 1, "prompt"));
+        web_send_json(r, 200, json_pack("{s:b,s:n,s:o}", "ok", 1, "prompt", "deleted", web_deleted_json()));
         return;
     }
 
@@ -2338,8 +2378,8 @@ static void web_api_prompt(web_request* r) {
         json_array_append_new(options, json_string(info.options[i]));
     }
 
-    web_send_json(r, 200, json_pack("{s:b,s:{s:I,s:s,s:s,s:o,s:b}}", "ok", 1, "prompt", "id", (json_int_t) info.id, "title", info.title, "text", info.text,
-                                    "options", options, "danger", info.danger));
+    web_send_json(r, 200, json_pack("{s:b,s:{s:I,s:s,s:s,s:o,s:b},s:o}", "ok", 1, "prompt", "id", (json_int_t) info.id, "title", info.title, "text", info.text,
+                                    "options", options, "danger", info.danger, "deleted", web_deleted_json()));
 }
 
 // Answers the question the console shows: the same as pressing that button there.

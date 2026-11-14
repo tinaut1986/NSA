@@ -939,6 +939,8 @@ const i18n_entry i18n_tw[] = {
         {"Download the CIA", "下載CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "儲存到 /nsa/received/，之後再從文件畫面安裝。"},
         {"Download the 3DSX again", "再次下載3DSX"},
+        {"What the console downloads and installs in the background, one after the other: pause, reorder or cancel it.", "主機在背景逐一下載和安裝的內容：可以暫停、調整順序或取消。"},
+        {"Download queue finished: 1 done", "下載佇列已完成：1 個"},
         {"1 title", "1 個遊戲"},
         {"%s wants to send you a title (%s).", "%s 想要傳送給你 1 個遊戲（%s）。"},
         {"Little room: 1 will install as it arrives (slower).", "空間不足：1 個將邊接收邊安裝（較慢）。"},

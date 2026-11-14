@@ -951,6 +951,8 @@ const i18n_entry i18n_it[] = {
         {"Download the CIA", "Scarica il CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "Lo salva in /nsa/received/ per installarlo dopo da File."},
         {"Download the 3DSX again", "Scarica di nuovo il 3DSX"},
+        {"What the console downloads and installs in the background, one after the other: pause, reorder or cancel it.", "Ciò che la console scarica e installa in background, uno dopo l'altro: metti in pausa, riordina o annulla."},
+        {"Download queue finished: 1 done", "Coda di download terminata: 1 completato"},
         {"1 title", "1 titolo"},
         {"%s wants to send you a title (%s).", "%s vuole inviarti un titolo (%s)."},
         {"Little room: 1 will install as it arrives (slower).", "Poco spazio: 1 verrà installato mentre arriva (più lento)."},

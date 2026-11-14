@@ -22,6 +22,8 @@ bool dlqueue_notice(char* out, size_t size, float* progress);
 bool dlqueue_open_any();
 // The queue screen.
 void dlqueue_open();
+// What is still to do: the running item and those waiting (queued or paused), for the main menu's badge.
+u32 dlqueue_pending();
 // The web page's queue (webserver.c, on the main thread): `command` list, pause (`arg` now or after), resume, clear (the
 // finished items), add (`body`: URLs, one a line) or item (`arg` pause, resume, retry, first, up, down, cancel or remove,
 // on item `id`). The queue as JSON afterwards, or NULL with `error` and an HTTP `status`.

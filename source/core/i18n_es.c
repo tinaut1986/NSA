@@ -959,6 +959,7 @@ const i18n_entry i18n_es[] = {
         {"Download the CIA", "Descargar el CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "Lo guarda en /nsa/received/ para instalarlo después desde Archivos."},
         {"Download the 3DSX again", "Descargar el 3DSX otra vez"},
+        {"Pictures (%lu)", "Imágenes (%lu)"},
         {"View contents", "Ver el contenido"},
         {" open    extract    up", " abrir    extraer    subir"},
         {"Extract the folder %s to %s?\n\nFiles with the same names there are replaced.", "¿Extraer la carpeta %s en %s?\n\nLos archivos con el mismo nombre se sustituyen."},

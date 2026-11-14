@@ -163,6 +163,13 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Store: an app's pictures (2026-11-14, `feat/store-pictures`, issue #38 from #33). The catalogue's "screenshots"
+  (116 of Universal-DB's 448 apps; the first 8 URLs, `store_app.shots`, cache format 9 -> 10) give the app's sheet a
+  first action "Pictures (N)" (so an app with one download and pictures opens its sheet). It downloads what is not on
+  the card yet to /nsa/store-shots/<slug>-<n>.<ext> (`action_download_urls_to`; the other apps' pictures there are
+  deleted first, so one app's are kept) and opens them in the picture viewer (L/R). Built only (DEBUG 0.9.10; HTTPS
+  does not work in Azahar). Try: an app with several pictures, again (no download), Wi-Fi off (error, then what is
+  there), B while downloading, a JPEG one.
 - [ ] Files: view what a .zip or .7z holds, and delete it after extracting (2026-11-14, `feat/archive-view`, issue #47
   from Cosmosx007). A .zip/.7z's sheet has "View contents" first (`archiveview.c`): its files and folders (also the
   folders only named in a path), folders first; the top screen shows the archive, its file count and unpacked size, the

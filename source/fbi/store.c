@@ -21,6 +21,7 @@
 #include "storelist.h"
 #include "storescript.h"
 #include "thumbs.h"
+#include "viewers.h"
 #include "action/action.h"
 #include "../core/core.h"
 #include "../core/task/dataop.h"
@@ -49,7 +50,7 @@
 #define STORE_ICON_SIDE 48   // The icons are kept as textures this many pixels square, for as long as the Store is open.
 #define STORE_PREFETCH_PAUSE 4000   // ms between the icons fetched in the background, when no row is waiting for one.
 #define STORE_RECORDS_MAX 512
-#define STORE_CACHE_FORMAT 9   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
+#define STORE_CACHE_FORMAT 10  // Raised when the copy on the SD card gains fields: the old one is downloaded again.
 
 typedef enum {
     ICON_NONE,      // Not asked for yet.
@@ -60,6 +61,9 @@ typedef enum {
 
 // A download that is neither the app's CIA nor its .3dsx: files for another console, a mod, a skin, data...
 #define STORE_OTHERS_MAX 12
+// An app's pictures shown at most, and where the last app's are kept (one app's at a time).
+#define STORE_SHOTS_MAX 8
+#define STORE_SHOTS_DIR APP_DATA_DIR "store-shots/"
 
 typedef struct {
     char name[64];     // As the store names it ("Download Celeste Classic GBA", "skin.7z").
@@ -83,6 +87,7 @@ typedef struct {
     char* dsxScript;
     char dsxName[64];   // The .3dsx it leaves, without the extension, to look for it in /3ds/.
     char* files;        // Universal-DB's "installed_files": what it leaves on the card, one path per line (NULL: none).
+    char* shots;        // Its pictures (the catalogue's "screenshots"), one URL per line (NULL: none); issue #38.
     char* iconUrl;      // Where the icon is: "sheet:index" in the catalogue's sprite sheets.
     char* preMessage;   // What the author asks to be read before installing (NULL: nothing).
     char console[16];   // The first console it is for, as the store says ("3DS", "NDS", "GBA"...).
@@ -296,6 +301,7 @@ static void store_free_apps(store_app* apps, u32 count) {
         free(apps[i].iconUrl);
         free(apps[i].preMessage);
         free(apps[i].files);
+        free(apps[i].shots);
         for(u32 j = 0; j < apps[i].otherCount; j++) {
             free(apps[i].others[j].script);
         }
@@ -567,6 +573,30 @@ static int store_parse_full(const char* text, size_t size, const char* baseUrl, 
             app->preMessage = strdup(message);
         }
 
+        // Its pictures: [{"url": ..., "description": ...}] (plain strings are taken too), the first STORE_SHOTS_MAX.
+        json_t* shots = json_object_get(info, "screenshots");
+        if(json_is_array(shots)) {
+            char joined[STORE_SHOTS_MAX * 256] = "";
+            size_t used = 0;
+            u32 taken = 0;
+            size_t shotIndex;
+            json_t* shot;
+            json_array_foreach(shots, shotIndex, shot) {
+                const char* url = json_is_string(shot) ? json_string_value(shot) : store_str(shot, "url");
+                if(taken >= STORE_SHOTS_MAX || (strncmp(url, "https://", 8) != 0 && strncmp(url, "http://", 7) != 0) || strlen(url) >= 256
+                   || strchr(url, '\n') != NULL || used + strlen(url) + 2 > sizeof(joined)) {
+                    continue;
+                }
+
+                used += snprintf(joined + used, sizeof(joined) - used, "%s%s", used > 0 ? "\n" : "", url);
+                taken++;
+            }
+
+            if(used > 0) {
+                app->shots = strdup(joined);
+            }
+        }
+
         // What it leaves on the card, as Universal-Updater looks for it.
         json_t* files = json_object_get(info, "installed_files");
         if(json_is_array(files)) {
@@ -638,6 +668,10 @@ static json_t* store_app_to_json(const store_app* app) {
 
     if(app->files != NULL) {
         json_object_set_new(object, "f", json_string(app->files));
+    }
+
+    if(app->shots != NULL) {
+        json_object_set_new(object, "ss", json_string(app->shots));
     }
 
     json_object_set_new(object, "co", json_string(app->console));
@@ -746,6 +780,10 @@ static int store_read_cache(const store_data* store, store_app** out, store_meta
 
         if(store_str(entry, "f")[0] != '\0') {
             app->files = strdup(store_str(entry, "f"));
+        }
+
+        if(store_str(entry, "ss")[0] != '\0') {
+            app->shots = strdup(store_str(entry, "ss"));
         }
 
         string_copy(app->console, store_str(entry, "co"), sizeof(app->console));
@@ -2107,6 +2145,142 @@ static void (* const store_other_runs[STORE_OTHERS_MAX])(void* data) = {
         store_get_other_6, store_get_other_7, store_get_other_8, store_get_other_9, store_get_other_10, store_get_other_11
 };
 
+// ---- pictures (issue #38): the catalogue's screenshots, downloaded to STORE_SHOTS_DIR and shown in the picture viewer ----
+
+typedef struct {
+    char paths[STORE_SHOTS_MAX][FILE_PATH_MAX];
+    u32 count;
+} store_shots_ctx;
+
+static FS_Archive store_sd_archive() {
+    static FS_Archive archive = 0;
+    if(archive == 0) {
+        FSUSER_OpenArchive(&archive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""));
+    }
+
+    return archive;
+}
+
+// The pictures that are on the card (a download may have failed), in the viewer: L and R go through them.
+static void store_shots_show(store_shots_ctx* ctx) {
+    const char* paths[STORE_SHOTS_MAX];
+    u32 count = 0;
+    for(u32 i = 0; i < ctx->count; i++) {
+        char local[FILE_PATH_MAX + 8];
+        snprintf(local, sizeof(local), "sdmc:%s", ctx->paths[i]);
+        if(store_file_exists(local)) {
+            paths[count++] = ctx->paths[i];
+        }
+    }
+
+    if(count > 0) {
+        imageview_open(store_sd_archive(), paths, count, 0);
+    }
+}
+
+static void store_shots_downloaded(void* data) {
+    store_shots_ctx* ctx = (store_shots_ctx*) data;
+    store_shots_show(ctx);
+    free(ctx);
+}
+
+// "<slug>-<n>.<png|jpg|...>": the extension from the URL, so the viewer knows the kind.
+static void store_shot_path(char* out, size_t size, const char* slug, u32 n, const char* url, size_t urlLen) {
+    const char* ext = "png";
+    char found[8] = "";   // What the URL ends in, if the viewer knows it as a picture.
+    const char* end = url + urlLen;
+    const char* q = memchr(url, '?', urlLen);
+    if(q != NULL) {
+        end = q;
+    }
+
+    for(const char* c = end; c > url && c[-1] != '/'; c--) {
+        if(c[-1] == '.') {
+            size_t len = (size_t) (end - c);
+            if(len > 0 && len < sizeof(found)) {
+                memcpy(found, c, len);
+                found[len] = '\0';
+            }
+
+            break;
+        }
+    }
+
+    char probe[16];
+    snprintf(probe, sizeof(probe), "x.%s", found);
+    if(found[0] != '\0' && viewers_kind_of(probe) == VIEWER_IMAGE) {
+        ext = found;
+    }
+
+    snprintf(out, size, STORE_SHOTS_DIR "%s-%lu.%s", slug, n, ext);
+}
+
+static void store_view_shots(void* data) {
+    store_app* app = store_sheet_app;
+    if(app->shots == NULL) {
+        return;
+    }
+
+    store_shots_ctx* ctx = (store_shots_ctx*) calloc(1, sizeof(store_shots_ctx));
+    if(ctx == NULL) {
+        error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("Failed to open the Store."));
+        return;
+    }
+
+    // Only one app's pictures are kept: the others' go.
+    mkdir("sdmc:" APP_DATA_DIR, 0777);
+    mkdir("sdmc:" STORE_SHOTS_DIR, 0777);
+    char prefix[80];
+    snprintf(prefix, sizeof(prefix), "%s-", app->slug);
+    DIR* dir = opendir("sdmc:" STORE_SHOTS_DIR);
+    if(dir != NULL) {
+        struct dirent* e;
+        while((e = readdir(dir)) != NULL) {
+            if(strncmp(e->d_name, prefix, strlen(prefix)) != 0 && e->d_name[0] != '.') {
+                char old[FILE_PATH_MAX + 8];
+                snprintf(old, sizeof(old), "sdmc:" STORE_SHOTS_DIR "%s", e->d_name);
+                remove(old);
+            }
+        }
+
+        closedir(dir);
+    }
+
+    // What is not on the card yet is downloaded, then all are shown.
+    char* urls = (char*) calloc(1, strlen(app->shots) + 2);
+    char* paths = (char*) calloc(STORE_SHOTS_MAX, FILE_PATH_MAX + 1);
+    size_t urlsUsed = 0;
+    size_t pathsUsed = 0;
+    const char* p = app->shots;
+    while(*p != '\0' && ctx->count < STORE_SHOTS_MAX) {
+        const char* end = strchr(p, '\n');
+        size_t len = end != NULL ? (size_t) (end - p) : strlen(p);
+        store_shot_path(ctx->paths[ctx->count], FILE_PATH_MAX, app->slug, ctx->count + 1, p, len);
+        char local[FILE_PATH_MAX + 8];
+        snprintf(local, sizeof(local), "sdmc:%s", ctx->paths[ctx->count]);
+        if(urls != NULL && paths != NULL && !store_file_exists(local)) {
+            urlsUsed += (size_t) snprintf(urls + urlsUsed, strlen(app->shots) + 2 - urlsUsed, "%s%.*s", urlsUsed > 0 ? "\n" : "", (int) len, p);
+            pathsUsed += (size_t) snprintf(paths + pathsUsed, STORE_SHOTS_MAX * (FILE_PATH_MAX + 1) - pathsUsed, "%s%s", pathsUsed > 0 ? "\n" : "",
+                                           ctx->paths[ctx->count]);
+        }
+
+        ctx->count++;
+        p += len;
+        if(*p == '\n') {
+            p++;
+        }
+    }
+
+    if(urls != NULL && urlsUsed > 0) {
+        action_download_urls_to(urls, paths, ctx, NULL, store_shots_downloaded);
+    } else {
+        store_shots_downloaded(ctx);
+    }
+
+    free(urls);
+    free(paths);
+}
+
 // ---- uninstall (issue #40): only what is plainly the app's, a CIA's title and a .3dsx ----
 // Scripts and archives are left out on purpose: what they leave on the card is only known from the catalogue's list,
 // which can be wrong, name whole folders, files another app shares, or what the console starts from (boot.firm).
@@ -2310,7 +2484,7 @@ static void store_open_app(store_data* store, store_app* app) {
     u8 status = store_status(store, app);
     bool uninstallCia = app->ciaUrl != NULL && app->uniqueId != 0 && (status & STATUS_CIA) != 0;
     bool deleteDsx = app->dsxUrl != NULL && (status & STATUS_DSX) != 0;
-    if(total == 1 && !uninstallCia && !deleteDsx) {
+    if(total == 1 && !uninstallCia && !deleteDsx && app->shots == NULL) {
         if(app->ciaUrl != NULL) {
             store_install_cia(app);
         } else if(app->dsxUrl != NULL) {
@@ -2322,8 +2496,19 @@ static void store_open_app(store_data* store, store_app* app) {
         return;
     }
 
-    sheet_action actions[4 + STORE_OTHERS_MAX];
+    sheet_action actions[5 + STORE_OTHERS_MAX];
     u32 count = 0;
+    if(app->shots != NULL) {
+        u32 shots = 1;
+        for(const char* c = app->shots; *c != '\0'; c++) {
+            shots += *c == '\n';
+        }
+
+        static char shotsLabel[64];
+        snprintf(shotsLabel, sizeof(shotsLabel), _("Pictures (%lu)"), shots > STORE_SHOTS_MAX ? STORE_SHOTS_MAX : shots);
+        actions[count++] = (sheet_action) {ICON_PHOTO, shotsLabel, false, store_view_shots, false, NULL};
+    }
+
     if(app->ciaUrl != NULL) {
         const char* installLabel = (status & STATUS_CIA) ? _("Reinstall the CIA") : _("Install the CIA");
         actions[count++] = (sheet_action) {ICON_DOWNLOAD, installLabel, false, store_install_cia, false, _("Installs it as a title on the console.")};

@@ -93,6 +93,12 @@ typedef struct export_cia_data_s {
     u64 sinkHashTotal;
     u64 sinkSize;   // The whole package, as the hello said.
 
+    // Sending it as a CIA in order (issue #53): what comes before the contents and after them, made once they are hashed.
+    u8* orderedHead;
+    u32 orderedHeadSize;
+    u8* orderedTail;
+    u32 orderedTailSize;
+
     data_op_data exportInfo;
 } export_cia_data;
 
@@ -200,12 +206,8 @@ static Result action_export_cia_zero(export_cia_data* data, u64 start, u64 end) 
     return end > start ? action_export_cia_write(data, start, zeros, (u32) (end - start)) : 0;
 }
 
-static Result action_export_cia_write_tmd(export_cia_data* data) {
-    u8* tmd = (u8*) calloc(1, data->tmdSize);
-    if(tmd == NULL) {
-        return R_APP_OUT_OF_MEMORY;
-    }
-
+// The TMD (`data->tmdSize` bytes, zeroed) once every content's hash is known.
+static void action_export_cia_build_tmd(export_cia_data* data, u8* tmd) {
     action_export_cia_put32(tmd, 0x10004);
     memset(tmd + 4, 0xFF, 0x100);
 
@@ -238,7 +240,15 @@ static Result action_export_cia_write_tmd(export_cia_data* data) {
     action_export_cia_put16(infoRecords + 2, (u16) data->contentCount);
     mbedtls_sha256_ret(chunks, data->contentCount * TMD_CHUNK_SIZE, infoRecords + 4, 0);
     mbedtls_sha256_ret(infoRecords, 0x900, header + 0xA4, 0);
+}
 
+static Result action_export_cia_write_tmd(export_cia_data* data) {
+    u8* tmd = (u8*) calloc(1, data->tmdSize);
+    if(tmd == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    action_export_cia_build_tmd(data, tmd);
     Result res = action_export_cia_write(data, data->tmdOffset, tmd, data->tmdSize);
     free(tmd);
     return res;
@@ -445,6 +455,8 @@ static void action_export_cia_free(export_cia_data* data) {
     free(data->jobBuffer);
     free(data->streamHeader);
     free(data->sinkHeader);
+    free(data->orderedHead);
+    free(data->orderedTail);
     free(data);
 }
 
@@ -901,6 +913,134 @@ Result action_export_cia_stream_read(export_cia_data* data, u32 index, u64 offse
 
 void action_export_cia_stream_free(export_cia_data* data) {
     action_export_cia_free(data);
+}
+
+// ---- a CIA in order (issue #53) ----
+//
+// For a receiver that installs the title while it arrives, with no room for its CIA: AM takes a CIA from its start, so
+// the TMD, which holds every content's hash, comes before the contents. They are read once first to hash them; then the
+// CIA is `head` (header, certificates, ticket, TMD, up to the contents), each content as it is, and `tail` (up to the
+// meta, and the meta).
+
+#define ORDERED_BLOCK (256 * 1024)
+
+Result action_export_cia_ordered_hash(export_cia_data* data, volatile u64* done, volatile bool* cancel) {
+    u8* buffer = (u8*) malloc(ORDERED_BLOCK);
+    if(buffer == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Result res = 0;
+    for(u32 i = 0; i < data->contentCount && R_SUCCEEDED(res); i++) {
+        mbedtls_sha256_context sha;
+        mbedtls_sha256_init(&sha);
+        mbedtls_sha256_starts_ret(&sha, 0);
+
+        u64 size = data->contents[i].size;
+        for(u64 offset = 0; offset < size && R_SUCCEEDED(res); ) {
+            if(cancel != NULL && *cancel) {
+                res = R_APP_CANCELLED;
+                break;
+            }
+
+            u32 want = size - offset > ORDERED_BLOCK ? ORDERED_BLOCK : (u32) (size - offset);
+            if(R_SUCCEEDED(res = action_export_cia_stream_read(data, i, offset, buffer, want))) {
+                mbedtls_sha256_update_ret(&sha, buffer, want);
+                offset += want;
+                if(done != NULL) {
+                    *done += want;
+                }
+            }
+        }
+
+        if(R_SUCCEEDED(res)) {
+            mbedtls_sha256_finish_ret(&sha, data->hashes[i]);
+        }
+
+        mbedtls_sha256_free(&sha);
+    }
+
+    free(buffer);
+    return res;
+}
+
+Result action_export_cia_ordered_make(export_cia_data* data, u64* size) {
+    u64 contentSize = 0;
+    for(u32 i = 0; i < data->contentCount; i++) {
+        contentSize += data->contents[i].size;
+    }
+
+    bool hasMeta = data->title->hasMeta;
+    data->tmdSize = TMD_HEADER_SIZE + data->contentCount * TMD_CHUNK_SIZE;
+    u64 certOffset = CIA_ALIGN(CIA_HEADER_SIZE);
+    u64 ticketOffset = CIA_ALIGN(certOffset + CIA_CERT_SIZE);
+    data->tmdOffset = CIA_ALIGN(ticketOffset + CIA_TICKET_SIZE);
+    data->contentsOffset = CIA_ALIGN(data->tmdOffset + data->tmdSize);
+    u64 metaOffset = CIA_ALIGN(data->contentsOffset + contentSize);
+
+    free(data->orderedHead);
+    free(data->orderedTail);
+    data->orderedHeadSize = (u32) data->contentsOffset;
+    data->orderedHead = (u8*) calloc(1, data->orderedHeadSize);
+    data->orderedTailSize = hasMeta ? (u32) (metaOffset - (data->contentsOffset + contentSize)) + CIA_META_SIZE : 0;
+    data->orderedTail = data->orderedTailSize > 0 ? (u8*) calloc(1, data->orderedTailSize) : NULL;
+    if(data->orderedHead == NULL || (data->orderedTailSize > 0 && data->orderedTail == NULL)) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    // As action_export_cia_create_file writes them.
+    u8* head = data->orderedHead;
+    for(u32 i = 0; i < data->contentCount; i++) {
+        head[0x20 + data->contents[i].index / 8] |= (u8) (0x80 >> (data->contents[i].index % 8));
+    }
+
+    u32 headerSize = CIA_HEADER_SIZE, certSize = CIA_CERT_SIZE, ticketSize = CIA_TICKET_SIZE, metaSize = hasMeta ? CIA_META_SIZE : 0;
+    memcpy(head + 0x00, &headerSize, 4);
+    memcpy(head + 0x08, &certSize, 4);
+    memcpy(head + 0x0C, &ticketSize, 4);
+    memcpy(head + 0x10, &data->tmdSize, 4);
+    memcpy(head + 0x14, &metaSize, 4);
+    memcpy(head + 0x18, &contentSize, 8);
+
+    action_export_cia_read_certs(head + certOffset);
+    action_export_cia_make_ticket(data, head + ticketOffset);
+    action_export_cia_build_tmd(data, head + data->tmdOffset);
+
+    // The meta the package's header holds (read from the title when it was opened).
+    if(hasMeta && data->streamHeader != NULL) {
+        memcpy(data->orderedTail + data->orderedTailSize - CIA_META_SIZE, data->streamHeader + PACKAGE_HEAD_SIZE + data->contentCount * PACKAGE_ENTRY_SIZE, CIA_META_SIZE);
+    }
+
+    *size = data->orderedHeadSize + contentSize + data->orderedTailSize;
+    return 0;
+}
+
+u32 action_export_cia_ordered_segments(export_cia_data* data, u64* segments) {
+    u32 count = 0;
+    segments[count++] = data->orderedHeadSize;
+    for(u32 i = 0; i < data->contentCount; i++) {
+        segments[count++] = data->contents[i].size;
+    }
+
+    if(data->orderedTailSize > 0) {
+        segments[count++] = data->orderedTailSize;
+    }
+
+    return count;
+}
+
+Result action_export_cia_ordered_read(export_cia_data* data, u32 segment, u64 offset, void* buffer, u32 size) {
+    if(segment == 0) {
+        memcpy(buffer, data->orderedHead + offset, size);
+        return 0;
+    }
+
+    if(segment <= data->contentCount) {
+        return action_export_cia_stream_read(data, segment - 1, offset, buffer, size);
+    }
+
+    memcpy(buffer, data->orderedTail + offset, size);
+    return 0;
 }
 
 // Receiving: a CIA is built at `path` from the package that is written to it.

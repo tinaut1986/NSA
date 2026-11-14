@@ -6,7 +6,10 @@ see docs/PLAN.md, "Console to console") against Azahar or a console, with no sec
   fake_peer.py title HOST MB         send a made-up title package of about MB megabytes
   fake_peer.py folder HOST DIR       send a folder (its files and subfolders) as a folder transfer
   fake_peer.py batch HOST N MB [I]   send N made-up titles as one batch (issue #53), asked once; with I, title I
-                                     is cut at --drop (default 0.5) and sent again; --no-end leaves out the end
+                                     is cut at --drop (default 0.5) and sent again; --no-end leaves out the end;
+                                     --cias DIR: CIAs to send for the titles the receiver wants in order (the
+                                     n-th file for the n-th title; a DEBUG receiver takes /nsa/batch-free.txt,
+                                     a byte count, as its free space)
   --origin PATH                      with send or folder: the path it "had" on the sender's SD card
   fake_peer.py receive               be the receiver: answers probes and takes one transfer
                                      (list 127.0.0.1 in /nsa/peers.txt of the sender)
@@ -133,43 +136,59 @@ def send(host, payload, segments, name, check, kind, head, drop, origin=b'', bat
     return None
 
 
-def batch_send(host, count, mb, drop_index=None, drop=0.0, skip_end=False):
-    """A batch of `count` made-up titles (issue #53): the list, one answer for all, each title quoting the batch's
-    number, then the end. `drop_index` cuts that title at `drop` once and sends it again (the resume)."""
+def batch_send(host, count, mb, drop_index=None, drop=0.0, skip_end=False, cias=None):
+    """A batch of `count` made-up titles (issue #53): the list, one answer for all and how each is to come, each title
+    quoting the batch's number, then the end. `drop_index` cuts that title at `drop` once and sends it again (the
+    resume). A title the receiver wants in order (installed as it arrives) is sent as the CIA files of `cias` (a folder:
+    the n-th file for the n-th title, e.g. CIAs a batch saved before); without them it is left out."""
+    cia_files = sorted(os.path.join(cias, n) for n in os.listdir(cias) if n.lower().endswith('.cia')) if cias else []
     titles = []
     for i in range(count):
         title = 0x0004000000124000 + (i << 8)   # The low byte 0: an SD title (some others look like system ones).
         head, contents = package(mb, title)
-        titles.append((b'Fake %d [%016X] v1.cia' % (i, title), head, contents))
+        titles.append((b'Fake %d [%016X] v1.cia' % (i, title), head, contents, title))
     listing = b'NSAB' + struct.pack('>I', count)
     total = 0
-    for name, head, contents in titles:
+    for name, head, contents, title in titles:
         size = len(head) + sum(len(c) for c in contents)
         total += size
-        listing += struct.pack('>Q', size) + name.ljust(256, b'\0')
+        listing += struct.pack('>QQII', size, title, 1, 0) + name.ljust(256, b'\0')
     control = socket.create_connection((host, PORT), timeout=10)
     control.sendall(hello(b'%d titles' % count, total, zlib.crc32(listing[:4096]) & 0xFFFFFFFF, 3, len(listing)) + listing)
     control.settimeout(600)
     answer = b''
-    while len(answer) < 13:
-        part = control.recv(13 - len(answer))
+    while len(answer) < 13 + count:
+        part = control.recv(13 + count - len(answer))
         if not part:
-            raise ConnectionError('the receiver closed the connection')
+            break
         answer += part
-    status, _, batch = struct.unpack('>BQI', answer)
+    if len(answer) < 13:
+        raise ConnectionError('the receiver closed the connection')
+    status, _, batch = struct.unpack('>BQI', answer[:13])
+    ways = list(answer[13:])
     control.close()
-    print('batch answer', status, 'number %08X' % batch)
+    print('batch answer', status, 'number %08X' % batch, 'ways', ways, '(0 skip, 1 package, 2 in order)')
     if status != 1:
         return
-    for i, (name, head, contents) in enumerate(titles):
-        payload = head + b''.join(contents)
-        segments = [len(head)] + [len(c) for c in contents]
-        check = zlib.crc32(head[:4096]) & 0xFFFFFFFF
+    for i, (name, head, contents, title) in enumerate(titles):
+        if ways[i] == 0:
+            print('title', i, 'skipped by the receiver')
+            continue
+        if ways[i] == 2:
+            if i >= len(cia_files):
+                print('title', i, 'wanted in order: no CIA for it (--cias), left out')
+                continue
+            payload = open(cia_files[i], 'rb').read()
+            segments, kind, head_size, check = [len(payload)], 5, 0, 0
+        else:
+            payload = head + b''.join(contents)
+            segments, kind, head_size = [len(head)] + [len(c) for c in contents], 1, len(head)
+            check = zlib.crc32(head[:4096]) & 0xFFFFFFFF
         if i == drop_index:
             print('title', i, 'cut at', drop)
-            send(host, payload, segments, name, check, 1, len(head), drop, batch=batch, index=i)
+            send(host, payload, segments, name, check, kind, head_size, drop, batch=batch, index=i)
             time.sleep(3)
-        print('title', i, 'final', send(host, payload, segments, name, check, 1, len(head), 0, batch=batch, index=i))
+        print('title', i, 'final', send(host, payload, segments, name, check, kind, head_size, 0, batch=batch, index=i))
     if not skip_end:
         end = socket.create_connection((host, PORT), timeout=600)
         end.sendall(hello(b'end', 0, 0, 4, 0, b'', batch, 0))
@@ -258,6 +277,13 @@ def main():
         i = args.index('--drop')
         drop = float(args[i + 1])
         del args[i:i + 2]
+    cias = None
+    if '--cias' in args:
+        i = args.index('--cias')
+        cias = args[i + 1]
+        del args[i:i + 2]
+    no_end = '--no-end' in args
+    args = [a for a in args if a != '--no-end']
     if not args:
         print(__doc__)
         return
@@ -273,7 +299,7 @@ def main():
              zlib.crc32(head[:4096]) & 0xFFFFFFFF, 1, len(head), drop)
     elif args[0] == 'batch':
         drop_index = int(args[4]) if len(args) > 4 else None
-        batch_send(args[1], int(args[2]), float(args[3]), drop_index, drop or 0.5, '--no-end' in args)
+        batch_send(args[1], int(args[2]), float(args[3]), drop_index, drop or 0.5, no_end, cias)
     elif args[0] == 'folder':
         payload, segments, head, check = folder_package(folder_items(args[2]))
         send(args[1], payload, segments, os.path.basename(os.path.abspath(args[2])).encode(), check & 0xFFFFFFFF, 2, head, drop, origin)

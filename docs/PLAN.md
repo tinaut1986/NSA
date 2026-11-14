@@ -163,6 +163,21 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Claude's pass on both consoles (2026-11-14 night, New 3DS XL .135 -> 2DS .136, builds up to 0.9.11-dev.41),
+  driving them through the web API (not ticked: the owner ticks). Batches (#53): Save all of WiFiManager+, FBI ESP,
+  ftpd-EX (3/3, the CIAs checked on the PC with console_tests.verify_cia, then deleted); Install all of Homebrew
+  Launcher (same version, reinstalled) + Checkpoint (refused: the 2DS has a newer one, kept); in order (batch-free.txt
+  on the 2DS) HBL and the Plaza Mii update (95 MB: read 34 s, sent 144-158 s, installed with no CIA anywhere); a
+  cancel in the middle (the update left as it was, both summaries). Found and fixed then: AM held the receiver over
+  14 s at a content's end and the sender gave up at 15 s (60 s for titles in order now); after a cancel the receiver
+  never got the end (the sender waits up to 25 s now); "1 title". Queue (#41) through the API: three CIAs as one item,
+  pause/resume (fixed then: a resume fetched the URLs already done again), FTP while it runs (450, the question, Yes:
+  paused for the transfer, the FTP retry goes, the queue goes on by itself), cancel of a running item. #51: a zip
+  from Install from URL offered for /3ds/<name>/, extracted, zip deleted. #47: View contents (folders, sizes), Extract
+  here and "Delete the archive now?". /api/help and SITE HELP on both; the web page loads with no ReferenceError.
+  Not done (the session's permission check refused installing a test title or opening the Store on the owner's
+  console): #52 (delete a title from the page), #40 Store uninstall, #38 Store pictures, the card's hints, the queue
+  of Store scripts, the web page's queue sheet on a console (it needs the PIN typed in the page).
 - [ ] Batches choose each title's way from the receiver's free space (2026-11-14, `feat/send-batch-space`, issue #53
   phase 2; both consoles need this build: the list and the answer changed). With little room on the receiver, the
   question's top screen says how many install as they arrive and how many do not fit; those are read once on the

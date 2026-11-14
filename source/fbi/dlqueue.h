@@ -1,5 +1,7 @@
 #pragma once
 
+typedef struct json_t json_t;
+
 // The download queue (issue #41): downloads that need no one in the middle (a Store CIA or 3DSX, URLs from a remote
 // install, a QR code or the web page) wait their turn and run one at a time in the background, installing as they come.
 // The queue screen pauses and resumes the whole queue (now, or when the current one ends) and each item, cancels,
@@ -20,3 +22,7 @@ bool dlqueue_notice(char* out, size_t size, float* progress);
 bool dlqueue_open_any();
 // The queue screen.
 void dlqueue_open();
+// The web page's queue (webserver.c, on the main thread): `command` list, pause (`arg` now or after), resume, clear (the
+// finished items), add (`body`: URLs, one a line) or item (`arg` pause, resume, retry, first, up, down, cancel or remove,
+// on item `id`). The queue as JSON afterwards, or NULL with `error` and an HTTP `status`.
+json_t* dlqueue_web(const char* command, const char* arg, u32 id, const char* body, char* error, size_t errorSize, int* status);

@@ -99,7 +99,7 @@ main{overflow:hidden;position:relative;display:flex;flex-direction:column;min-wi
 .sysgrid .syshd{cursor:grab}
 .syshd{display:flex;gap:12px;align-items:center;padding:12px 0 8px}
 .syshd .stile{width:44px;height:44px;flex:none;border-radius:var(--rs);background:var(--soft);color:var(--accent);display:grid;place-items:center}
-.syshd b{display:block;font-size:17px}.syshd .sub{font-size:12.5px;color:var(--muted)}
+.qrow{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line)}.qrow:last-child{border-bottom:0}.qrow>.ic{flex:none;color:var(--muted)}.qrow.q-running>.ic{color:var(--accent)}.qrow.q-done>.ic{color:var(--success)}.qrow.q-failed>.ic{color:var(--danger)}.qtxt{flex:1;min-width:0}.qtxt b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.qtxt span{display:block;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.qrow.q-failed .qtxt span{color:var(--danger)}.qbar{height:5px;border-radius:3px;background:var(--soft);margin-top:5px;overflow:hidden}.qbar i{display:block;height:100%;background:var(--accent)}.qacts{display:flex;gap:2px;flex:none}.qctl{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 10px}.syshd b{display:block;font-size:17px}.syshd .sub{font-size:12.5px;color:var(--muted)}
 .mrow{display:grid;grid-template-columns:96px 1fr auto;gap:10px;align-items:center;font-size:13px;padding:4px 0}
 .mrow .sbar{height:8px;border-radius:4px;background:var(--bg);overflow:hidden}.mrow .sbar i{display:block;height:100%;background:var(--accent);border-radius:4px}
 .mrow small{color:var(--muted);white-space:nowrap}
@@ -412,6 +412,7 @@ en:{pin:'Type the PIN shown on the console (Settings → Web server).',wrong:'Wr
   confirmdel:'Delete "%s"? This cannot be undone.',confirmdeln:'Delete %n items? This cannot be undone.',confirminst:'Install "%s" on the console?',installed:'Installed.',restarting:'Installed. NSA restarts in a few seconds.',installing:'Installing…',
   toobig:'Too big to edit here (over 256 KB).',saved:'Saved.',uploading:'Uploading',uploads:'Uploads',queued:'Waiting',movedTo:'Moved to %s',copiedTo:'Copied to %s',dropTo:'Drop to upload to %s',dropHint:'Drag onto a folder to move (hold Ctrl to copy)',taken:'"%s" is already there.',
   t_type:{text:'Text',code:'Code',data:'Data',image:'Picture',audio:'Sound',video:'Video',archive:'Compressed',program:'Program',rom:'Game ROM',save:'Save file',binary:'Binary',pdf:'PDF',cia:'CIA',ticket:'Ticket',file:'File'},
+  i_queue:'Download queue',i_queuesub:'What the console downloads and installs one after the other, in the background.',q_add:'Add to the queue',q_added:'Added to the download queue.',q_empty:'Nothing in the queue.',q_running:'Running.',q_waiting:'Waiting for the connection.',q_idle:'Nothing waiting.',q_paused:'Paused.',q_fortransfer:'Paused for a transfer: it goes on when that ends.',q_pauseafter:'Pauses when the current one ends.',q_pausenow:'Pause now',q_pauseafter_b:'Pause after this one',q_nopause:'Do not pause',q_resume:'Resume queue',q_clear:'Clear finished',q_pause:'Pause',q_resumeone:'Resume',q_up:'Move up',q_down:'Move down',q_first:'Put first',q_retry:'Retry',q_remove:'Remove',q_s_queued:'Queued',q_s_paused:'Paused',q_s_done:'Done',q_s_failed:'Failed',q_s_running:'Running',q_script:'Store script',
   i_urls:'Install from URLs',i_urlssub:'Paste links to CIAs: the console asks there, downloads and installs.',i_cia:'Install a CIA from this PC',i_ciasub:'Upload it and install it; the copy on the SD card is deleted after.',
   i_hist:'History',i_histsub:'What was sent to Remote Install before.',i_log:'Transfer log',i_logsub:'The end of transfer-log.txt.',urls:'One URL per line',send:'Send to the console',again:'Install again',nohist:'Nothing yet.',nolog:'(no log)',
   live:'Live',nolive:'The console does not answer.',busy:'The console is busy with %k: %n%p. One transfer at a time: try again when it ends.',busylive:'Paused while the console transfers (%k: %n%p).',k_ftp:'FTP',k_web:'this page',k_download:'a download',k_console:'another 3DS',padnote:'Click the bottom screen to touch it, drag up or down to scroll. Keys: arrows, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = Start, Backspace = Select.',
@@ -435,6 +436,7 @@ es:{pin:'Escribe el PIN que muestra la consola (Ajustes → Servidor web).',wron
   confirmdel:'¿Borrar "%s"? No se puede deshacer.',confirmdeln:'¿Borrar %n elementos? No se puede deshacer.',confirminst:'¿Instalar "%s" en la consola?',installed:'Instalado.',restarting:'Instalado. NSA se reinicia en unos segundos.',installing:'Instalando…',
   toobig:'Demasiado grande para editar aquí (más de 256 KB).',saved:'Guardado.',uploading:'Subiendo',uploads:'Subidas',queued:'En espera',movedTo:'Movido a %s',copiedTo:'Copiado a %s',dropTo:'Suelta para subir a %s',dropHint:'Arrastra sobre una carpeta para mover (Ctrl para copiar)',taken:'"%s" ya existe allí.',
   t_type:{text:'Texto',code:'Código',data:'Datos',image:'Imagen',audio:'Sonido',video:'Vídeo',archive:'Comprimido',program:'Programa',rom:'ROM de juego',save:'Partida',binary:'Binario',pdf:'PDF',cia:'CIA',ticket:'Ticket',file:'Archivo'},
+  i_queue:'Cola de descargas',i_queuesub:'Lo que la consola descarga e instala una cosa tras otra, en segundo plano.',q_add:'Añadir a la cola',q_added:'Añadido a la cola de descargas.',q_empty:'No hay nada en la cola.',q_running:'En marcha.',q_waiting:'Esperando a la conexión.',q_idle:'Nada en espera.',q_paused:'En pausa.',q_fortransfer:'En pausa por una transferencia: sigue cuando acabe.',q_pauseafter:'Se pausará al acabar la actual.',q_pausenow:'Pausar ya',q_pauseafter_b:'Pausar al acabar esta',q_nopause:'No pausar',q_resume:'Reanudar la cola',q_clear:'Limpiar terminadas',q_pause:'Pausar',q_resumeone:'Reanudar',q_up:'Subir',q_down:'Bajar',q_first:'Poner la primera',q_retry:'Reintentar',q_remove:'Quitar',q_s_queued:'En espera',q_s_paused:'En pausa',q_s_done:'Hecha',q_s_failed:'Fallida',q_s_running:'En marcha',q_script:'Script de la Tienda',
   i_urls:'Instalar desde URLs',i_urlssub:'Pega enlaces a CIAs: la consola pregunta allí, descarga e instala.',i_cia:'Instalar un CIA desde este PC',i_ciasub:'Se sube y se instala; la copia en la SD se borra después.',
   i_hist:'Historial',i_histsub:'Lo que se envió antes a Remote Install.',i_log:'Registro de transferencias',i_logsub:'El final de transfer-log.txt.',urls:'Una URL por línea',send:'Enviar a la consola',again:'Instalar otra vez',nohist:'Nada todavía.',nolog:'(sin registro)',
   live:'En vivo',nolive:'La consola no responde.',busy:'La consola está ocupada con %k: %n%p. Una transferencia a la vez: vuelve a probar cuando acabe.',busylive:'En pausa mientras la consola transfiere (%k: %n%p).',k_ftp:'FTP',k_web:'esta página',k_download:'una descarga',k_console:'otra 3DS',padnote:'Pulsa la pantalla de abajo para tocarla, arrastra arriba o abajo para desplazar. Teclas: flechas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Intro = Start, Retroceso = Select.',
@@ -1454,17 +1456,69 @@ addEventListener('keydown', e => {
 screens.install = {
   render(){
     const tiles = [['world-download', T.i_urls, T.i_urlssub, urlsSheet], ['upload', T.i_cia, T.i_ciasub, () => pick('.cia', true, installFromPc)],
-      ['history', T.i_hist, T.i_histsub, histSheet], ['list-details', T.i_log, T.i_logsub, logSheet]];
+      ['history', T.i_hist, T.i_histsub, histSheet], ['list', T.i_queue, T.i_queuesub, queueSheet], ['list-details', T.i_log, T.i_logsub, logSheet]];
     return screenEl(h('h2', {}, T.install), null, h('div', {class:'scroll'}, h('div', {class:'tiles'}, tiles.map(([i, b, s, fn], n) =>
       h('button', {class:'tile', vars:{i:n}, onclick:fn}, h('div', {class:'ib'}, ic(i, 24)), h('b', {text:b}), h('span', {text:s}))))));
   }
 };
 function sendUrls(text){ run(async () => { await api('POST', 'install-url', null, text); askedToast('ok'); }); }
+// Straight to the download queue (issue #41): no question on the console.
+function queueUrls(text){ run(async () => { await api('POST', 'queue/add', null, text); sfx('success'); toast(T.q_added, 'ok'); }); }
 function urlsSheet(){
   const ta = h('textarea', {class:'code', style:'height:160px', placeholder:'https://…/game.cia', spellcheck:'false'}); let s;
   s = sheet({head:sheetHead(ic('world-download', 32), T.i_urls, T.i_urlssub), body:[h('p', {class:'note', text:T.urls}), ta],
-    foot:[h('button', {class:'btn', text:T.cancel, onclick:() => s.close()}), h('button', {class:'btn primary', onclick:() => { const t = ta.value.trim(); if(t){ s.close(true); sendUrls(t+'\n'); } }}, ic('3ds', 16), T.send)]});
+    foot:[h('button', {class:'btn', text:T.cancel, onclick:() => s.close()}), h('button', {class:'btn', onclick:() => { const t = ta.value.trim(); if(t){ s.close(true); queueUrls(t+'\n'); } }}, ic('list', 16), T.q_add),
+    h('button', {class:'btn primary', onclick:() => { const t = ta.value.trim(); if(t){ s.close(true); sendUrls(t+'\n'); } }}, ic('3ds', 16), T.send)]});
   setTimeout(() => ta.focus(), 100);
+}
+// The download queue (issue #41): its items and controls, asked again every second and a half while the sheet is open.
+function queueSheet(){
+  const note = h('p', {class:'note'}), ctl = h('div', {class:'qctl'}), body = h('div', {}, ...skeletonRows(2));
+  let s, timer, q = null, shown = '';
+  const icons = {queued:'clock', running:'download', paused:'player-pause', done:'check', failed:'alert-triangle'};
+  const pctOf = it => it.total ? Math.floor(it.done*100/it.total) : 0;
+  const subOf = it => it.state==='running' ? [it.file, it.total ? fmtSize(it.done)+' / '+fmtSize(it.total)+' · '+pctOf(it)+' %' : ''].filter(Boolean).join(' · ')
+    : it.state==='failed' ? it.error : T['q_s_'+it.state]+(it.script ? ' · '+T.q_script : '');
+  const call = (path, params) => run(async () => { q = await api('POST', path, params); draw(); });
+  const btn = (icon, text, fn) => h('button', {class:'btn', onclick:fn}, ic(icon, 16), text);
+  function draw(){
+    if(!q) return;
+    // The buttons are made again only when something they depend on changed: one made again under the pointer loses its click.
+    const sig = JSON.stringify([q.paused, q.pauseAfter, q.forTransfer, q.items.map(i => [i.id, i.state, i.error, i.script])]);
+    if(sig === shown){
+      for(const it of q.items){
+        const row = body.querySelector('[data-q="'+it.id+'"]');
+        if(!row || it.state!=='running') continue;
+        row.querySelector('.qtxt span').textContent = subOf(it);
+        const bar = row.querySelector('.qbar i'); if(bar) bar.style.width = pctOf(it)+'%';
+      }
+      return;
+    }
+    shown = sig;
+    const running = q.items.some(i => i.state==='running'), stopped = q.paused || q.forTransfer;
+    note.textContent = q.forTransfer ? T.q_fortransfer : q.paused ? T.q_paused : q.pauseAfter ? T.q_pauseafter : running ? T.q_running : q.items.some(i => i.state==='queued') ? T.q_waiting : T.q_idle;
+    ctl.textContent = '';
+    ctl.append(stopped ? btn('player-play', T.q_resume, () => call('queue/resume')) : btn('player-pause', T.q_pausenow, () => call('queue/pause', {when:'now'})));
+    if(!stopped && running) ctl.append(q.pauseAfter ? btn('player-play', T.q_nopause, () => call('queue/resume')) : btn('clock', T.q_pauseafter_b, () => call('queue/pause', {when:'after'})));
+    if(q.items.some(i => i.state==='done' || i.state==='failed')) ctl.append(btn('trash', T.q_clear, () => call('queue/clear')));
+    body.textContent = '';
+    if(!q.items.length){ body.append(emptyEl('list', T.q_empty)); return; }
+    for(const it of q.items){
+      const act = a => call('queue/item', {id:it.id, action:a}), acts = [];
+      if(it.state==='running') acts.push(['player-pause', T.q_pause, 'pause'], ['x', T.cancel, 'cancel']);
+      if(it.state==='queued') acts.push(['player-pause', T.q_pause, 'pause']);
+      if(it.state==='paused') acts.push(['player-play', T.q_resumeone, 'resume']);
+      if(it.state==='queued' || it.state==='paused') acts.push(['chevron-up', T.q_up, 'up'], ['chevron-down', T.q_down, 'down'], ['arrows-sort', T.q_first, 'first'], ['x', T.cancel, 'cancel']);
+      if(it.state==='failed' && !it.script) acts.push(['refresh', T.q_retry, 'retry']);
+      if(it.state==='failed' || it.state==='done') acts.push(['trash', T.q_remove, 'remove']);
+      body.append(h('div', {class:'qrow q-'+it.state, 'data-q':it.id}, ic(icons[it.state] || 'clock', 18),
+        h('div', {class:'qtxt'}, h('b', {text:it.name}), h('span', {text:subOf(it)}), it.state==='running' ? h('div', {class:'qbar'}, h('i', {style:'width:'+pctOf(it)+'%'})) : null),
+        h('div', {class:'qacts'}, acts.map(([i, title, a]) => tool(i, title, () => act(a))))));
+    }
+  }
+  const load = async () => { try { q = await api('GET', 'queue'); draw(); } catch(e){ if(e.auth){ clearInterval(timer); showLogin(e.message); } } };
+  s = sheet({wide:true, head:sheetHead(ic('list', 32), T.i_queue, T.i_queuesub), body:[note, ctl, body], foot:[h('button', {class:'btn', text:T.close, onclick:() => s.close()})], onclose:() => clearInterval(timer)});
+  load(); timer = setInterval(load, 1500);
 }
 async function fetchText(path, from){
   const r = await fetch(fileUrl(path), {headers:Object.assign({'X-Pin':pin}, from ? {Range:'bytes='+from+'-'} : {})});

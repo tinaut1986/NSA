@@ -163,6 +163,18 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Download queue, phase 3: the web page (2026-11-14, `feat/queue-web`, issue #41). API (in /api/help): GET /api/queue
+  ({paused, pauseAfter, forTransfer, items:[{id, name, state, done, total, file, error, script}]}), POST /api/queue/add
+  (body: URLs, straight to the queue, no question on the console), /api/queue/pause?when=now|after, /api/queue/resume,
+  /api/queue/clear, /api/queue/item?id=&action=pause|resume|retry|first|up|down|cancel|remove; each answers the queue.
+  They run on the main thread (`web_queue`, answered in webserver_poll_main through `dlqueue_web`), as /api/system does.
+  Page: Install has a Download queue tile (a sheet asked again every 1.5 s: state, pause now / after this one / resume,
+  clear finished, and per item pause/resume, up, down, first, cancel, retry, remove, with the running file's bar), and
+  Install from URLs has "Add to the queue" beside Send. The sheet makes its buttons again only when the queue's states
+  change (one made again under the pointer lost its click); the progress is updated in place. Claude, 2026-11-14,
+  Azahar + the built-in browser: two URLs added from the page as one item, its bar moving, pause now (item back to
+  queued), resume, done (both files), clear; cancel of a running one; /api/help lists the routes. Found then, not
+  fixed (older): loadTheme() reads `ted` before its `let` (index.html ~703 vs ~1588), a ReferenceError at load.
 - [ ] Download queue, phase 2b: the Store's scripts (2026-11-14, `feat/queue-scripts`, issue #41). A script's first
   question ("Get X?") is now Yes / To the queue (X) / No. With the queue, the warnings come as before and then
   `script_ask_next` walks the script's path as the answers make it, asking now each promptMessage and each rmdir

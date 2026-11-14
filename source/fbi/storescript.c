@@ -8,6 +8,8 @@
 #include <jansson.h>
 
 #include "storescript.h"
+#include "dlqueue.h"
+#include "ftpserver.h"
 #include "action/action.h"
 #include "../core/core.h"
 #include "../core/minire.h"
@@ -75,6 +77,24 @@ typedef struct {
     bool insecure;      // A download is over plain http.
     bool warnedSensitive;
     bool warnedInsecure;
+
+    // In the download queue (issue #41): asked beforehand, then run with no screen and no question.
+    char name[96];
+    bool queued;
+    u8 answers[SCRIPT_STEPS_MAX];   // Each prompt's and rmdir's answer: 1 yes, 2 no.
+    u32 askPc;                      // Where the questions asked beforehand are.
+    void* dl;                       // The download under way (installurl.c).
+    bool releasing;                 // The release's file is being looked for (a thread).
+    bool filesRunning;              // The file steps run (a thread).
+    bool installing;                // The CIAs install (a thread).
+    volatile bool installDone;
+    bool installOk;
+    bool stopRequested;
+    bool stopPause;
+    bool userCancelled;
+    void (*queueDone)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error);
+    void* queueItem;
+    char error[160];
 } script_run;
 
 // ---- reading a script ----
@@ -453,11 +473,28 @@ static bool script_extract_allowed(void* userData, const char* sdPath) {
 }
 
 static void script_finish(script_run* run, bool ok) {
+    if(run->queued && run->queueDone != NULL) {
+        if(!ok && run->error[0] == '\0' && !run->userCancelled) {
+            string_copy(run->error, _("A step of the script failed."), sizeof(run->error));
+        }
+
+        run->queueDone(run->queueItem, ok ? 1 : 0, ok ? 0 : 1, false, run->userCancelled, run->error);
+    }
+
     if(run->done != NULL) {
         run->done(run->userData, ok);
     }
 
     free(run);
+}
+
+// A queued run that keeps an error to show on its item (or, on screen, says it as before).
+static void script_fail(script_run* run, Result res, const char* what) {
+    if(run->queued) {
+        snprintf(run->error, sizeof(run->error), "%s (%08lX)", what, (u32) res);
+    } else {
+        error_display_res(NULL, NULL, res, what);
+    }
 }
 
 static bool script_installing(script_run* run, const char* path) {
@@ -500,6 +537,38 @@ const char* storescript_kept_file(void) {
     return script_kept;
 }
 
+static bool script_start_thread(script_run* run, void (*entry)(void* arg));
+
+// In the queue: the CIAs the script installs, one after the other, as SITE INSTALL does (no screen, no question); those
+// the script deletes go once they are in.
+static void script_install_thread(void* arg) {
+    script_run* run = (script_run*) arg;
+    run->installOk = true;
+    const char* line = run->installs;
+    while(*line != '\0') {
+        const char* end = strchr(line, '\n');
+        size_t len = end != NULL ? (size_t) (end - line) : strlen(line);
+        char path[SCRIPT_PATH_MAX];
+        string_copy(path, line, len + 1 < sizeof(path) ? len + 1 : sizeof(path));
+        char error[128] = "";
+        if(!ftpserver_install(path, error, sizeof(error))) {
+            run->installOk = false;
+            snprintf(run->error, sizeof(run->error), "%s: %s", path, error);
+        } else if(run->deleteInstalled) {
+            char sd[SCRIPT_PATH_MAX + 8];
+            script_sd(sd, sizeof(sd), path);
+            remove(sd);
+        }
+
+        line += len;
+        if(*line == '\n') {
+            line++;
+        }
+    }
+
+    run->installDone = true;
+}
+
 // The end: the CIAs install (their screens say how it went), or it says where the files went.
 static void script_end(script_run* run) {
     // What it leaves, for the Store to look for later.
@@ -512,6 +581,23 @@ static void script_end(script_run* run) {
         if(!script_has_ext(path, ".cia") && stat(sd, &st) == 0) {
             string_copy(script_kept, path, sizeof(script_kept));
         }
+    }
+
+    if(run->queued) {
+        if(run->installs[0] != '\0') {
+            run->installing = true;
+            run->installDone = false;
+            if(!script_start_thread(run, script_install_thread)) {
+                run->installing = false;
+                script_fail(run, R_APP_THREAD_CREATE_FAILED, _("Failed to install the CIAs."));
+                script_finish(run, false);
+            }
+
+            return;
+        }
+
+        script_finish(run, true);
+        return;
     }
 
     if(run->installs[0] != '\0') {
@@ -656,23 +742,29 @@ static void script_files_thread(void* arg) {
     run->finished = true;
 }
 
+static void script_next(script_run* run);
+
+// The file steps done (or failed): on with the script.
+static void script_files_after(script_run* run) {
+    if(R_FAILED(run->res)) {
+        if(run->res != R_APP_CANCELLED) {
+            script_fail(run, run->res, _("Failed to take the files out of the archive."));
+        }
+
+        script_abandon(run);
+        return;
+    }
+
+    script_next(run);
+}
+
 static void script_files_update(ui_view* view, void* data, float* progress, char* text) {
     script_run* run = (script_run*) data;
 
     if(run->finished) {
         ui_pop();
         info_destroy(view);
-
-        if(R_FAILED(run->res)) {
-            if(run->res != R_APP_CANCELLED) {
-                error_display_res(NULL, NULL, run->res, _("Failed to take the files out of the archive."));
-            }
-
-            script_abandon(run);
-            return;
-        }
-
-        script_next(run);
+        script_files_after(run);
         return;
     }
 
@@ -693,6 +785,17 @@ static void script_run_files(script_run* run) {
     run->finished = false;
     run->res = 0;
     run->current = run->pc;
+    if(run->queued) {
+        run->filesRunning = true;
+        if(!script_start_thread(run, script_files_thread)) {
+            run->filesRunning = false;
+            script_fail(run, R_APP_THREAD_CREATE_FAILED, _("Failed to take the files out of the archive."));
+            script_abandon(run);
+        }
+
+        return;
+    }
+
     ui_view* view = info_display(_("Store"), _("Press B to cancel."), true, run, script_files_update, NULL);
     if(view == NULL || !script_start_thread(run, script_files_thread)) {
         if(view != NULL) {
@@ -712,8 +815,21 @@ static void script_downloaded(void* data, u32 index) {
     ((script_run*) data)->downloaded = true;
 }
 
+static void script_stopped(script_run* run);
+
 static void script_download_done(void* data) {
     script_run* run = (script_run*) data;
+    run->dl = NULL;
+    // Stopped on purpose (the queue pauses or cancels it): the step starts again on resume.
+    if(run->queued && run->stopRequested) {
+        script_stopped(run);
+        return;
+    }
+
+    if(run->queued && !run->downloaded) {
+        string_copy(run->error, action_install_url_last_error(), sizeof(run->error));
+    }
+
     if(!run->downloaded) {
         // The download screens said why (or it was cancelled).
         script_abandon(run);
@@ -727,6 +843,11 @@ static void script_download_done(void* data) {
 
 static void script_download(script_run* run, const char* url) {
     run->downloaded = false;
+    if(run->queued) {
+        run->dl = action_download_urls_to_queued(url, run->steps[run->pc].b, run, script_downloaded, script_download_done);
+        return;
+    }
+
     action_download_urls_to(url, run->steps[run->pc].b, run, script_downloaded, script_download_done);
 }
 
@@ -766,6 +887,17 @@ static void script_release_thread(void* arg) {
     run->finished = true;
 }
 
+// The release's file found (or not): downloaded next.
+static void script_release_after(script_run* run) {
+    if(R_FAILED(run->res)) {
+        script_fail(run, run->res, _("Failed to find the release's file."));
+        script_abandon(run);
+        return;
+    }
+
+    script_download(run, run->releaseUrl);
+}
+
 static void script_release_update(ui_view* view, void* data, float* progress, char* text) {
     script_run* run = (script_run*) data;
     snprintf(text, PROGRESS_TEXT_MAX, "%s", _("Looking for the latest release..."));
@@ -775,13 +907,7 @@ static void script_release_update(ui_view* view, void* data, float* progress, ch
 
     ui_pop();
     info_destroy(view);
-    if(R_FAILED(run->res)) {
-        error_display_res(NULL, NULL, run->res, _("Failed to find the release's file."));
-        script_abandon(run);
-        return;
-    }
-
-    script_download(run, run->releaseUrl);
+    script_release_after(run);
 }
 
 // ---- questions ----
@@ -819,7 +945,43 @@ static void script_rmdir_answered(ui_view* view, void* data, u32 response) {
 
 static void script_next(script_run* run) {
     while(run->pc < run->count) {
+        // The queue asked it to stop: here, between two steps.
+        if(run->queued && run->stopRequested) {
+            script_stopped(run);
+            return;
+        }
+
         script_step* s = &run->steps[run->pc];
+        if(run->queued && s->type == STEP_PROMPT) {
+            // Answered when it was added.
+            if(run->answers[run->pc] == 1) {
+                run->pc++;
+            } else if(s->count > 0) {
+                run->pc += 1 + s->count;
+            } else {
+                script_abandon(run);
+                return;
+            }
+
+            continue;
+        }
+
+        if(run->queued && s->type == STEP_RMDIR) {
+            char sd[SCRIPT_PATH_MAX + 8];
+            script_sd(sd, sizeof(sd), s->b);
+            struct stat st;
+            if(run->answers[run->pc] == 1 && stat(sd, &st) == 0) {
+                FS_Archive archive = 0;
+                if(R_SUCCEEDED(fs_open_archive(&archive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
+                    fs_delete_dir_recursively(archive, s->b);
+                    fs_close_archive(archive);
+                }
+            }
+
+            run->pc++;
+            continue;
+        }
+
         switch(s->type) {
             case STEP_SKIP:
                 run->pc += 1 + s->count;
@@ -853,6 +1015,17 @@ static void script_next(script_run* run) {
                 return;
             case STEP_RELEASE:
                 run->finished = false;
+                if(run->queued) {
+                    run->releasing = true;
+                    if(!script_start_thread(run, script_release_thread)) {
+                        run->releasing = false;
+                        script_fail(run, R_APP_THREAD_CREATE_FAILED, _("Failed to find the release's file."));
+                        script_abandon(run);
+                    }
+
+                    return;
+                }
+
                 if(info_display(_("Store"), "", false, run, script_release_update, NULL) == NULL) {
                     error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("Failed to find the release's file."));
                     script_abandon(run);
@@ -873,6 +1046,61 @@ static void script_next(script_run* run) {
 }
 
 static void script_warnings(script_run* run);
+
+// ---- the download queue: what the script will ask, asked now ----
+
+static void script_ask_next(script_run* run);
+
+static void script_ask_prompt_answered(ui_view* view, void* data, u32 response) {
+    script_run* run = (script_run*) data;
+    const script_step* s = &run->steps[run->askPc];
+    run->answers[run->askPc] = response == PROMPT_YES ? 1 : 2;
+    if(response == PROMPT_YES) {
+        run->askPc++;
+    } else if(s->count > 0) {
+        run->askPc += 1 + s->count;
+    } else {
+        // A No that ends the script: nothing goes to the queue.
+        script_finish(run, false);
+        return;
+    }
+
+    script_ask_next(run);
+}
+
+static void script_ask_rmdir_answered(ui_view* view, void* data, u32 response) {
+    script_run* run = (script_run*) data;
+    run->answers[run->askPc] = response == PROMPT_YES ? 1 : 2;
+    run->askPc++;
+    script_ask_next(run);
+}
+
+// The script's path, as its answers make it: each question on it asked now, in order; then it waits in the queue.
+static void script_ask_next(script_run* run) {
+    while(run->askPc < run->count) {
+        const script_step* s = &run->steps[run->askPc];
+        if(s->type == STEP_SKIP) {
+            run->askPc += 1 + s->count;
+        } else if(s->type == STEP_EXIT) {
+            run->askPc = run->count;
+        } else if(s->type == STEP_PROMPT) {
+            prompt_display_yes_no("Confirmation", s->a, COLOR_TEXT, run, NULL, script_ask_prompt_answered);
+            return;
+        } else if(s->type == STEP_RMDIR) {
+            static char question[SCRIPT_PATH_MAX + 160];
+            snprintf(question, sizeof(question), _("When it runs, delete this folder and everything in it (if it is there)?\n\n%s"), s->b);
+            prompt_display_warning("Confirmation", question, COLOR_TEXT, run, NULL, script_ask_rmdir_answered);
+            return;
+        } else {
+            run->askPc++;
+        }
+    }
+
+    run->pc = 0;
+    if(!dlqueue_add_script(run->name, run)) {
+        script_finish(run, false);
+    }
+}
 
 static void script_warning_answered(ui_view* view, void* data, u32 response) {
     script_run* run = (script_run*) data;
@@ -984,6 +1212,8 @@ static void script_warnings(script_run* run) {
     } else if(run->insecure && !run->warnedInsecure) {
         run->warnedInsecure = true;
         script_warn_http(run);
+    } else if(run->queued) {
+        script_ask_next(run);
     } else {
         script_next(run);
     }
@@ -991,15 +1221,17 @@ static void script_warnings(script_run* run) {
 
 static void script_question_answered(ui_view* view, void* data, u32 response) {
     script_run* run = (script_run*) data;
-    if(response != PROMPT_YES) {
+    // 0: now; 1: the download queue; else: no.
+    if(response != 0 && response != 1) {
         script_finish(run, false);
         return;
     }
 
+    run->queued = response == 1;
     script_warnings(run);
 }
 
-void storescript_run(const char* scriptText, const char* question, void* userData, void (*done)(void* userData, bool ok)) {
+void storescript_run(const char* scriptText, const char* question, const char* name, void* userData, void (*done)(void* userData, bool ok)) {
     script_run* run = (script_run*) calloc(1, sizeof(script_run));
     json_error_t error;
     json_t* script = scriptText != NULL ? json_loads(scriptText, 0, &error) : NULL;
@@ -1017,6 +1249,7 @@ void storescript_run(const char* scriptText, const char* question, void* userDat
     json_decref(script);
     run->userData = userData;
     run->done = done;
+    string_copy(run->name, name != NULL ? name : "", sizeof(run->name));
     for(u32 i = 0; i < run->count; i++) {
         run->sensitive |= run->steps[i].sensitive;
         run->insecure |= run->steps[i].insecure;
@@ -1027,5 +1260,96 @@ void storescript_run(const char* scriptText, const char* question, void* userDat
     run->progress.created = script_extracted;
     run->progress.allowed = script_extract_allowed;
 
-    prompt_display_yes_no("Confirmation", question, COLOR_TEXT, run, NULL, script_question_answered);
+    static const char* options[] = {"Yes", "To the queue", "No"};   // A button: short.
+    static u32 buttons[] = {KEY_A, KEY_X, KEY_B};
+    static const char* translated[3];
+    for(u32 i = 0; i < 3; i++) {
+        translated[i] = _(options[i]);
+    }
+
+    prompt_display_multi_choice("Confirmation", question, COLOR_TEXT, translated, buttons, 3, run, NULL, script_question_answered);
+}
+
+// ---- the download queue's side (dlqueue.c) ----
+
+// Stopped between two steps: paused (it waits where it is) or cancelled (what it wrote for nothing goes).
+static void script_stopped(script_run* run) {
+    run->stopRequested = false;
+    if(run->stopPause) {
+        if(run->queueDone != NULL) {
+            run->queueDone(run->queueItem, 0, 0, true, false, "");
+        }
+
+        return;
+    }
+
+    run->userCancelled = true;
+    script_abandon(run);
+}
+
+bool storescript_queued_start(void* data, void (*done)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error), void* item) {
+    script_run* run = (script_run*) data;
+    run->queueDone = done;
+    run->queueItem = item;
+    run->stopRequested = false;
+    run->error[0] = '\0';
+    script_next(run);
+    return true;
+}
+
+void storescript_queued_poll(void* data) {
+    script_run* run = (script_run*) data;
+    // Each of these may end the run (and free it): nothing after.
+    if(run->dl != NULL) {
+        action_install_url_queued_poll(run->dl);
+    } else if(run->releasing && run->finished) {
+        run->releasing = false;
+        script_release_after(run);
+    } else if(run->filesRunning && run->finished) {
+        run->filesRunning = false;
+        script_files_after(run);
+    } else if(run->installing && run->installDone) {
+        run->installing = false;
+        script_finish(run, run->installOk);
+    }
+}
+
+void storescript_queued_stop(void* data, bool pause) {
+    script_run* run = (script_run*) data;
+    run->stopRequested = true;
+    run->stopPause = pause;
+    if(run->dl != NULL) {
+        action_install_url_queued_stop(run->dl, false);
+    }
+}
+
+void storescript_queued_discard(void* data) {
+    script_run* run = (script_run*) data;
+    run->queueDone = NULL;
+    run->userCancelled = true;
+    script_abandon(run);
+}
+
+void storescript_queued_open(void* data) {
+    script_run* run = (script_run*) data;
+    if(run->dl != NULL) {
+        action_install_url_queued_open(run->dl);
+    }
+}
+
+bool storescript_queued_on_screen(void* data) {
+    script_run* run = (script_run*) data;
+    return run->dl != NULL && action_install_url_queued_on_screen(run->dl);
+}
+
+void storescript_queued_progress(void* data, u64* done, u64* total, char* name, size_t size) {
+    script_run* run = (script_run*) data;
+    if(run->dl != NULL) {
+        action_install_url_queued_progress(run->dl, done, total, name, size);
+        return;
+    }
+
+    *done = run->pc;
+    *total = run->count;
+    snprintf(name, size, run->installing ? _("Installing...") : _("Step %lu of %lu"), run->pc + 1, run->count);
 }

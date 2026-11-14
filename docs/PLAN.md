@@ -163,6 +163,19 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Download queue, phase 2b: the Store's scripts (2026-11-14, `feat/queue-scripts`, issue #41). A script's first
+  question ("Get X?") is now Yes / To the queue (X) / No. With the queue, the warnings come as before and then
+  `script_ask_next` walks the script's path as the answers make it, asking now each promptMessage and each rmdir
+  ("When it runs, delete this folder...?"); the answers are kept (`answers[]`) and the run goes to the queue
+  (`dlqueue_add_script`). Run from the queue it has no screen: downloads with `action_download_urls_to_queued`
+  (background, errors kept), the release lookup and the file steps on their threads polled by
+  `storescript_queued_poll`, the CIAs installed on a thread with `ftpserver_install` (as SITE INSTALL: SD titles, a
+  lower version refused), no "Saved in"/"Done". It pauses or cancels between two steps (a download under way is
+  cancelled and starts again on resume); a failed script cannot be retried (its run is gone): Remove only. The
+  Store's end (records, the installed badge) runs when the script ends. Claude, 2026-11-14, Azahar: Colors! [v1.1]
+  queued with Yes to its message: zip downloaded, Colors.nds and ColorsMagazine_1.col extracted, zip deleted, NDS
+  badge checked, toast "finished: 1"; again with No: only Colors.nds. Not tried: pause/cancel of a running script,
+  a script with rmdir, a CIA installed by a queued script, on a console.
 - [ ] Download queue, phase 2a (2026-11-14, `feat/download-queue`, issue #41). The install question of a URL download (a
   Store CIA/3DSX, remote install, QR code, web page) has a fifth choice, "Add to the download queue" (`dlqueue.c`). The
   queue runs one item at a time in the background (`action_install_url_run_queued`: Install mode, quiet, no retry

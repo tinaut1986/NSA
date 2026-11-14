@@ -30,4 +30,19 @@ bool storescript_resolve_path(const char* in, char* out, size_t size);
 // After a run that went through: the last file it wrote that is still on the card (not a CIA it installs), as
 // "/luma/plugins/.../plugin.3gx", or "" when none. Kept until the next run ends.
 const char* storescript_kept_file(void);
-void storescript_run(const char* scriptText, const char* question, void* userData, void (*done)(void* userData, bool ok));
+// The first question also offers "Add to the download queue" (issue #41): then, past the warnings, everything the script
+// will ask (its own yes/no messages, each folder to delete) is asked at once, and the run goes to the queue (dlqueue.c) as
+// `name`, to run later with those answers and no screen.
+void storescript_run(const char* scriptText, const char* question, const char* name, void* userData, void (*done)(void* userData, bool ok));
+
+// The download queue's side of a queued run (`run` as dlqueue_add_script got it). Start runs it from where it stands (the
+// start, or where a pause left it); `done` says how it ended (the run is gone then, but after a pause). Poll moves it on
+// from the main loop. Stop pauses it between two steps (a download under way starts again on resume) or cancels it.
+// Discard lets go of a run that is not running (its `done` for the Store runs, not the queue's).
+bool storescript_queued_start(void* run, void (*done)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error), void* item);
+void storescript_queued_poll(void* run);
+void storescript_queued_stop(void* run, bool pause);
+void storescript_queued_discard(void* run);
+void storescript_queued_open(void* run);
+bool storescript_queued_on_screen(void* run);
+void storescript_queued_progress(void* run, u64* done, u64* total, char* name, size_t size);

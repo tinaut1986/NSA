@@ -8,6 +8,7 @@
 
 #include "dlqueue.h"
 #include "resources.h"
+#include "storescript.h"
 #include "action/action.h"
 #include "../core/core.h"
 #include "../core/xferturn.h"
@@ -29,6 +30,8 @@ typedef struct {
     u32 id;
     char name[96];
     char* urls;
+    void* script;        // A Store script's run (storescript.c) instead of URLs; NULL once it has ended.
+    bool isScript;
     bool archives;
     void* userData;
     void (*finishedURL)(void* data, u32 index);
@@ -103,6 +106,11 @@ static void dlq_remove(dlq_item* item) {
     }
 
     dlq_release(item);
+    if(item->script != NULL && item != dlq_running) {
+        storescript_queued_discard(item->script);
+        item->script = NULL;
+    }
+
     free(item->urls);
     free(item);
     memmove(&dlq_items[index], &dlq_items[index + 1], (dlq_count - (u32) index - 1) * sizeof(dlq_item*));
@@ -151,11 +159,67 @@ bool dlqueue_add(const char* name, const char* urls, bool archives, void* userDa
     return true;
 }
 
+bool dlqueue_add_script(const char* name, void* script) {
+    if(dlq_count >= DLQUEUE_MAX) {
+        error_display(NULL, NULL, _("The download queue is full."));
+        return false;
+    }
+
+    dlq_item* item = (dlq_item*) calloc(1, sizeof(dlq_item));
+    if(item == NULL) {
+        error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("The download queue is full."));
+        return false;
+    }
+
+    item->id = dlq_next_id++;
+    string_copy(item->name, name, sizeof(item->name));
+    item->script = script;
+    item->isScript = true;
+    item->released = true;   // The script runs the Store's own end itself.
+    item->state = DLQ_QUEUED;
+    dlq_items[dlq_count++] = item;
+    dlq_finished_until = 0;
+    dlq_changed();
+    return true;
+}
+
+// The running item, whatever it is (URLs or a script).
+static void dlq_poll_running() {
+    if(dlq_running != NULL && dlq_running->isScript) {
+        storescript_queued_poll(dlq_run);
+    } else {
+        action_install_url_queued_poll(dlq_run);
+    }
+}
+
+static void dlq_stop(bool pause) {
+    if(dlq_running != NULL && dlq_running->isScript) {
+        storescript_queued_stop(dlq_run, pause);
+    } else {
+        action_install_url_queued_stop(dlq_run, pause);
+    }
+}
+
+static bool dlq_on_screen() {
+    return dlq_running != NULL && dlq_running->isScript ? storescript_queued_on_screen(dlq_run) : action_install_url_queued_on_screen(dlq_run);
+}
+
+static void dlq_progress(u64* done, u64* total, char* name, size_t size) {
+    if(dlq_running != NULL && dlq_running->isScript) {
+        storescript_queued_progress(dlq_run, done, total, name, size);
+    } else {
+        action_install_url_queued_progress(dlq_run, done, total, name, size);
+    }
+}
+
 // The running item's download has ended (installurl.c calls this before it lets go of it).
 static void dlq_done(void* data, u32 ok, u32 failed, bool paused, bool cancelled, const char* error) {
     dlq_item* item = (dlq_item*) data;
     dlq_run = NULL;
     dlq_running = NULL;
+    if(!paused) {
+        item->script = NULL;   // A script's run is freed once it has ended.
+    }
 
     if(cancelled) {
         dlq_remove(item);
@@ -188,6 +252,14 @@ static void dlq_start(dlq_item* item) {
     item->state = DLQ_RUNNING;
     item->error[0] = '\0';
     dlq_running = item;
+    if(item->isScript) {
+        // It may end at once (and dlq_done clears dlq_run).
+        dlq_run = item->script;
+        storescript_queued_start(item->script, dlq_done, item);
+        dlq_changed();
+        return;
+    }
+
     dlq_run = action_install_url_run_queued(item->urls, item->archives, item->userData, item->finishedURL, dlq_done, item);
     if(dlq_run == NULL) {
         dlq_running = NULL;
@@ -202,7 +274,7 @@ static void dlq_start(dlq_item* item) {
 static void dlq_stop_running(bool wholeQueue) {
     if(dlq_run != NULL) {
         dlq_stop_queue = wholeQueue;
-        action_install_url_queued_stop(dlq_run, true);
+        dlq_stop(true);
     }
 }
 
@@ -221,7 +293,7 @@ static void dlq_transfer_answered(ui_view* view, void* data, u32 response) {
 
 void dlqueue_tick() {
     if(dlq_run != NULL) {
-        action_install_url_queued_poll(dlq_run);
+        dlq_poll_running();
     }
 
     // An FTP or web transfer found the queue using the connection: the user decides.
@@ -293,14 +365,14 @@ bool dlqueue_notice(char* out, size_t size, float* progress) {
 
     u32 waiting = dlq_waiting();
     if(dlq_run != NULL) {
-        if(action_install_url_queued_on_screen(dlq_run)) {
+        if(dlq_on_screen()) {
             return false;
         }
 
         u64 done = 0;
         u64 total = 0;
         char name[FILE_NAME_MAX];
-        action_install_url_queued_progress(dlq_run, &done, &total, name, sizeof(name));
+        dlq_progress(&done, &total, name, sizeof(name));
         char head[128];
         u32 percent = total > 0 ? (u32) (done * 100 / total) : 0;
         if(waiting > 0) {
@@ -424,7 +496,7 @@ static void dlq_draw_row(void* data, list_item* row, float x, float y, float wid
             u64 done = 0;
             u64 total = 0;
             char name[FILE_NAME_MAX];
-            action_install_url_queued_progress(dlq_run, &done, &total, name, sizeof(name));
+            dlq_progress(&done, &total, name, sizeof(name));
             if(total > 0) {
                 snprintf(status, sizeof(status), "%lu %%", (u32) (done * 100 / total));
             }
@@ -493,7 +565,7 @@ static void dlq_draw_top(ui_view* view, void* data, float x1, float y1, float x2
         u64 done = 0;
         u64 total = 0;
         char name[FILE_NAME_MAX];
-        action_install_url_queued_progress(dlq_run, &done, &total, name, sizeof(name));
+        dlq_progress(&done, &total, name, sizeof(name));
         char figures[64];
         ui_format_size(figures, sizeof(figures), done);
         if(total > 0) {
@@ -518,7 +590,11 @@ static void dlq_draw_top(ui_view* view, void* data, float x1, float y1, float x2
 // The actions of an item: what its state allows.
 static void dlq_act_open(void* data) {
     if(dlq_run != NULL && dlq_running != NULL && dlq_running->id == dlq_sheet_id) {
-        action_install_url_queued_open(dlq_run);
+        if(dlq_running->isScript) {
+            storescript_queued_open(dlq_run);
+        } else {
+            action_install_url_queued_open(dlq_run);
+        }
     }
 }
 
@@ -580,7 +656,7 @@ static void dlq_act_cancel(void* data) {
     }
 
     if(item->state == DLQ_RUNNING && dlq_run != NULL) {
-        action_install_url_queued_stop(dlq_run, false);
+        dlq_stop(false);
     } else {
         dlq_remove(item);
     }
@@ -610,7 +686,10 @@ static void dlq_show_actions(dlq_item* item) {
             actions[count++] = (sheet_action) {ICON_X, _("Cancel"), true, dlq_act_cancel, false, NULL};
             break;
         case DLQ_FAILED:
-            actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Retry"), false, dlq_act_resume, false, NULL};
+            if(!item->isScript) {
+                actions[count++] = (sheet_action) {ICON_DOWNLOAD, _("Retry"), false, dlq_act_resume, false, NULL};
+            }
+
             actions[count++] = (sheet_action) {ICON_TRASH, _("Remove"), false, dlq_act_cancel, false, NULL};
             break;
         case DLQ_DONE:

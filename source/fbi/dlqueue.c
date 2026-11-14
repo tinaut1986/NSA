@@ -38,6 +38,7 @@ typedef struct {
     void (*finishedURL)(void* data, u32 index);
     void (*finishedAll)(void* data);
     bool released;       // finishedAll has run.
+    u32 skip;            // URLs already done when it was paused: a resume goes on from the next one.
     dlq_state state;
     u32 ok;
     u32 failed;
@@ -213,6 +214,14 @@ static void dlq_progress(u64* done, u64* total, char* name, size_t size) {
     }
 }
 
+// One of the running item's URLs is done: told to whoever asked, by its place in the item's whole list.
+static void dlq_url_finished(void* data, u32 index) {
+    dlq_item* item = (dlq_item*) data;
+    if(item->finishedURL != NULL) {
+        item->finishedURL(item->userData, index + item->skip);
+    }
+}
+
 // The running item's download has ended (installurl.c calls this before it lets go of it).
 static void dlq_done(void* data, u32 ok, u32 failed, bool paused, bool cancelled, const char* error) {
     dlq_item* item = (dlq_item*) data;
@@ -225,13 +234,25 @@ static void dlq_done(void* data, u32 ok, u32 failed, bool paused, bool cancelled
     if(cancelled) {
         dlq_remove(item);
     } else if(paused) {
+        // Paused, `ok` says how many of its URLs were done: they are not fetched again. One that failed before the
+        // pause still counts at the end.
+        item->skip += ok;
+        item->failed += failed;
+        if(failed > 0 && error != NULL && error[0] != '\0') {
+            string_copy(item->error, error, sizeof(item->error));
+        }
+
         item->state = dlq_stop_queue ? DLQ_QUEUED : DLQ_PAUSED;
     } else {
         item->ok += ok;
         item->failed += failed;
-        if(failed > 0) {
+        if(item->failed > 0) {
             item->state = DLQ_FAILED;
-            string_copy(item->error, error != NULL && error[0] != '\0' ? error : _("Failed"), sizeof(item->error));
+            if(error != NULL && error[0] != '\0') {
+                string_copy(item->error, error, sizeof(item->error));
+            } else if(item->error[0] == '\0') {
+                string_copy(item->error, _("Failed"), sizeof(item->error));
+            }
             dlq_session_failed++;
         } else {
             item->state = DLQ_DONE;
@@ -251,7 +272,9 @@ static void dlq_done(void* data, u32 ok, u32 failed, bool paused, bool cancelled
 
 static void dlq_start(dlq_item* item) {
     item->state = DLQ_RUNNING;
-    item->error[0] = '\0';
+    if(item->failed == 0) {
+        item->error[0] = '\0';   // A failure before a pause keeps its reason.
+    }
     dlq_running = item;
     if(item->isScript) {
         // It may end at once (and dlq_done clears dlq_run).
@@ -261,7 +284,21 @@ static void dlq_start(dlq_item* item) {
         return;
     }
 
-    dlq_run = action_install_url_run_queued(item->urls, item->archives, item->userData, item->finishedURL, dlq_done, item);
+    // From the first URL not done yet; whoever asked still hears of each by its place in the whole list.
+    const char* urls = item->urls;
+    for(u32 i = 0; i < item->skip && urls != NULL; i++) {
+        urls = strchr(urls, '\n');
+        urls = urls != NULL && urls[1] != '\0' ? urls + 1 : NULL;
+    }
+
+    if(urls == NULL) {
+        // All of them were done when it was paused.
+        dlq_running = item;
+        dlq_done(item, 0, 0, false, false, NULL);
+        return;
+    }
+
+    dlq_run = action_install_url_run_queued(urls, item->archives, item, item->finishedURL != NULL ? dlq_url_finished : NULL, dlq_done, item);
     if(dlq_run == NULL) {
         dlq_running = NULL;
         item->state = DLQ_FAILED;
@@ -617,6 +654,13 @@ static void dlq_act_pause(void* data) {
 static void dlq_act_resume(void* data) {
     dlq_item* item = dlq_find(dlq_sheet_id);
     if(item != NULL && (item->state == DLQ_PAUSED || item->state == DLQ_FAILED)) {
+        // Tried again after a failure: every URL once more.
+        if(item->state == DLQ_FAILED) {
+            item->skip = 0;
+            item->ok = 0;
+            item->failed = 0;
+        }
+
         item->state = DLQ_QUEUED;
         item->error[0] = '\0';
         dlq_changed();

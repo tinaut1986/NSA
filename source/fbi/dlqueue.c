@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include <3ds.h>
+#include <jansson.h>
 
 #include "dlqueue.h"
 #include "resources.h"
@@ -774,4 +775,150 @@ void dlqueue_open() {
     dlq_view = view;
     dlq_seen_version = 0;
     dlq_unseen = false;
+}
+
+// ---- the web page's queue (webserver.c calls dlqueue_web on the main thread) ----
+
+static const char* dlq_state_id(dlq_state state) {
+    switch(state) {
+        case DLQ_QUEUED: return "queued";
+        case DLQ_RUNNING: return "running";
+        case DLQ_PAUSED: return "paused";
+        case DLQ_DONE: return "done";
+        case DLQ_FAILED: return "failed";
+    }
+
+    return "";
+}
+
+static json_t* dlq_json() {
+    json_t* items = json_array();
+    for(u32 i = 0; i < dlq_count; i++) {
+        dlq_item* item = dlq_items[i];
+        u64 done = 0;
+        u64 total = 0;
+        char file[FILE_NAME_MAX] = "";
+        if(item == dlq_running && dlq_run != NULL) {
+            dlq_progress(&done, &total, file, sizeof(file));
+        }
+
+        json_array_append_new(items, json_pack("{s:I,s:s,s:s,s:I,s:I,s:s,s:s,s:b}", "id", (json_int_t) item->id, "name", item->name,
+                                               "state", dlq_state_id(item->state), "done", (json_int_t) done, "total", (json_int_t) total,
+                                               "file", file, "error", item->error, "script", item->isScript));
+    }
+
+    return json_pack("{s:b,s:b,s:b,s:o}", "paused", dlq_paused, "pauseAfter", dlq_pause_after, "forTransfer", dlq_for_transfer, "items", items);
+}
+
+// "game.cia" from "https://host/path/game.cia?x=1", and "(+N)" for the others.
+static void dlq_name_of(const char* urls, char* out, size_t size) {
+    const char* end = strchr(urls, '\n');
+    size_t len = end != NULL ? (size_t) (end - urls) : strlen(urls);
+    const char* q = memchr(urls, '?', len);
+    if(q != NULL) {
+        len = (size_t) (q - urls);
+    }
+
+    const char* name = urls;
+    for(size_t i = 0; i < len; i++) {
+        if(urls[i] == '/') {
+            name = urls + i + 1;
+        }
+    }
+
+    size_t nameLen = (size_t) (urls + len - name);
+    if(nameLen == 0) {
+        name = urls;
+        nameLen = len;
+    }
+
+    snprintf(out, size, "%.*s", (int) nameLen, name);
+    u32 more = 0;
+    for(const char* c = end; c != NULL && c[1] != '\0'; c = strchr(c + 1, '\n')) {
+        more++;
+    }
+
+    if(more > 0) {
+        size_t used = strlen(out);
+        snprintf(out + used, size - used, " (+%lu)", more);
+    }
+}
+
+json_t* dlqueue_web(const char* command, const char* arg, u32 id, const char* body, char* error, size_t errorSize, int* status) {
+    *status = 200;
+    if(strcmp(command, "list") == 0) {
+        return dlq_json();
+    }
+
+    if(strcmp(command, "pause") == 0) {
+        if(strcmp(arg, "after") == 0) {
+            if(dlq_run == NULL) {
+                *status = 409;
+                string_copy(error, "nothing is running", errorSize);
+                return NULL;
+            }
+
+            dlq_pause_after = true;
+        } else {
+            dlq_paused = true;
+            dlq_pause_after = false;
+            dlq_stop_running(true);
+        }
+    } else if(strcmp(command, "resume") == 0) {
+        dlq_paused = false;
+        dlq_for_transfer = false;
+        dlq_pause_after = false;
+    } else if(strcmp(command, "clear") == 0) {
+        dlq_clear_finished();
+    } else if(strcmp(command, "add") == 0) {
+        char name[96];
+        dlq_name_of(body, name, sizeof(name));
+        if(!dlqueue_add(name, body, true, NULL, NULL, NULL)) {
+            *status = 409;
+            string_copy(error, "the queue is full", errorSize);
+            return NULL;
+        }
+    } else if(strcmp(command, "item") == 0) {
+        dlq_item* item = dlq_find(id);
+        if(item == NULL) {
+            *status = 404;
+            string_copy(error, "no such item", errorSize);
+            return NULL;
+        }
+
+        dlq_sheet_id = id;
+        dlq_state state = item->state;
+        bool waiting = state == DLQ_QUEUED || state == DLQ_PAUSED;
+        bool ok = true;
+        if(strcmp(arg, "pause") == 0 && (state == DLQ_RUNNING || state == DLQ_QUEUED)) {
+            dlq_act_pause(NULL);
+        } else if(strcmp(arg, "resume") == 0 && state == DLQ_PAUSED) {
+            dlq_act_resume(NULL);
+        } else if(strcmp(arg, "retry") == 0 && state == DLQ_FAILED && !item->isScript) {
+            dlq_act_resume(NULL);
+        } else if(strcmp(arg, "first") == 0 && waiting) {
+            dlq_act_first(NULL);
+        } else if(strcmp(arg, "up") == 0 && waiting) {
+            dlq_act_up(NULL);
+        } else if(strcmp(arg, "down") == 0 && waiting) {
+            dlq_act_down(NULL);
+        } else if(strcmp(arg, "cancel") == 0 || strcmp(arg, "remove") == 0) {
+            dlq_act_cancel(NULL);
+        } else {
+            ok = false;
+        }
+
+        if(!ok) {
+            *status = 409;
+            snprintf(error, errorSize, "cannot %s an item that is %s", arg, dlq_state_id(state));
+            return NULL;
+        }
+    } else {
+        *status = 404;
+        string_copy(error, "unknown request", errorSize);
+        return NULL;
+    }
+
+    dlq_changed();
+    return dlq_json();
 }

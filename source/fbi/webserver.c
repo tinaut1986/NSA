@@ -20,6 +20,7 @@
 #include "settings.h"
 #include "section.h"
 #include "relaunch.h"
+#include "dlqueue.h"
 #include "remotehelp.h"
 #include "transfer.h"
 #include "webserver.h"
@@ -2151,6 +2152,142 @@ static struct {
     settings_data values;
 } web_settings;
 
+// The download queue (dlqueue.c) lives on the main thread: the page asks, the main loop does it and answers, as for the
+// System details below.
+static struct {
+    volatile int state;    // 0 nothing, 1 asked, 2 ready.
+    char command[16];
+    char arg[16];
+    u32 id;
+    char* body;
+    json_t* json;
+    int status;
+    char error[96];
+} web_queue;
+
+static void web_queue_call(web_request* r, const char* command, char* body) {
+    if(web_queue.state != 0) {
+        free(body);
+        web_send_error(r, 409, "the console is still answering the last one");
+        return;
+    }
+
+    string_copy(web_queue.command, command, sizeof(web_queue.command));
+    web_queue.arg[0] = '\0';
+    if(!web_query_get(r->query, "when", web_queue.arg, sizeof(web_queue.arg))) {
+        web_query_get(r->query, "action", web_queue.arg, sizeof(web_queue.arg));
+    }
+
+    char id[16] = "";
+    web_query_get(r->query, "id", id, sizeof(id));
+    web_queue.id = (u32) strtoul(id, NULL, 10);
+    web_queue.body = body;
+    web_queue.json = NULL;
+    web_queue.error[0] = '\0';
+    web_queue.state = 1;
+    for(int waited = 0; web_queue.state == 1 && web_run; waited += WEB_NAP_MS) {
+        if(waited > 2000) {
+            break;
+        }
+
+        svcSleepThread((s64) WEB_NAP_MS * 1000000);
+    }
+
+    if(web_queue.state != 2) {
+        // The main loop frees the body once it gets to it.
+        web_queue.state = 0;
+        web_send_error(r, 503, "the console did not answer in time");
+        return;
+    }
+
+    json_t* json = web_queue.json;
+    web_queue.json = NULL;
+    int status = web_queue.status;
+    char error[96];
+    string_copy(error, web_queue.error, sizeof(error));
+    web_queue.state = 0;
+    if(json == NULL) {
+        web_send_error(r, status, error);
+        return;
+    }
+
+    json_object_set_new(json, "ok", json_true());
+    web_send_json(r, 200, json);
+}
+
+// The body of a request: http(s) URLs, one per line (NULL, with the error sent, when it is not).
+static char* web_read_urls(web_request* r) {
+    if(r->contentLength == 0 || r->contentLength >= 4096) {
+        web_send_error(r, 400, "send between 1 and 4000 bytes of URLs");
+        return NULL;
+    }
+
+    char* urls = (char*) calloc(1, 4097);
+    if(urls == NULL) {
+        web_send_error(r, 500, "out of memory");
+        return NULL;
+    }
+
+    u32 early = r->have - r->headLen;
+    if(early > r->contentLength) {
+        early = (u32) r->contentLength;
+    }
+
+    memcpy(urls, r->head + r->headLen, early);
+    u32 got = early;
+    bool ok = true;
+    while(ok && got < r->contentLength) {
+        if(!web_wait_fd(r->fd, POLLIN, WEB_IDLE_MS)) {
+            ok = false;
+            break;
+        }
+
+        ssize_t n = net_recv(r->fd, urls + got, (size_t) (r->contentLength - got), WEB_IDLE_MS);
+        if(n <= 0) {
+            ok = false;
+            break;
+        }
+
+        got += (u32) n;
+    }
+
+    bool valid = ok && got > 0;
+    bool any = false;
+    for(char* c = urls; *c != '\0'; c++) {
+        if(*c == '\r') {
+            *c = '\n';
+        }
+    }
+
+    for(char* line = urls; valid && *line != '\0'; ) {
+        char* end = strchr(line, '\n');
+        size_t len = end != NULL ? (size_t) (end - line) : strlen(line);
+        if(len > 0) {
+            any = true;
+            if(!(strncmp(line, "http://", 7) == 0 || strncmp(line, "https://", 8) == 0)) {
+                valid = false;
+            }
+        }
+
+        line = end != NULL ? end + 1 : line + len;
+    }
+
+    if(!valid || !any) {
+        free(urls);
+        web_send_error(r, 400, "only http:// or https:// addresses, one per line");
+        return NULL;
+    }
+
+    return urls;
+}
+
+static void web_api_queue_add(web_request* r) {
+    char* urls = web_read_urls(r);
+    if(urls != NULL) {
+        web_queue_call(r, "add", urls);
+    }
+}
+
 // The System details are read on the main thread, like the screens do: the page asks, the main loop answers.
 static struct {
     volatile int state;    // 0 nothing, 1 asked, 2 ready.
@@ -2540,6 +2677,18 @@ static void web_handle(web_request* r) {
         web_api_prompt(r);
     } else if(post && strcmp(api, "prompt/answer") == 0) {
         web_api_prompt_answer(r);
+    } else if(get && strcmp(api, "queue") == 0) {
+        web_queue_call(r, "list", NULL);
+    } else if(post && strcmp(api, "queue/add") == 0) {
+        web_api_queue_add(r);
+    } else if(post && strcmp(api, "queue/pause") == 0) {
+        web_queue_call(r, "pause", NULL);
+    } else if(post && strcmp(api, "queue/resume") == 0) {
+        web_queue_call(r, "resume", NULL);
+    } else if(post && strcmp(api, "queue/clear") == 0) {
+        web_queue_call(r, "clear", NULL);
+    } else if(post && strcmp(api, "queue/item") == 0) {
+        web_queue_call(r, "item", NULL);
     } else {
         web_send_error(r, 404, "unknown request");
     }
@@ -2786,6 +2935,15 @@ void webserver_poll_main() {
     if(web_system.state == 1) {
         web_system.json = systeminfo_json();
         web_system.state = 2;
+    }
+
+    // The download queue, asked from the page.
+    if(web_queue.state == 1) {
+        web_queue.json = dlqueue_web(web_queue.command, web_queue.arg, web_queue.id, web_queue.body != NULL ? web_queue.body : "", web_queue.error,
+                                     sizeof(web_queue.error), &web_queue.status);
+        free(web_queue.body);
+        web_queue.body = NULL;
+        web_queue.state = 2;
     }
 
     // Settings changed from the page.

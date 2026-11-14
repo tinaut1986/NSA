@@ -80,6 +80,7 @@ typedef struct data_op_data_s {
 
     // General
     bool noRetry;   // After an error, stop instead of asking to retry (the caller does).
+    bool quietCancel;   // A cancel the caller asked for itself (a pause): no "Operation cancelled." message.
     volatile bool finished;
     Result result;
     Handle cancelEvent;

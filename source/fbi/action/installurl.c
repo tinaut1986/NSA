@@ -52,6 +52,14 @@ typedef struct {
     u32 mode;        // INSTALL_URL_CHOICE_*.
     bool currIsCia;  // The file being saved is a CIA.
     char* toInstall; // The CIAs saved, one a line, to install once the downloads end ("Save and install").
+    // In the background (issue #41): B hides the progress screen and the download goes on (installurl_bg); Y pauses it
+    // where it saves to the card (the .part stays), and A on the screen opened again resumes from there.
+    ui_view* view;
+    bool background;
+    bool pausing;
+    bool paused;
+    u32 pausedAt;            // The URL that was coming when it paused.
+    u32 before[URL_SAVED + 1];   // What the URLs done before a pause came to, for the summary.
     bool archives;   // A remote install: a .zip or .7z is saved and offered to be extracted (issue #51).
     bool currIsArchive;
     char* toExtract; // The archives saved, one a line, to offer once the downloads end.
@@ -667,7 +675,7 @@ static void action_install_url_host(const char* url, char* out, size_t size) {
 }
 
 static u32 action_install_url_count(install_url_data* data, url_state state) {
-    u32 count = 0;
+    u32 count = data->before[state];
     for(u32 i = 0; i < data->installInfo.total; i++) {
         if(data->states[i] == state) {
             count++;
@@ -926,11 +934,178 @@ static void action_install_url_extract_all(char* archives, char* cias, bool dele
     action_install_url_extract_next(run);
 }
 
+// The one download that runs, or waits paused, behind the screens (NULL: none).
+static install_url_data* installurl_bg = NULL;
+
+static void action_install_url_finish(ui_view* view, install_url_data* installData, bool onScreen);
+
+// Paused: what was saved stays (its .part, resumed later); the rest waits. The screen stays for A to resume it.
+static void action_install_url_paused(install_url_data* installData) {
+    installData->pausing = false;
+    installData->paused = true;
+    installData->pausedAt = installData->installInfo.processed;
+    installurl_bg = installData;
+}
+
+// Resumed: the URLs not done yet, from the one that paused (its .part goes on), in a new run of the same download.
+static void action_install_url_resume(install_url_data* installData) {
+    u32 kept = 0;
+    for(u32 i = 0; i < installData->installInfo.total; i++) {
+        u8 state = installData->states[i];
+        if(state != URL_QUEUED) {
+            installData->before[state]++;
+            continue;
+        }
+
+        if(kept != i) {
+            string_copy(installData->urls[kept], installData->urls[i], sizeof(installData->urls[kept]));
+            string_copy(installData->paths[kept], installData->paths[i], sizeof(installData->paths[kept]));
+        }
+
+        installData->states[kept++] = URL_QUEUED;
+    }
+
+    installData->installInfo.total = kept;
+    installData->installInfo.quietCancel = false;
+    installData->paused = false;
+    if(kept == 0) {
+        installData->installInfo.finished = true;
+        return;
+    }
+
+    Result res = task_data_op(&installData->installInfo);
+    if(R_FAILED(res)) {
+        installData->installInfo.finished = true;
+        installData->installInfo.result = res;
+        error_display_res(NULL, NULL, res, "Failed to initiate installation.");
+    }
+}
+
+// The download behind the screens, on screen again (a tap on its toast): true when there was one.
+bool action_install_url_reopen() {
+    install_url_data* installData = installurl_bg;
+    if(installData == NULL || installData->view == NULL || (!installData->background && !installData->paused) || ui_top() == installData->view) {
+        return false;
+    }
+
+    installData->background = false;
+    ui_push(installData->view);
+    return true;
+}
+
+// The main loop: the download behind the screens ends there (its messages show over whatever is open).
+void action_install_url_tick() {
+    install_url_data* installData = installurl_bg;
+    if(installData != NULL && installData->background && installData->installInfo.finished) {
+        if(installData->pausing && installData->installInfo.result == R_APP_CANCELLED) {
+            action_install_url_paused(installData);
+            return;
+        }
+
+        installData->background = false;
+        action_install_url_finish(installData->view, installData, false);
+    }
+}
+
+// The toast while it runs or waits behind the screens.
+bool action_install_url_notice(char* out, size_t size, float* progress) {
+    install_url_data* installData = installurl_bg;
+    if(installData == NULL || (!installData->background && !installData->paused) || ui_top() == installData->view) {
+        return false;
+    }
+
+    data_op_data* info = &installData->installInfo;
+    u32 index = installData->paused ? installData->pausedAt : info->processed;
+    if(index >= info->total) {
+        index = info->total > 0 ? info->total - 1 : 0;
+    }
+
+    char name[FILE_NAME_MAX];
+    action_install_url_file_name(installData->urls[index], name, sizeof(name));
+    if(installData->paused) {
+        snprintf(out, size, "%s\n%s", _("Download paused: tap to open"), name);
+        *progress = info->currTotal > 0 ? (float) ((double) info->currProcessed / (double) info->currTotal) : -1;
+        return true;
+    }
+
+    u32 percent = info->currTotal > 0 ? (u32) (info->currProcessed * 100 / info->currTotal) : 0;
+    char head[96];
+    snprintf(head, sizeof(head), _("In the background, %lu %%: tap to open"), percent);
+    if(info->total > 1) {
+        size_t used = strlen(head);
+        snprintf(head + used, sizeof(head) - used, " (%lu/%lu)", index + 1, info->total);
+    }
+
+    snprintf(out, size, "%s\n%s", head, name);
+    *progress = info->currTotal > 0 ? (float) ((double) info->currProcessed / (double) info->currTotal) : WIDGET_PROGRESS_UNKNOWN;
+    return true;
+}
+
 static void action_install_url_install_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     install_url_data* installData = (install_url_data*) data;
+    // The Store's scripts drive their downloads step by step: those stay on screen.
+    bool canHide = !installData->exactPaths && (installurl_bg == NULL || installurl_bg == installData);
+    bool canPause = installData->saveOnly && !installData->exactPaths;
+    u32 down = hidKeysDown();
+
+    if(installData->paused) {
+        view->info = _(" resume    cancel    background");
+        if(down & KEY_A) {
+            ui_wake();
+            action_install_url_resume(installData);
+        } else if(down & KEY_X) {
+            // What was saved of it goes too.
+            installData->paused = false;
+            installurl_bg = NULL;
+            if(installData->pausedAt < installData->installInfo.total && installData->currPath[0] != '\0') {
+                action_install_url_forget_part(installData->currPath, false);
+            }
+
+            installData->installInfo.result = R_APP_CANCELLED;
+            action_install_url_finish(view, installData, true);
+        } else if(down & KEY_B) {
+            ui_pop();
+        }
+
+        return;
+    }
 
     if(installData->installInfo.finished) {
+        if(installData->pausing && installData->installInfo.result == R_APP_CANCELLED) {
+            action_install_url_paused(installData);
+            return;
+        }
+
+        action_install_url_finish(view, installData, true);
+        return;
+    }
+
+    view->info = canHide ? (canPause ? _(" background    cancel    pause") : _(" background    cancel")) : _(" cancel");
+    if(canHide && (down & KEY_B)) {
+        installData->background = true;
+        installurl_bg = installData;
         ui_pop();
+    } else if((canHide && (down & KEY_X)) || (!canHide && (down & KEY_B))) {
+        svcSignalEvent(installData->installInfo.cancelEvent);
+    } else if(canPause && (down & KEY_Y)) {
+        installData->pausing = true;
+        installData->installInfo.quietCancel = true;
+        svcSignalEvent(installData->installInfo.cancelEvent);
+    }
+}
+
+// The end of the download: its messages, then what comes next (the CIAs saved, the archives). `onScreen`: its screen is
+// the top one (popped here), else it ended behind the screens.
+static void action_install_url_finish(ui_view* view, install_url_data* installData, bool onScreen) {
+    if(installurl_bg == installData) {
+        installurl_bg = NULL;
+    }
+
+    {
+        if(onScreen) {
+            ui_pop();
+        }
+
         ui_destroy(view);
 
         // A cancel has said so already, and so has a single URL that failed.
@@ -1000,10 +1175,6 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
         }
 
         return;
-    }
-
-    if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(installData->installInfo.cancelEvent);
     }
 }
 
@@ -1091,6 +1262,7 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
     for(u32 i = first; i < info->total && i < first + fits; i++) {
         float y = y1 + 8 + (i - first) * (INSTALL_ROW_HEIGHT + INSTALL_ROW_GAP);
         bool current = i == info->processed && !info->finished;
+        bool paused = installData->paused && i == installData->pausedAt;
         screen_frame_round_rect(x, y, w, INSTALL_ROW_HEIGHT, t->def->radiusSmall, t->def->border, current ? t->accent : t->palette->border, t->palette->surface);
 
         u32 icon = ICON_CLOCK;
@@ -1112,6 +1284,10 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
         } else if(installData->states[i] == URL_SKIPPED) {
             icon = ICON_X;
             string_copy(status, _("Skipped"), sizeof(status));
+        } else if(paused) {
+            icon = ICON_CLOCK;
+            iconColor = t->accent;
+            string_copy(status, _("Paused"), sizeof(status));
         } else {
             string_copy(status, _("Queued"), sizeof(status));
         }
@@ -1134,6 +1310,7 @@ static void action_install_url_install_show(install_url_data* data) {
     view->id = data->saveOnly ? "Downloading" : "Installing";
     view->info = _(" cancel");
     view->data = data;
+    data->view = view;
     view->update = action_install_url_install_update;
     view->drawTop = action_install_url_install_draw_top;
     view->drawBottom = action_install_url_install_draw_bottom;

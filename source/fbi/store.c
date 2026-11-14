@@ -312,6 +312,14 @@ static void store_free_apps(store_app* apps, u32 count) {
     free(apps);
 }
 
+// An install keeps the Store's data until it ends, even if the Store is closed meanwhile (it may go on in the background,
+// issue #41): store_release lets go of it.
+static void store_retain(store_data* store) {
+    LightLock_Lock(&store->lock);
+    store->users++;
+    LightLock_Unlock(&store->lock);
+}
+
 static void store_release(store_data* store) {
     LightLock_Lock(&store->lock);
     bool last = --store->users == 0;
@@ -2090,6 +2098,7 @@ static void store_install_finished_all(void* data) {
         }
     }
 
+    store_release(store);
     free(ctx);
 }
 
@@ -2141,6 +2150,7 @@ static void store_start(store_data* store, store_app* app, bool cia, const char*
     }
 
     ctx->store = store;
+    store_retain(store);
     ctx->cia = cia;
     string_copy(ctx->slug, app->slug, sizeof(ctx->slug));
     string_copy(ctx->version, app->version, sizeof(ctx->version));
@@ -2197,6 +2207,7 @@ static void store_get_other(u32 index) {
     }
 
     ctx->store = store_sheet_store;
+    store_retain(ctx->store);
     ctx->other = true;
     string_copy(ctx->slug, app->slug, sizeof(ctx->slug));
     string_copy(ctx->version, app->version, sizeof(ctx->version));

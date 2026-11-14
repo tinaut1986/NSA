@@ -939,6 +939,7 @@ const i18n_entry i18n_tw[] = {
         {"Download the CIA", "下載CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "儲存到 /nsa/received/，之後再從文件畫面安裝。"},
         {"Download the 3DSX again", "再次下載3DSX"},
+        {"Pictures (%lu)", "圖片 (%lu)"},
         {"View contents", "檢視內容"},
         {" open    extract    up", " 開啟    解壓縮    上一層"},
         {"Extract the folder %s to %s?\n\nFiles with the same names there are replaced.", "要將資料夾 %s 解壓縮到 %s 嗎？\n\n同名檔案會被取代。"},

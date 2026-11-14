@@ -938,6 +938,7 @@ const i18n_entry i18n_zh[] = {
         {"Download the CIA", "下载 CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "保存到 /nsa/received/，之后可在文件中安装。"},
         {"Download the 3DSX again", "再次下载 3DSX"},
+        {"Pictures (%lu)", "图片 (%lu)"},
         {"View contents", "查看内容"},
         {" open    extract    up", " 打开    解压    上一级"},
         {"Extract the folder %s to %s?\n\nFiles with the same names there are replaced.", "要将文件夹 %s 解压到 %s 吗？\n\n同名文件会被替换。"},

@@ -702,6 +702,8 @@ function searchBox(value, oninput){ const i = h('input', {type:'search', placeho
 
 // ---- the console's theme ----
 let themeKey = '', themeNow = null;
+// The theme editor's state (see openThemeEditor); declared here because loadTheme() reads it from the start.
+let ted = null;   // {id, custom, theme (a theme file's JSON), night: 'day'|'night', live}
 async function loadTheme(){
   if(ted) return;
   try {
@@ -1639,7 +1641,6 @@ function volume(value, key){
 }
 function sw(on, fn){ const b = h('button', {class:'switch'+(on?' on':''), role:'switch'}); b.onclick = () => { b.classList.toggle('on'); sfx('tick'); fn(b.classList.contains('on')); }; return b; }
 // ---- the theme editor: this page wears what is edited, and the console too when asked; saving puts it in use ----
-let ted = null;   // {id, custom, theme (a theme file's JSON), night: 'day'|'night', live}
 const TED_COLORS = ['background','surface','border','text','textMuted','scrim','success','successSoft','danger','warning'];
 async function openThemeEditor(id){
   try {

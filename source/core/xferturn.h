@@ -57,6 +57,9 @@ void xferturn_incoming(u32 ticket, bool incoming);
 void xferturn_release(u32 ticket);
 // Whether `ticket` still holds the turn.
 bool xferturn_holds(u32 ticket);
+// The last FTP or web transfer refused because the turn was taken (in the last 5 s), once: the download queue asks
+// whether to make way for it (dlqueue.c).
+bool xferturn_wanted(xfer_kind* kind, char* name, size_t size);
 
 void xferturn_get(xferturn_status* out);
 // "Busy: FTP, game.cia (45%)", in English (callers translate the start): false when nobody holds it.

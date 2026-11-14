@@ -28,7 +28,7 @@ const char remote_help_text[] =
         "POST /api/rename?path=/a&to=/b    rename or move (409 if /b exists).\n"
         "POST /api/copy?path=/a&to=/b      copy a file or a folder (409 if /b exists).\n"
         "POST /api/install?path=/f.cia     installs a CIA from the SD card at once, without asking ({restarting} when it is NSA).\n"
-        "POST /api/install-url             body = http(s) URLs, one per line; asks on the console, then downloads and installs.\n"
+        "POST /api/install-url             body = http(s) URLs, one per line; asks on the console (install now, save, or add to the download queue).\n"
         "GET  /api/titles                  {titles:[{id, media, kind game|update|dlc|demo|system, version, size}]}.\n"
         "GET  /api/title?id=&media=        {name, publisher, code, description, save, ext, boss} (data=0 skips the last three).\n"
         "GET  /api/title/data?id=&media=   {save, ext, boss}: which kinds of data the title has.\n"

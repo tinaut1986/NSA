@@ -178,6 +178,12 @@ What `release` holds, in the order it was built:
   Not done (the session's permission check refused installing a test title or opening the Store on the owner's
   console): #52 (delete a title from the page), #40 Store uninstall, #38 Store pictures, the card's hints, the queue
   of Store scripts, the web page's queue sheet on a console (it needs the PIN typed in the page).
+  Then, on the owner's word, the Store on the New 3DS XL (2026-11-15): the card's corner says what A does ("Descargar",
+  "N opciones") and the picture mark its count (1, 3, 8); 3DElf's 8 pictures open and page; its CIA installed, the card
+  showed it (tick, "En esta consola: CIA", 4 options), "Desinstalar el CIA" asked (save to /nsa/saves/) and removed
+  it; its 3DSX sent "A la cola" (a script run from the queue: done, toast "1 hechas", which should be singular),
+  shown as on the console, "Borrar el 3DSX" asked and deleted /3ds/3DElf.3dsx. Still for the owner: #52 and the web
+  page's queue sheet on a console.
 - [ ] Batches choose each title's way from the receiver's free space (2026-11-14, `feat/send-batch-space`, issue #53
   phase 2; both consoles need this build: the list and the answer changed). With little room on the receiver, the
   question's top screen says how many install as they arrive and how many do not fit; those are read once on the

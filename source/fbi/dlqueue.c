@@ -131,6 +131,16 @@ static u32 dlq_waiting() {
     return count;
 }
 
+u32 dlqueue_pending() {
+    u32 count = 0;
+    for(u32 i = 0; i < dlq_count; i++) {
+        dlq_state state = dlq_items[i]->state;
+        count += state == DLQ_QUEUED || state == DLQ_PAUSED || state == DLQ_RUNNING ? 1 : 0;
+    }
+
+    return count;
+}
+
 bool dlqueue_add(const char* name, const char* urls, bool archives, void* userData, void (*finishedURL)(void* data, u32 index),
                  void (*finishedAll)(void* data)) {
     if(dlq_count >= DLQUEUE_MAX) {
@@ -446,7 +456,7 @@ bool dlqueue_notice(char* out, size_t size, float* progress) {
     }
 
     if(dlq_finished_until > osGetTime()) {
-        snprintf(out, size, dlq_finished_ok == 1 ? _("Download queue finished: %lu done") : _("Download queue finished: %lu done"), dlq_finished_ok);
+        snprintf(out, size, dlq_finished_ok == 1 ? _("Download queue finished: 1 done") : _("Download queue finished: %lu done"), dlq_finished_ok);
         *progress = -1;
         return true;
     }

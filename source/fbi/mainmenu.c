@@ -10,6 +10,7 @@
 #include "section.h"
 #include "settings.h"
 #include "datetime.h"
+#include "dlqueue.h"
 #include "../core/core.h"
 
 // The main menu: the three everyday entries as big tiles, then two groups
@@ -86,6 +87,7 @@ static const mainmenu_entry entries[] = {
         {ICON_APPS, "Titles", "Installed titles: launch them, delete them, back up their saves or extract their icons.", NULL, titles_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
         {ICON_WORLD_DOWNLOAD, "Remote install", "Install from the network: scan a QR code, type a URL or receive URLs from a computer.", NULL, remoteinstall_open, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_PACKAGE, "Store", "Homebrew from Universal-DB and the stores you add: browse them and install or download apps.", NULL, store_open, SYSTEM_MEDIATYPE_SD, -1},
+        {ICON_DOWNLOAD, "Download queue", "What the console downloads and installs in the background, one after the other: pause, reorder or cancel it.", NULL, dlqueue_open, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_STACK_2, "Cleanup and data", "Licences, half-finished installs, the games' extra data and mods.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, cleanup, COUNT_OF(cleanup), false},
         {ICON_ALERT_TRIANGLE, "Advanced", "The console's own memories and system data. Handle with care.", NULL, NULL, SYSTEM_MEDIATYPE_CTR_NAND, SYSTEM_MEDIATYPE_TWL_NAND, NULL, advanced, COUNT_OF(advanced), true},
         {ICON_3DS, "System", "The console at a glance: model, versions, network, battery and space.", NULL, NULL, -1, -1, systeminfo_draw_top, system_groups, COUNT_OF(system_groups), false},
@@ -104,7 +106,7 @@ static const mainmenu_entry entries[] = {
 #define PAD 8
 
 // Stable names for the layout kept in settings.json, in the order of entries[].
-static const char* const entry_ids[] = {"sd", "titles", "remote", "store", "cleanup", "advanced", "system", "settings"};
+static const char* const entry_ids[] = {"sd", "titles", "remote", "store", "queue", "cleanup", "advanced", "system", "settings"};
 _Static_assert(COUNT_OF(entry_ids) == ENTRY_COUNT, "an id for every entry");
 
 typedef struct {
@@ -286,8 +288,8 @@ static bool mainmenu_can_open(const mainmenu_entry* entry) {
 // Advanced warns once per session.
 static bool mainmenu_advanced_confirmed = false;
 
-// The HOME theme: every entry a big tile, four to a row, its name under it.
-#define HOME_COLUMNS 4
+// The HOME theme: every entry a big tile, five to a row (two rows), its name under it.
+#define HOME_COLUMNS 5
 #define HOME_TILE 58
 
 static bool mainmenu_home() {
@@ -416,6 +418,18 @@ static bool mainmenu_repeat(mainmenu_data* data, u32 key) {
     }
 
     return false;
+}
+
+// The download queue's entry carries how many downloads it still has (none: no badge).
+static void mainmenu_draw_badge(const mainmenu_entry* entry, float right, float top) {
+    if(entry->open != dlqueue_open) {
+        return;
+    }
+
+    u32 pending = dlqueue_pending();
+    if(pending > 0) {
+        widget_count_badge(pending, right, top);
+    }
 }
 
 // ---- the top screen: an entry's card ----
@@ -1017,6 +1031,18 @@ static void mainmenu_draw_home_tile(const mainmenu_entry* entry, float x, float 
             memcpy(line1, label, best - label);
             line1[best - label] = '\0';
             string_copy(line2, best + 1, sizeof(line2));
+        } else if(best == NULL && len < sizeof(line1)) {
+            // No space (Japanese, Chinese): split in the middle, between two characters.
+            size_t half = len / 2;
+            while(half > 0 && ((u8) label[half] & 0xC0) == 0x80) {
+                half--;
+            }
+
+            if(half > 0) {
+                memcpy(line1, label, half);
+                line1[half] = '\0';
+                string_copy(line2, label + half, sizeof(line2));
+            }
         }
     }
 
@@ -1167,11 +1193,14 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
             if(mainmenu_home()) {
                 mainmenu_draw_home_tile(entry, x, y, w, selected, &menu->press, (int) p);
                 radius = t->def->radius;
+                mainmenu_draw_badge(entry, x + (w + HOME_TILE) / 2 - 2, y + 2);
             } else if(w > asTile) {
                 mainmenu_draw_tile(x, y, w, h, entry->icon, _(entry->name), selected, entry->warn);
                 radius = t->def->radius;
+                mainmenu_draw_badge(entry, x + w - 4, y + 4);
             } else {
                 mainmenu_draw_small(entry, x, y, w, h, selected);
+                mainmenu_draw_badge(entry, x + w - 2, y + 2);
             }
 
             // Hidden ones are dimmed.

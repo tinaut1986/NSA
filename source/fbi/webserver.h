@@ -97,3 +97,6 @@ void webserver_apply_pin();
 
 // The bottom screen's toast while the page asks for the PIN: false for none.
 bool webserver_notice(char* out, size_t size, float* progress);
+// A title was deleted (deletetitle.c, from the console or the web page): GET /api/prompt, which the page asks every few
+// seconds, names the last ones, and the page drops them from its list (issue #52).
+void webserver_title_deleted(u64 titleId, FS_MediaType media);

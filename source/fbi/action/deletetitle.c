@@ -5,6 +5,7 @@
 #include "action.h"
 #include "../resources.h"
 #include "../task/uitask.h"
+#include "../webserver.h"
 #include "../../core/core.h"
 
 typedef struct {
@@ -36,6 +37,8 @@ static void action_delete_title_update(ui_view* view, void* data, float* progres
         error_display_res(info, task_draw_title_info, res, "Failed to delete title.");
     } else {
         u64 titleId = info->titleId;
+        // The web page's list drops it too (issue #52).
+        webserver_title_deleted(titleId, info->mediaType);
         linked_list_remove(deleteData->items, deleteData->selected);
         task_free_title(deleteData->selected);
 

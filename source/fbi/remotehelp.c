@@ -49,7 +49,7 @@ const char remote_help_text[] =
         "POST /api/input/press?keys=A+R[&frames=4]   holds buttons: A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT.\n"
         "POST /api/input/tap?x=&y=[&frames=4]        taps the bottom screen (x 0-319, y 0-239).\n"
         "POST /api/input/drag?x=&y1=&y2=[&frames=20] slides a finger up or down on the bottom screen.\n"
-        "GET  /api/prompt                  {prompt: null | {id, title, text, options:[...], danger}}: the question on screen now.\n"
+        "GET  /api/prompt                  {prompt: null | {id, title, text, options:[...], danger}, deleted:[{id, media, seq}]}: the question on screen now, and the last titles deleted.\n"
         "POST /api/prompt/answer?id=&option=   presses that button (0-based) of that question.\n"
         "GET  /api/settings                theme, accent, night, language, sounds, music, clock settings, and the choices.\n"
         "POST /api/settings?theme=&accent=&night=off|on|auto&language=&sounds=0-2&soundVolume=0-100&music=0-3&musicVolume=0-100\n"

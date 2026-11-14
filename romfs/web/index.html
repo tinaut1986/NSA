@@ -803,12 +803,28 @@ function showConsolePrompt(p){
     onclose:() => { if(consolePrompt && consolePrompt.id===p.id){ consolePrompt = null; promptDismissed = p.id; } }});
   consolePrompt = {id:p.id, sheet:s};
 }
+// The titles the console deleted (from this page or on the console), as GET /api/prompt names them: they leave the list
+// once each (issue #52).
+let deletedSeen = 0;
+function dropDeleted(list){
+  for(const d of list){
+    if(d.seq <= deletedSeen) continue;
+    if(titles){
+      const key = d.id+d.media;
+      titles = titles.filter(x => tkey(x) !== key);
+      const r = titleRows.get(key); if(r) r.remove(); titleRows.delete(key);
+    }
+  }
+  const top = Math.max(deletedSeen, ...list.map(d => d.seq));
+  if(top > deletedSeen && titles){ linkTitles(); applyTitles(); }
+  deletedSeen = top;
+}
 (function pollPrompt(){
   setTimeout(async () => {
     if(!$('app').hidden && !document.hidden && !promptBusy){
       promptBusy = true;
       const epoch = promptEpoch;
-      try { const r = await api('GET', 'prompt'); if(epoch===promptEpoch){ if(r.prompt) showConsolePrompt(r.prompt); else { closeConsolePrompt(); promptDismissed = 0; } } } catch(e){}
+      try { const r = await api('GET', 'prompt'); if(r.deleted) dropDeleted(r.deleted); if(epoch===promptEpoch){ if(r.prompt) showConsolePrompt(r.prompt); else { closeConsolePrompt(); promptDismissed = 0; } } } catch(e){}
       promptBusy = false;
     }
     pollPrompt();

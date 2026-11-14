@@ -68,6 +68,7 @@ typedef struct {
     widget_press press;   // Index: group * POPOVER_OPTIONS_MAX + option.
     u64 opened;           // For the card's entrance.
     widget_repeat repeat;   // A direction held: it moves on, and stops at the ends.
+    widget_scroller scroller;   // A flick's coasting.
 } popover_data;
 
 static float popover_chip_width(popover_group* group, u32 o) {
@@ -196,6 +197,8 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
         return;
     }
 
+    widget_scroller_step(&p->scroller, &p->scroll, p->contentHeight - (cardH - 2 * POPOVER_PAD), p->touching && p->dragged);
+
     bool moved = true;
     bool fresh = false;
     u32 count = p->def.groups[p->group].count;
@@ -222,6 +225,7 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
     }
 
     if(moved) {
+        widget_scroller_stop(&p->scroller);
         popover_reveal(p, cardH);
     }
 
@@ -241,6 +245,7 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
 
         p->touching = true;
         p->dragged = false;
+        widget_scroller_stop(&p->scroller);
         p->touchStartY = p->lastTouchY = pos.py;
         widget_press_end(&p->press);
         float barVisible = cardH - 2 * POPOVER_PAD;
@@ -278,7 +283,9 @@ static void popover_update(ui_view* view, void* data, float bx1, float by1, floa
         }
 
         if(p->dragged) {
-            p->scroll -= (int) pos.py - (int) p->lastTouchY;
+            int dy = (int) pos.py - (int) p->lastTouchY;
+            p->scroll -= dy;
+            widget_scroller_drag(&p->scroller, dy);
             popover_clamp_scroll(p, cardH);
         }
 
@@ -517,6 +524,7 @@ typedef struct {
     widget_repeat repeat;   // A direction held: it moves on, and stops at the ends.
     bool list;     // One row per action instead of a grid of buttons.
     float scroll;  // List only, when the rows do not all fit.
+    widget_scroller scroller;   // List only: a flick's coasting, and the arrows to the top and the end.
     // An action is running in what it opened: back here, the sheet closes if
     // anything was confirmed since (see sheet_confirmed), else it is shown again.
     bool waiting;
@@ -603,6 +611,17 @@ static void sheet_reveal(sheet_data* s) {
     } else if(y + sheet_button_height(s) > s->scroll + view) {
         s->scroll = y + sheet_button_height(s) - view;
     }
+}
+
+// How far a list scrolls (0 for buttons).
+static float sheet_max_scroll(sheet_data* s) {
+    float max = sheet_content_height(s) - sheet_visible_height(s);
+    return s->list && max > 0 ? max : 0;
+}
+
+// The right edge of a list's rows (left of its scrollbar), where the jump arrows float.
+static float sheet_rows_right(float x2) {
+    return x2 - SHEET_PAD - WIDGET_SCROLLBAR_WIDTH - 6;
 }
 
 // Scrolls a list so that `index` is its top row (as far as it goes).
@@ -695,6 +714,8 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
         return;
     }
 
+    widget_scroller_step(&s->scroller, &s->scroll, sheet_max_scroll(s), s->dragged && (hidKeysHeld() & KEY_TOUCH));
+
     u32 cols = sheet_columns(s);
     u32 last = s->selected;
     // A list turns a page with Left and Right: to the first row that was not shown.
@@ -705,7 +726,12 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
 
     // Held, the focus stops at the ends instead of going round.
     bool fresh = false;
-    if(cols > 1 && widget_repeat_step(&s->repeat, KEY_RIGHT, &fresh)) {
+    if(s->count > 0 && (down & KEY_ZL)) {
+        // ZL and ZR (a New 3DS) go to the first and the last action, as a list's floating arrows do.
+        s->selected = 0;
+    } else if(s->count > 0 && (down & KEY_ZR)) {
+        s->selected = s->count - 1;
+    } else if(cols > 1 && widget_repeat_step(&s->repeat, KEY_RIGHT, &fresh)) {
         if(fresh || s->selected + 1 < s->count) {
             s->selected = (s->selected + 1) % s->count;
         }
@@ -740,6 +766,7 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
     }
 
     if(s->selected != last) {
+        widget_scroller_stop(&s->scroller);
         sheet_reveal(s);
     }
 
@@ -747,6 +774,7 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
     hidTouchRead(&pos);
     float top = by2 - sheet_height(s);
     float listTop = top + SHEET_PAD + SHEET_HEADER_OF(s);
+    float listBottom = listTop + sheet_visible_height(s);
 
     // Pulled down by its top: it follows the finger, and goes back up when let go too soon.
     if(s->pulling) {
@@ -788,6 +816,11 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
             return;
         }
 
+        widget_scroller_stop(&s->scroller);
+        if(s->list && widget_scroller_jump_down(&s->scroller, s->scroll, sheet_max_scroll(s), sheet_rows_right(bx2), listBottom, &pos)) {
+            return;
+        }
+
         s->barDrag = s->list && widget_scrollbar_touched(&pos, bx2 - SHEET_PAD - WIDGET_SCROLLBAR_WIDTH, listTop, sheet_visible_height(s), sheet_visible_height(s), sheet_content_height(s));
         for(u32 i = 0; i < s->count && !s->barDrag; i++) {
             float x, y, w;
@@ -803,6 +836,12 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
         if(s->barDrag) {
             s->scroll = widget_scrollbar_offset(listTop, sheet_visible_height(s), sheet_visible_height(s), sheet_content_height(s), pos.py);
         }
+    } else if(s->scroller.jumpTouch != WIDGET_JUMP_NONE) {
+        int which = widget_scroller_jump_track(&s->scroller, s->scroll, sheet_max_scroll(s), sheet_rows_right(bx2), listBottom, &pos);
+        if(which != WIDGET_JUMP_NONE && s->count > 0) {
+            s->selected = which == WIDGET_JUMP_TOP ? 0 : s->count - 1;
+            sheet_reveal(s);
+        }
     } else if(s->barDrag && (hidKeysHeld() & KEY_TOUCH)) {
         // The scrollbar: the list follows the finger along it.
         s->scroll = widget_scrollbar_offset(listTop, sheet_visible_height(s), sheet_visible_height(s), sheet_content_height(s), pos.py);
@@ -811,7 +850,9 @@ static void sheet_update(ui_view* view, void* data, float bx1, float by1, float 
         if(s->list && sheet_content_height(s) > sheet_room(s) && (s->dragged || abs((int) pos.py - (int) s->touchStartY) > 6)) {
             s->dragged = true;
             s->press.cancelled = true;
-            s->scroll -= (int) pos.py - (int) s->lastTouchY;
+            int dy = (int) pos.py - (int) s->lastTouchY;
+            s->scroll -= dy;
+            widget_scroller_drag(&s->scroller, dy);
             float max = sheet_content_height(s) - sheet_visible_height(s);
             if(s->scroll > max) s->scroll = max;
             if(s->scroll < 0) s->scroll = 0;
@@ -1007,6 +1048,7 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
     if(s->list) {
         screen_clear_clip();
         widget_scrollbar(x2 - SHEET_PAD - WIDGET_SCROLLBAR_WIDTH, listTop, sheet_visible_height(s), s->scroll, sheet_visible_height(s), sheet_content_height(s));
+        widget_scroller_draw(&s->scroller, s->scroll, sheet_max_scroll(s), sheet_rows_right(x2), listTop + sheet_visible_height(s));
     }
 
     screen_set_offset(0, 0);

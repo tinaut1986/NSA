@@ -188,6 +188,94 @@ static void notes_block(const char* body, const char** start, size_t* len) {
     *len = b != NULL ? (size_t) (b - a) : strlen(a);
 }
 
+int update_parse_history(const char* data, size_t size, const char* installed, char* out, size_t cap, unsigned* pages) {
+    *pages = 0;
+    if(cap > 0) {
+        out[0] = '\0';
+    }
+
+    json_error_t err;
+    json_t* root = json_loadb(data, size, JSON_REJECT_DUPLICATES, &err);
+    json_t* releases = root != NULL ? json_object_get(root, "releases") : NULL;
+    json_t* total = root != NULL ? json_object_get(root, "pages") : NULL;
+    if(!json_is_object(root) || json_integer_value(json_object_get(root, "format")) != UPDATE_HISTORY_FORMAT || !json_is_array(releases) ||
+       !json_is_integer(total) || json_integer_value(total) < 0 || json_integer_value(total) > 100000) {
+        json_decref(root);
+        return -1;
+    }
+
+    *pages = (unsigned) json_integer_value(total);
+
+    int count = 0;
+    size_t used = 0;
+    size_t i;
+    json_t* o;
+    json_array_foreach(releases, i, o) {
+        char tag[48];
+        json_t* notes = json_object_get(o, "notes");
+        json_t* pre = json_object_get(o, "prerelease");
+        if(!json_is_object(o) || !get_text(o, "tag", tag, sizeof(tag)) || tag[0] != 'v' || strchr(tag, '-') != NULL || !update_valid_version(tag) ||
+           !json_is_boolean(pre) || !json_is_string(notes)) {
+            continue;
+        }
+
+        // Betas and stables alike, up to the installed build: a beta's notes are not repeated by the stable after it.
+        char cmp[64];
+        snprintf(cmp, sizeof(cmp), "%s%s", tag, json_is_true(pre) ? "-beta" : "");
+        if(installed != NULL && update_is_newer(cmp, installed)) {
+            continue;
+        }
+
+        // A release that does not fit is left out with the ones after it, never cut in half.
+        size_t len = json_string_length(notes);
+        int head = snprintf(out + used, cap - used, "%s## %s%s\n", used ? "\n" : "", tag, json_is_true(pre) ? " BETA" : "");
+        if(head < 0 || (size_t) head + len + 1 > cap - used) {
+            out[used] = '\0';
+            break;
+        }
+
+        used += (size_t) head;
+        memcpy(out + used, json_string_value(notes), len);
+        used += len;
+        out[used] = '\0';
+        count++;
+    }
+
+    json_decref(root);
+    return count;
+}
+
+unsigned update_parse_history_index(const char* data, size_t size, const char* installed, update_history_entry* out, unsigned max) {
+    json_error_t err;
+    json_t* root = json_loadb(data, size, JSON_REJECT_DUPLICATES, &err);
+    json_t* index = root != NULL ? json_object_get(root, "index") : NULL;
+    unsigned count = 0;
+    size_t i;
+    json_t* o;
+    json_array_foreach(index, i, o) {
+        if(count >= max) {
+            break;
+        }
+
+        json_t* pre = json_object_get(o, "prerelease");
+        update_history_entry* e = &out[count];
+        if(!json_is_object(o) || !get_text(o, "tag", e->tag, sizeof(e->tag)) || e->tag[0] != 'v' || strchr(e->tag, '-') != NULL ||
+           !update_valid_version(e->tag) || !json_is_boolean(pre)) {
+            continue;
+        }
+
+        e->prerelease = json_is_true(pre);
+        char cmp[32];
+        snprintf(cmp, sizeof(cmp), "%s%s", e->tag, e->prerelease ? "-beta" : "");
+        if(installed == NULL || !update_is_newer(cmp, installed)) {
+            count++;
+        }
+    }
+
+    json_decref(root);
+    return count;
+}
+
 int update_parse_releases(const char* data, size_t size, bool betas, bool homebrew, const char* installed, update_release* out) {
     memset(out, 0, sizeof(*out));
 
@@ -257,6 +345,19 @@ int update_parse_releases(const char* data, size_t size, bool betas, bool homebr
             size_t len;
             notes_block(r->notes, &block, &len);
 
+            // The block's own "## What's new": under the version heading it would read as another release.
+            while(len > 0 && (*block == '\n' || *block == '\r' || *block == ' ')) {
+                block++;
+                len--;
+            }
+
+            if(len > 3 && strncmp(block, "## ", 3) == 0) {
+                const char* eol = memchr(block, '\n', len);
+                size_t skip = eol != NULL ? (size_t) (eol - block) + 1 : len;
+                block += skip;
+                len -= skip;
+            }
+
             int head = snprintf(acc + used, UPDATE_NOTES_MAX - used, "%s## %s%s\n", count ? "\n" : "", r->version, r->prerelease ? " BETA" : "");
             if(head < 0 || (size_t) head >= UPDATE_NOTES_MAX - used) {
                 break;
@@ -282,17 +383,60 @@ int update_parse_releases(const char* data, size_t size, bool betas, bool homebr
     return result;
 }
 
-unsigned update_format_notes(const char* md, char lines[][UPDATE_LINE_MAX], unsigned capacity, unsigned width) {
-    if(width == 0 || width >= UPDATE_LINE_MAX) {
-        width = UPDATE_LINE_MAX - 1;
-    }
+// Inline Markdown and HTML out of one line of notes, appended to out at *n: tags, images, link destinations (the text
+// stays), emphasis and code marks, and four-byte UTF-8 (emoji: not in the system font). Literal brackets stay.
+static void notes_inline(const char* src, size_t len, char* out, size_t* n) {
+    for(size_t i = 0; i < len;) {
+        unsigned char c = (unsigned char) src[i];
+        if(c == '<') {
+            const char* end = memchr(src + i, '>', len - i);
+            if(end != NULL) {
+                i = (size_t) (end - src) + 1;
+                continue;
+            }
+        }
 
-    char* clean = (char*) malloc(UPDATE_NOTES_MAX);
-    if(clean == NULL) {
-        return 0;
-    }
+        if(c == '!' && i + 1 < len && src[i + 1] == '[') {
+            const char* mid = memchr(src + i, ']', len - i);
+            const char* end = mid != NULL && (size_t) (mid - src) + 1 < len && mid[1] == '(' ? memchr(mid, ')', len - (size_t) (mid - src)) : NULL;
+            if(end != NULL) {
+                i = (size_t) (end - src) + 1;
+                continue;
+            }
+        }
 
-    // Show the notes block when there is one, else the commit list.
+        if(c == '[') {
+            // [text](url): the text only.
+            const char* mid = memchr(src + i, ']', len - i);
+            const char* end = mid != NULL && (size_t) (mid - src) + 1 < len && mid[1] == '(' ? memchr(mid, ')', len - (size_t) (mid - src)) : NULL;
+            if(end != NULL) {
+                notes_inline(src + i + 1, (size_t) (mid - src) - i - 1, out, n);
+                i = (size_t) (end - src) + 1;
+                continue;
+            }
+        }
+
+        if(c == '*' || c == '`' || c == '\r') {
+            i++;
+            continue;
+        }
+
+        if(c >= 0xF0) {
+            i++;
+            while(i < len && ((unsigned char) src[i] & 0xC0) == 0x80) {
+                i++;
+            }
+
+            continue;
+        }
+
+        out[(*n)++] = (char) c;
+        i++;
+    }
+}
+
+char* update_notes_items(const char* md) {
+    // The notes block when there is one, else the commit list, else everything.
     size_t limit = md != NULL ? strlen(md) : 0;
     const char* section = md != NULL ? strstr(md, UPDATE_NOTES_OPEN) : NULL;
     if(section != NULL) {
@@ -304,95 +448,82 @@ unsigned update_format_notes(const char* md, char lines[][UPDATE_LINE_MAX], unsi
         limit = strlen(md);
     }
 
-    // Image/link destinations and Markdown markers are presentation only.
+    // Each item gains a kind and a newline at most; a line's own text never grows.
+    char* out = (char*) malloc(limit * 2 + 4);
+    if(out == NULL) {
+        return NULL;
+    }
+
     size_t n = 0;
-    for(size_t i = 0; i < limit && md[i] && n < UPDATE_NOTES_MAX - 1;) {
-        if(md[i] == '<') {
-            const char* end = memchr(md + i, '>', limit - i);
-            if(end != NULL) {
-                i = (size_t) (end - md) + 1;
-                continue;
-            }
+    bool open = false;   // The last item can take more text (a bullet or a paragraph, not a heading).
+    for(size_t i = 0; i < limit;) {
+        const char* line = md + i;
+        const char* eol = memchr(line, '\n', limit - i);
+        size_t len = eol != NULL ? (size_t) (eol - line) : limit - i;
+        i += len + (eol != NULL ? 1 : 0);
+
+        while(len > 0 && (line[0] == ' ' || line[0] == '\t')) {
+            line++;
+            len--;
         }
 
-        if(md[i] == '!' && md[i + 1] == '[') {
-            const char* end = memchr(md + i, ')', limit - i);
-            if(end != NULL) {
-                i = (size_t) (end - md) + 1;
-                continue;
-            }
+        while(len > 0 && (line[len - 1] == ' ' || line[len - 1] == '\r' || line[len - 1] == '\t')) {
+            len--;
         }
 
-        if(md[i] == '[') {
-            i++;
+        // A blank line ends an item; a quote is the beta notice of a release body.
+        if(len == 0 || line[0] == '>') {
+            open = false;
             continue;
         }
 
-        if(md[i] == ']' && md[i + 1] == '(') {
-            const char* end = memchr(md + i + 2, ')', limit - i - 2);
-            if(end != NULL) {
-                i = (size_t) (end - md) + 1;
-                continue;
+        char kind = 0;
+        if(line[0] == '#') {
+            while(len > 0 && line[0] == '#') {
+                line++;
+                len--;
             }
+
+            kind = 'H';
+        } else if(len >= 2 && (line[0] == '-' || line[0] == '*' || line[0] == '+') && line[1] == ' ') {
+            line += 2;
+            len -= 2;
+            kind = 'B';
         }
 
-        unsigned char c = (unsigned char) md[i++];
-        if(c == '*' || c == '`' || c == '#' || c == '\r' || c >= 128) {
+        while(len > 0 && line[0] == ' ') {
+            line++;
+            len--;
+        }
+
+        size_t start = n;
+        if(kind == 0 && open) {
+            // A line the notes broke by hand: the same item goes on.
+            n--;   // Its newline.
+            out[n++] = ' ';
+            size_t mark = n;
+            notes_inline(line, len, out, &n);
+            if(n == mark) {
+                n--;   // Nothing but tags: no stray space.
+            }
+
+            out[n++] = '\n';
             continue;
         }
 
-        clean[n++] = (char) c;
+        out[n++] = kind != 0 ? kind : 'P';
+        size_t mark = n;
+        notes_inline(line, len, out, &n);
+        if(n == mark) {
+            // Only tags or markers (an HTML comment, <details>): no item.
+            n = start;
+            continue;
+        }
+
+        out[n++] = '\n';
+        open = kind != 'H';
     }
 
-    clean[n] = '\0';
-
-    unsigned count = 0;
-    const char* p = clean;
-    while(*p && count < capacity) {
-        // Drop leading spaces and runs of blank lines.
-        while(*p == ' ' || (*p == '\n' && (count == 0 || lines[count - 1][0] == '\0'))) {
-            p++;
-        }
-
-        if(!*p) {
-            break;
-        }
-
-        const char* end = strchr(p, '\n');
-        if(end == NULL) {
-            end = p + strlen(p);
-        }
-
-        size_t take = (size_t) (end - p);
-        if(take > width) {
-            take = width;
-            while(take > 0 && p[take] != ' ') {
-                take--;
-            }
-
-            if(take == 0) {
-                take = width;
-            }
-        }
-
-        memcpy(lines[count], p, take);
-        lines[count++][take] = '\0';
-        p += take;
-        if(*p == '\n') {
-            p++;
-        }
-    }
-
-    // A trailing blank line is noise.
-    while(count > 0 && lines[count - 1][0] == '\0') {
-        count--;
-    }
-
-    if(count == 0 && capacity > 0) {
-        strcpy(lines[0], "No changelog provided.");
-        count = 1;
-    }
-
-    free(clean);
-    return count;
+    out[n] = '\0';
+    return out;
 }

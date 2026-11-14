@@ -21,10 +21,17 @@ struct udslink;
 #define TRANSFER_CONNECTIONS 4
 #define TRANSFER_CHUNK (256 * 1024)
 #define TRANSFER_IO_TIMEOUT 15000
+// A CIA installed as it arrives (issue #53): the receiver's writes into AM can hold every connection for a while (AM
+// checks a content when it ends: 14 s and more on a 2DS for a game's update), so nothing moving is waited out longer.
+#define TRANSFER_IO_TIMEOUT_ORDERED 60000
 
 // Tests (SITE CONNS, DEBUG): the most connections a send opens over the Wi-Fi, 1 to TRANSFER_CONNECTIONS.
 void transfer_conn_set_limit(u32 limit);
 u32 transfer_conn_get_limit();
+
+// How long a connection may see nothing move before it gives up: TRANSFER_IO_TIMEOUT, or longer for the transfer
+// under way (one at a time). Set it before the transfer starts and back after.
+void transfer_conn_set_timeout(u32 ms);
 
 // A chunk lies inside one segment of the payload (a title package has its
 // header and each content as segments), so the one who reads it needs no more.
@@ -37,7 +44,7 @@ typedef struct {
 
 // Sends or receives exactly `len` bytes on a non-blocking socket. It gives up
 // when `cancel` (a handle, or 0) or `*stop` (or NULL) says so, or when nothing
-// moves for TRANSFER_IO_TIMEOUT.
+// moves for TRANSFER_IO_TIMEOUT (or what transfer_conn_set_timeout said).
 Result transfer_conn_io(int sock, bool write, void* buf, size_t len, Handle cancel, volatile bool* stop);
 
 // A connection: a socket, or the local wireless (no router) when `uds` is set.

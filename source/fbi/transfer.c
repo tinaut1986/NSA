@@ -465,6 +465,7 @@ static void transfer_send_draw_top(ui_view* view, void* data, float x1, float y1
 }
 
 static void transfer_send_free(transfer_send_session* session) {
+    transfer_conn_set_timeout(TRANSFER_IO_TIMEOUT);
     xferturn_release(session->turn);
     transfer_sender_free(session->engine);
     transfer_link_close(&session->link);
@@ -831,6 +832,9 @@ static Result transfer_send_begin_engine(transfer_send_session* session, u32 id)
 
     u32 count = 0;
     transfer_chunk* chunks = transfer_chunks_build(segments, segmentCount, session->start, session->head > 0 && session->start > 0, &count);
+
+    // A CIA installed as it arrives: the receiver may stop reading for a while (AM checking a content).
+    transfer_conn_set_timeout(session->ordered ? TRANSFER_IO_TIMEOUT_ORDERED : TRANSFER_IO_TIMEOUT);
     free(segments);
     if(chunks == NULL) {
         return R_APP_OUT_OF_MEMORY;
@@ -1896,7 +1900,7 @@ void transfer_send_titles(title_info* titles, u32 count) {
     }
 
     char name[FILE_NAME_MAX];
-    snprintf(name, sizeof(name), _("%lu titles"), (unsigned long) count);
+    snprintf(name, sizeof(name), count == 1 ? _("1 title") : _("%lu titles"), (unsigned long) count);
     transfer_send_begin(0, "", name, batch->total, NULL, NULL, NULL, batch);
 }
 
@@ -2442,6 +2446,7 @@ static Result transfer_receive_close_transfer(transfer_receive_data* data, bool 
     data->orderedAbort = true;
     transfer_receiver_free(data->engine);
     data->engine = NULL;
+    transfer_conn_set_timeout(TRANSFER_IO_TIMEOUT);
     xferturn_release(data->turn);
     data->turn = 0;
 
@@ -2737,7 +2742,7 @@ static void transfer_batch_draw_top(ui_view* view, void* data, float x1, float y
     char size[32];
     transfer_size_text(size, sizeof(size), offer->total);
     char title[64];
-    snprintf(title, sizeof(title), _("%lu titles"), (unsigned long) offer->count);
+    snprintf(title, sizeof(title), offer->count == 1 ? _("1 title") : _("%lu titles"), (unsigned long) offer->count);
     char from[TRANSFER_NAME_MAX + 64];
     snprintf(from, sizeof(from), _("From %s"), receive->sender);
     size_t used = strlen(from);
@@ -2849,7 +2854,11 @@ static void transfer_batch_ask(transfer_receive_data* data) {
 
     char size[32];
     transfer_size_text(size, sizeof(size), offer->total);
-    snprintf(data->message, sizeof(data->message), _("%s wants to send you %lu titles (%s)."), data->sender, (unsigned long) offer->count, size);
+    if(offer->count == 1) {
+        snprintf(data->message, sizeof(data->message), _("%s wants to send you a title (%s)."), data->sender, size);
+    } else {
+        snprintf(data->message, sizeof(data->message), _("%s wants to send you %lu titles (%s)."), data->sender, (unsigned long) offer->count, size);
+    }
 
     u64 freeSpace = transfer_sd_free();
     u8 ways[TRANSFER_BATCH_MAX];
@@ -2862,12 +2871,14 @@ static void transfer_batch_ask(transfer_receive_data* data) {
     data->offerNote[0] = 0;
     char line[160];
     if(installCounts[TRANSFER_WAY_ORDERED] > 0) {
-        snprintf(line, sizeof(line), _("Little room: %lu will install as they arrive (slower)."), (unsigned long) installCounts[TRANSFER_WAY_ORDERED]);
+        snprintf(line, sizeof(line), installCounts[TRANSFER_WAY_ORDERED] == 1 ? _("Little room: 1 will install as it arrives (slower).")
+                                     : _("Little room: %lu will install as they arrive (slower)."), (unsigned long) installCounts[TRANSFER_WAY_ORDERED]);
         transfer_batch_note(data, line);
     }
 
     if(installCounts[TRANSFER_WAY_SKIP] > 0) {
-        snprintf(line, sizeof(line), _("%lu do not fit and will be skipped."), (unsigned long) installCounts[TRANSFER_WAY_SKIP]);
+        snprintf(line, sizeof(line), installCounts[TRANSFER_WAY_SKIP] == 1 ? _("1 does not fit and will be skipped.")
+                                     : _("%lu do not fit and will be skipped."), (unsigned long) installCounts[TRANSFER_WAY_SKIP]);
         transfer_batch_note(data, line);
     }
 
@@ -3252,8 +3263,9 @@ static Result transfer_ordered_write(transfer_receive_data* data, u64 offset, co
 
         LightLock_Unlock(&data->fileLock);
 
-        // Well under the sender's TRANSFER_IO_TIMEOUT: a chunk before this one that does not come means a lost connection.
-        if(osGetTime() - began > 12000) {
+        // Under the connections' TRANSFER_IO_TIMEOUT_ORDERED: a chunk before this one that does not come means a lost
+        // connection. (A wait for another chunk's write into AM is not counted: that one holds the lock.)
+        if(osGetTime() - began > 50000) {
             transfer_log("receive: the chunk at %llu waited too long for %llu\n", offset, data->orderedNext);
             return R_APP_IO_ERROR;
         }
@@ -3331,6 +3343,7 @@ static void transfer_receive_start_ordered(transfer_receive_data* data) {
         data->engineStart = data->speedTime;
 
         transfer_receive_answer(data, 1, 0, id);
+        transfer_conn_set_timeout(TRANSFER_IO_TIMEOUT_ORDERED);
         if(R_SUCCEEDED(res = transfer_receiver_start(&data->engine, &data->client, data->tcp, id, 0, data->size, 0, transfer_receive_write, data))) {
             info_display("Receiving", " cancel", true, data, transfer_receive_progress_update, transfer_receive_draw_top);
             data->state = RECEIVE_RECEIVING;

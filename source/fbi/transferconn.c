@@ -54,9 +54,16 @@ static u64 conn_get64(const u8* in) {
     return (u64) conn_get32(in) << 32 | conn_get32(in + 4);
 }
 
+static volatile u32 conn_io_timeout = TRANSFER_IO_TIMEOUT;
+
+void transfer_conn_set_timeout(u32 ms) {
+    conn_io_timeout = ms;
+}
+
 Result transfer_conn_io(int sock, bool write, void* buf, size_t len, Handle cancel, volatile bool* stop) {
     size_t done = 0;
     u64 last = osGetTime();
+    u32 timeout = conn_io_timeout;
 
     while(done < len) {
         if((cancel != 0 && svcWaitSynchronization(cancel, 0) == 0) || (stop != NULL && *stop)) {
@@ -71,8 +78,8 @@ Result transfer_conn_io(int sock, bool write, void* buf, size_t len, Handle canc
         }
 
         if(ready == 0) {
-            if(osGetTime() - last > TRANSFER_IO_TIMEOUT) {
-                udslink_log("io: nothing for %d s (%s %zu of %zu bytes)\n", TRANSFER_IO_TIMEOUT / 1000, write ? "writing" : "reading", done, len);
+            if(osGetTime() - last > timeout) {
+                udslink_log("io: nothing for %lu s (%s %zu of %zu bytes)\n", (unsigned long) (timeout / 1000), write ? "writing" : "reading", done, len);
                 return R_APP_IO_ERROR;
             }
 

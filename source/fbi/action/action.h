@@ -64,11 +64,13 @@ void action_delete_dir_tickets(linked_list* items, list_item* selected);
 void action_delete_selected(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_new_folder(linked_list* items, list_item* selected);
 // Everything in the .zip or .7z at `path` (on the SD card) into its folder, or into a new folder named after it;
-// `done` once it ends (to list the folder again), before the message.
+// `done` once it ends (to list the folder again), before the message, which offers to delete the archive (and runs
+// `done` again if it is).
 void action_extract_archive(const char* path, bool intoFolder, void (*done)(void* userData), void* userData);
 // What of the archive at `path` matches `pattern` (unarchive.h) into `output` ("sdmc:/..."; `shown` is how the message
 // names it), with no question first, refusing the whole archive if anything would go where the console starts from or
-// NSA's data (see extractarchive.c); the archive is deleted afterwards if `deleteAfter` and it all came out. With
+// NSA's data (see extractarchive.c) when `output` is the SD card's root ("sdmc:/"); the archive is deleted afterwards if
+// `deleteAfter` and it all came out. With
 // `sdLayoutTop` (not NULL), only the entries in the SD card's own folders (action_extract_sd_place) under that top folder
 // of the archive ("" for its root) come out, the loose files beside them (a README) staying in it.
 void action_extract_archive_to(const char* path, const char* pattern, const char* output, const char* shown, bool deleteAfter,

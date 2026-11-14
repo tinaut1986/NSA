@@ -439,6 +439,123 @@ void action_install_cias_selected(linked_list* items, list_item* selected, bool 
     action_install_cias_internal(items, selected, filter, filterData, delete ? "Install and delete the selected CIAs?" : "Install the selected CIAs?", delete, NULL);
 }
 
+#define INSTALL_QUIET_BLOCK (256 * 1024)
+
+bool action_install_cia_quietly(const char* path, volatile u64* done, volatile u64* total, const char** reason, Result* result) {
+    Handle input = 0;
+    Handle output = 0;
+    bool started = false;
+    bool ok = false;
+    u64 size = 0;
+    u8* buffer = NULL;
+    AM_TitleInfo info;
+    cia_seed_watch seed;
+    Result res = 0;
+
+    *reason = NULL;
+    *result = 0;
+
+    FS_Path* fsPath = fs_make_path_utf8(path);
+    if(fsPath == NULL) {
+        *reason = "Out of memory.";
+        *result = R_APP_OUT_OF_MEMORY;
+        return false;
+    }
+
+    res = FSUSER_OpenFileDirectly(&input, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *fsPath, FS_OPEN_READ, 0);
+    fs_free_path_utf8(fsPath);
+    if(R_FAILED(res) || R_FAILED(res = FSFILE_GetSize(input, &size))) {
+        *reason = "Could not open the CIA.";
+        goto out;
+    }
+
+    if(R_FAILED(res = AM_GetCiaFileInfo(MEDIATYPE_SD, &info, input))) {
+        *reason = "Not a CIA.";
+        goto out;
+    }
+
+    FS_MediaType dest = fs_get_title_destination(info.titleID);
+    if(dest != MEDIATYPE_SD) {
+        *reason = "It installs to the NAND: install it from Files.";
+        goto out;
+    }
+
+    // Never over a newer version: AM would refuse it, and deleting that one first would take its save with it.
+    AM_TitleInfo installed;
+    u64 titleId = info.titleID;
+    bool isInstalled = R_SUCCEEDED(AM_GetTitleInfo(dest, 1, &titleId, &installed)) && installed.titleID == titleId;
+    if(isInstalled && info.version < installed.version) {
+        *reason = "A newer version is installed.";
+        goto out;
+    }
+
+    if((buffer = (u8*) malloc(INSTALL_QUIET_BLOCK)) == NULL) {
+        *reason = "Out of memory.";
+        goto out;
+    }
+
+    // Over the installed one (the same version or a higher one) as an update goes, keeping its save; a new one the usual way.
+    if(R_FAILED(res = isInstalled ? AM_StartCiaInstallOverwrite(&output, dest) : AM_StartCiaInstall(dest, &output))) {
+        *reason = "The install could not start.";
+        goto out;
+    }
+
+    started = true;
+    if(total != NULL) {
+        *total = size;
+    }
+
+    for(u64 offset = 0; offset < size;) {
+        u32 want = size - offset > INSTALL_QUIET_BLOCK ? INSTALL_QUIET_BLOCK : (u32) (size - offset);
+        u32 bytesRead = 0;
+        u32 bytesWritten = 0;
+        if(R_FAILED(res = FSFILE_Read(input, &bytesRead, offset, buffer, want)) || bytesRead != want) {
+            *reason = "Could not read the CIA.";
+            goto out;
+        }
+
+        if(offset == 0) {
+            cia_seed_watch_start(&seed, buffer, bytesRead);
+        }
+
+        cia_seed_watch_feed(&seed, buffer, offset, bytesRead);
+
+        if(R_FAILED(res = FSFILE_Write(output, &bytesWritten, offset, buffer, bytesRead, 0)) || bytesWritten != bytesRead) {
+            *reason = "The install failed.";
+            goto out;
+        }
+
+        offset += bytesRead;
+        if(done != NULL) {
+            *done = offset;
+        }
+    }
+
+    started = false;
+    if(R_FAILED(res = AM_FinishCiaInstall(output))) {
+        *reason = "The install failed.";
+        goto out;
+    }
+
+    ok = true;
+    if(cia_seed_watch_needed(&seed)) {
+        http_download_seed(info.titleID);
+    }
+
+out:
+    *result = res;
+    if(started) {
+        AM_CancelCIAInstall(output);
+    }
+
+    if(input != 0) {
+        FSFILE_Close(input);
+    }
+
+    free(buffer);
+    return ok;
+}
+
 // The SD card, open for as long as the app runs: the install reads its CIAs from it after the caller is gone.
 static FS_Archive action_install_cias_sd_archive() {
     static FS_Archive archive = 0;

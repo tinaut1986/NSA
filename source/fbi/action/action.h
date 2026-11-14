@@ -44,6 +44,9 @@ Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Han
 // user says no: nothing deleted then); `ended` once the install is over puts the save back, or says where it is kept.
 Result action_install_cia_lower(FS_MediaType dest, u64 titleId, u16 version, u16 installedVersion);
 void action_install_cia_ended(u64 titleId, bool installed);
+// Copies the title's save to sdmc:/nsa/saves/<ID>/<date>-<why>/ (a backup of NSA's, listed with the others) and puts that
+// folder in `dir`; `dir` is left empty when the title has no save (never started), which is no error.
+Result action_save_backup(u64 titleId, FS_MediaType media, u16 version, const char* why, char* dir, size_t size);
 void action_install_cias(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_cias_delete(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 // The CIAs of the folder `selected` that `filter` keeps (the Files screen's selection).

@@ -10,6 +10,7 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <3ds.h>
 #include <jansson.h>
@@ -2106,6 +2107,192 @@ static void (* const store_other_runs[STORE_OTHERS_MAX])(void* data) = {
         store_get_other_6, store_get_other_7, store_get_other_8, store_get_other_9, store_get_other_10, store_get_other_11
 };
 
+// ---- uninstall (issue #40): only what is plainly the app's, a CIA's title and a .3dsx ----
+// Scripts and archives are left out on purpose: what they leave on the card is only known from the catalogue's list,
+// which can be wrong, name whole folders, files another app shares, or what the console starts from (boot.firm).
+
+// The app's status worked out again now (after an uninstall), as store_install_finished_all does after an install.
+static void store_status_again(store_data* store, const store_app* app) {
+    u32 i = (u32) (app - store->apps);
+    LightLock_Lock(&store->lock);
+    bool known = store->scan != NULL && i < store->scanCount;
+    store_scan_entry entry = known ? store->scan[i] : (store_scan_entry) {{0}};
+    LightLock_Unlock(&store->lock);
+    if(!known) {
+        return;
+    }
+
+    u8 bits = store_compute_status(&entry, NULL, 0, NULL);
+    LightLock_Lock(&store->lock);
+    if(store->status != NULL && i < store->scanCount) {
+        store->status[i] = bits | 0x80;
+    }
+
+    LightLock_Unlock(&store->lock);
+}
+
+// Where the app's CIA is installed (by its unique ID; 0 when the catalogue has none or it is not installed).
+static bool store_cia_title(const store_app* app, u64* titleId, FS_MediaType* media, u16* version) {
+    if(app->uniqueId == 0) {
+        return false;
+    }
+
+    *titleId = (0x00040000ULL << 32) | ((u64) app->uniqueId << 8);
+    AM_TitleEntry info;
+    if(R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_SD, 1, titleId, &info))) {
+        *media = MEDIATYPE_SD;
+    } else if(R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_NAND, 1, titleId, &info))) {
+        *media = MEDIATYPE_NAND;
+    } else {
+        return false;
+    }
+
+    *version = info.version;
+    return true;
+}
+
+// Where the app's .3dsx is, as store_compute_status looks for it ("" when it is not there). `folder` tells whether it
+// is in a folder of its own (/3ds/<name>/<name>.3dsx).
+static bool store_dsx_path(const store_app* app, char* path, size_t size, bool* folder) {
+    if(app->dsxName[0] == '\0') {
+        return false;
+    }
+
+    snprintf(path, size, "sdmc:/3ds/%s/%s.3dsx", app->dsxName, app->dsxName);
+    if(store_file_exists(path)) {
+        *folder = true;
+        return true;
+    }
+
+    snprintf(path, size, "sdmc:/3ds/%s.3dsx", app->dsxName);
+    if(store_file_exists(path)) {
+        *folder = false;
+        return true;
+    }
+
+    path[0] = '\0';
+    return false;
+}
+
+typedef struct {
+    store_data* store;
+    store_app* app;
+    u64 titleId;
+    FS_MediaType media;
+    u16 version;
+} store_uninstall_ctx;
+
+static void store_uninstall_cia_update(ui_view* view, void* data, float* progress, char* text) {
+    store_uninstall_ctx* ctx = (store_uninstall_ctx*) data;
+    char dir[FILE_PATH_MAX] = "";
+    // The save first: if it cannot be copied, nothing is deleted.
+    Result res = action_save_backup(ctx->titleId, ctx->media, ctx->version, "before-uninstall", dir, sizeof(dir));
+    bool backedUp = R_SUCCEEDED(res);
+    if(backedUp) {
+        res = AM_DeleteTitle(ctx->media, ctx->titleId);
+    }
+
+    ui_pop();
+    info_destroy(view);
+
+    if(!backedUp) {
+        error_display_res(NULL, NULL, res, _("Failed to back up the save. Nothing was deleted."));
+    } else if(R_FAILED(res)) {
+        error_display_res(NULL, NULL, res, _("Failed to uninstall the title."));
+    } else {
+        store_status_again(ctx->store, ctx->app);
+        if(dir[0] != '\0') {
+            static char done[FILE_PATH_MAX + 128];
+            snprintf(done, sizeof(done), _("Uninstalled. Its save is kept in %s"), dir);
+            prompt_display_notify("Success", done, COLOR_TEXT, NULL, NULL, NULL);
+        } else {
+            prompt_display_notify("Success", _("Uninstalled."), COLOR_TEXT, NULL, NULL, NULL);
+        }
+    }
+
+    free(ctx);
+}
+
+static void store_uninstall_cia_answered(ui_view* view, void* data, u32 response) {
+    if(response != PROMPT_YES) {
+        free(data);
+        return;
+    }
+
+    info_display(_("Uninstalling"), "", false, data, store_uninstall_cia_update, NULL);
+}
+
+static void store_uninstall_cia(void* data) {
+    store_uninstall_ctx* ctx = (store_uninstall_ctx*) calloc(1, sizeof(store_uninstall_ctx));
+    if(ctx == NULL) {
+        error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("Failed to uninstall the title."));
+        return;
+    }
+
+    ctx->store = store_sheet_store;
+    ctx->app = store_sheet_app;
+    if(!store_cia_title(ctx->app, &ctx->titleId, &ctx->media, &ctx->version)) {
+        free(ctx);
+        prompt_display_notify("Store", _("The title is no longer installed."), COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    static char text[512];
+    snprintf(text, sizeof(text), _("Uninstall %s?\n\nThe title is deleted from the console. Its save is copied first to /nsa/saves/."), ctx->app->title);
+    prompt_display_warning("Confirmation", text, COLOR_TEXT, ctx, NULL, store_uninstall_cia_answered);
+}
+
+static void store_delete_dsx_answered(ui_view* view, void* data, u32 response) {
+    store_uninstall_ctx* ctx = (store_uninstall_ctx*) data;
+    if(response != PROMPT_YES) {
+        free(ctx);
+        return;
+    }
+
+    char path[FILE_PATH_MAX];
+    bool folder = false;
+    bool deleted = store_dsx_path(ctx->app, path, sizeof(path), &folder) && remove(path) == 0;
+    if(deleted && folder) {
+        // Its folder goes only when nothing else is left in it (its settings and data stay); rmdir refuses otherwise.
+        char* slash = strrchr(path, '/');
+        if(slash != NULL) {
+            *slash = '\0';
+            rmdir(path);
+        }
+    }
+
+    if(!deleted) {
+        error_display(NULL, NULL, _("Failed to delete the 3DSX."));
+    } else {
+        store_status_again(ctx->store, ctx->app);
+        prompt_display_notify("Success", _("3DSX deleted."), COLOR_TEXT, NULL, NULL, NULL);
+    }
+
+    free(ctx);
+}
+
+static void store_delete_dsx(void* data) {
+    store_uninstall_ctx* ctx = (store_uninstall_ctx*) calloc(1, sizeof(store_uninstall_ctx));
+    if(ctx == NULL) {
+        error_display(NULL, NULL, _("Failed to delete the 3DSX."));
+        return;
+    }
+
+    ctx->store = store_sheet_store;
+    ctx->app = store_sheet_app;
+    char path[FILE_PATH_MAX];
+    bool folder = false;
+    if(!store_dsx_path(ctx->app, path, sizeof(path), &folder)) {
+        free(ctx);
+        prompt_display_notify("Store", _("The 3DSX is no longer in /3ds/."), COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    static char text[512];
+    snprintf(text, sizeof(text), folder ? _("Delete %s?\n\nIts folder goes too if nothing else is left in it.") : _("Delete %s?"), path + 5);
+    prompt_display_warning("Confirmation", text, COLOR_TEXT, ctx, NULL, store_delete_dsx_answered);
+}
+
 static void store_open_app(store_data* store, store_app* app) {
     store_sheet_store = store;
     store_sheet_app = app;
@@ -2120,7 +2307,10 @@ static void store_open_app(store_data* store, store_app* app) {
         return;
     }
 
-    if(total == 1) {
+    u8 status = store_status(store, app);
+    bool uninstallCia = app->ciaUrl != NULL && app->uniqueId != 0 && (status & STATUS_CIA) != 0;
+    bool deleteDsx = app->dsxUrl != NULL && (status & STATUS_DSX) != 0;
+    if(total == 1 && !uninstallCia && !deleteDsx) {
         if(app->ciaUrl != NULL) {
             store_install_cia(app);
         } else if(app->dsxUrl != NULL) {
@@ -2132,8 +2322,7 @@ static void store_open_app(store_data* store, store_app* app) {
         return;
     }
 
-    u8 status = store_status(store, app);
-    sheet_action actions[2 + STORE_OTHERS_MAX];
+    sheet_action actions[4 + STORE_OTHERS_MAX];
     u32 count = 0;
     if(app->ciaUrl != NULL) {
         const char* installLabel = (status & STATUS_CIA) ? _("Reinstall the CIA") : _("Install the CIA");
@@ -2147,6 +2336,14 @@ static void store_open_app(store_data* store, store_app* app) {
 
     for(u32 i = 0; i < app->otherCount; i++) {
         actions[count++] = (sheet_action) {ICON_FILE_ZIP, app->others[i].name, false, store_other_runs[i], false, app->others[i].size[0] != '\0' ? app->others[i].size : NULL};
+    }
+
+    if(uninstallCia) {
+        actions[count++] = (sheet_action) {ICON_TRASH, _("Uninstall the CIA"), true, store_uninstall_cia, false, _("Deletes the title; its save is copied to /nsa/saves/ first.")};
+    }
+
+    if(deleteDsx) {
+        actions[count++] = (sheet_action) {ICON_TRASH, _("Delete the 3DSX"), true, store_delete_dsx, false, _("Removes it from /3ds/; its settings and data stay.")};
     }
 
     sheet_display_list(app->title, 0, actions, count, app);

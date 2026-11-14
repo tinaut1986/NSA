@@ -44,6 +44,8 @@ SendUserFile; installing it on a console still waits for them to ask (they usual
   the release workflow on the tag promotes it to stable (`.github/workflows/build-release.yml`).
   Write `docs/release-notes/<tag>.md` first (`docs/release-notes/README.md`).
 
+**Discord**: every run of `.github/workflows/build-release.yml` announces the version on the Discord server (Tinaut's 3DS Ports): a stable in #announcements, pinging the project's role, a beta in #beta-testing, with `docs/release-notes/<tag>.md` as the text (one more reason to write it before the tag). Don't post it by hand. It needs the repo secrets `DISCORD_WEBHOOK_RELEASE` and `DISCORD_WEBHOOK_BETA` (without them the step is skipped); a re-run of the workflow posts again.
+
 ## Branches in use
 
 - **`staging`** (since 2026-11-07, kept for good): the owner's **internal** line, for work that is finished but **not to be

@@ -163,7 +163,7 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- [ ] Store: every app and step as in Universal-Updater (2026-11-13, `feat/store-sensitive-writes`,
+- [x] Store: every app and step as in Universal-Updater (2026-11-13, `feat/store-sensitive-writes`,
   `source/fbi/storescript.c`). Universal-DB now lists all its 448 apps (427 before). Scripts that write to or delete from
   boot.firm or any .firm, /luma (but a game's /luma/titles/<id> and /luma/plugins), /gm9 or /private get, after the usual
   question, a red warning listing where (a few paths, "and N more") and saying a bad file there can stop the console from
@@ -176,7 +176,8 @@ What `release` holds, in the order it was built:
   emerald-online-3ds) show among the "others" and say there is nothing to download. Store cache format 8 -> 9 (rebuilt
   once). Try: Luma3DS or GodMode9 (warning, No; then Yes on a card you can restore), TasmanQuest (http warning), a
   CTRPluginFramework plugin, Shut The Cam Up's remove, an empty entry, an ordinary .3dsx (no warning).
-- [ ] Changelog in pages and in every language (2026-11-11, `feat/changelog-pages`). Settings -> Changelog no longer
+  The owner, 2026-11-14: tested on the New 3DS XL; published in v0.9.10.
+- [x] Changelog in pages and in every language (2026-11-11, `feat/changelog-pages`). Settings -> Changelog no longer
   downloads the last 100 releases of GitHub's API: it reads `https://tinaut1986.github.io/NSA/changelog/<code>/<n>.json`
   (10 releases a page, in the interface language; English if that language has no pages, a 404) and asks for the next
   page when the end of the text is on screen ("Loading older releases..." on the bottom screen; a failure says
@@ -202,12 +203,14 @@ What `release` holds, in the order it was built:
   highlighted, betas with a dot, the ones not loaded yet hollow ("Hollow: not loaded yet, tap to load"); a drag scrolls
   it, a tap goes to a release, loading the pages up to it first. Claude, 2026-11-11, New 3DS XL (.144): R one page
   exactly, the index (groups, hollow chips), a drag (only the index moves), a tap on v0.6.2 before it was loaded.
-- [ ] Flick and jump arrows in the menus (2026-11-11, `feat/menu-flick`; the owner: the lists coast after a drag and
+  The owner, 2026-11-14: tested on the New 3DS XL; published in v0.9.10.
+- [x] Flick and jump arrows in the menus (2026-11-11, `feat/menu-flick`; the owner: the lists coast after a drag and
   have the arrows to the top and the end, the menus do not). Settings and the action sheets drawn as a list now coast
   when a drag is let go, show the two round arrows at their bottom right while they scroll (only the ways they can still
   go; a tap selects the first or the last row) and take ZL / ZR for the same; the filter popovers coast too (no arrows:
   the card is small). One helper, `widget_scroller` (`widgets.c`), which the lists (`list.c`) now use too for theirs.
   Built only (DEBUG 0.9.9), not tried in Azahar or on a console.
+  The owner, 2026-11-14: tested on the New 3DS XL; published in v0.9.10.
 - [x] Sheets pulled down to close (2026-11-11, `feat/sheet-drag`; issue #14, the last of HOME's mockup). An action sheet
   (`overlay.c`, every theme; it now has a handle) and a dialog drawn as a sheet (`prompt.c`, a theme with sheetPrompts)
   follow a finger put on their top (the handle and the header, not the close cross) and the scrim lightens; let go past

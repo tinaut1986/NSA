@@ -1200,6 +1200,8 @@ static void action_install_url_finish(ui_view* view, install_url_data* installDa
         void (*queueDone)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error) = installData->queueDone;
         void* queueItem = installData->queueItem;
         bool queuePaused = installData->pausing && installData->installInfo.result == R_APP_CANCELLED;
+        // Paused, the queue hears how many URLs were done (the one cut short is fetched again on resume).
+        u32 queueProcessed = installData->installInfo.processed;
         bool queueCancelled = !queuePaused && installData->installInfo.result == R_APP_CANCELLED;
         char queueError[160];
         string_copy(queueError, installData->queueError, sizeof(queueError));
@@ -1213,7 +1215,7 @@ static void action_install_url_finish(ui_view* view, install_url_data* installDa
         action_install_url_free_data(installData);
 
         if(queueDone != NULL) {
-            queueDone(queueItem, installed + saved, failed, queuePaused, queueCancelled, queueError);
+            queueDone(queueItem, queuePaused ? queueProcessed : installed + saved, failed, queuePaused, queueCancelled, queueError);
         }
 
         if(archives != NULL) {

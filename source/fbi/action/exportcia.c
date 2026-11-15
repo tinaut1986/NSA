@@ -629,7 +629,25 @@ static Result action_export_cia_write_dst(void* data, u32 handle, u32* bytesWrit
     return 0;
 }
 
+// Several titles exported one after another (Titles' marked ones): copies of their title_info, owned here.
+static struct {
+    title_info* titles;
+    u32 count;
+    u32 next;        // The one to start after the current one.
+    u32 ok;
+    Result lastError;
+} export_batch;
+
+static void action_export_cia_batch_next();
+
 static bool action_export_cia_error(void* data, u32 index, Result res, ui_view** errorView) {
+    // In a batch the failure is said in the summary: nobody has to answer for the others to go on.
+    if(export_batch.titles != NULL) {
+        export_batch.lastError = res;
+        *errorView = NULL;
+        return false;
+    }
+
     *errorView = error_display_res(((export_cia_data*) data)->title, task_draw_title_info, res, "Failed to export CIA.");
     // Never skip a content: the file would be broken.
     return false;
@@ -642,10 +660,28 @@ static void action_export_cia_update(ui_view* view, void* data, float* progress,
         FSFILE_Close(exportData->ciaHandle);
         exportData->ciaHandle = 0;
 
-        if(R_SUCCEEDED(exportData->exportInfo.result)) {
-            prompt_display_notify("Success", "CIA exported to /nsa/cias/.", COLOR_TEXT, exportData->title, task_draw_title_info, NULL);
-        } else {
+        bool ok = R_SUCCEEDED(exportData->exportInfo.result);
+        if(!ok) {
             action_export_cia_delete_file(exportData);
+        }
+
+        if(export_batch.titles != NULL) {
+            // The next of the batch, or its summary. A cancel (B) stops the batch.
+            if(ok) {
+                export_batch.ok++;
+            } else if(exportData->exportInfo.result == R_APP_CANCELLED) {
+                export_batch.next = export_batch.count;
+            } else if(R_SUCCEEDED(export_batch.lastError)) {
+                export_batch.lastError = exportData->exportInfo.result;
+            }
+
+            action_export_cia_free(exportData);
+            action_export_cia_batch_next();
+            return;
+        }
+
+        if(ok) {
+            prompt_display_notify("Success", "CIA exported to /nsa/cias/.", COLOR_TEXT, exportData->title, task_draw_title_info, NULL);
         }
 
         action_export_cia_free(exportData);
@@ -674,6 +710,18 @@ static void action_export_cia_onresponse(ui_view* view, void* data, u32 response
     }
 
     Result res = action_export_cia_prepare(exportData);
+    if(R_FAILED(res) && export_batch.titles != NULL) {
+        // A title of a batch that can not be read: noted, and the next one.
+        export_batch.lastError = res;
+        action_export_cia_free(exportData);
+        if(res == R_APP_NOT_IMPLEMENTED) {
+            export_batch.next = export_batch.count;   // No Luma3DS: none of them can be.
+        }
+
+        action_export_cia_batch_next();
+        return;
+    }
+
     if(R_FAILED(res)) {
         if(res == R_APP_NOT_IMPLEMENTED) {
             error_display(exportData->title, task_draw_title_info, "Exporting a CIA needs Luma3DS.");
@@ -689,24 +737,30 @@ static void action_export_cia_onresponse(ui_view* view, void* data, u32 response
     if(R_SUCCEEDED(res = task_data_op(&exportData->exportInfo))) {
         info_display("Exporting CIA", "Press B to cancel.", true, data, action_export_cia_update, action_export_cia_draw_top);
     } else {
-        error_display_res(exportData->title, task_draw_title_info, res, "Failed to initiate CIA export.");
+        if(export_batch.titles == NULL) {
+            error_display_res(exportData->title, task_draw_title_info, res, "Failed to initiate CIA export.");
+        } else {
+            export_batch.lastError = res;
+        }
 
         FSFILE_Close(exportData->ciaHandle);
         exportData->ciaHandle = 0;
         action_export_cia_delete_file(exportData);
         action_export_cia_free(exportData);
+        if(export_batch.titles != NULL) {
+            action_export_cia_batch_next();
+        }
     }
 }
 
-void action_export_cia(linked_list* items, list_item* selected) {
+// A title's export, set up and not started.
+static export_cia_data* action_export_cia_new(title_info* title) {
     export_cia_data* data = (export_cia_data*) calloc(1, sizeof(export_cia_data));
     if(data == NULL) {
-        error_display(NULL, NULL, "Failed to allocate export CIA data.");
-
-        return;
+        return NULL;
     }
 
-    data->title = (title_info*) selected->data;
+    data->title = title;
 
     data->exportInfo.data = data;
 
@@ -730,8 +784,85 @@ void action_export_cia(linked_list* items, list_item* selected) {
     data->exportInfo.error = action_export_cia_error;
 
     data->exportInfo.finished = true;
+    return data;
+}
+
+void action_export_cia(linked_list* items, list_item* selected) {
+    export_cia_data* data = action_export_cia_new((title_info*) selected->data);
+    if(data == NULL) {
+        error_display(NULL, NULL, "Failed to allocate export CIA data.");
+        return;
+    }
 
     prompt_display_yes_no("Confirmation", "Export the selected title as a CIA?", COLOR_TEXT, data, action_export_cia_draw_top, action_export_cia_onresponse);
+}
+
+// ---- several titles, one after another ----
+
+static void action_export_cia_batch_next() {
+    while(export_batch.next < export_batch.count) {
+        export_cia_data* data = action_export_cia_new(&export_batch.titles[export_batch.next++]);
+        if(data == NULL) {
+            export_batch.lastError = R_APP_OUT_OF_MEMORY;
+            continue;
+        }
+
+        action_export_cia_onresponse(NULL, data, PROMPT_YES);
+        return;
+    }
+
+    // All tried: what went, and why the others did not.
+    char text[256];
+    u32 count = export_batch.count;
+    u32 ok = export_batch.ok;
+    if(ok == count) {
+        snprintf(text, sizeof(text), ok == 1 ? _("CIA exported to /nsa/cias/.") : _("Exported %lu titles to /nsa/cias/."), (unsigned long) ok);
+    } else if(export_batch.lastError == R_APP_NOT_IMPLEMENTED) {
+        snprintf(text, sizeof(text), "%s", _("Exporting a CIA needs Luma3DS."));
+    } else {
+        snprintf(text, sizeof(text), _("Exported %lu of %lu titles to /nsa/cias/."), (unsigned long) ok, (unsigned long) count);
+        if(R_FAILED(export_batch.lastError)) {
+            size_t used = strlen(text);
+            snprintf(text + used, sizeof(text) - used, " (%08lX)", export_batch.lastError);
+        }
+    }
+
+    free(export_batch.titles);
+    memset(&export_batch, 0, sizeof(export_batch));
+
+    led_blink(ok == count);
+    prompt_display_notify(ok == count ? "Success" : "Failure", text, COLOR_TEXT, NULL, NULL, NULL);
+}
+
+static void action_export_cias_onresponse(ui_view* view, void* data, u32 response) {
+    if(response != PROMPT_YES) {
+        free(export_batch.titles);
+        memset(&export_batch, 0, sizeof(export_batch));
+        return;
+    }
+
+    action_export_cia_batch_next();
+}
+
+void action_export_cias(title_info* titles, u32 count) {
+    if(export_batch.titles != NULL || count == 0) {
+        free(titles);
+        return;
+    }
+
+    export_batch.titles = titles;
+    export_batch.count = count;
+    export_batch.next = 0;
+    export_batch.ok = 0;
+    export_batch.lastError = 0;
+
+    char text[160];
+    if(count == 1) {
+        snprintf(text, sizeof(text), "%s", _("Export the marked title as a CIA to /nsa/cias/?"));
+    } else {
+        snprintf(text, sizeof(text), _("Export the %lu marked titles as CIAs to /nsa/cias/?"), (unsigned long) count);
+    }
+    prompt_display_yes_no("Confirmation", text, COLOR_TEXT, NULL, NULL, action_export_cias_onresponse);
 }
 
 // Sends the title to another 3DS as a title package, with no CIA made first.

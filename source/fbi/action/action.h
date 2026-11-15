@@ -102,6 +102,9 @@ void action_extract_exefs(linked_list* items, list_item* selected);
 // The same without the UI: how many files it copied in *extracted.
 Result action_extract_exefs_to_sd(u64 titleId, FS_MediaType mediaType, u32* extracted);
 void action_export_cia(linked_list* items, list_item* selected);
+// Several titles to /nsa/cias/, asked once, one after another (Titles' marked ones; issue #53's picking). `titles` is a
+// malloc'd array of copies that the export owns from now on. A failure goes on with the next; a summary at the end.
+void action_export_cias(title_info* titles, u32 count);
 void action_export_cia_send(linked_list* items, list_item* selected);
 
 // Sending a title without making a CIA first: its contents go over the network as

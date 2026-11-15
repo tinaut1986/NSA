@@ -26,6 +26,7 @@
 #include "dlqueue.h"
 #include "ftpserver.h"
 #include "webserver.h"
+#include "linkserver.h"
 #include "udslink.h"
 #include "selftest.h"
 #include "relaunch.h"
@@ -218,6 +219,7 @@ static void net_sleep_hook(APT_HookType hook, void* param) {
                 sleeplog("pausing servers");
                 ftpserver_pause();
                 webserver_pause();
+                linkserver_pause();
                 net_sleep_paused = true;
                 sleeplog("servers paused");
             }
@@ -233,6 +235,7 @@ static void net_sleep_hook(APT_HookType hook, void* param) {
                 if(!udslink_active()) {
                     ftpserver_resume_later();
                     webserver_resume_later();
+                    linkserver_resume_later();
                     sleeplog("servers will resume");
                 }
             }
@@ -376,6 +379,7 @@ int main(int argc, const char* argv[]) {
         update_poll();
         ftpserver_poll_main();
         webserver_poll_main();
+        linkserver_poll_main();
         udslink_poll_main();
         audioview_tick();
         action_install_url_tick();
@@ -403,6 +407,7 @@ int main(int argc, const char* argv[]) {
     sleeplog("ftpserver_stop done");
     webserver_stop();
     sleeplog("webserver_stop done");
+    linkserver_stop();
 
     cleanup();
 

@@ -9,6 +9,7 @@
 #include "ftpserver.h"
 #include "guide.h"
 #include "webserver.h"
+#include "linkserver.h"
 #include "../core/qrencode.h"
 #include "section.h"
 #include "settings.h"
@@ -34,6 +35,7 @@ typedef enum {
     OPTION_WEB,
     OPTION_WEB_PIN,
     OPTION_WEB_FIXED_PIN,   // Only with a fixed PIN: opens the keypad.
+    OPTION_LINKS,           // Links sent from web pages (linkserver.h).
     OPTION_CHANNEL,
     OPTION_AUTO_UPDATE,
     OPTION_CHECK_UPDATES,
@@ -112,7 +114,7 @@ typedef struct {
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
             ICON_PALETTE, ICON_PENCIL, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
-            ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
+            ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_WORLD, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
     };
 
     return icons[option];
@@ -134,6 +136,7 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_WEB: return _("Web server");
         case OPTION_WEB_PIN: return _("Web PIN");
         case OPTION_WEB_FIXED_PIN: return _("Fixed PIN");
+        case OPTION_LINKS: return _("Links from web pages");
         case OPTION_CHECK_UPDATES: return _("Check for updates");
         case OPTION_CHANGELOG: return _("Changelog");
         case OPTION_GUIDE: return _("Guide");
@@ -164,6 +167,7 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_WEB: return webserver_running() ? _("On") : webserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
         case OPTION_WEB_PIN: return settings->webPinMode == WEB_PIN_FIXED ? _("Fixed") : settings->webPinMode == WEB_PIN_NONE ? _("None") : _("Random");
         case OPTION_WEB_FIXED_PIN: return settings->webPin;
+        case OPTION_LINKS: return linkserver_running() ? _("On") : linkserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
         default: return NULL;
     }
 }
@@ -268,6 +272,15 @@ static void settingsmenu_change(settings_option option, int direction) {
                 pinpad_display(_("Web PIN (6 digits)"), settings->webPin, NULL, settingsmenu_pin_typed);
             }
             return;
+        case OPTION_LINKS:
+            if(linkserver_running() || linkserver_waiting()) {
+                linkserver_stop();
+                settings->linkServer = false;
+            } else {
+                linkserver_start_when_online();
+                settings->linkServer = true;
+            }
+            break;
         case OPTION_CHECK_UPDATES:
             if(direction == 0) {
                 update_check_start(false);
@@ -552,6 +565,7 @@ static const char* settingsmenu_help(settings_option option) {
                    : settings->webPinMode == WEB_PIN_NONE ? _("None: the page opens without a PIN. Plain HTTP: anyone on your Wi-Fi can then install and delete things. Only for a network you trust.")
                                                           : _("Random: a new PIN each time the server starts. When a browser asks for it, the console shows it on the bottom screen.");
         case OPTION_WEB_FIXED_PIN: return _("Type the PIN on the keypad, or press the turning arrows there for a random one. Pages already open have to type it again.");
+        case OPTION_LINKS: return _("A store's \"Send to 3DS\" button (as for 3dsDL) or a phone on your Wi-Fi can send links to this console at http://3ds.local/. The console asks before it downloads anything.");
         case OPTION_CHECK_UPDATES: return _("Look for a newer release in your channel now.");
         case OPTION_CHANGELOG: return _("Every release up to yours, betas and stables, newest first.");
         case OPTION_GUIDE: return _("How NSA works, in short chapters. When an update adds something, NSA offers only the new chapters.");
@@ -629,6 +643,10 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
         webserver_address(address, sizeof(address));
         webserver_pin(pin, sizeof(pin));
         snprintf(line, sizeof(line), pin[0] != '\0' ? "%s  PIN %s" : "%s", address, pin);
+    } else if(option == OPTION_LINKS) {
+        char address[96];
+        linkserver_address(address, sizeof(address));
+        snprintf(line, sizeof(line), "%s", address);
     } else if(option == OPTION_WEB_PIN || option == OPTION_WEB_FIXED_PIN) {
         char pin[16];
         webserver_pin(pin, sizeof(pin));

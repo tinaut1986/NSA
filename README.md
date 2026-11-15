@@ -22,6 +22,9 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 - Install CIAs and tickets from the SD card, from a computer on your network, over the Internet
   with a URL or a QR code. Title seeds are imported on the way.
 - **Remote install** keeps a history of what you installed, to install it again.
+- **Links from web pages**: a store's "Send to 3DS" button (like Brewology's, made for 3dsDL) or a phone on your Wi-Fi
+  can send links to `http://3ds.local/` (also `nsa.local`, or the console's address), the same way 3dsDL's Receive takes
+  them (`/send?links=...`). The console asks before it downloads anything. On by default (Settings).
 - **Send a file or an installed title to another 3DS** that runs NSA, over your Wi-Fi (four
   connections at once) or with no router at all. The other console picks what to do: install now,
   or save it in a folder (a save sent this way is imported or kept with the other exports). A cut transfer goes on where it stopped. Every send and receive is logged

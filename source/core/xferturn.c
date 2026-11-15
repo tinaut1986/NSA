@@ -9,6 +9,9 @@
 #include "ui/ui.h"
 
 static LightLock xferturn_lock;
+static xfer_kind xferturn_want_kind;
+static char xferturn_want_name[96];
+static u64 xferturn_want_at;
 static u32 xferturn_next = 0;
 
 static struct {
@@ -69,10 +72,29 @@ u32 xferturn_take(xfer_kind kind, const char* name, u64 total) {
         xferturn.kbs = 0;
         xferturn.incoming = false;
         xferturn_cpu(true);
+    } else if(kind == XFER_FTP || kind == XFER_WEB) {
+        xferturn_want_kind = kind;
+        string_copy(xferturn_want_name, name != NULL ? name : "", sizeof(xferturn_want_name));
+        xferturn_want_at = now;
     }
     LightLock_Unlock(&xferturn_lock);
 
     return ticket;
+}
+
+bool xferturn_wanted(xfer_kind* kind, char* name, size_t size) {
+    u64 now = osGetTime();
+    bool wanted = false;
+    LightLock_Lock(&xferturn_lock);
+    if(xferturn_want_at != 0 && now - xferturn_want_at < 5000) {
+        wanted = true;
+        *kind = xferturn_want_kind;
+        string_copy(name, xferturn_want_name, size);
+    }
+
+    xferturn_want_at = 0;
+    LightLock_Unlock(&xferturn_lock);
+    return wanted;
 }
 
 void xferturn_progress(u32 ticket, u64 done) {

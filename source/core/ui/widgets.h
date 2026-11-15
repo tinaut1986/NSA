@@ -66,6 +66,8 @@ float widget_scrollbar_offset(float y, float height, float visible, float total,
 // The bottom screen's toast, just above `bottom`: one line, or a few separated by '\n', and a bar when progress is
 // known (>= 0) or WIDGET_PROGRESS_UNKNOWN.
 void widget_toast(const char* text, float progress, float bottom);
+// The toast's height for that text (widget_toast draws it ending 6 pixels above `bottom`).
+float widget_toast_height(const char* text, float progress);
 
 // A modal: dims the screen and draws the card; returns its content area.
 void widget_modal(float screenWidth, float screenHeight, float width, float height, float* x, float* y);

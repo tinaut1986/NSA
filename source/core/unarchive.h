@@ -14,6 +14,11 @@ typedef struct {
     // Optional: whether a matching entry may go to `path` (asked for every one before any file is written; one refused
     // fails the extraction with R_APP_BAD_DATA). An entry with a ".." in its path is always refused.
     bool (*allowed)(void* userData, const char* path);
+    // Optional: only list the matching entries (their path inside the archive, size, and whether each is a folder);
+    // nothing is written or made then.
+    void (*listed)(void* userData, const char* name, u64 size, bool dir);
+    // Optional: a matching entry (its path inside the archive) it returns false for is left out, with no error.
+    bool (*wanted)(void* userData, const char* name);
 } unarchive_progress;
 
 // The archive's kind from its first bytes: 'z' zip, '7' 7z, 0 neither.

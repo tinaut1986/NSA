@@ -44,6 +44,9 @@ void ui_wake();
 #define UI_STATUS_PLAYER 4     // The audio player plays in the background: a note.
 
 void ui_set_status(void (*corner)(char* out, size_t size), bool (*notice)(char* out, size_t size, float* progress), u32 (*activity)());
+// A tap on the bottom toast (the notice above) calls `tap`; true when it did something, and the view under it does not
+// see that touch.
+void ui_set_status_tap(bool (*tap)());
 
 // What a view shows, for the tests (selftest.c): filled by the module that made it.
 #define UI_DESCRIPTION_OPTIONS_MAX 4

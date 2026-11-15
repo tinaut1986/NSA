@@ -34,3 +34,9 @@ void transfer_send_folder(FS_Archive archive, const char* path, const char* name
 // package's. The screen owns `stream` from now on.
 typedef struct export_cia_data_s export_cia_data;
 void transfer_send_stream(export_cia_data* stream, const char* name, u64 size);
+
+// Several titles of the SD card to one console, asked there once for all (issue #53): each goes as a title package,
+// one after another, tried again by itself when it fails, and both consoles say at the end what went. `titles` is a
+// malloc'd array of copies that the send owns from now on.
+struct title_info_s;
+void transfer_send_titles(struct title_info_s* titles, u32 count);

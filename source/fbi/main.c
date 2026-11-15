@@ -22,6 +22,8 @@
 #include "../core/task/task.h"
 #include "../core/ui/ui.h"
 #include "section.h"
+#include "action/action.h"
+#include "dlqueue.h"
 #include "ftpserver.h"
 #include "webserver.h"
 #include "udslink.h"
@@ -331,7 +333,13 @@ void cleanup() {
 // The bottom screen's toast: a restart countdown wins over an FTP transfer.
 static bool main_notice(char* out, size_t size, float* progress) {
     // A transfer over FTP or the web page (with its speed) before the FTP server's own, which then only says it installs.
-    return relaunch_notice(out, size, progress) || webserver_notice(out, size, progress) || xferturn_notice(out, size, progress) || ftpserver_notice(out, size, progress);
+    return relaunch_notice(out, size, progress) || webserver_notice(out, size, progress) || xferturn_notice(out, size, progress)
+           || action_install_url_notice(out, size, progress) || dlqueue_notice(out, size, progress) || ftpserver_notice(out, size, progress);
+}
+
+// A tap on the toast: the download in the background, or the download queue.
+static bool main_toast_tap() {
+    return action_install_url_reopen() || dlqueue_open_any();
 }
 
 // The top bar's icons: the FTP server moving data, the web server running.
@@ -349,6 +357,7 @@ int main(int argc, const char* argv[]) {
     settings_load();
     settings_apply();
     ui_set_status(ftpserver_corner, main_notice, main_activity);
+    ui_set_status_tap(main_toast_tap);
 
     mainmenu_open();
     startup_run();
@@ -369,6 +378,8 @@ int main(int argc, const char* argv[]) {
         webserver_poll_main();
         udslink_poll_main();
         audioview_tick();
+        action_install_url_tick();
+        dlqueue_tick();
         bgmusic_hold(settings_get()->ftpPausesMusic && ftpserver_holding_music());
 
         // A new NSA is in place (updater or SITE INSTALL): exit so libctru relaunches it.

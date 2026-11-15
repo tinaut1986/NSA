@@ -428,7 +428,20 @@ Result action_save_backup(u64 titleId, FS_MediaType media, u16 version, const ch
     return install_save_backup(titleId, media, version, name, why, dir, size);
 }
 
+static u64 install_last_title;
+static volatile u32 install_count;
+
+u32 action_install_cia_installed(u64* lastTitleId) {
+    *lastTitleId = install_last_title;
+    return install_count;
+}
+
 void action_install_cia_ended(u64 titleId, bool installed) {
+    if(installed && titleId != 0) {
+        install_last_title = titleId;
+        install_count++;
+    }
+
     if(!install_save_pending.active || install_save_pending.titleId != titleId) {
         return;
     }

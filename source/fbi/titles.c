@@ -504,9 +504,17 @@ static void titles_draw_tile(void* data, list_item* item, float x, float y, floa
     }
 
     if(listData != NULL && listData->picking && titles_pickable(info)) {
+        // A small box in the corner: filled with a tick when marked, an empty frame when not.
         const theme_current* t = theme();
-        widget_icon_placeholder(x + size - 24, y + size - 24, 20, info->picked ? ICON_SQUARE_CHECK : ICON_SQUARE,
-                                info->picked ? t->accent : t->palette->surface, info->picked ? t->onAccent : t->palette->textMuted);
+        float box = 14;
+        float bx = x + size - box - 6;
+        float by = y + size - box - 6;
+        if(info->picked) {
+            screen_fill_round_rect(bx, by, box, box, 3, t->accent);
+            screen_draw_icon(ICON_CHECK, bx - 1, by - 1, box + 2, t->onAccent);
+        } else {
+            screen_frame_round_rect(bx, by, box, box, 3, 1.5f, t->palette->textMuted, t->palette->surface);
+        }
     }
 }
 

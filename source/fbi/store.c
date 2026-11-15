@@ -134,6 +134,7 @@ typedef struct {
     char cia[24];
     char dsx[24];
     char other[128];  // A file one of its other downloads left (an app with neither a CIA nor a .3dsx).
+    u64 titleId;      // The title its CIA installed (an app without a unique ID; 0 when not known).
 } store_record;
 
 // What the background scan needs about an app (copied, so the scan never reads the apps that the screen owns).
@@ -144,6 +145,7 @@ typedef struct {
     bool hasDsx;
     char dsxName[96];
     char recCia[24];     // The Store installed its CIA (an app without a unique ID).
+    u64 recTitleId;      // The title that CIA installed (store_record's `titleId`), 0 when not known.
     char files[160];     // store_app's `files` (whole lines only).
     char recOther[128];  // A file one of its other downloads left (store_record's `other`).
 } store_scan_entry;
@@ -238,6 +240,11 @@ typedef struct {
     s32 recheck;
     u32 recheckTries;
     u64 recheckAt;
+
+    // A CIA the Store started to install for an app with no unique ID: the first CIA installed after `titleCount`
+    // (action_install_cia_installed) is its title, noted in its record. "" for none.
+    char pendingSlug[64];
+    u32 titleCount;
 } store_data;
 
 // The Store on screen (NULL: closed), for store_exit. Main thread only.
@@ -979,6 +986,7 @@ static void store_records_load(store_data* store) {
             string_copy(record->cia, store_str(value, "c"), sizeof(record->cia));
             string_copy(record->dsx, store_str(value, "d"), sizeof(record->dsx));
             string_copy(record->other, store_str(value, "o"), sizeof(record->other));
+            record->titleId = strtoull(store_str(value, "t"), NULL, 16);
         }
     }
 
@@ -999,6 +1007,12 @@ static void store_records_save(store_data* store) {
 
         if(store->records[i].other[0] != '\0') {
             json_object_set_new(entry, "o", json_string(store->records[i].other));
+        }
+
+        if(store->records[i].titleId != 0) {
+            char id[20];
+            snprintf(id, sizeof(id), "%016llX", store->records[i].titleId);
+            json_object_set_new(entry, "t", json_string(id));
         }
 
         json_object_set_new(root, store->records[i].slug, entry);
@@ -1026,8 +1040,7 @@ static void store_dsx_name(const char* url, char* out, size_t size) {
     }
 }
 
-static bool store_title_installed(u32 uniqueId) {
-    u64 titleId = (0x00040000ULL << 32) | ((u64) uniqueId << 8);
+static bool store_title_id_installed(u64 titleId) {
     AM_TitleEntry info;
     return R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_SD, 1, &titleId, &info)) || R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_NAND, 1, &titleId, &info));
 }
@@ -1149,11 +1162,11 @@ static bool store_dsx_dir_has(const store_dsx_dir* dir, const char* name) {
 static u8 store_compute_status(const store_scan_entry* entry, const u64* installed, u32 installedCount, const store_dsx_dir* dir) {
     u8 bits = 0;
     if(entry->hasCia) {
-        // Without a unique ID, what the Store installed is all there is to go by.
-        u64 titleId = (0x00040000ULL << 32) | ((u64) entry->uniqueId << 8);
-        bool installedHere = entry->uniqueId != 0 ? (installed != NULL ? bsearch(&titleId, installed, installedCount, sizeof(u64), store_compare_ids) != NULL
-                                                                        : store_title_installed(entry->uniqueId))
-                                                  : entry->recCia[0] != '\0';
+        // Without a unique ID, the title the Store's CIA installed, or else that it installed it, is all there is to go by.
+        u64 titleId = entry->uniqueId != 0 ? (0x00040000ULL << 32) | ((u64) entry->uniqueId << 8) : entry->recTitleId;
+        bool installedHere = titleId != 0 ? (installed != NULL ? bsearch(&titleId, installed, installedCount, sizeof(u64), store_compare_ids) != NULL
+                                                               : store_title_id_installed(titleId))
+                                          : entry->recCia[0] != '\0';
         if(installedHere) {
             bits |= STATUS_CIA;
         }
@@ -1739,6 +1752,8 @@ static store_app* store_of(const list_item* item) {
     return (store_app*) item->data;
 }
 
+static u64 store_cia_title_id(store_data* store, const store_app* app);
+
 // What is on the console for an app (0 until the background scan reaches it).
 static u8 store_status(store_data* store, const store_app* app) {
     if(store->status == NULL) {
@@ -1877,7 +1892,7 @@ static u32 store_shot_count(const store_app* app) {
 static u32 store_app_choices(store_data* store, const store_app* app, bool* direct) {
     u8 status = store_status(store, app);
     u32 downloads = (app->ciaUrl != NULL ? 1 : 0) + (app->dsxUrl != NULL ? 1 : 0) + app->otherCount;
-    u32 extra = (app->ciaUrl != NULL && app->uniqueId != 0 && (status & STATUS_CIA) != 0 ? 1 : 0)   // Uninstall the CIA.
+    u32 extra = (app->ciaUrl != NULL && store_cia_title_id(store, app) != 0 && (status & STATUS_CIA) != 0 ? 1 : 0)   // Uninstall the CIA.
                 + (app->dsxUrl != NULL && (status & STATUS_DSX) != 0 ? 1 : 0)                        // Delete the 3DSX.
                 + (app->shots != NULL ? 1 : 0);                                                      // Pictures.
     *direct = downloads == 1 && extra == 0;
@@ -2045,10 +2060,49 @@ static void store_install_finished_url(void* data, u32 index) {
     ((store_install_ctx*) data)->ok = true;
 }
 
+// See store_data's `pendingSlug`: once a CIA has been installed since, it is noted as that app's title. A script's install
+// ends after the script, so this is tried again while the status is (store_recheck_step).
+static void store_take_title(store_data* store) {
+    u64 titleId = 0;
+    if(store->pendingSlug[0] == '\0' || action_install_cia_installed(&titleId) == store->titleCount || titleId == 0) {
+        return;
+    }
+
+    store_record* record = store_record_find(store, store->pendingSlug);
+    if(record == NULL && store->recordCount < STORE_RECORDS_MAX) {
+        record = &store->records[store->recordCount++];
+        memset(record, 0, sizeof(*record));
+        string_copy(record->slug, store->pendingSlug, sizeof(record->slug));
+    }
+
+    if(record != NULL) {
+        record->titleId = titleId;
+        store_records_save(store);
+        store_logf(store, "%s installed %016llX", store->pendingSlug, titleId);
+        for(u32 i = 0; i < store->count; i++) {
+            if(strcmp(store->apps[i].slug, store->pendingSlug) == 0) {
+                LightLock_Lock(&store->lock);
+                if(store->scan != NULL && i < store->scanCount) {
+                    store->scan[i].recTitleId = titleId;
+                }
+
+                LightLock_Unlock(&store->lock);
+                break;
+            }
+        }
+    }
+
+    store->pendingSlug[0] = '\0';
+}
+
 // The Store notes which version it put on the console, and the app's status is looked at again.
 static void store_install_finished_all(void* data) {
     store_install_ctx* ctx = (store_install_ctx*) data;
     store_data* store = ctx->store;
+    if(ctx->cia) {
+        store_take_title(store);
+    }
+
     if(ctx->ok) {
         store_record* record = store_record_find(store, ctx->slug);
         if(record == NULL && store->recordCount < STORE_RECORDS_MAX) {
@@ -2078,6 +2132,7 @@ static void store_install_finished_all(void* data) {
                 if(store->scan != NULL && i < store->scanCount) {
                     string_copy(store->scan[i].recCia, record->cia, sizeof(store->scan[i].recCia));
                     string_copy(store->scan[i].recOther, record->other, sizeof(store->scan[i].recOther));
+                    store->scan[i].recTitleId = record->titleId;
                 }
 
                 store_scan_entry entry = store->scan != NULL && i < store->scanCount ? store->scan[i] : (store_scan_entry) {{0}};
@@ -2111,6 +2166,7 @@ static void store_recheck_step(store_data* store) {
         return;
     }
 
+    store_take_title(store);
     u32 i = (u32) store->recheck;
     LightLock_Lock(&store->lock);
     bool known = store->scan != NULL && store->status != NULL && i < store->scanCount;
@@ -2154,6 +2210,12 @@ static void store_start(store_data* store, store_app* app, bool cia, const char*
     ctx->cia = cia;
     string_copy(ctx->slug, app->slug, sizeof(ctx->slug));
     string_copy(ctx->version, app->version, sizeof(ctx->version));
+    if(cia && app->uniqueId == 0) {
+        u64 last = 0;
+        string_copy(store->pendingSlug, app->slug, sizeof(store->pendingSlug));
+        store->titleCount = action_install_cia_installed(&last);
+    }
+
     // A plain CIA installs as it downloads (the usual choice of how); the rest follow Universal-DB's steps.
     const char* script = cia ? app->ciaScript : app->dsxScript;
     if(script == NULL) {
@@ -2387,13 +2449,23 @@ static void store_status_again(store_data* store, const store_app* app) {
     LightLock_Unlock(&store->lock);
 }
 
-// Where the app's CIA is installed (by its unique ID; 0 when the catalogue has none or it is not installed).
-static bool store_cia_title(const store_app* app, u64* titleId, FS_MediaType* media, u16* version) {
-    if(app->uniqueId == 0) {
+// The title the app's CIA installs: by the catalogue's unique ID, or else the one the Store saw it install (0: unknown).
+static u64 store_cia_title_id(store_data* store, const store_app* app) {
+    if(app->uniqueId != 0) {
+        return (0x00040000ULL << 32) | ((u64) app->uniqueId << 8);
+    }
+
+    store_record* record = store_record_find(store, app->slug);
+    return record != NULL ? record->titleId : 0;
+}
+
+// Where the app's CIA is installed (false when its title is not known or not installed).
+static bool store_cia_title(store_data* store, const store_app* app, u64* titleId, FS_MediaType* media, u16* version) {
+    *titleId = store_cia_title_id(store, app);
+    if(*titleId == 0) {
         return false;
     }
 
-    *titleId = (0x00040000ULL << 32) | ((u64) app->uniqueId << 8);
     AM_TitleEntry info;
     if(R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_SD, 1, titleId, &info))) {
         *media = MEDIATYPE_SD;
@@ -2487,7 +2559,7 @@ static void store_uninstall_cia(void* data) {
 
     ctx->store = store_sheet_store;
     ctx->app = store_sheet_app;
-    if(!store_cia_title(ctx->app, &ctx->titleId, &ctx->media, &ctx->version)) {
+    if(!store_cia_title(ctx->store, ctx->app, &ctx->titleId, &ctx->media, &ctx->version)) {
         free(ctx);
         prompt_display_notify("Store", _("The title is no longer installed."), COLOR_TEXT, NULL, NULL, NULL);
         return;
@@ -2564,7 +2636,7 @@ static void store_open_app(store_data* store, store_app* app) {
     }
 
     u8 status = store_status(store, app);
-    bool uninstallCia = app->ciaUrl != NULL && app->uniqueId != 0 && (status & STATUS_CIA) != 0;
+    bool uninstallCia = app->ciaUrl != NULL && store_cia_title_id(store, app) != 0 && (status & STATUS_CIA) != 0;
     bool deleteDsx = app->dsxUrl != NULL && (status & STATUS_DSX) != 0;
     bool direct = false;
     store_app_choices(store, app, &direct);
@@ -2927,6 +2999,7 @@ static void store_take(store_data* store, ui_view* view, linked_list* items, lis
             if(record != NULL) {
                 string_copy(scan[i].recCia, record->cia, sizeof(scan[i].recCia));
                 string_copy(scan[i].recOther, record->other, sizeof(scan[i].recOther));
+                scan[i].recTitleId = record->titleId;
             }
         }
     }

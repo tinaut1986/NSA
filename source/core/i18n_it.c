@@ -951,6 +951,7 @@ const i18n_entry i18n_it[] = {
         {"Download the CIA", "Scarica il CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "Lo salva in /nsa/received/ per installarlo dopo da File."},
         {"Download the 3DSX again", "Scarica di nuovo il 3DSX"},
+        {"The folder you are in", "La cartella in cui sei"},
         {"Remove what the Store installed", "Rimuovi ciò che ha installato il Negozio"},
         {"Deletes the files its downloads put on the SD card.", "Elimina i file che i suoi download hanno messo sulla scheda SD."},
         {"Remove what the Store installed for %s?\n\nThe file it put on the SD card is deleted (in %s).", "Rimuovere ciò che il Negozio ha installato per %s?\n\nViene eliminato il file che ha messo sulla scheda SD (in %s)."},

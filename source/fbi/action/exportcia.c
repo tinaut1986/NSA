@@ -93,6 +93,12 @@ typedef struct export_cia_data_s {
     u64 sinkHashTotal;
     u64 sinkSize;   // The whole package, as the hello said.
 
+    // Sending it as a CIA in order (issue #53): what comes before the contents and after them, made once they are hashed.
+    u8* orderedHead;
+    u32 orderedHeadSize;
+    u8* orderedTail;
+    u32 orderedTailSize;
+
     data_op_data exportInfo;
 } export_cia_data;
 
@@ -200,12 +206,8 @@ static Result action_export_cia_zero(export_cia_data* data, u64 start, u64 end) 
     return end > start ? action_export_cia_write(data, start, zeros, (u32) (end - start)) : 0;
 }
 
-static Result action_export_cia_write_tmd(export_cia_data* data) {
-    u8* tmd = (u8*) calloc(1, data->tmdSize);
-    if(tmd == NULL) {
-        return R_APP_OUT_OF_MEMORY;
-    }
-
+// The TMD (`data->tmdSize` bytes, zeroed) once every content's hash is known.
+static void action_export_cia_build_tmd(export_cia_data* data, u8* tmd) {
     action_export_cia_put32(tmd, 0x10004);
     memset(tmd + 4, 0xFF, 0x100);
 
@@ -238,7 +240,15 @@ static Result action_export_cia_write_tmd(export_cia_data* data) {
     action_export_cia_put16(infoRecords + 2, (u16) data->contentCount);
     mbedtls_sha256_ret(chunks, data->contentCount * TMD_CHUNK_SIZE, infoRecords + 4, 0);
     mbedtls_sha256_ret(infoRecords, 0x900, header + 0xA4, 0);
+}
 
+static Result action_export_cia_write_tmd(export_cia_data* data) {
+    u8* tmd = (u8*) calloc(1, data->tmdSize);
+    if(tmd == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    action_export_cia_build_tmd(data, tmd);
     Result res = action_export_cia_write(data, data->tmdOffset, tmd, data->tmdSize);
     free(tmd);
     return res;
@@ -445,6 +455,8 @@ static void action_export_cia_free(export_cia_data* data) {
     free(data->jobBuffer);
     free(data->streamHeader);
     free(data->sinkHeader);
+    free(data->orderedHead);
+    free(data->orderedTail);
     free(data);
 }
 
@@ -617,7 +629,25 @@ static Result action_export_cia_write_dst(void* data, u32 handle, u32* bytesWrit
     return 0;
 }
 
+// Several titles exported one after another (Titles' marked ones): copies of their title_info, owned here.
+static struct {
+    title_info* titles;
+    u32 count;
+    u32 next;        // The one to start after the current one.
+    u32 ok;
+    Result lastError;
+} export_batch;
+
+static void action_export_cia_batch_next();
+
 static bool action_export_cia_error(void* data, u32 index, Result res, ui_view** errorView) {
+    // In a batch the failure is said in the summary: nobody has to answer for the others to go on.
+    if(export_batch.titles != NULL) {
+        export_batch.lastError = res;
+        *errorView = NULL;
+        return false;
+    }
+
     *errorView = error_display_res(((export_cia_data*) data)->title, task_draw_title_info, res, "Failed to export CIA.");
     // Never skip a content: the file would be broken.
     return false;
@@ -630,10 +660,28 @@ static void action_export_cia_update(ui_view* view, void* data, float* progress,
         FSFILE_Close(exportData->ciaHandle);
         exportData->ciaHandle = 0;
 
-        if(R_SUCCEEDED(exportData->exportInfo.result)) {
-            prompt_display_notify("Success", "CIA exported to /nsa/cias/.", COLOR_TEXT, exportData->title, task_draw_title_info, NULL);
-        } else {
+        bool ok = R_SUCCEEDED(exportData->exportInfo.result);
+        if(!ok) {
             action_export_cia_delete_file(exportData);
+        }
+
+        if(export_batch.titles != NULL) {
+            // The next of the batch, or its summary. A cancel (B) stops the batch.
+            if(ok) {
+                export_batch.ok++;
+            } else if(exportData->exportInfo.result == R_APP_CANCELLED) {
+                export_batch.next = export_batch.count;
+            } else if(R_SUCCEEDED(export_batch.lastError)) {
+                export_batch.lastError = exportData->exportInfo.result;
+            }
+
+            action_export_cia_free(exportData);
+            action_export_cia_batch_next();
+            return;
+        }
+
+        if(ok) {
+            prompt_display_notify("Success", "CIA exported to /nsa/cias/.", COLOR_TEXT, exportData->title, task_draw_title_info, NULL);
         }
 
         action_export_cia_free(exportData);
@@ -662,6 +710,18 @@ static void action_export_cia_onresponse(ui_view* view, void* data, u32 response
     }
 
     Result res = action_export_cia_prepare(exportData);
+    if(R_FAILED(res) && export_batch.titles != NULL) {
+        // A title of a batch that can not be read: noted, and the next one.
+        export_batch.lastError = res;
+        action_export_cia_free(exportData);
+        if(res == R_APP_NOT_IMPLEMENTED) {
+            export_batch.next = export_batch.count;   // No Luma3DS: none of them can be.
+        }
+
+        action_export_cia_batch_next();
+        return;
+    }
+
     if(R_FAILED(res)) {
         if(res == R_APP_NOT_IMPLEMENTED) {
             error_display(exportData->title, task_draw_title_info, "Exporting a CIA needs Luma3DS.");
@@ -677,24 +737,30 @@ static void action_export_cia_onresponse(ui_view* view, void* data, u32 response
     if(R_SUCCEEDED(res = task_data_op(&exportData->exportInfo))) {
         info_display("Exporting CIA", "Press B to cancel.", true, data, action_export_cia_update, action_export_cia_draw_top);
     } else {
-        error_display_res(exportData->title, task_draw_title_info, res, "Failed to initiate CIA export.");
+        if(export_batch.titles == NULL) {
+            error_display_res(exportData->title, task_draw_title_info, res, "Failed to initiate CIA export.");
+        } else {
+            export_batch.lastError = res;
+        }
 
         FSFILE_Close(exportData->ciaHandle);
         exportData->ciaHandle = 0;
         action_export_cia_delete_file(exportData);
         action_export_cia_free(exportData);
+        if(export_batch.titles != NULL) {
+            action_export_cia_batch_next();
+        }
     }
 }
 
-void action_export_cia(linked_list* items, list_item* selected) {
+// A title's export, set up and not started.
+static export_cia_data* action_export_cia_new(title_info* title) {
     export_cia_data* data = (export_cia_data*) calloc(1, sizeof(export_cia_data));
     if(data == NULL) {
-        error_display(NULL, NULL, "Failed to allocate export CIA data.");
-
-        return;
+        return NULL;
     }
 
-    data->title = (title_info*) selected->data;
+    data->title = title;
 
     data->exportInfo.data = data;
 
@@ -718,8 +784,85 @@ void action_export_cia(linked_list* items, list_item* selected) {
     data->exportInfo.error = action_export_cia_error;
 
     data->exportInfo.finished = true;
+    return data;
+}
+
+void action_export_cia(linked_list* items, list_item* selected) {
+    export_cia_data* data = action_export_cia_new((title_info*) selected->data);
+    if(data == NULL) {
+        error_display(NULL, NULL, "Failed to allocate export CIA data.");
+        return;
+    }
 
     prompt_display_yes_no("Confirmation", "Export the selected title as a CIA?", COLOR_TEXT, data, action_export_cia_draw_top, action_export_cia_onresponse);
+}
+
+// ---- several titles, one after another ----
+
+static void action_export_cia_batch_next() {
+    while(export_batch.next < export_batch.count) {
+        export_cia_data* data = action_export_cia_new(&export_batch.titles[export_batch.next++]);
+        if(data == NULL) {
+            export_batch.lastError = R_APP_OUT_OF_MEMORY;
+            continue;
+        }
+
+        action_export_cia_onresponse(NULL, data, PROMPT_YES);
+        return;
+    }
+
+    // All tried: what went, and why the others did not.
+    char text[256];
+    u32 count = export_batch.count;
+    u32 ok = export_batch.ok;
+    if(ok == count) {
+        snprintf(text, sizeof(text), ok == 1 ? _("CIA exported to /nsa/cias/.") : _("Exported %lu titles to /nsa/cias/."), (unsigned long) ok);
+    } else if(export_batch.lastError == R_APP_NOT_IMPLEMENTED) {
+        snprintf(text, sizeof(text), "%s", _("Exporting a CIA needs Luma3DS."));
+    } else {
+        snprintf(text, sizeof(text), _("Exported %lu of %lu titles to /nsa/cias/."), (unsigned long) ok, (unsigned long) count);
+        if(R_FAILED(export_batch.lastError)) {
+            size_t used = strlen(text);
+            snprintf(text + used, sizeof(text) - used, " (%08lX)", export_batch.lastError);
+        }
+    }
+
+    free(export_batch.titles);
+    memset(&export_batch, 0, sizeof(export_batch));
+
+    led_blink(ok == count);
+    prompt_display_notify(ok == count ? "Success" : "Failure", text, COLOR_TEXT, NULL, NULL, NULL);
+}
+
+static void action_export_cias_onresponse(ui_view* view, void* data, u32 response) {
+    if(response != PROMPT_YES) {
+        free(export_batch.titles);
+        memset(&export_batch, 0, sizeof(export_batch));
+        return;
+    }
+
+    action_export_cia_batch_next();
+}
+
+void action_export_cias(title_info* titles, u32 count) {
+    if(export_batch.titles != NULL || count == 0) {
+        free(titles);
+        return;
+    }
+
+    export_batch.titles = titles;
+    export_batch.count = count;
+    export_batch.next = 0;
+    export_batch.ok = 0;
+    export_batch.lastError = 0;
+
+    char text[160];
+    if(count == 1) {
+        snprintf(text, sizeof(text), "%s", _("Export the marked title as a CIA to /nsa/cias/?"));
+    } else {
+        snprintf(text, sizeof(text), _("Export the %lu marked titles as CIAs to /nsa/cias/?"), (unsigned long) count);
+    }
+    prompt_display_yes_no("Confirmation", text, COLOR_TEXT, NULL, NULL, action_export_cias_onresponse);
 }
 
 // Sends the title to another 3DS as a title package, with no CIA made first.
@@ -901,6 +1044,134 @@ Result action_export_cia_stream_read(export_cia_data* data, u32 index, u64 offse
 
 void action_export_cia_stream_free(export_cia_data* data) {
     action_export_cia_free(data);
+}
+
+// ---- a CIA in order (issue #53) ----
+//
+// For a receiver that installs the title while it arrives, with no room for its CIA: AM takes a CIA from its start, so
+// the TMD, which holds every content's hash, comes before the contents. They are read once first to hash them; then the
+// CIA is `head` (header, certificates, ticket, TMD, up to the contents), each content as it is, and `tail` (up to the
+// meta, and the meta).
+
+#define ORDERED_BLOCK (256 * 1024)
+
+Result action_export_cia_ordered_hash(export_cia_data* data, volatile u64* done, volatile bool* cancel) {
+    u8* buffer = (u8*) malloc(ORDERED_BLOCK);
+    if(buffer == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Result res = 0;
+    for(u32 i = 0; i < data->contentCount && R_SUCCEEDED(res); i++) {
+        mbedtls_sha256_context sha;
+        mbedtls_sha256_init(&sha);
+        mbedtls_sha256_starts_ret(&sha, 0);
+
+        u64 size = data->contents[i].size;
+        for(u64 offset = 0; offset < size && R_SUCCEEDED(res); ) {
+            if(cancel != NULL && *cancel) {
+                res = R_APP_CANCELLED;
+                break;
+            }
+
+            u32 want = size - offset > ORDERED_BLOCK ? ORDERED_BLOCK : (u32) (size - offset);
+            if(R_SUCCEEDED(res = action_export_cia_stream_read(data, i, offset, buffer, want))) {
+                mbedtls_sha256_update_ret(&sha, buffer, want);
+                offset += want;
+                if(done != NULL) {
+                    *done += want;
+                }
+            }
+        }
+
+        if(R_SUCCEEDED(res)) {
+            mbedtls_sha256_finish_ret(&sha, data->hashes[i]);
+        }
+
+        mbedtls_sha256_free(&sha);
+    }
+
+    free(buffer);
+    return res;
+}
+
+Result action_export_cia_ordered_make(export_cia_data* data, u64* size) {
+    u64 contentSize = 0;
+    for(u32 i = 0; i < data->contentCount; i++) {
+        contentSize += data->contents[i].size;
+    }
+
+    bool hasMeta = data->title->hasMeta;
+    data->tmdSize = TMD_HEADER_SIZE + data->contentCount * TMD_CHUNK_SIZE;
+    u64 certOffset = CIA_ALIGN(CIA_HEADER_SIZE);
+    u64 ticketOffset = CIA_ALIGN(certOffset + CIA_CERT_SIZE);
+    data->tmdOffset = CIA_ALIGN(ticketOffset + CIA_TICKET_SIZE);
+    data->contentsOffset = CIA_ALIGN(data->tmdOffset + data->tmdSize);
+    u64 metaOffset = CIA_ALIGN(data->contentsOffset + contentSize);
+
+    free(data->orderedHead);
+    free(data->orderedTail);
+    data->orderedHeadSize = (u32) data->contentsOffset;
+    data->orderedHead = (u8*) calloc(1, data->orderedHeadSize);
+    data->orderedTailSize = hasMeta ? (u32) (metaOffset - (data->contentsOffset + contentSize)) + CIA_META_SIZE : 0;
+    data->orderedTail = data->orderedTailSize > 0 ? (u8*) calloc(1, data->orderedTailSize) : NULL;
+    if(data->orderedHead == NULL || (data->orderedTailSize > 0 && data->orderedTail == NULL)) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    // As action_export_cia_create_file writes them.
+    u8* head = data->orderedHead;
+    for(u32 i = 0; i < data->contentCount; i++) {
+        head[0x20 + data->contents[i].index / 8] |= (u8) (0x80 >> (data->contents[i].index % 8));
+    }
+
+    u32 headerSize = CIA_HEADER_SIZE, certSize = CIA_CERT_SIZE, ticketSize = CIA_TICKET_SIZE, metaSize = hasMeta ? CIA_META_SIZE : 0;
+    memcpy(head + 0x00, &headerSize, 4);
+    memcpy(head + 0x08, &certSize, 4);
+    memcpy(head + 0x0C, &ticketSize, 4);
+    memcpy(head + 0x10, &data->tmdSize, 4);
+    memcpy(head + 0x14, &metaSize, 4);
+    memcpy(head + 0x18, &contentSize, 8);
+
+    action_export_cia_read_certs(head + certOffset);
+    action_export_cia_make_ticket(data, head + ticketOffset);
+    action_export_cia_build_tmd(data, head + data->tmdOffset);
+
+    // The meta the package's header holds (read from the title when it was opened).
+    if(hasMeta && data->streamHeader != NULL) {
+        memcpy(data->orderedTail + data->orderedTailSize - CIA_META_SIZE, data->streamHeader + PACKAGE_HEAD_SIZE + data->contentCount * PACKAGE_ENTRY_SIZE, CIA_META_SIZE);
+    }
+
+    *size = data->orderedHeadSize + contentSize + data->orderedTailSize;
+    return 0;
+}
+
+u32 action_export_cia_ordered_segments(export_cia_data* data, u64* segments) {
+    u32 count = 0;
+    segments[count++] = data->orderedHeadSize;
+    for(u32 i = 0; i < data->contentCount; i++) {
+        segments[count++] = data->contents[i].size;
+    }
+
+    if(data->orderedTailSize > 0) {
+        segments[count++] = data->orderedTailSize;
+    }
+
+    return count;
+}
+
+Result action_export_cia_ordered_read(export_cia_data* data, u32 segment, u64 offset, void* buffer, u32 size) {
+    if(segment == 0) {
+        memcpy(buffer, data->orderedHead + offset, size);
+        return 0;
+    }
+
+    if(segment <= data->contentCount) {
+        return action_export_cia_stream_read(data, segment - 1, offset, buffer, size);
+    }
+
+    memcpy(buffer, data->orderedTail + offset, size);
+    return 0;
 }
 
 // Receiving: a CIA is built at `path` from the package that is written to it.

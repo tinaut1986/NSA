@@ -12,6 +12,8 @@
 #include "../core/core.h"
 #include "../core/data/smdh.h"
 #include "settings.h"
+#include "transfer.h"
+#include "webserver.h"
 
 // Titles: rows with each title's icon, or a grid of icons. The title bar's
 // tools switch the view, filter and sort, and search; A or a tap opens a
@@ -54,6 +56,10 @@ typedef struct {
     // The title the action sheet is for.
     linked_list* actionItems;
     list_item* actionSelected;
+
+    // Marking several titles to send to another 3DS at once (issue #53): A marks, START sends.
+    bool picking;
+    char pickInfo[160];
 } titles_data;
 
 #define ROW_HEIGHT 40
@@ -158,6 +164,252 @@ static bool titles_visible(void* data, list_item* item) {
     return !listData->group || !info->linked || !listData->showKind[TITLE_KIND_GAME];
 }
 
+// ---- picking several titles to send (issue #53) ----
+
+#define TITLES_NSA_ID (0x0004000000000000ULL | ((u64) APP_UNIQUE_ID << 8))
+
+// What a batch can send: a CTR title of the SD card (it installs there on the other console too), not NSA itself
+// (installing it over the receiver's would restart that one in the middle of the batch).
+static bool titles_pickable(title_info* info) {
+    return info->loaded && info->mediaType == MEDIATYPE_SD && !info->twl && info->titleId != TITLES_NSA_ID;
+}
+
+static u32 titles_picked_count(linked_list* items) {
+    u32 count = 0;
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        if(((title_info*) ((list_item*) linked_list_iter_next(&iter))->data)->picked) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+static void titles_pick_clear(linked_list* items) {
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        ((title_info*) ((list_item*) linked_list_iter_next(&iter))->data)->picked = false;
+    }
+}
+
+// A or a tap while picking. Grouped, a game takes its update and DLC along (they hide behind it).
+static void titles_pick_toggle(titles_data* data, linked_list* items, title_info* info) {
+    if(!titles_pickable(info)) {
+        sound_play(SOUND_ERROR);
+        return;
+    }
+
+    bool on = !info->picked;
+    info->picked = on;
+
+    if(data->group && info->linkedCount > 0 && title_kind_of(info->titleId) == TITLE_KIND_GAME) {
+        linked_list_iter iter;
+        linked_list_iterate(items, &iter);
+        while(linked_list_iter_has_next(&iter)) {
+            title_info* extra = (title_info*) ((list_item*) linked_list_iter_next(&iter))->data;
+            if(extra->linked && (u32) extra->titleId == (u32) info->titleId && titles_pickable(extra)) {
+                extra->picked = on;
+            }
+        }
+    }
+
+    sound_play(SOUND_TICK);
+}
+
+// Copies of the marked titles (malloc'd, `count` of them): whoever takes them owns them, whatever happens to this list.
+static title_info* titles_pick_copies(linked_list* items, u32* count) {
+    *count = titles_picked_count(items);
+    title_info* titles = *count > 0 ? (title_info*) calloc(*count, sizeof(title_info)) : NULL;
+    if(titles == NULL) {
+        return NULL;
+    }
+
+    u32 at = 0;
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter) && at < *count) {
+        title_info* info = (title_info*) ((list_item*) linked_list_iter_next(&iter))->data;
+        if(info->picked) {
+            titles[at] = *info;
+            titles[at].meta.texture = 0;   // The list owns the icon.
+            at++;
+        }
+    }
+
+    *count = at;
+    return titles;
+}
+
+static void titles_pick_send(titles_data* data, linked_list* items) {
+    if(titles_picked_count(items) == 0) {
+        prompt_display_notify("Send to another 3DS", "Mark the titles to send first (A marks one).", COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    u32 count = 0;
+    title_info* titles = titles_pick_copies(items, &count);
+    if(titles == NULL) {
+        error_display(NULL, NULL, "Failed to allocate transfer data.");
+        return;
+    }
+
+    transfer_send_titles(titles, count);
+}
+
+// ---- what can be done to the marked titles at once (a long press while picking) ----
+
+typedef struct {
+    titles_data* list;
+    bool ticket;
+    u32 total;
+    u32 deleted;
+    u32 failed;
+    Result lastError;
+} titles_delete_batch;
+
+// One title a frame, so that the screen says how far it is.
+static void titles_delete_batch_update(ui_view* view, void* data, float* progress, char* text) {
+    titles_delete_batch* batch = (titles_delete_batch*) data;
+    linked_list* items = batch->list->items;
+
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        title_info* info = (title_info*) item->data;
+        if(!info->picked) {
+            continue;
+        }
+
+        Result res = AM_DeleteTitle(info->mediaType, info->titleId);
+        if(R_SUCCEEDED(res) && batch->ticket) {
+            res = AM_DeleteTicket(info->titleId);
+        }
+
+        if(R_SUCCEEDED(res)) {
+            webserver_title_deleted(info->titleId, info->mediaType);
+            linked_list_iter_remove(&iter);
+            task_free_title(item);
+            batch->deleted++;
+        } else {
+            // Left in the list, unmarked, so that it is not tried again.
+            info->picked = false;
+            batch->failed++;
+            batch->lastError = res;
+        }
+
+        u32 done = batch->deleted + batch->failed;
+        *progress = batch->total != 0 ? (float) done / (float) batch->total : 1;
+        snprintf(text, PROGRESS_TEXT_MAX, _("Deleting %lu of %lu..."), (unsigned long) (done < batch->total ? done + 1 : batch->total), (unsigned long) batch->total);
+        return;
+    }
+
+    ui_pop();
+    info_destroy(view);
+
+    char message[160];
+    if(batch->failed == 0) {
+        snprintf(message, sizeof(message), batch->deleted == 1 ? _("Title deleted.") : _("Deleted %lu titles."), (unsigned long) batch->deleted);
+    } else {
+        snprintf(message, sizeof(message), _("Deleted %lu of %lu titles. The others could not be deleted (%08lX)."),
+                 (unsigned long) batch->deleted, (unsigned long) batch->total, batch->lastError);
+    }
+
+    prompt_display_notify(batch->failed == 0 ? "Success" : "Failure", message, COLOR_TEXT, NULL, NULL, NULL);
+    free(batch);
+}
+
+static void titles_delete_batch_answer(ui_view* view, void* data, u32 response) {
+    titles_delete_batch* batch = (titles_delete_batch*) data;
+    if(response != PROMPT_YES) {
+        free(batch);
+        return;
+    }
+
+    info_display("Deleting titles", "", true, batch, titles_delete_batch_update, NULL);
+}
+
+static void titles_pick_delete_ask(titles_data* data, bool ticket) {
+    titles_delete_batch* batch = (titles_delete_batch*) calloc(1, sizeof(titles_delete_batch));
+    if(batch == NULL) {
+        error_display(NULL, NULL, "Failed to allocate titles data.");
+        return;
+    }
+
+    batch->list = data;
+    batch->ticket = ticket;
+    batch->total = titles_picked_count(data->items);
+
+    char text[200];
+    if(batch->total == 1) {
+        snprintf(text, sizeof(text), "%s", ticket ? _("Delete the marked title and its ticket? Its save data goes with it.")
+                                                 : _("Delete the marked title? Its save data goes with it."));
+    } else {
+        snprintf(text, sizeof(text), ticket ? _("Delete the %lu marked titles and their tickets? Their save data goes with them.")
+                                            : _("Delete the %lu marked titles? Their save data goes with them."), (unsigned long) batch->total);
+    }
+    prompt_display_warning("Confirmation", text, COLOR_TEXT, batch, NULL, titles_delete_batch_answer);
+}
+
+static void titles_pick_act_send(void* data) {
+    titles_data* listData = (titles_data*) data;
+    titles_pick_send(listData, listData->items);
+}
+
+static void titles_pick_act_export(void* data) {
+    titles_data* listData = (titles_data*) data;
+    u32 count = 0;
+    title_info* titles = titles_pick_copies(listData->items, &count);
+    if(titles == NULL) {
+        error_display(NULL, NULL, "Failed to allocate titles data.");
+        return;
+    }
+
+    action_export_cias(titles, count);
+}
+
+static void titles_pick_act_delete(void* data) {
+    titles_pick_delete_ask((titles_data*) data, false);
+}
+
+static void titles_pick_act_delete_ticket(void* data) {
+    titles_pick_delete_ask((titles_data*) data, true);
+}
+
+static void titles_pick_act_unmark(void* data) {
+    titles_data* listData = (titles_data*) data;
+    titles_pick_clear(listData->items);
+}
+
+static void titles_pick_actions(titles_data* data) {
+    static char title[64];
+    snprintf(title, sizeof(title), _("Marked titles: %lu"), (unsigned long) titles_picked_count(data->items));
+
+    sheet_action actions[5];
+    u32 count = 0;
+    actions[count++] = (sheet_action) {ICON_3DS, _("Send to another 3DS"), false, titles_pick_act_send};
+    actions[count++] = (sheet_action) {ICON_PACKAGE, _("Export as CIA"), false, titles_pick_act_export};
+    actions[count++] = (sheet_action) {ICON_SQUARE, _("Unmark all"), false, titles_pick_act_unmark};
+    actions[count++] = (sheet_action) {ICON_TRASH, _("Delete"), true, titles_pick_act_delete};
+    actions[count++] = (sheet_action) {ICON_TRASH_X, _("Delete with ticket"), true, titles_pick_act_delete_ticket};
+    sheet_display_list(title, 0, actions, count, data);
+}
+
+static bool titles_pick_active(ui_view* view, void* data) {
+    return ((titles_data*) data)->picking;
+}
+
+static void titles_pick_press(ui_view* view, void* data) {
+    titles_data* listData = (titles_data*) data;
+    listData->picking = !listData->picking;
+    if(!listData->picking && listData->items != NULL) {
+        titles_pick_clear(listData->items);
+    }
+}
+
 // ---- items ----
 
 static void titles_draw_icon(title_info* info, float x, float y, float size) {
@@ -194,6 +446,16 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
 
     float tx = x + 5 + icon + 8;
     float right = x + width - 8;
+
+    // Picking titles to send: a box at the end of the row (none for a title that can not go).
+    if(listData != NULL && listData->picking) {
+        if(titles_pickable(info)) {
+            screen_draw_icon(info->picked ? ICON_SQUARE_CHECK : ICON_SQUARE, right - 16, y + (height - 16) / 2, 16,
+                             selected ? t->onAccent : info->picked ? t->accent : muted);
+        }
+
+        right -= 22;
+    }
 
     // Anything but a game says what it is.
     title_kind kind = title_kind_of(info->titleId);
@@ -239,6 +501,20 @@ static void titles_draw_tile(void* data, list_item* item, float x, float y, floa
     titles_data* listData = (titles_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
         widget_count_badge(info->linkedCount, x + size - 4, y + 4);
+    }
+
+    if(listData != NULL && listData->picking && titles_pickable(info)) {
+        // A small box in the corner: filled with a tick when marked, an empty frame when not.
+        const theme_current* t = theme();
+        float box = 14;
+        float bx = x + size - box - 6;
+        float by = y + size - box - 6;
+        if(info->picked) {
+            screen_fill_round_rect(bx, by, box, box, 3, t->accent);
+            screen_draw_icon(ICON_CHECK, bx - 1, by - 1, box + 2, t->onAccent);
+        } else {
+            screen_frame_round_rect(bx, by, box, box, 3, 1.5f, t->palette->textMuted, t->palette->surface);
+        }
     }
 }
 
@@ -921,6 +1197,21 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
     // How many have loaded, for the title bar.
     u32 loaded = list_count_progress(view, items, !listData->populateData.finished, titles_item_ready);
     view->info = _(" actions    view    filter    search    back");
+    if(listData->picking) {
+        snprintf(listData->pickInfo, sizeof(listData->pickInfo), _(" mark (hold: options)   START send (%lu)    done"), (unsigned long) titles_picked_count(items));
+        view->info = listData->pickInfo;
+
+        if(hidKeysDown() & KEY_B) {
+            listData->picking = false;
+            titles_pick_clear(items);
+            return;
+        }
+
+        if(hidKeysDown() & KEY_START) {
+            titles_pick_send(listData, items);
+            return;
+        }
+    }
 
     if(hidKeysDown() & KEY_B) {
         // B first clears a search.
@@ -994,6 +1285,11 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
 
     // A title still loading has nothing to act on yet.
     if(selected != NULL && selected->data != NULL && selectedTouched && ((title_info*) selected->data)->loaded) {
+        if(listData->picking) {
+            titles_pick_toggle(listData, items, (title_info*) selected->data);
+            return;
+        }
+
         // Grouped, a game with an update or DLC opens its chain to pick one.
         if(listData->group && ((title_info*) selected->data)->linkedCount > 0) {
             titles_chain_open(listData, items, selected);
@@ -1007,6 +1303,13 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
 
 // A long hold: the title's own actions, even for a game with its chain.
 static void titles_long_press(ui_view* view, void* data, linked_list* items, list_item* item) {
+    // Picking, with titles marked: what can be done to all of them.
+    titles_data* listData = (titles_data*) data;
+    if(listData->picking && titles_picked_count(items) > 0) {
+        titles_pick_actions(listData);
+        return;
+    }
+
     if(item->data != NULL && ((title_info*) item->data)->loaded) {
         titles_actions_open((titles_data*) data, items, item);
     }
@@ -1113,6 +1416,7 @@ void titles_open() {
     // Right to left.
     list_add_search_tool(view, _("Search titles"));
     list_add_tool(view, ICON_FILTER, titles_filter_active, titles_filter_open);
+    list_add_tool(view, ICON_SQUARE_CHECK, titles_pick_active, titles_pick_press);
     list_add_tile_tool(view, &settings_get()->titles.tile);
     list_add_view_tools(view, titles_view_changed);
 }

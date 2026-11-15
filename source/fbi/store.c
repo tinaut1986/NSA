@@ -10,6 +10,7 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <3ds.h>
 #include <jansson.h>
@@ -20,6 +21,7 @@
 #include "storelist.h"
 #include "storescript.h"
 #include "thumbs.h"
+#include "viewers.h"
 #include "action/action.h"
 #include "../core/core.h"
 #include "../core/task/dataop.h"
@@ -48,7 +50,7 @@
 #define STORE_ICON_SIDE 48   // The icons are kept as textures this many pixels square, for as long as the Store is open.
 #define STORE_PREFETCH_PAUSE 4000   // ms between the icons fetched in the background, when no row is waiting for one.
 #define STORE_RECORDS_MAX 512
-#define STORE_CACHE_FORMAT 9   // Raised when the copy on the SD card gains fields: the old one is downloaded again.
+#define STORE_CACHE_FORMAT 10  // Raised when the copy on the SD card gains fields: the old one is downloaded again.
 
 typedef enum {
     ICON_NONE,      // Not asked for yet.
@@ -59,6 +61,9 @@ typedef enum {
 
 // A download that is neither the app's CIA nor its .3dsx: files for another console, a mod, a skin, data...
 #define STORE_OTHERS_MAX 12
+// An app's pictures shown at most, and where the last app's are kept (one app's at a time).
+#define STORE_SHOTS_MAX 8
+#define STORE_SHOTS_DIR APP_DATA_DIR "store-shots/"
 
 typedef struct {
     char name[64];     // As the store names it ("Download Celeste Classic GBA", "skin.7z").
@@ -82,6 +87,7 @@ typedef struct {
     char* dsxScript;
     char dsxName[64];   // The .3dsx it leaves, without the extension, to look for it in /3ds/.
     char* files;        // Universal-DB's "installed_files": what it leaves on the card, one path per line (NULL: none).
+    char* shots;        // Its pictures (the catalogue's "screenshots"), one URL per line (NULL: none); issue #38.
     char* iconUrl;      // Where the icon is: "sheet:index" in the catalogue's sprite sheets.
     char* preMessage;   // What the author asks to be read before installing (NULL: nothing).
     char console[16];   // The first console it is for, as the store says ("3DS", "NDS", "GBA"...).
@@ -128,6 +134,7 @@ typedef struct {
     char cia[24];
     char dsx[24];
     char other[128];  // A file one of its other downloads left (an app with neither a CIA nor a .3dsx).
+    u64 titleId;      // The title its CIA installed (an app without a unique ID; 0 when not known).
 } store_record;
 
 // What the background scan needs about an app (copied, so the scan never reads the apps that the screen owns).
@@ -138,6 +145,7 @@ typedef struct {
     bool hasDsx;
     char dsxName[96];
     char recCia[24];     // The Store installed its CIA (an app without a unique ID).
+    u64 recTitleId;      // The title that CIA installed (store_record's `titleId`), 0 when not known.
     char files[160];     // store_app's `files` (whole lines only).
     char recOther[128];  // A file one of its other downloads left (store_record's `other`).
 } store_scan_entry;
@@ -232,6 +240,11 @@ typedef struct {
     s32 recheck;
     u32 recheckTries;
     u64 recheckAt;
+
+    // A CIA the Store started to install for an app with no unique ID: the first CIA installed after `titleCount`
+    // (action_install_cia_installed) is its title, noted in its record. "" for none.
+    char pendingSlug[64];
+    u32 titleCount;
 } store_data;
 
 // The Store on screen (NULL: closed), for store_exit. Main thread only.
@@ -295,6 +308,7 @@ static void store_free_apps(store_app* apps, u32 count) {
         free(apps[i].iconUrl);
         free(apps[i].preMessage);
         free(apps[i].files);
+        free(apps[i].shots);
         for(u32 j = 0; j < apps[i].otherCount; j++) {
             free(apps[i].others[j].script);
         }
@@ -303,6 +317,14 @@ static void store_free_apps(store_app* apps, u32 count) {
     }
 
     free(apps);
+}
+
+// An install keeps the Store's data until it ends, even if the Store is closed meanwhile (it may go on in the background,
+// issue #41): store_release lets go of it.
+static void store_retain(store_data* store) {
+    LightLock_Lock(&store->lock);
+    store->users++;
+    LightLock_Unlock(&store->lock);
 }
 
 static void store_release(store_data* store) {
@@ -566,6 +588,30 @@ static int store_parse_full(const char* text, size_t size, const char* baseUrl, 
             app->preMessage = strdup(message);
         }
 
+        // Its pictures: [{"url": ..., "description": ...}] (plain strings are taken too), the first STORE_SHOTS_MAX.
+        json_t* shots = json_object_get(info, "screenshots");
+        if(json_is_array(shots)) {
+            char joined[STORE_SHOTS_MAX * 256] = "";
+            size_t used = 0;
+            u32 taken = 0;
+            size_t shotIndex;
+            json_t* shot;
+            json_array_foreach(shots, shotIndex, shot) {
+                const char* url = json_is_string(shot) ? json_string_value(shot) : store_str(shot, "url");
+                if(taken >= STORE_SHOTS_MAX || (strncmp(url, "https://", 8) != 0 && strncmp(url, "http://", 7) != 0) || strlen(url) >= 256
+                   || strchr(url, '\n') != NULL || used + strlen(url) + 2 > sizeof(joined)) {
+                    continue;
+                }
+
+                used += snprintf(joined + used, sizeof(joined) - used, "%s%s", used > 0 ? "\n" : "", url);
+                taken++;
+            }
+
+            if(used > 0) {
+                app->shots = strdup(joined);
+            }
+        }
+
         // What it leaves on the card, as Universal-Updater looks for it.
         json_t* files = json_object_get(info, "installed_files");
         if(json_is_array(files)) {
@@ -637,6 +683,10 @@ static json_t* store_app_to_json(const store_app* app) {
 
     if(app->files != NULL) {
         json_object_set_new(object, "f", json_string(app->files));
+    }
+
+    if(app->shots != NULL) {
+        json_object_set_new(object, "ss", json_string(app->shots));
     }
 
     json_object_set_new(object, "co", json_string(app->console));
@@ -745,6 +795,10 @@ static int store_read_cache(const store_data* store, store_app** out, store_meta
 
         if(store_str(entry, "f")[0] != '\0') {
             app->files = strdup(store_str(entry, "f"));
+        }
+
+        if(store_str(entry, "ss")[0] != '\0') {
+            app->shots = strdup(store_str(entry, "ss"));
         }
 
         string_copy(app->console, store_str(entry, "co"), sizeof(app->console));
@@ -932,6 +986,7 @@ static void store_records_load(store_data* store) {
             string_copy(record->cia, store_str(value, "c"), sizeof(record->cia));
             string_copy(record->dsx, store_str(value, "d"), sizeof(record->dsx));
             string_copy(record->other, store_str(value, "o"), sizeof(record->other));
+            record->titleId = strtoull(store_str(value, "t"), NULL, 16);
         }
     }
 
@@ -952,6 +1007,12 @@ static void store_records_save(store_data* store) {
 
         if(store->records[i].other[0] != '\0') {
             json_object_set_new(entry, "o", json_string(store->records[i].other));
+        }
+
+        if(store->records[i].titleId != 0) {
+            char id[20];
+            snprintf(id, sizeof(id), "%016llX", store->records[i].titleId);
+            json_object_set_new(entry, "t", json_string(id));
         }
 
         json_object_set_new(root, store->records[i].slug, entry);
@@ -979,8 +1040,7 @@ static void store_dsx_name(const char* url, char* out, size_t size) {
     }
 }
 
-static bool store_title_installed(u32 uniqueId) {
-    u64 titleId = (0x00040000ULL << 32) | ((u64) uniqueId << 8);
+static bool store_title_id_installed(u64 titleId) {
     AM_TitleEntry info;
     return R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_SD, 1, &titleId, &info)) || R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_NAND, 1, &titleId, &info));
 }
@@ -1102,11 +1162,11 @@ static bool store_dsx_dir_has(const store_dsx_dir* dir, const char* name) {
 static u8 store_compute_status(const store_scan_entry* entry, const u64* installed, u32 installedCount, const store_dsx_dir* dir) {
     u8 bits = 0;
     if(entry->hasCia) {
-        // Without a unique ID, what the Store installed is all there is to go by.
-        u64 titleId = (0x00040000ULL << 32) | ((u64) entry->uniqueId << 8);
-        bool installedHere = entry->uniqueId != 0 ? (installed != NULL ? bsearch(&titleId, installed, installedCount, sizeof(u64), store_compare_ids) != NULL
-                                                                        : store_title_installed(entry->uniqueId))
-                                                  : entry->recCia[0] != '\0';
+        // Without a unique ID, the title the Store's CIA installed, or else that it installed it, is all there is to go by.
+        u64 titleId = entry->uniqueId != 0 ? (0x00040000ULL << 32) | ((u64) entry->uniqueId << 8) : entry->recTitleId;
+        bool installedHere = titleId != 0 ? (installed != NULL ? bsearch(&titleId, installed, installedCount, sizeof(u64), store_compare_ids) != NULL
+                                                               : store_title_id_installed(titleId))
+                                          : entry->recCia[0] != '\0';
         if(installedHere) {
             bits |= STATUS_CIA;
         }
@@ -1692,6 +1752,8 @@ static store_app* store_of(const list_item* item) {
     return (store_app*) item->data;
 }
 
+static u64 store_cia_title_id(store_data* store, const store_app* app);
+
 // What is on the console for an app (0 until the background scan reaches it).
 static u8 store_status(store_data* store, const store_app* app) {
     if(store->status == NULL) {
@@ -1811,6 +1873,47 @@ static void store_draw_row(void* data, list_item* item, float x, float y, float 
     widget_text_fit(sub, tx, top + lineH + 1, WIDGET_SMALL_SCALE, muted, right - tx);
 }
 
+// How many pictures the catalogue gives an app (the first STORE_SHOTS_MAX).
+static u32 store_shot_count(const store_app* app) {
+    if(app->shots == NULL) {
+        return 0;
+    }
+
+    u32 count = 1;
+    for(const char* c = app->shots; *c != '\0'; c++) {
+        count += *c == '\n';
+    }
+
+    return count > STORE_SHOTS_MAX ? STORE_SHOTS_MAX : count;
+}
+
+// What A does on an app: the choices its sheet has (0: nothing to download), and whether there is only one, which A then
+// starts at once (the install question) instead of opening the sheet. store_open_app goes by it, and the top screen says it.
+static u32 store_app_choices(store_data* store, const store_app* app, bool* direct) {
+    u8 status = store_status(store, app);
+    u32 downloads = (app->ciaUrl != NULL ? 1 : 0) + (app->dsxUrl != NULL ? 1 : 0) + app->otherCount;
+    u32 extra = (app->ciaUrl != NULL && store_cia_title_id(store, app) != 0 && (status & STATUS_CIA) != 0 ? 1 : 0)   // Uninstall the CIA.
+                + (app->dsxUrl != NULL && (status & STATUS_DSX) != 0 ? 1 : 0)                        // Delete the 3DSX.
+                + (app->shots != NULL ? 1 : 0);                                                      // Pictures.
+    *direct = downloads == 1 && extra == 0;
+    return downloads == 0 ? 0 : downloads + extra;
+}
+
+// A small badge with an icon and a number (an app's pictures), ending at `right`; returns where it starts.
+static float store_draw_count_badge(int icon, u32 number, float right, float y) {
+    const theme_current* t = theme();
+    char text[16];
+    snprintf(text, sizeof(text), "%lu", number);
+    float textW = widget_text_width(text, WIDGET_SMALL_SCALE);
+    float height = widget_text_height(WIDGET_SMALL_SCALE) + 4;
+    float width = 6 + 14 + 3 + textW + 7;
+    float x = right - width;
+    screen_fill_round_rect(x, y, width, height, height / 2, t->accentSoft);
+    screen_draw_icon(icon, x + 6, y + (height - 14) / 2, 14, t->accent);
+    screen_draw_text(text, x + 6 + 14 + 3, y + 2, WIDGET_SMALL_SCALE, t->accent);
+    return x;
+}
+
 static void store_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     store_data* store = (store_data*) data;
     const theme_current* t = theme();
@@ -1845,7 +1948,14 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
     float icon = 48;
     store_draw_app_icon(store, app, textX, cardY + 12, icon, false);
     float titleX = textX + icon + 10;
-    widget_text_fit(app->title, titleX, cardY + 12, WIDGET_TITLE_SCALE, t->palette->text, right - titleX);
+    // Its pictures (issue #38): how many, at the top right.
+    float titleRight = right;
+    u32 shots = store_shot_count(app);
+    if(shots > 0) {
+        titleRight = store_draw_count_badge(ICON_PHOTO, shots, right, cardY + 14) - 8;
+    }
+
+    widget_text_fit(app->title, titleX, cardY + 12, WIDGET_TITLE_SCALE, t->palette->text, titleRight - titleX);
 
     char line[160];
     snprintf(line, sizeof(line), "%s%s%s", app->author, app->author[0] != '\0' && app->version[0] != '\0' ? "  -  " : "", app->version);
@@ -1863,6 +1973,21 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
     u8 status = store_status(store, app);
     float smallH = widget_text_height(WIDGET_SMALL_SCALE);
     float by = cardY + cardH - smallH - 14;
+    // What A does, at the right of the badges' line (above it if the badges reach that far): the install at once, or a
+    // sheet of choices.
+    char hint[64] = "";
+    bool direct = false;
+    u32 choices = store_app_choices(store, app, &direct);
+    if(choices > 0) {
+        if(direct) {
+            string_copy(hint, app->ciaUrl != NULL ? _(" Install") : app->dsxUrl != NULL ? _(" Download") : _(" Get"), sizeof(hint));
+        } else {
+            snprintf(hint, sizeof(hint), _(" %lu options"), choices);
+        }
+    }
+
+    float hintW = hint[0] != '\0' ? widget_text_width(hint, WIDGET_SMALL_SCALE) : 0;
+
     if(status & (STATUS_CIA | STATUS_DSX)) {
         char have[96] = "";
         size_t used = 0;
@@ -1910,6 +2035,12 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
 
     if(app->categoryId[0] != '\0') {
         widget_badge(bx, by, app->categoryId, t->palette->border, t->palette->text);
+        bx += widget_text_width(app->categoryId, WIDGET_SMALL_SCALE) + 18;
+    }
+
+    if(hint[0] != '\0') {
+        float hy = bx + 8 <= right - hintW ? by + 1 : by - smallH - 8;
+        screen_draw_text(hint, right - hintW, hy, WIDGET_SMALL_SCALE, t->accent);
     }
 }
 
@@ -1929,10 +2060,49 @@ static void store_install_finished_url(void* data, u32 index) {
     ((store_install_ctx*) data)->ok = true;
 }
 
+// See store_data's `pendingSlug`: once a CIA has been installed since, it is noted as that app's title. A script's install
+// ends after the script, so this is tried again while the status is (store_recheck_step).
+static void store_take_title(store_data* store) {
+    u64 titleId = 0;
+    if(store->pendingSlug[0] == '\0' || action_install_cia_installed(&titleId) == store->titleCount || titleId == 0) {
+        return;
+    }
+
+    store_record* record = store_record_find(store, store->pendingSlug);
+    if(record == NULL && store->recordCount < STORE_RECORDS_MAX) {
+        record = &store->records[store->recordCount++];
+        memset(record, 0, sizeof(*record));
+        string_copy(record->slug, store->pendingSlug, sizeof(record->slug));
+    }
+
+    if(record != NULL) {
+        record->titleId = titleId;
+        store_records_save(store);
+        store_logf(store, "%s installed %016llX", store->pendingSlug, titleId);
+        for(u32 i = 0; i < store->count; i++) {
+            if(strcmp(store->apps[i].slug, store->pendingSlug) == 0) {
+                LightLock_Lock(&store->lock);
+                if(store->scan != NULL && i < store->scanCount) {
+                    store->scan[i].recTitleId = titleId;
+                }
+
+                LightLock_Unlock(&store->lock);
+                break;
+            }
+        }
+    }
+
+    store->pendingSlug[0] = '\0';
+}
+
 // The Store notes which version it put on the console, and the app's status is looked at again.
 static void store_install_finished_all(void* data) {
     store_install_ctx* ctx = (store_install_ctx*) data;
     store_data* store = ctx->store;
+    if(ctx->cia) {
+        store_take_title(store);
+    }
+
     if(ctx->ok) {
         store_record* record = store_record_find(store, ctx->slug);
         if(record == NULL && store->recordCount < STORE_RECORDS_MAX) {
@@ -1962,6 +2132,7 @@ static void store_install_finished_all(void* data) {
                 if(store->scan != NULL && i < store->scanCount) {
                     string_copy(store->scan[i].recCia, record->cia, sizeof(store->scan[i].recCia));
                     string_copy(store->scan[i].recOther, record->other, sizeof(store->scan[i].recOther));
+                    store->scan[i].recTitleId = record->titleId;
                 }
 
                 store_scan_entry entry = store->scan != NULL && i < store->scanCount ? store->scan[i] : (store_scan_entry) {{0}};
@@ -1982,6 +2153,7 @@ static void store_install_finished_all(void* data) {
         }
     }
 
+    store_release(store);
     free(ctx);
 }
 
@@ -1994,6 +2166,7 @@ static void store_recheck_step(store_data* store) {
         return;
     }
 
+    store_take_title(store);
     u32 i = (u32) store->recheck;
     LightLock_Lock(&store->lock);
     bool known = store->scan != NULL && store->status != NULL && i < store->scanCount;
@@ -2033,9 +2206,16 @@ static void store_start(store_data* store, store_app* app, bool cia, const char*
     }
 
     ctx->store = store;
+    store_retain(store);
     ctx->cia = cia;
     string_copy(ctx->slug, app->slug, sizeof(ctx->slug));
     string_copy(ctx->version, app->version, sizeof(ctx->version));
+    if(cia && app->uniqueId == 0) {
+        u64 last = 0;
+        string_copy(store->pendingSlug, app->slug, sizeof(store->pendingSlug));
+        store->titleCount = action_install_cia_installed(&last);
+    }
+
     // A plain CIA installs as it downloads (the usual choice of how); the rest follow Universal-DB's steps.
     const char* script = cia ? app->ciaScript : app->dsxScript;
     if(script == NULL) {
@@ -2043,7 +2223,7 @@ static void store_start(store_data* store, store_app* app, bool cia, const char*
         return;
     }
 
-    storescript_run(script, what, ctx, store_script_done);
+    storescript_run(script, what, app->title, ctx, store_script_done);
 }
 
 // The question (about `name`), followed by what the author asks to be read first (if anything).
@@ -2089,12 +2269,15 @@ static void store_get_other(u32 index) {
     }
 
     ctx->store = store_sheet_store;
+    store_retain(ctx->store);
     ctx->other = true;
     string_copy(ctx->slug, app->slug, sizeof(ctx->slug));
     string_copy(ctx->version, app->version, sizeof(ctx->version));
     char message[700];
     store_ask_text(message, sizeof(message), app, _("Get \"%s\"?"), app->others[index].name);
-    storescript_run(app->others[index].script, message, ctx, store_script_done);
+    char name[160];
+    snprintf(name, sizeof(name), "%s: %s", app->title, app->others[index].name);
+    storescript_run(app->others[index].script, message, name, ctx, store_script_done);
 }
 
 // A sheet's action knows only its data: one function for each place in the list.
@@ -2105,6 +2288,338 @@ static void (* const store_other_runs[STORE_OTHERS_MAX])(void* data) = {
         store_get_other_0, store_get_other_1, store_get_other_2, store_get_other_3, store_get_other_4, store_get_other_5,
         store_get_other_6, store_get_other_7, store_get_other_8, store_get_other_9, store_get_other_10, store_get_other_11
 };
+
+// ---- pictures (issue #38): the catalogue's screenshots, downloaded to STORE_SHOTS_DIR and shown in the picture viewer ----
+
+typedef struct {
+    char paths[STORE_SHOTS_MAX][FILE_PATH_MAX];
+    u32 count;
+} store_shots_ctx;
+
+static FS_Archive store_sd_archive() {
+    static FS_Archive archive = 0;
+    if(archive == 0) {
+        FSUSER_OpenArchive(&archive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""));
+    }
+
+    return archive;
+}
+
+// The pictures that are on the card (a download may have failed), in the viewer: L and R go through them.
+static void store_shots_show(store_shots_ctx* ctx) {
+    const char* paths[STORE_SHOTS_MAX];
+    u32 count = 0;
+    for(u32 i = 0; i < ctx->count; i++) {
+        char local[FILE_PATH_MAX + 8];
+        snprintf(local, sizeof(local), "sdmc:%s", ctx->paths[i]);
+        if(store_file_exists(local)) {
+            paths[count++] = ctx->paths[i];
+        }
+    }
+
+    if(count > 0) {
+        imageview_open(store_sd_archive(), paths, count, 0);
+    }
+}
+
+static void store_shots_downloaded(void* data) {
+    store_shots_ctx* ctx = (store_shots_ctx*) data;
+    store_shots_show(ctx);
+    free(ctx);
+}
+
+// "<slug>-<n>.<png|jpg|...>": the extension from the URL, so the viewer knows the kind.
+static void store_shot_path(char* out, size_t size, const char* slug, u32 n, const char* url, size_t urlLen) {
+    const char* ext = "png";
+    char found[8] = "";   // What the URL ends in, if the viewer knows it as a picture.
+    const char* end = url + urlLen;
+    const char* q = memchr(url, '?', urlLen);
+    if(q != NULL) {
+        end = q;
+    }
+
+    for(const char* c = end; c > url && c[-1] != '/'; c--) {
+        if(c[-1] == '.') {
+            size_t len = (size_t) (end - c);
+            if(len > 0 && len < sizeof(found)) {
+                memcpy(found, c, len);
+                found[len] = '\0';
+            }
+
+            break;
+        }
+    }
+
+    char probe[16];
+    snprintf(probe, sizeof(probe), "x.%s", found);
+    if(found[0] != '\0' && viewers_kind_of(probe) == VIEWER_IMAGE) {
+        ext = found;
+    }
+
+    snprintf(out, size, STORE_SHOTS_DIR "%s-%lu.%s", slug, n, ext);
+}
+
+static void store_view_shots(void* data) {
+    store_app* app = store_sheet_app;
+    if(app->shots == NULL) {
+        return;
+    }
+
+    store_shots_ctx* ctx = (store_shots_ctx*) calloc(1, sizeof(store_shots_ctx));
+    if(ctx == NULL) {
+        error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("Failed to open the Store."));
+        return;
+    }
+
+    // Only one app's pictures are kept: the others' go.
+    mkdir("sdmc:" APP_DATA_DIR, 0777);
+    mkdir("sdmc:" STORE_SHOTS_DIR, 0777);
+    char prefix[80];
+    snprintf(prefix, sizeof(prefix), "%s-", app->slug);
+    DIR* dir = opendir("sdmc:" STORE_SHOTS_DIR);
+    if(dir != NULL) {
+        struct dirent* e;
+        while((e = readdir(dir)) != NULL) {
+            if(strncmp(e->d_name, prefix, strlen(prefix)) != 0 && e->d_name[0] != '.') {
+                char old[FILE_PATH_MAX + 8];
+                snprintf(old, sizeof(old), "sdmc:" STORE_SHOTS_DIR "%s", e->d_name);
+                remove(old);
+            }
+        }
+
+        closedir(dir);
+    }
+
+    // What is not on the card yet is downloaded, then all are shown.
+    char* urls = (char*) calloc(1, strlen(app->shots) + 2);
+    char* paths = (char*) calloc(STORE_SHOTS_MAX, FILE_PATH_MAX + 1);
+    size_t urlsUsed = 0;
+    size_t pathsUsed = 0;
+    const char* p = app->shots;
+    while(*p != '\0' && ctx->count < STORE_SHOTS_MAX) {
+        const char* end = strchr(p, '\n');
+        size_t len = end != NULL ? (size_t) (end - p) : strlen(p);
+        store_shot_path(ctx->paths[ctx->count], FILE_PATH_MAX, app->slug, ctx->count + 1, p, len);
+        char local[FILE_PATH_MAX + 8];
+        snprintf(local, sizeof(local), "sdmc:%s", ctx->paths[ctx->count]);
+        if(urls != NULL && paths != NULL && !store_file_exists(local)) {
+            urlsUsed += (size_t) snprintf(urls + urlsUsed, strlen(app->shots) + 2 - urlsUsed, "%s%.*s", urlsUsed > 0 ? "\n" : "", (int) len, p);
+            pathsUsed += (size_t) snprintf(paths + pathsUsed, STORE_SHOTS_MAX * (FILE_PATH_MAX + 1) - pathsUsed, "%s%s", pathsUsed > 0 ? "\n" : "",
+                                           ctx->paths[ctx->count]);
+        }
+
+        ctx->count++;
+        p += len;
+        if(*p == '\n') {
+            p++;
+        }
+    }
+
+    if(urls != NULL && urlsUsed > 0) {
+        action_download_urls_to(urls, paths, ctx, NULL, store_shots_downloaded);
+    } else {
+        store_shots_downloaded(ctx);
+    }
+
+    free(urls);
+    free(paths);
+}
+
+// ---- uninstall (issue #40): only what is plainly the app's, a CIA's title and a .3dsx ----
+// Scripts and archives are left out on purpose: what they leave on the card is only known from the catalogue's list,
+// which can be wrong, name whole folders, files another app shares, or what the console starts from (boot.firm).
+
+// The app's status worked out again now (after an uninstall), as store_install_finished_all does after an install.
+static void store_status_again(store_data* store, const store_app* app) {
+    u32 i = (u32) (app - store->apps);
+    LightLock_Lock(&store->lock);
+    bool known = store->scan != NULL && i < store->scanCount;
+    store_scan_entry entry = known ? store->scan[i] : (store_scan_entry) {{0}};
+    LightLock_Unlock(&store->lock);
+    if(!known) {
+        return;
+    }
+
+    u8 bits = store_compute_status(&entry, NULL, 0, NULL);
+    LightLock_Lock(&store->lock);
+    if(store->status != NULL && i < store->scanCount) {
+        store->status[i] = bits | 0x80;
+    }
+
+    LightLock_Unlock(&store->lock);
+}
+
+// The title the app's CIA installs: by the catalogue's unique ID, or else the one the Store saw it install (0: unknown).
+static u64 store_cia_title_id(store_data* store, const store_app* app) {
+    if(app->uniqueId != 0) {
+        return (0x00040000ULL << 32) | ((u64) app->uniqueId << 8);
+    }
+
+    store_record* record = store_record_find(store, app->slug);
+    return record != NULL ? record->titleId : 0;
+}
+
+// Where the app's CIA is installed (false when its title is not known or not installed).
+static bool store_cia_title(store_data* store, const store_app* app, u64* titleId, FS_MediaType* media, u16* version) {
+    *titleId = store_cia_title_id(store, app);
+    if(*titleId == 0) {
+        return false;
+    }
+
+    AM_TitleEntry info;
+    if(R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_SD, 1, titleId, &info))) {
+        *media = MEDIATYPE_SD;
+    } else if(R_SUCCEEDED(AM_GetTitleInfo(MEDIATYPE_NAND, 1, titleId, &info))) {
+        *media = MEDIATYPE_NAND;
+    } else {
+        return false;
+    }
+
+    *version = info.version;
+    return true;
+}
+
+// Where the app's .3dsx is, as store_compute_status looks for it ("" when it is not there). `folder` tells whether it
+// is in a folder of its own (/3ds/<name>/<name>.3dsx).
+static bool store_dsx_path(const store_app* app, char* path, size_t size, bool* folder) {
+    if(app->dsxName[0] == '\0') {
+        return false;
+    }
+
+    snprintf(path, size, "sdmc:/3ds/%s/%s.3dsx", app->dsxName, app->dsxName);
+    if(store_file_exists(path)) {
+        *folder = true;
+        return true;
+    }
+
+    snprintf(path, size, "sdmc:/3ds/%s.3dsx", app->dsxName);
+    if(store_file_exists(path)) {
+        *folder = false;
+        return true;
+    }
+
+    path[0] = '\0';
+    return false;
+}
+
+typedef struct {
+    store_data* store;
+    store_app* app;
+    u64 titleId;
+    FS_MediaType media;
+    u16 version;
+} store_uninstall_ctx;
+
+static void store_uninstall_cia_update(ui_view* view, void* data, float* progress, char* text) {
+    store_uninstall_ctx* ctx = (store_uninstall_ctx*) data;
+    char dir[FILE_PATH_MAX] = "";
+    // The save first: if it cannot be copied, nothing is deleted.
+    Result res = action_save_backup(ctx->titleId, ctx->media, ctx->version, "before-uninstall", dir, sizeof(dir));
+    bool backedUp = R_SUCCEEDED(res);
+    if(backedUp) {
+        res = AM_DeleteTitle(ctx->media, ctx->titleId);
+    }
+
+    ui_pop();
+    info_destroy(view);
+
+    if(!backedUp) {
+        error_display_res(NULL, NULL, res, _("Failed to back up the save. Nothing was deleted."));
+    } else if(R_FAILED(res)) {
+        error_display_res(NULL, NULL, res, _("Failed to uninstall the title."));
+    } else {
+        store_status_again(ctx->store, ctx->app);
+        if(dir[0] != '\0') {
+            static char done[FILE_PATH_MAX + 128];
+            snprintf(done, sizeof(done), _("Uninstalled. Its save is kept in %s"), dir);
+            prompt_display_notify("Success", done, COLOR_TEXT, NULL, NULL, NULL);
+        } else {
+            prompt_display_notify("Success", _("Uninstalled."), COLOR_TEXT, NULL, NULL, NULL);
+        }
+    }
+
+    free(ctx);
+}
+
+static void store_uninstall_cia_answered(ui_view* view, void* data, u32 response) {
+    if(response != PROMPT_YES) {
+        free(data);
+        return;
+    }
+
+    info_display(_("Uninstalling"), "", false, data, store_uninstall_cia_update, NULL);
+}
+
+static void store_uninstall_cia(void* data) {
+    store_uninstall_ctx* ctx = (store_uninstall_ctx*) calloc(1, sizeof(store_uninstall_ctx));
+    if(ctx == NULL) {
+        error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("Failed to uninstall the title."));
+        return;
+    }
+
+    ctx->store = store_sheet_store;
+    ctx->app = store_sheet_app;
+    if(!store_cia_title(ctx->store, ctx->app, &ctx->titleId, &ctx->media, &ctx->version)) {
+        free(ctx);
+        prompt_display_notify("Store", _("The title is no longer installed."), COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    static char text[512];
+    snprintf(text, sizeof(text), _("Uninstall %s?\n\nThe title is deleted from the console. Its save is copied first to /nsa/saves/."), ctx->app->title);
+    prompt_display_warning("Confirmation", text, COLOR_TEXT, ctx, NULL, store_uninstall_cia_answered);
+}
+
+static void store_delete_dsx_answered(ui_view* view, void* data, u32 response) {
+    store_uninstall_ctx* ctx = (store_uninstall_ctx*) data;
+    if(response != PROMPT_YES) {
+        free(ctx);
+        return;
+    }
+
+    char path[FILE_PATH_MAX];
+    bool folder = false;
+    bool deleted = store_dsx_path(ctx->app, path, sizeof(path), &folder) && remove(path) == 0;
+    if(deleted && folder) {
+        // Its folder goes only when nothing else is left in it (its settings and data stay); rmdir refuses otherwise.
+        char* slash = strrchr(path, '/');
+        if(slash != NULL) {
+            *slash = '\0';
+            rmdir(path);
+        }
+    }
+
+    if(!deleted) {
+        error_display(NULL, NULL, _("Failed to delete the 3DSX."));
+    } else {
+        store_status_again(ctx->store, ctx->app);
+        prompt_display_notify("Success", _("3DSX deleted."), COLOR_TEXT, NULL, NULL, NULL);
+    }
+
+    free(ctx);
+}
+
+static void store_delete_dsx(void* data) {
+    store_uninstall_ctx* ctx = (store_uninstall_ctx*) calloc(1, sizeof(store_uninstall_ctx));
+    if(ctx == NULL) {
+        error_display(NULL, NULL, _("Failed to delete the 3DSX."));
+        return;
+    }
+
+    ctx->store = store_sheet_store;
+    ctx->app = store_sheet_app;
+    char path[FILE_PATH_MAX];
+    bool folder = false;
+    if(!store_dsx_path(ctx->app, path, sizeof(path), &folder)) {
+        free(ctx);
+        prompt_display_notify("Store", _("The 3DSX is no longer in /3ds/."), COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    static char text[512];
+    snprintf(text, sizeof(text), folder ? _("Delete %s?\n\nIts folder goes too if nothing else is left in it.") : _("Delete %s?"), path + 5);
+    prompt_display_warning("Confirmation", text, COLOR_TEXT, ctx, NULL, store_delete_dsx_answered);
+}
 
 static void store_open_app(store_data* store, store_app* app) {
     store_sheet_store = store;
@@ -2120,7 +2635,12 @@ static void store_open_app(store_data* store, store_app* app) {
         return;
     }
 
-    if(total == 1) {
+    u8 status = store_status(store, app);
+    bool uninstallCia = app->ciaUrl != NULL && store_cia_title_id(store, app) != 0 && (status & STATUS_CIA) != 0;
+    bool deleteDsx = app->dsxUrl != NULL && (status & STATUS_DSX) != 0;
+    bool direct = false;
+    store_app_choices(store, app, &direct);
+    if(direct) {
         if(app->ciaUrl != NULL) {
             store_install_cia(app);
         } else if(app->dsxUrl != NULL) {
@@ -2132,9 +2652,14 @@ static void store_open_app(store_data* store, store_app* app) {
         return;
     }
 
-    u8 status = store_status(store, app);
-    sheet_action actions[2 + STORE_OTHERS_MAX];
+    sheet_action actions[5 + STORE_OTHERS_MAX];
     u32 count = 0;
+    if(app->shots != NULL) {
+        static char shotsLabel[64];
+        snprintf(shotsLabel, sizeof(shotsLabel), _("Pictures (%lu)"), store_shot_count(app));
+        actions[count++] = (sheet_action) {ICON_PHOTO, shotsLabel, false, store_view_shots, false, NULL};
+    }
+
     if(app->ciaUrl != NULL) {
         const char* installLabel = (status & STATUS_CIA) ? _("Reinstall the CIA") : _("Install the CIA");
         actions[count++] = (sheet_action) {ICON_DOWNLOAD, installLabel, false, store_install_cia, false, _("Installs it as a title on the console.")};
@@ -2147,6 +2672,14 @@ static void store_open_app(store_data* store, store_app* app) {
 
     for(u32 i = 0; i < app->otherCount; i++) {
         actions[count++] = (sheet_action) {ICON_FILE_ZIP, app->others[i].name, false, store_other_runs[i], false, app->others[i].size[0] != '\0' ? app->others[i].size : NULL};
+    }
+
+    if(uninstallCia) {
+        actions[count++] = (sheet_action) {ICON_TRASH, _("Uninstall the CIA"), true, store_uninstall_cia, false, _("Deletes the title; its save is copied to /nsa/saves/ first.")};
+    }
+
+    if(deleteDsx) {
+        actions[count++] = (sheet_action) {ICON_TRASH, _("Delete the 3DSX"), true, store_delete_dsx, false, _("Removes it from /3ds/; its settings and data stay.")};
     }
 
     sheet_display_list(app->title, 0, actions, count, app);
@@ -2466,6 +2999,7 @@ static void store_take(store_data* store, ui_view* view, linked_list* items, lis
             if(record != NULL) {
                 string_copy(scan[i].recCia, record->cia, sizeof(scan[i].recCia));
                 string_copy(scan[i].recOther, record->other, sizeof(scan[i].recOther));
+                scan[i].recTitleId = record->titleId;
             }
         }
     }

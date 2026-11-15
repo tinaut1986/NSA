@@ -711,6 +711,16 @@ void widget_scrollbar(float x, float y, float height, float offset, float visibl
     screen_fill_round_rect(x, ty, w, thumb, w / 2, t->accent);
 }
 
+float widget_toast_height(const char* text, float progress) {
+    int lineCount = 1;
+    for(const char* c = text; *c != '\0' && lineCount < 3; c++) {
+        lineCount += *c == '\n';
+    }
+
+    bool bar = progress >= 0 || progress == WIDGET_PROGRESS_UNKNOWN;
+    return lineCount * widget_text_height(WIDGET_SMALL_SCALE) + (lineCount - 1) * 2 + (bar ? 18 : 10);
+}
+
 void widget_toast(const char* text, float progress, float bottom) {
     const theme_current* t = theme();
 

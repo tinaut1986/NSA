@@ -37,6 +37,11 @@ void action_install_cia_delete_now(linked_list* items, list_item* selected);
 // Installs CIAs on the SD card one after another with no question (Remote Install's "Save and install"):
 // `paths` one a line; `delete` deletes each once it is installed.
 void action_install_cia_paths_now(const char* paths, bool delete);
+// Installs a CIA of the SD card with no screen and no question, on the caller's thread (the receiver of a batch,
+// transfer.c): a title that installs to the SD card only, never over a newer version (the installed one is kept), the
+// seed fetched when the title needs one. `done` and `total` follow it (may be NULL). False with the reason (English, to
+// translate on the UI thread: i18n's cache is not for other threads) and the error code.
+bool action_install_cia_quietly(const char* path, volatile u64* done, volatile u64* total, const char** reason, Result* result);
 // Starts installing a CIA of `titleId` / `version` on `dest`: over the installed title when this is the same version or
 // a higher one (nothing deleted, the save kept), else deleting the installed one first.
 Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Handle* handle);
@@ -44,6 +49,12 @@ Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Han
 // user says no: nothing deleted then); `ended` once the install is over puts the save back, or says where it is kept.
 Result action_install_cia_lower(FS_MediaType dest, u64 titleId, u16 version, u16 installedVersion);
 void action_install_cia_ended(u64 titleId, bool installed);
+// How many CIAs have been installed since NSA started, and the last one's title ID: the Store learns from it which title
+// a CIA of an app with no unique ID in its catalogue installed.
+u32 action_install_cia_installed(u64* lastTitleId);
+// Copies the title's save to sdmc:/nsa/saves/<ID>/<date>-<why>/ (a backup of NSA's, listed with the others) and puts that
+// folder in `dir`; `dir` is left empty when the title has no save (never started), which is no error.
+Result action_save_backup(u64 titleId, FS_MediaType media, u16 version, const char* why, char* dir, size_t size);
 void action_install_cias(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_cias_delete(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 // The CIAs of the folder `selected` that `filter` keeps (the Files screen's selection).
@@ -61,8 +72,20 @@ void action_delete_dir_tickets(linked_list* items, list_item* selected);
 void action_delete_selected(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_new_folder(linked_list* items, list_item* selected);
 // Everything in the .zip or .7z at `path` (on the SD card) into its folder, or into a new folder named after it;
-// `done` once it ends (to list the folder again), before the message.
+// `done` once it ends (to list the folder again), before the message, which offers to delete the archive (and runs
+// `done` again if it is).
 void action_extract_archive(const char* path, bool intoFolder, void (*done)(void* userData), void* userData);
+// What of the archive at `path` matches `pattern` (unarchive.h) into `output` ("sdmc:/..."; `shown` is how the message
+// names it), with no question first, refusing the whole archive if anything would go where the console starts from or
+// NSA's data (see extractarchive.c) when `output` is the SD card's root ("sdmc:/"); the archive is deleted afterwards if
+// `deleteAfter` and it all came out. With
+// `sdLayoutTop` (not NULL), only the entries in the SD card's own folders (action_extract_sd_place) under that top folder
+// of the archive ("" for its root) come out, the loose files beside them (a README) staying in it.
+void action_extract_archive_to(const char* path, const char* pattern, const char* output, const char* shown, bool deleteAfter,
+                               const char* sdLayoutTop, void (*done)(void* userData), void* userData);
+// Where homebrew archives put their files on the SD card's root: "3ds/...", "cias/...", "luma/plugins/...", and a game's
+// mods in "luma/titles/<ID>/..." (a path inside the archive, with no leading slash).
+bool action_extract_sd_place(const char* path);
 void action_paste_contents(linked_list* items, list_item* selected);
 // Like it, but a cut item on the same medium (`archiveId`) is renamed into the folder instead of copied.
 void action_paste_contents_in(linked_list* items, list_item* selected, FS_ArchiveID archiveId);
@@ -82,6 +105,9 @@ void action_extract_exefs(linked_list* items, list_item* selected);
 // The same without the UI: how many files it copied in *extracted.
 Result action_extract_exefs_to_sd(u64 titleId, FS_MediaType mediaType, u32* extracted);
 void action_export_cia(linked_list* items, list_item* selected);
+// Several titles to /nsa/cias/, asked once, one after another (Titles' marked ones; issue #53's picking). `titles` is a
+// malloc'd array of copies that the export owns from now on. A failure goes on with the next; a summary at the end.
+void action_export_cias(title_info* titles, u32 count);
 void action_export_cia_send(linked_list* items, list_item* selected);
 
 // Sending a title without making a CIA first: its contents go over the network as
@@ -92,6 +118,13 @@ u32 action_export_cia_stream_content_count(export_cia_data* data);
 u64 action_export_cia_stream_content_size(export_cia_data* data, u32 index);
 Result action_export_cia_stream_read(export_cia_data* data, u32 index, u64 offset, void* buffer, u32 size);
 void action_export_cia_stream_free(export_cia_data* data);
+// A title opened for sending, sent as a CIA in order, for a receiver that installs it as it arrives (issue #53): hash
+// the contents first (`done` counts the bytes read; `cancel` stops it), then make the parts around the contents (the
+// CIA's size in `size`), then cut it in segments (head, each content, tail: up to contents + 2) and read them.
+Result action_export_cia_ordered_hash(export_cia_data* data, volatile u64* done, volatile bool* cancel);
+Result action_export_cia_ordered_make(export_cia_data* data, u64* size);
+u32 action_export_cia_ordered_segments(export_cia_data* data, u64* segments);
+Result action_export_cia_ordered_read(export_cia_data* data, u32 segment, u64 offset, void* buffer, u32 size);
 Result action_export_cia_sink_open(const char* path, u64 size, bool resume, export_cia_data** out);
 Result action_export_cia_sink_write_at(export_cia_data* data, u64 offset, const void* buffer, u32 size);
 void action_export_cia_sink_progress(export_cia_data* data, u64* done, u64* total);
@@ -161,10 +194,35 @@ void action_delete_secure_value(linked_list* items, list_item* selected);
 // Tests (SITE SAVEORDER, DEBUG): false makes "Save" take the file in long pieces written where they go (http_download_file)
 // instead of in order, as an install does (the default).
 void action_install_url_save_in_order(bool inOrder);
+// A download sent to the background with B (issue #41): the main loop's tick ends it there, its toast says how far it
+// is, and a tap on the toast opens its screen again (false when there is none).
+void action_install_url_tick();
+bool action_install_url_notice(char* out, size_t size, float* progress);
+bool action_install_url_reopen();
+// The download queue's runs (dlqueue.c): one item's URLs installed in the background, with no question and no message;
+// `done` says how it ended. NULL when it could not start (`done` has run then).
+void* action_install_url_run_queued(const char* urls, bool archives, void* userData, void (*finishedURL)(void* data, u32 index),
+                                    void (*done)(void* item, u32 ok, u32 failed, bool paused, bool cancelled, const char* error), void* item);
+// Ends the run there once it has finished (its screen does it while it is shown).
+void action_install_url_queued_poll(void* run);
+// Pauses (it comes back later from the start of the current file) or cancels the run.
+void action_install_url_queued_stop(void* run, bool pause);
+void action_install_url_queued_open(void* run);
+bool action_install_url_queued_on_screen(void* run);
+void action_install_url_queued_progress(void* run, u64* done, u64* total, char* name, size_t size);
+// A Store script's download in the download queue: saved to `paths` in the background, quiet; finishedAll runs at the end
+// (the queue polls it with action_install_url_queued_poll). NULL when it could not start.
+void* action_download_urls_to_queued(const char* urls, const char* paths, void* userData, void (*finishedURL)(void* data, u32 index),
+                                     void (*finishedAll)(void* data));
+// Why the last such download failed ("" when it did not).
+const char* action_install_url_last_error();
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                         void (*finishedURL)(void* data, u32 index),
                         void (*finishedAll)(void* data),
                         void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index));
+// A remote install (QR code, a typed URL, URLs from a computer or the web page): the same, and a .zip or .7z that arrives
+// is saved to /nsa/received/ and offered to be taken out onto the SD card (issue #51).
+void action_install_url_remote(const char* confirmMessage, const char* urls, void* userData, void (*finishedAll)(void* data));
 // The same with the choice made for the user (>= 0, one of installurl.c's INSTALL_URL_CHOICE_*), or -1 to ask.
 void action_install_url_choice(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                                void (*finishedURL)(void* data, u32 index),

@@ -10,6 +10,8 @@ u32 input_keys_down();
 u32 input_keys_held();
 u32 input_keys_up();
 void input_touch_read(touchPosition* pos);
+// Takes `keys` out of this frame's presses (down and held), so the view under whatever used them never sees them.
+void input_swallow(u32 keys);
 
 // From any thread; applied on the next scans. A press is held for `frames`.
 void input_inject_keys(u32 keys, u32 frames);

@@ -22,6 +22,9 @@ typedef struct title_info_s {
     // unique ID; those are `linked` when their game is in the list.
     u32 linkedCount;
     bool linked;
+
+    // Marked in Titles' picking mode, to be sent with others to another 3DS (issue #53).
+    bool picked;
 } title_info;
 
 typedef enum {

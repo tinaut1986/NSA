@@ -163,7 +163,156 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- [ ] Store: every app and step as in Universal-Updater (2026-11-13, `feat/store-sensitive-writes`,
+- [ ] Claude's pass on both consoles (2026-11-14 night, New 3DS XL .135 -> 2DS .136, builds up to 0.9.11-dev.41),
+  driving them through the web API (not ticked: the owner ticks). Batches (#53): Save all of WiFiManager+, FBI ESP,
+  ftpd-EX (3/3, the CIAs checked on the PC with console_tests.verify_cia, then deleted); Install all of Homebrew
+  Launcher (same version, reinstalled) + Checkpoint (refused: the 2DS has a newer one, kept); in order (batch-free.txt
+  on the 2DS) HBL and the Plaza Mii update (95 MB: read 34 s, sent 144-158 s, installed with no CIA anywhere); a
+  cancel in the middle (the update left as it was, both summaries). Found and fixed then: AM held the receiver over
+  14 s at a content's end and the sender gave up at 15 s (60 s for titles in order now); after a cancel the receiver
+  never got the end (the sender waits up to 25 s now); "1 title". Queue (#41) through the API: three CIAs as one item,
+  pause/resume (fixed then: a resume fetched the URLs already done again), FTP while it runs (450, the question, Yes:
+  paused for the transfer, the FTP retry goes, the queue goes on by itself), cancel of a running item. #51: a zip
+  from Install from URL offered for /3ds/<name>/, extracted, zip deleted. #47: View contents (folders, sizes), Extract
+  here and "Delete the archive now?". /api/help and SITE HELP on both; the web page loads with no ReferenceError.
+  Not done (the session's permission check refused installing a test title or opening the Store on the owner's
+  console): #52 (delete a title from the page), #40 Store uninstall, #38 Store pictures, the card's hints, the queue
+  of Store scripts, the web page's queue sheet on a console (it needs the PIN typed in the page).
+  Then, on the owner's word, the Store on the New 3DS XL (2026-11-15): the card's corner says what A does ("Descargar",
+  "N opciones") and the picture mark its count (1, 3, 8); 3DElf's 8 pictures open and page; its CIA installed, the card
+  showed it (tick, "En esta consola: CIA", 4 options), "Desinstalar el CIA" asked (save to /nsa/saves/) and removed
+  it; its 3DSX sent "A la cola" (a script run from the queue: done, toast "1 hechas", which should be singular),
+  shown as on the console, "Borrar el 3DSX" asked and deleted /3ds/3DElf.3dsx. Still for the owner: #52 and the web
+  page's queue sheet on a console.
+  Same night, the queue screen on the New 3DS XL (opened from the new main menu entry, with its badge): an item's sheet
+  (put first, move down, pause this one: skipped by X's resume, resume this one, cancel), Y (the running one ends, the
+  queue pauses before the next), R (clears the finished), show its progress (then B), a 404 shown as failed "HTTP 404";
+  a Store CIA "Add to the download queue" installed by the queue (the card shows it, toast "1 hecha"). Fixed then: the
+  sheet came back stale after "show its progress" and after queuing a Store CIA (both close now); moves that change
+  nothing are left out of the sheet.
+- [ ] Batches choose each title's way from the receiver's free space (2026-11-14, `feat/send-batch-space`, issue #53
+  phase 2; both consoles need this build: the list and the answer changed). With little room on the receiver, the
+  question's top screen says how many install as they arrive and how many do not fit; those are read once on the
+  sender ("Reading it first") and installed while they arrive, with no CIA on either SD card. Claude, 2026-11-14, Azahar
+  as the receiver (`fake_peer.py batch ... --cias`, `/nsa/batch-free.txt` = 19337408): ways [1, 2, 0], title 1
+  installed the usual way, title 2 installed as it arrived (its contents and TMD in the title folder), title 3 skipped
+  with "No room for it on the SD card"; title 2 cut at 50 %: the install cancelled and done again from byte 0. Fixed
+  then: the space lines moved to the top screen (the sheet's header holds one line), summaries cut between characters.
+  Not tried: the sender's reading and in-order sending (Azahar has no export), a big title in order (AM's finish time),
+  a game that needs a seed, over a title already installed (Azahar lacks the overwrite call).
+- [ ] Send several titles at once (2026-11-14, `feat/send-batch`, issue #53; protocol 9, so both consoles need this build).
+  Titles' picking tool (square-check): mark some titles (a grouped game takes its update and DLC), START, pick the
+  other console; there, one question (Install all / Save all / Reject) and nothing else to touch: each title arrives,
+  is installed (CIA deleted) or kept in /nsa/received/, and both consoles show a summary at the end. Claude,
+  2026-11-14, Azahar as the receiver with `fake_peer.py batch`: the question with the titles' names, Save all (3
+  CIAs in /nsa/received/, nsa/tmp empty, summary at once), Install all with title 2 cut at 50 % (sent again from byte
+  786496, installed; a made-up title that looked like a NAND one kept with its reason in the summary); Titles' picking
+  in rows and grid, START reaching the export (Azahar has no Luma). Not tried: a real sender (export) on a console,
+  the sender's summary and retries, the nearby (no Wi-Fi) mode with several connections one after another, a game
+  that needs a seed, a title installed over a lower version, a cancel from either side in the middle.
+- [ ] Download queue, phase 3: the web page (2026-11-14, `feat/queue-web`, issue #41). API (in /api/help): GET /api/queue
+  ({paused, pauseAfter, forTransfer, items:[{id, name, state, done, total, file, error, script}]}), POST /api/queue/add
+  (body: URLs, straight to the queue, no question on the console), /api/queue/pause?when=now|after, /api/queue/resume,
+  /api/queue/clear, /api/queue/item?id=&action=pause|resume|retry|first|up|down|cancel|remove; each answers the queue.
+  They run on the main thread (`web_queue`, answered in webserver_poll_main through `dlqueue_web`), as /api/system does.
+  Page: Install has a Download queue tile (a sheet asked again every 1.5 s: state, pause now / after this one / resume,
+  clear finished, and per item pause/resume, up, down, first, cancel, retry, remove, with the running file's bar), and
+  Install from URLs has "Add to the queue" beside Send. The sheet makes its buttons again only when the queue's states
+  change (one made again under the pointer lost its click); the progress is updated in place. Claude, 2026-11-14,
+  Azahar + the built-in browser: two URLs added from the page as one item, its bar moving, pause now (item back to
+  queued), resume, done (both files), clear; cancel of a running one; /api/help lists the routes. Found then, not
+  fixed (older): loadTheme() reads `ted` before its `let` (index.html ~703 vs ~1588), a ReferenceError at load.
+- [ ] Download queue, phase 2b: the Store's scripts (2026-11-14, `feat/queue-scripts`, issue #41). A script's first
+  question ("Get X?") is now Yes / To the queue (X) / No. With the queue, the warnings come as before and then
+  `script_ask_next` walks the script's path as the answers make it, asking now each promptMessage and each rmdir
+  ("When it runs, delete this folder...?"); the answers are kept (`answers[]`) and the run goes to the queue
+  (`dlqueue_add_script`). Run from the queue it has no screen: downloads with `action_download_urls_to_queued`
+  (background, errors kept), the release lookup and the file steps on their threads polled by
+  `storescript_queued_poll`, the CIAs installed on a thread with `ftpserver_install` (as SITE INSTALL: SD titles, a
+  lower version refused), no "Saved in"/"Done". It pauses or cancels between two steps (a download under way is
+  cancelled and starts again on resume); a failed script cannot be retried (its run is gone): Remove only. The
+  Store's end (records, the installed badge) runs when the script ends. Claude, 2026-11-14, Azahar: Colors! [v1.1]
+  queued with Yes to its message: zip downloaded, Colors.nds and ColorsMagazine_1.col extracted, zip deleted, NDS
+  badge checked, toast "finished: 1"; again with No: only Colors.nds. Not tried: pause/cancel of a running script,
+  a script with rmdir, a CIA installed by a queued script, on a console.
+- [ ] Download queue, phase 2a (2026-11-14, `feat/download-queue`, issue #41). The install question of a URL download (a
+  Store CIA/3DSX, remote install, QR code, web page) has a fifth choice, "Add to the download queue" (`dlqueue.c`). The
+  queue runs one item at a time in the background (`action_install_url_run_queued`: Install mode, quiet, no retry
+  question; errors kept on the item: "HTTP 404", busy...), when the turn is free. Its screen (a tap on its toast, or the
+  list button in Remote install -> History): X pause now / resume queue, Y pause after this one, R clear finished; A on an
+  item: show its progress, pause / resume this one, put first, move up / down, cancel, retry, remove. A paused item is
+  skipped; a queue paused now puts the running one back first. Install mode, so a pause restarts that file from 0. An
+  FTP or web transfer refused because the queue has the turn (`xferturn_wanted`) makes the console ask "Pause the queue
+  until that transfer ends?" (no answer: it waits; asked again only after 60 s): Yes pauses it and it goes on 4 s
+  after the turn is free. The web page's install-url no longer answers busy (its question offers the queue). The toast
+  says how far it is, that it is paused (for a transfer), that items failed (until the queue is opened), or "finished:
+  N done" for 6 s; LED at the end. Not kept across restarts. Claude, 2026-11-14, Azahar (3 fake 3DSX at 200 KB/s): the
+  three queued from the web page ran in order; X paused (qa back to queued); qc put first; X + Y installed only qc and
+  paused; a web upload during the queue got busy + the question, Yes paused it, the upload went through and the queue
+  went on 4 s later; R cleared; a 404 showed as failed with HTTP 404. Not tried: a Store install queued (and the Store
+  closed meanwhile), FTP (Azahar's FTP does not greet), on a console. Phase 2b: Store scripts with their answers.
+- [ ] Downloads in the background, phase 1 of the queue (2026-11-14, `feat/download-background`, issue #41; the design is
+  in #41's comment). On a URL download's progress screen (Store CIA/3DSX, remote install, QR, web page; not the Store's
+  scripts, which drive their downloads step by step) B now hides it and the download goes on (X cancels): a toast
+  "In the background, N %: tap to open" shows over any screen, and a tap on it opens the screen again
+  (`ui_set_status_tap`, `input_swallow`). In the modes that save to the card, Y pauses: the data op is cancelled quietly
+  (`data_op_data.quietCancel`), the .part keeps the contiguous part, the screen shows "Paused" (A resume, X cancel and
+  delete the .part, B background) and the toast says "Download paused: tap to open". Resume runs the URLs not done again
+  (the .part resumes by Range); the summary counts the ones done before. It ends behind the screens through
+  `action_install_url_tick` (main loop), its messages over whatever is open. The Store keeps its data (`store_retain`) until
+  an install ends, so closing the Store while one goes on is safe. Claude, 2026-11-14, Azahar (local slow server):
+  B kept it going; tap reopened it; Y paused (4.5 of 12 MB, 3 connections) and A resumed from 2 MB, same SHA-256; a
+  background download ended with "Saved in" over the main menu; Y then X left no files. A pause in the first second
+  keeps nothing (no contiguous part yet) and resumes from 0. Not tried: closing the Store with one in the background,
+  an install (Install mode: B hides, no pause), on a console.
+- [ ] Store: the top card says what A does and how many pictures there are (2026-11-14, `feat/store-hints`; the owner:
+  one could not tell which apps open a sheet and which ask to install at once). `store_app_choices` counts the sheet's
+  choices (downloads, Uninstall the CIA, Delete the 3DSX, Pictures) and says whether A goes straight to the only one;
+  `store_open_app` goes by it, and the card shows, at the right of the badges' line (above it when they reach that
+  far), "A Install" / "A Download" / "A Get" or "A N options" in the accent colour, and a picture badge with the count
+  at the top right (the title kept clear of it). Claude, 2026-11-14, Azahar: .hack (Download, long description
+  clear), 3D Pinball (3 options, 1 picture).
+- [ ] Store: an app's pictures (2026-11-14, `feat/store-pictures`, issue #38 from #33). The catalogue's "screenshots"
+  (116 of Universal-DB's 448 apps; the first 8 URLs, `store_app.shots`, cache format 9 -> 10) give the app's sheet a
+  first action "Pictures (N)" (so an app with one download and pictures opens its sheet). It downloads what is not on
+  the card yet to /nsa/store-shots/<slug>-<n>.<ext> (`action_download_urls_to`; the other apps' pictures there are
+  deleted first, so one app's are kept) and opens them in the picture viewer (L/R). Built only (DEBUG 0.9.10; HTTPS
+  did not work in Azahar before). Claude, 2026-11-14, Azahar: Universal-DB downloaded there, 3D Pinball's picture downloaded and shown. Try: an app with several pictures, again (no download), Wi-Fi off (error, then what is
+  there), B while downloading, a JPEG one.
+- [ ] Files: view what a .zip or .7z holds, and delete it after extracting (2026-11-14, `feat/archive-view`, issue #47
+  from Cosmosx007). A .zip/.7z's sheet has "View contents" first (`archiveview.c`): its files and folders (also the
+  folders only named in a path), folders first; the top screen shows the archive, its file count and unpacked size, the
+  folder and the selected item's size. A opens a folder, B goes up (the folder left stays selected) and closes at the
+  root; A on a file or X on a file or folder takes only that out into the archive's own folder
+  (`action_extract_archive_to`, no guard there) after a question. "Extract to a folder" / "Extract here" now end with
+  "N files extracted to X. Delete the archive now?" (Yes deletes it and lists the folder again). Claude, 2026-11-14,
+  Azahar (Japanese): listing, folders, one file (20000 bytes, deflated), a folder with X, Extract to a folder + Yes
+  deleted the zip, B selects the folder left. Not tried: a .7z, an archive over 8192 entries, on a console.
+- [ ] Remote install: a .zip or .7z is offered for extraction (2026-11-14, `feat/remote-extract`, issue #51 from
+  monkeymaximus, for Brewology's store). In a remote install (QR code, typed URL, URLs from a computer, the web page,
+  a request: `action_install_url_remote`) an archive is saved to /nsa/received/ (even with "Install") and, once the
+  downloads end, each one is listed (`unarchive_progress.listed`) and asked about: laid out as the SD card
+  (3ds/, cias/, luma/plugins/, luma/titles/<ID>/...) it goes to the root; the same inside one top folder ("App-1.0/3ds/
+  ...") goes to the root without that folder; loose files beside them (README, LICENSE) stay in the archive
+  (`unarchive_progress.wanted`); otherwise a .3dsx with what it holds goes to /3ds/<top folder or archive name>/; else
+  it stays saved and NSA says why. The question names the places; "Install" and "Save, install and delete" delete
+  the archive once all of it is out, "Save and install" keeps it, "Save" only saves. `action_extract_archive_to`
+  refuses the whole archive if anything would go to a .firm, /boot.3dsx, /luma (but titles/plugins), /gm9, /private,
+  /Nintendo 3DS or /nsa. The URL's own parameters (3dsDL's ?extract=1) are not needed: NSA always asks. CIAs from the
+  same request install after the archives. Host-tested (stored zips: root, top folder, loose .3dsx, sysmodule patch
+  refused, ".." refused); built only (DEBUG 0.9.10). Try: a Brewology zip by QR, a 7z, No, a zip in Save and install.
+- [ ] Store: uninstall a CIA or delete a .3dsx (2026-11-14, `feat/store-uninstall`, issue #40, from Cosmosx007 in #33:
+  TemperPCE was hard to find once installed). An app's sheet gets "Uninstall the CIA" when its title is installed (by the
+  catalogue's unique ID; an app without one gets nothing) and "Delete the 3DSX" when its .3dsx is in /3ds/; with one of
+  them, an app with a single download opens the sheet instead of the install question. The CIA: a red question, the
+  save copied to /nsa/saves/<ID>/<date>-before-uninstall/ (`action_save_backup`, installsave.c; if the copy fails
+  nothing is deleted), then AM_DeleteTitle (the ticket and the game's /luma/titles mods stay). The .3dsx: the file, and
+  its own folder (/3ds/<name>/) only if nothing else is left in it. Scripts and archives (the "others") get no
+  uninstall on the owner's word: their `installed_files` can be wrong, name whole folders, files two apps share
+  (/luma/plugins/<id>/plugin.3gx, /boot.3dsx) or /boot.firm (Luma3DS). Built only (DEBUG 0.9.10).
+  Try: TemperPCE as CIA (save backup shown, title gone from HOME, badge goes) and as 3DSX, an app never started (no
+  save: "Uninstalled."), a 3DSX in a folder with other files (the folder stays).
+- [x] Store: every app and step as in Universal-Updater (2026-11-13, `feat/store-sensitive-writes`,
   `source/fbi/storescript.c`). Universal-DB now lists all its 448 apps (427 before). Scripts that write to or delete from
   boot.firm or any .firm, /luma (but a game's /luma/titles/<id> and /luma/plugins), /gm9 or /private get, after the usual
   question, a red warning listing where (a few paths, "and N more") and saying a bad file there can stop the console from
@@ -176,7 +325,8 @@ What `release` holds, in the order it was built:
   emerald-online-3ds) show among the "others" and say there is nothing to download. Store cache format 8 -> 9 (rebuilt
   once). Try: Luma3DS or GodMode9 (warning, No; then Yes on a card you can restore), TasmanQuest (http warning), a
   CTRPluginFramework plugin, Shut The Cam Up's remove, an empty entry, an ordinary .3dsx (no warning).
-- [ ] Changelog in pages and in every language (2026-11-11, `feat/changelog-pages`). Settings -> Changelog no longer
+  The owner, 2026-11-14: tested on the New 3DS XL; published in v0.9.10.
+- [x] Changelog in pages and in every language (2026-11-11, `feat/changelog-pages`). Settings -> Changelog no longer
   downloads the last 100 releases of GitHub's API: it reads `https://tinaut1986.github.io/NSA/changelog/<code>/<n>.json`
   (10 releases a page, in the interface language; English if that language has no pages, a 404) and asks for the next
   page when the end of the text is on screen ("Loading older releases..." on the bottom screen; a failure says
@@ -202,12 +352,14 @@ What `release` holds, in the order it was built:
   highlighted, betas with a dot, the ones not loaded yet hollow ("Hollow: not loaded yet, tap to load"); a drag scrolls
   it, a tap goes to a release, loading the pages up to it first. Claude, 2026-11-11, New 3DS XL (.144): R one page
   exactly, the index (groups, hollow chips), a drag (only the index moves), a tap on v0.6.2 before it was loaded.
-- [ ] Flick and jump arrows in the menus (2026-11-11, `feat/menu-flick`; the owner: the lists coast after a drag and
+  The owner, 2026-11-14: tested on the New 3DS XL; published in v0.9.10.
+- [x] Flick and jump arrows in the menus (2026-11-11, `feat/menu-flick`; the owner: the lists coast after a drag and
   have the arrows to the top and the end, the menus do not). Settings and the action sheets drawn as a list now coast
   when a drag is let go, show the two round arrows at their bottom right while they scroll (only the ways they can still
   go; a tap selects the first or the last row) and take ZL / ZR for the same; the filter popovers coast too (no arrows:
   the card is small). One helper, `widget_scroller` (`widgets.c`), which the lists (`list.c`) now use too for theirs.
   Built only (DEBUG 0.9.9), not tried in Azahar or on a console.
+  The owner, 2026-11-14: tested on the New 3DS XL; published in v0.9.10.
 - [x] Sheets pulled down to close (2026-11-11, `feat/sheet-drag`; issue #14, the last of HOME's mockup). An action sheet
   (`overlay.c`, every theme; it now has a handle) and a dialog drawn as a sheet (`prompt.c`, a theme with sheetPrompts)
   follow a finger put on their top (the handle and the header, not the close cross) and the scrim lightens; let go past
@@ -1277,8 +1429,8 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
 - Discovery: on the Wi-Fi, UDP broadcast on 5001 (the receiver answers `NSA!` and its
   name; `/nsa/peers.txt` lists addresses to ask directly, one per line). Nearby: UDS
   beacons (below).
-- Control connection (TCP 5002, or the UDS stream): the sender sends a 828 byte hello
-  (protocol 8: magic, version, sender name, file name, size, `check` = CRC-32 of the first
+- Control connection (TCP 5002, or the UDS stream): the sender sends a 836 byte hello
+  (protocol 9; 8 had no `batch`/`batchIndex` at the end: magic, version, sender name, file name, size, `check` = CRC-32 of the first
   4 KB of the file or of a package's header, `kind` 0 file / 1 title package / 2 folder, `head` = the
   package header's or folder manifest's size, `origin` = where the file or folder is on the sender's
   SD card, "" when it is not there). For a folder the manifest (`head` bytes) follows the hello at
@@ -1330,6 +1482,37 @@ from another 3DS". Code: `transfer.c` (screens, hello, answers, resume, install)
   with what was chosen).
 - "Install now" installs from `sdmc:/nsa/received/` and deletes the CIA, with no second
   question (`action_install_cia_delete_now`).
+
+**Batches of titles** (issue #53, protocol 9; `feat/send-batch`)
+- Titles has a picking mode (the square-check tool): A or a tap marks a title (a grouped game takes its update and DLC),
+  START sends the marked ones, B leaves it. Only SD titles that are not DSiWare or NSA itself can be marked.
+- The sender reads each title's package size (opening and closing its stream), then sends a hello of kind 3 with the
+  batch's list after it (`NSAB`, count, then per title its package size (8), title ID (8), version (4), 4 zero bytes
+  and CIA name (256); at most 64). The receiver asks once
+  (Install all / Save all / Reject, with a line when the SD card looks too small: total + the largest title), answers
+  with a number for the batch and closes. Each title then goes as a normal title package whose hello quotes that
+  number and its index: the receiver takes it with no question, into `nsa/received/`. One that fails is tried again
+  by itself after 3 s, from where it was, up to 3 times, then given up; one the receiver refuses is given up at once.
+  The sender's turn (xferturn) is held for the whole batch. At the end the sender sends a hello of kind 4 (the end),
+  closes both screens and shows a summary; the receiver shows its own on that end, or as soon as every title is in.
+- Install all: once a title is whole, the receiver installs it on a thread (`action_install_cia_quietly`: SD titles,
+  never over a newer version, the seed fetched when needed; a new title with `AM_StartCiaInstall`, an installed one
+  with the overwrite call, which Azahar lacks), deletes the CIA when it went in and keeps it otherwise; no sender is
+  taken meanwhile (the next one waits in the connection's backlog). The reasons are English, translated on the UI
+  thread (i18n's cache is not for other threads).
+- **The way each title comes** (phase 2, `feat/send-batch-space`): when the batch is accepted the receiver chooses,
+  from its free space less 16 MiB and in the list's order, and sends one byte per title after its 13-byte answer:
+  1 *package* (today's: twice the size free; also every title when saving), 2 *in order* (installing, the size once),
+  0 *skipped* (no room). The top screen says it while asking ("Little room: N will install as they arrive", "N do
+  not fit"). In order (kind 5, `TRANSFER_KIND_CIA_ORDERED`): the sender reads every content once first to hash it
+  (`action_export_cia_ordered_hash`, on a thread, "Reading it first"), builds the CIA's head (header, certificates,
+  ticket, TMD) and tail (meta) in memory and sends the CIA itself as segments; the receiver starts the install
+  (`AM_StartCiaInstall`, or the overwrite call over an installed one, never over a newer one) and writes each chunk
+  into it once the ones before it are in (`transfer_ordered_write`: the chunks come in order on each connection, so a
+  chunk waits for its turn, up to 12 s); AM finishes it on the finalizer thread, and the seed is fetched when needed.
+  A cut cancels the install and the title starts again from byte 0 (no resume). DEBUG: `/nsa/batch-free.txt` (bytes)
+  stands for the free space.
+- `tools/fake_peer.py batch HOST N MB [I] [--drop F] [--no-end]` plays a sender's batch against Azahar or a console. `--cias DIR` gives the CIAs sent for titles wanted in order.
 
 **Local wireless (no router)**
 - UDS (`udslink.c`): a console **without Wi-Fi** that opens Receive creates a network named

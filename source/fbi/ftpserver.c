@@ -17,6 +17,7 @@
 
 #include "ftpserver.h"
 #include "relaunch.h"
+#include "remotehelp.h"
 #include "homeicon.h"
 #include "selftest.h"
 #include "../core/core.h"
@@ -1127,6 +1128,25 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         }
     }
 
+    // The reference of these commands and of the web API (remotehelp.c), one reply line each: it drives nothing, so it
+    // answers with remote use off too.
+    if(strcmp(sub, "HELP") == 0) {
+        ftp_reply(s, "214-NSA remote control reference");
+        const char* line = remote_help_text;
+        while(*line != '\0') {
+            const char* end = strchr(line, '\n');
+            int len = end != NULL ? (int) (end - line) : (int) strlen(line);
+            ftp_reply(s, " %.*s", len, line);
+            line += len;
+            if(*line == '\n') {
+                line++;
+            }
+        }
+
+        ftp_reply(s, "214 End of help.");
+        return;
+    }
+
     if(!ftp_remote_allowed()) {
         ftp_reply(s, "502 Remote use is off: create sdmc:" FTP_REMOTE_FLAG " on the SD card to turn it on.");
         return;
@@ -1447,6 +1467,53 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         sscanf(path != NULL ? path : "", "%u %u %u %u %u %u %u %u", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7]);
         Result res = led_pattern(v[0] != 0, (u8) v[1], (u8) v[2], (u8) v[3], (u8) v[4], v[5], v[6], v[7]);
         ftp_reply(s, "200 LED %08lX", (u32) res);
+        return;
+    }
+
+    // The system configuration's blocks 0x00050000-0x0005000F (the screens' backlight: brightness, power saving,
+    // auto-brightness), as the app can read them (issue #42): "SITE CFG", or "SITE CFG <first block hex> [count]".
+    if(NSA_DEBUG && strcmp(sub, "CFG") == 0) {
+        u32 first = 0x00050000;
+        u32 count = 16;
+        if(path != NULL && path[0] != '\0') {
+            char* end = NULL;
+            first = (u32) strtoul(path, &end, 16);
+            if(end != NULL && *end == ' ') {
+                count = (u32) strtoul(end + 1, NULL, 10);
+            }
+        }
+
+        if(count == 0 || count > 32) {
+            count = 16;
+        }
+
+        char out[FTP_LINE_MAX - 8];
+        size_t used = (size_t) snprintf(out, sizeof(out), "200");
+        for(u32 i = 0; i < count && used + 48 < sizeof(out); i++) {
+            u32 id = first + i;
+            u8 data[16];
+            static const u32 sizes[] = {16, 8, 4, 2, 1};
+            for(u32 k = 0; k < sizeof(sizes) / sizeof(*sizes); k++) {
+                memset(data, 0, sizeof(data));
+                const char* how = "u";
+                Result res = CFGU_GetConfigInfoBlk2(sizes[k], id, data);
+                if(R_FAILED(res)) {
+                    how = "s";
+                    res = CFG_GetConfigInfoBlk8(sizes[k], id, data);
+                }
+
+                if(R_SUCCEEDED(res)) {
+                    used += (size_t) snprintf(out + used, sizeof(out) - used, " %lX%s[%lu]=", id, how, sizes[k]);
+                    for(u32 b = 0; b < sizes[k] && used + 3 < sizeof(out); b++) {
+                        used += (size_t) snprintf(out + used, sizeof(out) - used, "%02X", data[b]);
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        ftp_reply(s, "%s", out);
         return;
     }
 

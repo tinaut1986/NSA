@@ -49,6 +49,9 @@ Result action_install_cia_start(FS_MediaType dest, u64 titleId, u16 version, Han
 // user says no: nothing deleted then); `ended` once the install is over puts the save back, or says where it is kept.
 Result action_install_cia_lower(FS_MediaType dest, u64 titleId, u16 version, u16 installedVersion);
 void action_install_cia_ended(u64 titleId, bool installed);
+// How many CIAs have been installed since NSA started, and the last one's title ID: the Store learns from it which title
+// a CIA of an app with no unique ID in its catalogue installed.
+u32 action_install_cia_installed(u64* lastTitleId);
 // Copies the title's save to sdmc:/nsa/saves/<ID>/<date>-<why>/ (a backup of NSA's, listed with the others) and puts that
 // folder in `dir`; `dir` is left empty when the title has no save (never started), which is no error.
 Result action_save_backup(u64 titleId, FS_MediaType media, u16 version, const char* why, char* dir, size_t size);

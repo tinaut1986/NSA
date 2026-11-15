@@ -62,7 +62,13 @@ SendUserFile; installing it on a console still waits for them to ask (they usual
   `tools/version.sh` gives that tag's major and minor, so after `v0.6.1` that is `make DEBUG=1 VERSION_MICRO=1` (title
   0.6.1, what the consoles hold once they update). `SITE INSTALL` and the web page's install take the **same** version
   (`AM_StartCiaInstallOverwrite`; only HOME's icon, banner and sound stay old); a lower one is refused (D8E08027). **Never
-  go above it** (and never 15): the micro version is 4 bits and a console that holds a higher one refuses the next releases.
+  go above it**: a console that holds a higher one refuses the next releases.
+- **The app's version and the CIA's title version need not go hand in hand** (the owner's rule, 2026-11-15). Tags go on
+  as usual (v0.9.15, v0.9.16, v0.9.20...): that is the app's version (VERSION_STRING), the one Settings, the updater and
+  GitHub use. The CIA's title version follows the tag only up to micro 15 (4 bits) and **stays at 15** after that
+  (Makefile caps it: v0.9.16 is title 0.9.15) until the minor goes up (v0.10.0 is title 0.10.0 again). A CIA of the same
+  title version installs over the old one; the title version only matters for HOME to refresh the icon, banner and
+  jingle. So there is no need to jump to v0.10.0 at v0.9.15. DEBUG builds: the capped micro of the latest tag (at most 15).
   Check first (`/api/titles`, id `000400000FB1A000`). A console on a release build needs `sdmc:/nsa/remote.flag` (an
   FTP upload works without it) for `SITE INSTALL`; delete it afterwards. See `docs/PLAN.md`, Decisions, "Updating a console"
 

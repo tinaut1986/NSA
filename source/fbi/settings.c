@@ -15,6 +15,7 @@ static settings_data settings = {
         .channel = UPDATE_CHANNEL_STABLE,
         .autoUpdate = true,
         .webServer = false,
+        .linkServer = true,
         .ftpServer = true,   // Serving files is on by default; driving the console needs sdmc:/nsa/remote.flag.
         .theme = 0,
         .accent = 0,
@@ -89,6 +90,11 @@ void settings_load() {
     json_t* webServer = json_object_get(json, "web_server");
     if(json_is_boolean(webServer)) {
         settings.webServer = json_is_true(webServer);
+    }
+
+    json_t* linkServer = json_object_get(json, "link_server");
+    if(json_is_boolean(linkServer)) {
+        settings.linkServer = json_is_true(linkServer);
     }
 
     json_t* webPinMode = json_object_get(json, "web_pin_mode");
@@ -265,11 +271,12 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
                              "web_server", settings.webServer,
+                             "link_server", settings.linkServer,
                              "web_pin_mode", settings.webPinMode == WEB_PIN_FIXED ? "fixed" : settings.webPinMode == WEB_PIN_NONE ? "none" : "random",
                              "web_pin", settings.webPin,
                              "ftp_pauses_music", settings.ftpPausesMusic,

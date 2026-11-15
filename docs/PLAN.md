@@ -163,6 +163,14 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Links from web pages (`linkserver.c`, 2026-11-15, 0.9.12-dev): port 80 `/send` as 3dsDL's Receive, mDNS for
+  3ds.local and nsa.local. Claude tried on the New 3DS XL .135 from the PC: Windows resolves both names; Brewology's
+  real link (http://3ds.local/send?links=...Universal-Updater.cia) opened in a browser gives "Sent 1 link" and the
+  console's Remote install question ("A device on your network (192.168.1.52) sent a link from store.brewology.com");
+  Save got the 2.4 MB CIA (deleted after); POST with text and repeats, X-Requested-With JSON, a second send while the
+  first is asked or downloading is turned away ("busy" page), a name another device holds gives 3ds-2.local. The PC's
+  own multicast queries never reached the console (other devices' do): a phone on the Wi-Fi is the test left, and two
+  NSA consoles at once (the 2DS was off). The owner: press Brewology's "Send to 3dsDL" from a phone and a computer.
 - [ ] Claude's pass on both consoles (2026-11-14 night, New 3DS XL .135 -> 2DS .136, builds up to 0.9.11-dev.41),
   driving them through the web API (not ticked: the owner ticks). Batches (#53): Save all of WiFiManager+, FBI ESP,
   ftpd-EX (3/3, the CIAs checked on the PC with console_tests.verify_cia, then deleted); Install all of Homebrew

@@ -14,6 +14,7 @@
 #include "guide.h"
 #include "datetime.h"
 #include "webserver.h"
+#include "linkserver.h"
 #include "settings.h"
 #include "update.h"
 #include "../core/core.h"
@@ -268,6 +269,10 @@ void startup_run() {
 
     if(settings_get()->webServer) {
         webserver_start_when_online();
+    }
+
+    if(settings_get()->linkServer) {
+        linkserver_start_when_online();
     }
 
     datetime_start();

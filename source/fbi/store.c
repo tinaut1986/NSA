@@ -210,6 +210,8 @@ typedef struct {
     u32 generation;
     store_record records[STORE_RECORDS_MAX];
     u32 recordCount;
+    // STORE_FILE_WRITTEN as read: {slug: ["+<size> <mtime> /path", ...]} (storescript_written's lines). Main thread only.
+    json_t* written;
 
     ui_view* view;
     linked_list* items;
@@ -350,6 +352,7 @@ static void store_release(store_data* store) {
         free(store->prefetch);
         free(store->scan);
         free(store->status);
+        json_decref(store->written);
 
         if(store->archive != 0) {
             fs_close_archive(store->archive);
@@ -1887,6 +1890,8 @@ static u32 store_shot_count(const store_app* app) {
     return count > STORE_SHOTS_MAX ? STORE_SHOTS_MAX : count;
 }
 
+static bool store_written_has(store_data* store, const store_app* app);
+
 // What A does on an app: the choices its sheet has (0: nothing to download), and whether there is only one, which A then
 // starts at once (the install question) instead of opening the sheet. store_open_app goes by it, and the top screen says it.
 static u32 store_app_choices(store_data* store, const store_app* app, bool* direct) {
@@ -1894,7 +1899,8 @@ static u32 store_app_choices(store_data* store, const store_app* app, bool* dire
     u32 downloads = (app->ciaUrl != NULL ? 1 : 0) + (app->dsxUrl != NULL ? 1 : 0) + app->otherCount;
     u32 extra = (app->ciaUrl != NULL && store_cia_title_id(store, app) != 0 && (status & STATUS_CIA) != 0 ? 1 : 0)   // Uninstall the CIA.
                 + (app->dsxUrl != NULL && (status & STATUS_DSX) != 0 ? 1 : 0)                        // Delete the 3DSX.
-                + (app->shots != NULL ? 1 : 0);                                                      // Pictures.
+                + (app->shots != NULL ? 1 : 0)                                                       // Pictures.
+                + (store_written_has(store, app) ? 1 : 0);                                           // Remove what it wrote.
     *direct = downloads == 1 && extra == 0;
     return downloads == 0 ? 0 : downloads + extra;
 }
@@ -2044,6 +2050,416 @@ static void store_draw_top(ui_view* view, void* data, float x1, float y1, float 
     }
 }
 
+// ---- what the Store's scripts wrote, to take it away again ----
+
+static store_data* store_sheet_store;
+static store_app* store_sheet_app;
+static void store_status_again(store_data* store, const store_app* app);
+
+static void store_written_load(store_data* store) {
+    char path[FILE_PATH_MAX];
+    store_path(store, STORE_FILE_WRITTEN, path, sizeof(path));
+    json_error_t error;
+    json_t* root = json_load_file(path, 0, &error);
+    json_decref(store->written);
+    store->written = json_is_object(root) ? root : json_object();
+    if(!json_is_object(root)) {
+        json_decref(root);
+    }
+}
+
+static void store_written_save(store_data* store) {
+    char path[FILE_PATH_MAX];
+    store_path(store, STORE_FILE_WRITTEN, path, sizeof(path));
+    if(store->written == NULL || json_object_size(store->written) == 0) {
+        remove(path);
+        return;
+    }
+
+    json_dump_file(store->written, path, JSON_COMPACT);
+}
+
+// A line's path ("+12 345 /3ds/x" -> "/3ds/x").
+static const char* store_written_path(const char* line) {
+    const char* p = strchr(line, ' ');
+    p = p != NULL ? strchr(p + 1, ' ') : NULL;
+    return p != NULL ? p + 1 : "";
+}
+
+// A run's lines added to the app's: a file already there keeps its first mark (whether something was there before the
+// app's first install), with the new size and time.
+static void store_written_add(store_data* store, const char* slug, const char* written) {
+    if(store->written == NULL || written == NULL || written[0] == '\0') {
+        return;
+    }
+
+    json_t* list = json_object_get(store->written, slug);
+    if(!json_is_array(list)) {
+        list = json_array();
+        json_object_set_new(store->written, slug, list);
+    }
+
+    for(const char* line = written; *line != '\0'; ) {
+        const char* end = strchr(line, '\n');
+        size_t len = end != NULL ? (size_t) (end - line) : strlen(line);
+        char entry[FILE_PATH_MAX + 48];
+        string_copy(entry, line, len + 1 < sizeof(entry) ? len + 1 : sizeof(entry));
+        line += len + (end != NULL ? 1 : 0);
+
+        const char* path = store_written_path(entry);
+        if(path[0] != '/') {
+            continue;
+        }
+
+        bool found = false;
+        size_t index;
+        json_t* value;
+        json_array_foreach(list, index, value) {
+            const char* old = json_string_value(value);
+            if(old != NULL && strcasecmp(store_written_path(old), path) == 0) {
+                entry[0] = old[0];
+                json_array_set_new(list, index, json_string(entry));
+                found = true;
+                break;
+            }
+        }
+
+        if(!found) {
+            json_array_append_new(list, json_string(entry));
+        }
+    }
+
+    store_written_save(store);
+}
+
+// Whether the app's scripts left a file (not only ones they took away again).
+static bool store_written_has(store_data* store, const store_app* app) {
+    json_t* list = store->written != NULL ? json_object_get(store->written, app->slug) : NULL;
+    size_t index;
+    json_t* value;
+    json_array_foreach(list, index, value) {
+        const char* line = json_string_value(value);
+        if(line != NULL && line[0] != '-') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Folders that stay even when empty: the card's own and other apps' places.
+static bool store_written_folder_kept(const char* dir) {
+    static const char* const kept[] = {"/3ds", "/luma", "/luma/titles", "/luma/plugins", "/cias", "/Nintendo 3DS", "/nsa", "/gm9",
+                                       "/_nds", "/roms", "/private", "/DCIM", "/title", "/config", "/retroarch"};
+    for(u32 i = 0; i < sizeof(kept) / sizeof(kept[0]); i++) {
+        if(strcasecmp(dir, kept[i]) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// The folders above `path` that are left empty go (up to one that stays, or one with something else in it).
+static void store_written_prune(const char* path) {
+    char dir[FILE_PATH_MAX];
+    string_copy(dir, path, sizeof(dir));
+    while(true) {
+        char* slash = strrchr(dir, '/');
+        if(slash == NULL || slash == dir) {
+            return;
+        }
+
+        *slash = '\0';
+        if(store_written_folder_kept(dir)) {
+            return;
+        }
+
+        char sd[FILE_PATH_MAX + 8];
+        snprintf(sd, sizeof(sd), "sdmc:%s", dir);
+        if(rmdir(sd) != 0) {
+            return;
+        }
+    }
+}
+
+#define WRITTEN_NEW 0        // Put there by the app, as it was.
+#define WRITTEN_REPLACED 1   // It replaced a file that was there before, as it was.
+#define WRITTEN_CHANGED 2    // Changed since (another app, a later pack): left.
+#define WRITTEN_GONE 3
+
+typedef struct {
+    store_data* store;
+    store_app* app;
+    u32 count;
+    char** paths;
+    u8* states;
+    u32 news;
+    u32 replaced;
+    u32 changed;
+    bool keepReplaced;
+    u32 at;
+    u32 deleted;
+    u32 failed;
+} store_remove_ctx;
+
+static void store_remove_free(store_remove_ctx* ctx) {
+    for(u32 i = 0; i < ctx->count; i++) {
+        free(ctx->paths[i]);
+    }
+
+    free(ctx->paths);
+    free(ctx->states);
+    store_release(ctx->store);
+    free(ctx);
+}
+
+// The app's notes are done with: its files went (or were left on purpose).
+static void store_remove_forget(store_remove_ctx* ctx) {
+    json_object_del(ctx->store->written, ctx->app->slug);
+    store_written_save(ctx->store);
+
+    // The file the Store looked for to say an app with neither a CIA nor a .3dsx is there.
+    store_record* record = store_record_find(ctx->store, ctx->app->slug);
+    if(record != NULL && record->other[0] != '\0') {
+        char sd[FILE_PATH_MAX + 8];
+        snprintf(sd, sizeof(sd), "sdmc:%s", record->other);
+        struct stat st;
+        if(stat(sd, &st) != 0) {
+            record->other[0] = '\0';
+            store_records_save(ctx->store);
+            for(u32 i = 0; i < ctx->store->count; i++) {
+                if(&ctx->store->apps[i] == ctx->app) {
+                    LightLock_Lock(&ctx->store->lock);
+                    if(ctx->store->scan != NULL && i < ctx->store->scanCount) {
+                        ctx->store->scan[i].recOther[0] = '\0';
+                    }
+
+                    LightLock_Unlock(&ctx->store->lock);
+                }
+            }
+        }
+    }
+
+    store_status_again(ctx->store, ctx->app);
+}
+
+static void store_remove_update(ui_view* view, void* data, float* progress, char* text) {
+    store_remove_ctx* ctx = (store_remove_ctx*) data;
+
+    // A few files a frame, so that the screen says how far it is.
+    for(u32 n = 0; n < 16 && ctx->at < ctx->count; n++, ctx->at++) {
+        u8 state = ctx->states[ctx->at];
+        if(state == WRITTEN_NEW || (state == WRITTEN_REPLACED && !ctx->keepReplaced)) {
+            char sd[FILE_PATH_MAX + 8];
+            snprintf(sd, sizeof(sd), "sdmc:%s", ctx->paths[ctx->at]);
+            if(remove(sd) == 0) {
+                ctx->deleted++;
+            } else {
+                ctx->failed++;
+            }
+        }
+    }
+
+    *progress = ctx->count > 0 ? (float) ctx->at / (float) ctx->count : 1;
+    snprintf(text, PROGRESS_TEXT_MAX, _("%lu of %lu files"), (unsigned long) ctx->at, (unsigned long) ctx->count);
+    if(ctx->at < ctx->count) {
+        return;
+    }
+
+    for(u32 i = 0; i < ctx->count; i++) {
+        store_written_prune(ctx->paths[i]);
+    }
+
+    ui_pop();
+    info_destroy(view);
+
+    u32 left = ctx->changed + (ctx->keepReplaced ? ctx->replaced : 0) + ctx->failed;
+    static char message[256];
+    if(left == 0) {
+        snprintf(message, sizeof(message), ctx->deleted == 1 ? _("Removed 1 file.") : _("Removed %lu files."), (unsigned long) ctx->deleted);
+    } else {
+        snprintf(message, sizeof(message), _("Removed %lu files. %lu were left: changed after the install, kept, or could not be deleted."),
+                 (unsigned long) ctx->deleted, (unsigned long) left);
+    }
+
+    store_remove_forget(ctx);
+    prompt_display_notify("Success", message, COLOR_TEXT, NULL, NULL, NULL);
+    store_remove_free(ctx);
+}
+
+static void store_remove_start(store_remove_ctx* ctx) {
+    info_display(_("Removing"), "", false, ctx, store_remove_update, NULL);
+}
+
+static void store_remove_answered(ui_view* view, void* data, u32 response) {
+    store_remove_ctx* ctx = (store_remove_ctx*) data;
+    if(response != PROMPT_YES) {
+        store_remove_free(ctx);
+        return;
+    }
+
+    store_remove_start(ctx);
+}
+
+// With files it replaced: 0 deletes them too, 1 keeps them, else nothing.
+static void store_remove_chosen(ui_view* view, void* data, u32 response) {
+    store_remove_ctx* ctx = (store_remove_ctx*) data;
+    if(response != 0 && response != 1) {
+        store_remove_free(ctx);
+        return;
+    }
+
+    ctx->keepReplaced = response == 1;
+    store_remove_start(ctx);
+}
+
+static void store_remove_written(void* data) {
+    store_data* store = store_sheet_store;
+    store_app* app = store_sheet_app;
+    json_t* list = store->written != NULL ? json_object_get(store->written, app->slug) : NULL;
+    u32 count = json_is_array(list) ? (u32) json_array_size(list) : 0;
+    store_remove_ctx* ctx = (store_remove_ctx*) calloc(1, sizeof(store_remove_ctx));
+    char** paths = count > 0 ? (char**) calloc(count, sizeof(char*)) : NULL;
+    u8* states = count > 0 ? (u8*) calloc(count, 1) : NULL;
+    if(ctx == NULL || paths == NULL || states == NULL) {
+        free(ctx);
+        free(paths);
+        free(states);
+        error_display_res(NULL, NULL, R_APP_OUT_OF_MEMORY, _("Failed to open the Store."));
+        return;
+    }
+
+    ctx->store = store;
+    store_retain(store);
+    ctx->app = app;
+    ctx->paths = paths;
+    ctx->states = states;
+
+    // Each file as it is now: as the app left it, changed since, or gone.
+    const char* folder = NULL;
+    for(u32 i = 0; i < count; i++) {
+        const char* line = json_string_value(json_array_get(list, i));
+        if(line == NULL) {
+            continue;
+        }
+
+        unsigned long long size = 0;
+        unsigned long long mtime = 0;
+        sscanf(line + 1, "%llu %llu", &size, &mtime);
+        const char* path = store_written_path(line);
+        ctx->paths[ctx->count] = strdup(path);
+        if(ctx->paths[ctx->count] == NULL) {
+            continue;
+        }
+
+        char sd[FILE_PATH_MAX + 8];
+        snprintf(sd, sizeof(sd), "sdmc:%s", path);
+        struct stat st;
+        u8 state = WRITTEN_GONE;
+        if(stat(sd, &st) == 0 && S_ISREG(st.st_mode)) {
+            if((unsigned long long) st.st_size != size || (unsigned long long) st.st_mtime != mtime) {
+                state = WRITTEN_CHANGED;
+                ctx->changed++;
+            } else if(line[0] == '*') {
+                state = WRITTEN_REPLACED;
+                ctx->replaced++;
+            } else {
+                state = WRITTEN_NEW;
+                ctx->news++;
+            }
+
+            if(folder == NULL && state != WRITTEN_CHANGED) {
+                folder = ctx->paths[ctx->count];
+            }
+        }
+
+        ctx->states[ctx->count++] = state;
+    }
+
+    static char text[768];
+    if(ctx->news + ctx->replaced == 0) {
+        // Nothing of it is left: forgotten, and the empty folders go.
+        for(u32 i = 0; i < ctx->count; i++) {
+            store_written_prune(ctx->paths[i]);
+        }
+
+        snprintf(text, sizeof(text), _("Nothing that the Store put on the SD card for %s is there any more."), app->title);
+        store_remove_forget(ctx);
+        store_remove_free(ctx);
+        prompt_display_notify("Store", text, COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    // Where: the folder all of them are in, at most three levels deep ("/luma/titles/000400000017CA00").
+    char where[FILE_PATH_MAX];
+    string_copy(where, folder != NULL ? folder : "/", sizeof(where));
+    char* slash = strrchr(where, '/');
+    if(slash != NULL) {
+        slash[1] = '\0';
+    }
+
+    for(u32 i = 0; i < ctx->count; i++) {
+        if(ctx->states[i] != WRITTEN_NEW && ctx->states[i] != WRITTEN_REPLACED) {
+            continue;
+        }
+
+        // Shortened to a folder that holds this one too.
+        while(strncasecmp(ctx->paths[i], where, strlen(where)) != 0 && strlen(where) > 1) {
+            where[strlen(where) - 1] = '\0';
+            char* up = strrchr(where, '/');
+            if(up != NULL) {
+                up[1] = '\0';
+            }
+        }
+    }
+
+    u32 levels = 0;
+    for(char* c = where + 1; *c != '\0'; c++) {
+        if(*c == '/' && ++levels == 3) {
+            c[1] = '\0';
+            break;
+        }
+    }
+
+    size_t whereLen = strlen(where);
+    if(whereLen > 1 && where[whereLen - 1] == '/') {
+        where[whereLen - 1] = '\0';
+    }
+
+    u32 files = ctx->news + ctx->replaced;
+    if(files == 1) {
+        snprintf(text, sizeof(text), _("Remove what the Store installed for %s?\n\nThe file it put on the SD card is deleted (in %s)."), app->title, where);
+    } else {
+        snprintf(text, sizeof(text), _("Remove what the Store installed for %s?\n\nThe %lu files it put on the SD card are deleted (in %s)."),
+                 app->title, (unsigned long) files, where);
+    }
+
+    if(ctx->changed > 0) {
+        size_t used = strlen(text);
+        snprintf(text + used, sizeof(text) - used, _("\n\n%lu files changed after the install: they are left as they are."), (unsigned long) ctx->changed);
+    }
+
+    if(ctx->replaced > 0) {
+        size_t used = strlen(text);
+        snprintf(text + used, sizeof(text) - used, _("\n\n%lu of them replaced files that were there before (another pack or app, or an earlier install). Deleting them does not bring those back."),
+                 (unsigned long) ctx->replaced);
+    }
+
+    // Only some replaced: keeping those is a choice of its own. None, or all of them: yes or no.
+    if(ctx->replaced == 0 || ctx->news == 0) {
+        prompt_display_warning("Confirmation", text, COLOR_TEXT, ctx, NULL, store_remove_answered);
+        return;
+    }
+
+    static const char* options[3];
+    static u32 buttons[] = {KEY_A, KEY_X, KEY_B};
+    options[0] = _("Delete all");
+    options[1] = _("Keep those");
+    options[2] = _("Cancel");
+    prompt_display_multi_choice("Confirmation", text, COLOR_TEXT, options, buttons, 3, ctx, NULL, store_remove_chosen);
+}
+
 // ---- installing ----
 
 // What an install or a download of an app needs to remember when it ends well.
@@ -2053,6 +2469,7 @@ typedef struct {
     char version[24];
     bool cia;
     bool other;   // Neither the CIA nor the .3dsx: nothing to note or look for on the console.
+    bool script;  // Ran a script: what it wrote is noted (STORE_FILE_WRITTEN).
     bool ok;
 } store_install_ctx;
 
@@ -2101,6 +2518,11 @@ static void store_install_finished_all(void* data) {
     store_data* store = ctx->store;
     if(ctx->cia) {
         store_take_title(store);
+    }
+
+    // What a script wrote (storescript_written is valid only now, inside its `done`).
+    if(ctx->ok && ctx->script) {
+        store_written_add(store, ctx->slug, storescript_written());
     }
 
     if(ctx->ok) {
@@ -2194,7 +2616,9 @@ static void store_recheck_step(store_data* store) {
 }
 
 static void store_script_done(void* data, bool ok) {
-    ((store_install_ctx*) data)->ok = ok;
+    store_install_ctx* ctx = (store_install_ctx*) data;
+    ctx->ok = ok;
+    ctx->script = true;
     store_install_finished_all(data);
 }
 
@@ -2652,7 +3076,7 @@ static void store_open_app(store_data* store, store_app* app) {
         return;
     }
 
-    sheet_action actions[5 + STORE_OTHERS_MAX];
+    sheet_action actions[6 + STORE_OTHERS_MAX];
     u32 count = 0;
     if(app->shots != NULL) {
         static char shotsLabel[64];
@@ -2680,6 +3104,11 @@ static void store_open_app(store_data* store, store_app* app) {
 
     if(deleteDsx) {
         actions[count++] = (sheet_action) {ICON_TRASH, _("Delete the 3DSX"), true, store_delete_dsx, false, _("Removes it from /3ds/; its settings and data stay.")};
+    }
+
+    if(store_written_has(store, app)) {
+        actions[count++] = (sheet_action) {ICON_TRASH, _("Remove what the Store installed"), true, store_remove_written, false,
+                                           _("Deletes the files its downloads put on the SD card.")};
     }
 
     sheet_display_list(app->title, 0, actions, count, app);
@@ -3062,6 +3491,7 @@ static void store_update(ui_view* view, void* data, linked_list* items, list_ite
 
         store_source_make_dir(&store->source);
         store_records_load(store);
+        store_written_load(store);
         if(NSA_DEBUG) {
             remove(STORE_LOG_PATH);
         }

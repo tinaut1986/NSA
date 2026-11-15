@@ -20,6 +20,7 @@ typedef enum {
     STORE_FILE_PACK,        // The icons, shrunk.
     STORE_FILE_MARK,        // Which revision the icons are of.
     STORE_FILE_INSTALLED,   // What the Store installed or downloaded.
+    STORE_FILE_WRITTEN,     // Every file the Store's scripts wrote, for each app (to take it away again).
     STORE_FILE_COUNT
 } store_file;
 

@@ -33,8 +33,8 @@ static const store_source storelist_universal_db = {
 };
 
 void store_source_file(const store_source* source, store_file which, char* out, size_t size) {
-    static const char* const universalDb[STORE_FILE_COUNT] = {"store-cache.json", "store-icons.pack", "store-icons/sheets.rev", "store-installed.json"};
-    static const char* const own[STORE_FILE_COUNT] = {"cache.json", "icons.pack", "sheets.rev", "installed.json"};
+    static const char* const universalDb[STORE_FILE_COUNT] = {"store-cache.json", "store-icons.pack", "store-icons/sheets.rev", "store-installed.json", "store-written.json"};
+    static const char* const own[STORE_FILE_COUNT] = {"cache.json", "icons.pack", "sheets.rev", "installed.json", "written.json"};
     if(source->key[0] == '\0') {
         snprintf(out, size, "sdmc:" APP_DATA_DIR "%s", universalDb[which]);
     } else {

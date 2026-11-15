@@ -73,6 +73,13 @@ typedef struct {
     char created[SCRIPT_CREATED_MAX][SCRIPT_PATH_MAX];
     u32 createdCount;
 
+    // Every file it is about to write, one a line: "+/path" when nothing was there, "*/path" when it replaces a file
+    // (another app's, an earlier pack's). Grows as needed; for storescript_written.
+    char* journal;
+    size_t journalLen;
+    size_t journalCap;
+    char* written;      // Built at the end: what of the journal is on the card (storescript_written's format).
+
     bool sensitive;     // A step writes where the user is warned first; after the warning an extraction may too.
     bool insecure;      // A download is over plain http.
     bool warnedSensitive;
@@ -459,6 +466,54 @@ static void script_note_created(script_run* run, const char* path) {
     string_copy(run->last, path, sizeof(run->last));
 }
 
+// Noted before `path` is written (once: the first look says whether something was there before this run).
+static void script_journal_note(script_run* run, const char* path) {
+    // A folder (an archive's entry for it) is not a file it leaves.
+    size_t len = strlen(path);
+    if(len == 0 || path[len - 1] == '/') {
+        return;
+    }
+
+    // Already noted?
+    for(const char* line = run->journal; line != NULL && line < run->journal + run->journalLen; ) {
+        const char* end = strchr(line, '\n');
+        if(end == NULL) {
+            break;
+        }
+
+        if((size_t) (end - line) == len + 1 && strncasecmp(line + 1, path, len) == 0) {
+            return;
+        }
+
+        line = end + 1;
+    }
+
+    if(run->journalLen + len + 3 > run->journalCap) {
+        size_t cap = run->journalCap > 0 ? run->journalCap * 2 : 4096;
+        while(cap < run->journalLen + len + 3) {
+            cap *= 2;
+        }
+
+        char* grown = (char*) realloc(run->journal, cap);
+        if(grown == NULL) {
+            return;
+        }
+
+        run->journal = grown;
+        run->journalCap = cap;
+    }
+
+    char sd[SCRIPT_PATH_MAX + 8];
+    script_sd(sd, sizeof(sd), path);
+    struct stat st;
+    bool there = stat(sd, &st) == 0 && S_ISREG(st.st_mode);
+    run->journal[run->journalLen++] = there ? '*' : '+';
+    memcpy(run->journal + run->journalLen, path, len);
+    run->journalLen += len;
+    run->journal[run->journalLen++] = '\n';
+    run->journal[run->journalLen] = '\0';
+}
+
 static void script_extracted(void* userData, const char* sdPath) {
     // "sdmc:/3ds/app.3dsx" as "/3ds/app.3dsx".
     script_note_created((script_run*) userData, strncmp(sdPath, "sdmc:", 5) == 0 ? sdPath + 5 : sdPath);
@@ -469,7 +524,20 @@ static void script_extracted(void* userData, const char* sdPath) {
 // warned about.
 static bool script_extract_allowed(void* userData, const char* sdPath) {
     const char* path = strncmp(sdPath, "sdmc:", 5) == 0 ? sdPath + 5 : sdPath;
-    return !script_forbidden(path) && (((script_run*) userData)->sensitive || !script_sensitive(path));
+    script_run* run = (script_run*) userData;
+    bool allowed = !script_forbidden(path) && (run->sensitive || !script_sensitive(path));
+    if(allowed) {
+        script_journal_note(run, path);
+    }
+
+    return allowed;
+}
+
+// What the run that is ending wrote (see storescript_written), while its `done` runs.
+static const char* script_written_now = NULL;
+
+const char* storescript_written(void) {
+    return script_written_now != NULL ? script_written_now : "";
 }
 
 static void script_finish(script_run* run, bool ok) {
@@ -482,9 +550,13 @@ static void script_finish(script_run* run, bool ok) {
     }
 
     if(run->done != NULL) {
+        script_written_now = ok && run->written != NULL ? run->written : NULL;
         run->done(run->userData, ok);
+        script_written_now = NULL;
     }
 
+    free(run->journal);
+    free(run->written);
     free(run);
 }
 
@@ -571,6 +643,44 @@ static void script_install_thread(void* arg) {
 
 // The end: the CIAs install (their screens say how it went), or it says where the files went.
 static void script_end(script_run* run) {
+    // What it wrote that is still there (the CIAs it installs and then deletes are not), for the Store to take away later.
+    free(run->written);
+    run->written = NULL;
+    size_t cap = run->journalLen * 2 + 64;
+    run->written = run->journalLen > 0 ? (char*) malloc(cap) : NULL;
+    if(run->written != NULL) {
+        size_t used = 0;
+        run->written[0] = '\0';
+        for(const char* line = run->journal; line < run->journal + run->journalLen; ) {
+            const char* end = strchr(line, '\n');
+            if(end == NULL) {
+                break;
+            }
+
+            char path[SCRIPT_PATH_MAX];
+            size_t len = (size_t) (end - line) - 1;
+            string_copy(path, line + 1, len + 1 < sizeof(path) ? len + 1 : sizeof(path));
+            char sd[SCRIPT_PATH_MAX + 8];
+            script_sd(sd, sizeof(sd), path);
+            struct stat st;
+            bool gone = run->deleteInstalled && script_installing(run, path);
+            // One the run itself took away again (a download it unpacked) is noted as "-": its folder may be left empty.
+            bool there = !gone && stat(sd, &st) == 0 && S_ISREG(st.st_mode);
+            if(line[0] == '+' || there) {
+                int n = snprintf(run->written + used, cap - used, "%c%llu %llu %s\n", there ? line[0] : '-',
+                                 there ? (unsigned long long) st.st_size : 0ULL, there ? (unsigned long long) st.st_mtime : 0ULL, path);
+                if(n > 0 && used + (size_t) n < cap) {
+                    used += (size_t) n;
+                } else {
+                    run->written[used] = '\0';
+                    break;
+                }
+            }
+
+            line = end + 1;
+        }
+    }
+
     // What it leaves, for the Store to look for later.
     script_kept[0] = '\0';
     for(u32 i = run->createdCount; i > 0 && script_kept[0] == '\0'; i--) {
@@ -704,6 +814,7 @@ static void script_files_thread(void* arg) {
         } else if(s->type == STEP_MOVE) {
             script_sd(from, sizeof(from), s->a);
             script_sd(to, sizeof(to), s->b);
+            script_journal_note(run, s->b);
             remove(to);
             script_make_dirs(to);
             if(rename(from, to) != 0) {
@@ -714,6 +825,7 @@ static void script_files_thread(void* arg) {
         } else if(s->type == STEP_COPY) {
             script_sd(from, sizeof(from), s->a);
             script_sd(to, sizeof(to), s->b);
+            script_journal_note(run, s->b);
             script_make_dirs(to);
             if(!script_copy_file(from, to)) {
                 res = R_APP_IO_ERROR;
@@ -843,6 +955,7 @@ static void script_download_done(void* data) {
 
 static void script_download(script_run* run, const char* url) {
     run->downloaded = false;
+    script_journal_note(run, run->steps[run->pc].b);
     if(run->queued) {
         run->dl = action_download_urls_to_queued(url, run->steps[run->pc].b, run, script_downloaded, script_download_done);
         return;

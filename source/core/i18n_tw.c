@@ -939,6 +939,7 @@ const i18n_entry i18n_tw[] = {
         {"Download the CIA", "下載CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "儲存到 /nsa/received/，之後再從文件畫面安裝。"},
         {"Download the 3DSX again", "再次下載3DSX"},
+        {"The folder you are in", "你所在的資料夾"},
         {"Remove what the Store installed", "移除商店安裝的內容"},
         {"Deletes the files its downloads put on the SD card.", "刪除其下載放到 SD 卡上的檔案。"},
         {"Remove what the Store installed for %s?\n\nThe file it put on the SD card is deleted (in %s).", "移除商店為 %s 安裝的內容嗎？\n\n將刪除它放到 SD 卡上的檔案（在 %s）。"},

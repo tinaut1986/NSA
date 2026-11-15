@@ -946,6 +946,7 @@ const i18n_entry i18n_ca[] = {
         {"Download the CIA", "Baixar el CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "El desa a /nsa/received/ per instal·lar-lo després des de Fitxers."},
         {"Download the 3DSX again", "Baixar el 3DSX de nou"},
+        {"The folder you are in", "La carpeta on ets"},
         {"Remove what the Store installed", "Treure el que va instal·lar la Botiga"},
         {"Deletes the files its downloads put on the SD card.", "Esborra els fitxers que les seves baixades van posar a la targeta SD."},
         {"Remove what the Store installed for %s?\n\nThe file it put on the SD card is deleted (in %s).", "Vols treure el que va instal·lar la Botiga per a %s?\n\nS'esborra el fitxer que va posar a la targeta SD (a %s)."},

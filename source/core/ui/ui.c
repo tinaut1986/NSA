@@ -21,6 +21,7 @@
 #include "../theme.h"
 #include "widgets.h"
 #include "coach.h"
+#include "prompt.h"
 
 #define MAX_UI_VIEWS 16
 
@@ -309,6 +310,166 @@ static bool ui_back_arrow_at(const touchPosition* pos) {
     return pos->py < WIDGET_TITLE_BAR_HEIGHT && pos->px < UI_BACK_ARROW_WIDTH;
 }
 
+// ---- the hint bar: as many of the view's buttons as fit at their size, and an (i) that lists them all ----
+
+#define UI_HINT_HELP_WIDTH 26
+#define UI_HINT_PIECES_MAX 16
+
+static bool ui_hint_touching = false;
+static ui_view* ui_hint_help_view = NULL;   // The list the (i) opened: no (i) of its own.
+
+typedef struct {
+    const char* start;
+    u32 len;
+} ui_hint_piece;
+
+// A hint is its buttons separated by three spaces or more ("A open   B back").
+static u32 ui_hint_split(const char* hint, ui_hint_piece* pieces, u32 max) {
+    u32 count = 0;
+    const char* p = hint;
+    while(*p != '\0' && count < max) {
+        while(*p == ' ') {
+            p++;
+        }
+
+        if(*p == '\0') {
+            break;
+        }
+
+        const char* end = strstr(p, "   ");
+        u32 len = end != NULL ? (u32) (end - p) : (u32) strlen(p);
+        while(len > 0 && p[len - 1] == ' ') {
+            len--;
+        }
+
+        pieces[count++] = (ui_hint_piece) {p, len};
+        p += len;
+    }
+
+    return count;
+}
+
+static bool ui_hint_has_help(ui_view* ui) {
+    if(ui == NULL || ui->info == NULL || ui == ui_hint_help_view) {
+        return false;
+    }
+
+    const char* hint = i18n_translate_text(ui->info);
+    return hint[0] != '\0';
+}
+
+static bool ui_hint_help_at(const touchPosition* pos) {
+    return pos->py >= BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT && pos->px < UI_HINT_HELP_WIDTH;
+}
+
+static void ui_hint_help_closed(ui_view* view, void* data, u32 response) {
+    ui_hint_help_view = NULL;
+}
+
+// The top screen stays the one of the view the buttons are of.
+static void ui_hint_help_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    ui_view* parent = (ui_view*) data;
+    if(parent != NULL && parent->drawTop != NULL) {
+        parent->drawTop(parent, parent->data, x1, y1, x2, y2);
+    }
+}
+
+// Every button of the view, one a line, in the text's size.
+static void ui_hint_help_open(ui_view* ui) {
+    static char text[1024];
+    ui_hint_piece pieces[UI_HINT_PIECES_MAX];
+    u32 count = ui_hint_split(i18n_translate_text(ui->info), pieces, UI_HINT_PIECES_MAX);
+    text[0] = '\0';
+    for(u32 i = 0; i < count; i++) {
+        size_t used = strlen(text);
+        snprintf(text + used, sizeof(text) - used, "%s%.*s", i > 0 ? "\n" : "", (int) pieces[i].len, pieces[i].start);
+    }
+
+    ui_hint_help_view = prompt_display_notify(_("Buttons"), text, COLOR_TEXT, ui, ui_hint_help_draw_top, ui_hint_help_closed);
+}
+
+// A tap on the (i): the view under it never sees that finger.
+static void ui_update_hint_help(ui_view* ui) {
+    if(!ui_hint_has_help(ui)) {
+        ui_hint_touching = false;
+        return;
+    }
+
+    touchPosition pos;
+    hidTouchRead(&pos);
+    // Swallowed, the held finger reads as a new press every frame and its release as nothing: the release is the frame
+    // with no touch at all.
+    if(ui_hint_touching && !(hidKeysHeld() & KEY_TOUCH)) {
+        ui_hint_touching = false;
+        ui_hint_help_open(ui);
+        return;
+    }
+
+    if(hidKeysDown() & KEY_TOUCH) {
+        ui_hint_touching = ui_hint_help_at(&pos);
+    }
+
+    if(ui_hint_touching) {
+        input_swallow(KEY_TOUCH);
+    }
+}
+
+static void ui_draw_hint_bar(ui_view* ui, float top) {
+    const theme_current* t = theme();
+    if(ui->info == NULL) {
+        return;
+    }
+
+    const char* hint = i18n_translate_text(ui->info);
+    if(hint[0] == '\0') {
+        return;
+    }
+
+    bool help = ui_hint_has_help(ui);
+    float left = help ? UI_HINT_HELP_WIDTH : 6;
+    float room = BOTTOM_SCREEN_WIDTH - 6 - left;
+    float y = top + (WIDGET_HINT_BAR_HEIGHT - widget_text_height(WIDGET_SMALL_SCALE)) / 2;
+    if(help) {
+        if(ui_hint_touching) {
+            screen_fill_round_rect(3, top + 2, UI_HINT_HELP_WIDTH - 6, WIDGET_HINT_BAR_HEIGHT - 4, 5, THEME_ALPHA(t->palette->text, 0x22));
+        }
+
+        screen_draw_icon(ICON_INFO_CIRCLE, 6, top + (WIDGET_HINT_BAR_HEIGHT - 14) / 2, 14, t->accent);
+    }
+
+    // The whole hint when it fits; else the first buttons and the last (usually back), with what is left out in the (i).
+    char line[512];
+    ui_hint_piece pieces[UI_HINT_PIECES_MAX];
+    u32 count = ui_hint_split(hint, pieces, UI_HINT_PIECES_MAX);
+    u32 shown = count;
+    while(true) {
+        line[0] = '\0';
+        for(u32 i = 0; i < count; i++) {
+            if(i + 1 < count && i >= shown - 1) {
+                continue;
+            }
+
+            size_t used = strlen(line);
+            snprintf(line + used, sizeof(line) - used, "%s%.*s", used > 0 ? "   " : "", (int) pieces[i].len, pieces[i].start);
+        }
+
+        if(widget_text_width(line, WIDGET_SMALL_SCALE) <= room || shown <= 1 || !help) {
+            break;
+        }
+
+        shown--;
+    }
+
+    float scale = WIDGET_SMALL_SCALE;
+    float width = widget_text_width(line, scale);
+    if(width > room) {
+        scale *= room / width;
+        y = top + (WIDGET_HINT_BAR_HEIGHT - widget_text_height(scale)) / 2;
+    }
+
+    widget_text_centered(line, left, BOTTOM_SCREEN_WIDTH - 6, y, scale, t->palette->textMuted);
+}
+
 static void ui_update_back_arrow(ui_view* ui) {
     if(ui == NULL || !ui->backArrow) {
         ui_back_touching = false;
@@ -370,16 +531,7 @@ static void ui_draw_bottom(ui_view* ui) {
     screen_fill_rect(0, contentBottom, BOTTOM_SCREEN_WIDTH, WIDGET_HINT_BAR_HEIGHT, t->palette->surface);
     screen_fill_rect(0, contentBottom, BOTTOM_SCREEN_WIDTH, 1, t->palette->border);
     coach_anchor("hints", 0, contentBottom, BOTTOM_SCREEN_WIDTH, WIDGET_HINT_BAR_HEIGHT, false);
-    if(ui->info != NULL) {
-        const char* hint = i18n_translate_text(ui->info);
-        float scale = WIDGET_SMALL_SCALE;
-        float width = widget_text_width(hint, scale);
-        if(width > BOTTOM_SCREEN_WIDTH - 12) {
-            scale *= (BOTTOM_SCREEN_WIDTH - 12) / width;
-        }
-
-        widget_text_centered(hint, 0, BOTTOM_SCREEN_WIDTH, contentBottom + (WIDGET_HINT_BAR_HEIGHT - widget_text_height(scale)) / 2, scale, t->palette->textMuted);
-    }
+    ui_draw_hint_bar(ui, contentBottom);
 
     char notice[256];
     float progress = -1;
@@ -458,6 +610,7 @@ bool ui_update() {
     ui_toast_touch();
     ui = ui_top();
     ui_update_back_arrow(ui);
+    ui_update_hint_help(ui);
     if(ui != NULL && ui->update != NULL) {
         ui->update(ui, ui->data, 0, WIDGET_TITLE_BAR_HEIGHT, BOTTOM_SCREEN_WIDTH, BOTTOM_SCREEN_HEIGHT - WIDGET_HINT_BAR_HEIGHT);
     }

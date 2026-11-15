@@ -13,6 +13,7 @@ typedef struct {
     list_item* selected;
     bool ticket;
     bool mods;   // Delete the game's mods in /luma/titles too, once the title is gone.
+    bool systemConfirmed;   // A system title: the second question was answered "Delete anyway".
 } delete_title_data;
 
 static void action_delete_title_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -66,6 +67,19 @@ static void action_delete_title_mods_answer(ui_view* view, void* data, u32 respo
     action_delete_title_start(deleteData);
 }
 
+static void action_delete_title_onresponse(ui_view* view, void* data, u32 response);
+
+// The second question about a system title: A cancels, so that two presses of A can't delete it.
+static void action_delete_title_system_answer(ui_view* view, void* data, u32 response) {
+    if(response != 1) {
+        free(data);
+        return;
+    }
+
+    ((delete_title_data*) data)->systemConfirmed = true;
+    action_delete_title_onresponse(view, data, PROMPT_YES);
+}
+
 static void action_delete_title_onresponse(ui_view* view, void* data, u32 response) {
     if(response != PROMPT_YES) {
         free(data);
@@ -74,6 +88,16 @@ static void action_delete_title_onresponse(ui_view* view, void* data, u32 respon
 
     delete_title_data* deleteData = (delete_title_data*) data;
     u64 titleId = ((title_info*) deleteData->selected->data)->titleId;
+    if(title_is_system(titleId) && !deleteData->systemConfirmed) {
+        static const char* options[2];
+        static u32 buttons[] = {KEY_A, KEY_X};
+        options[0] = _("Cancel");
+        options[1] = _("Delete anyway");
+        prompt_display_multi_choice("Confirmation", _("Delete it anyway? It can't be undone, and the console may not start without it."),
+                                    COLOR_TEXT, options, buttons, 2, data, action_delete_title_draw_top, action_delete_title_system_answer);
+        return;
+    }
+
     title_kind kind = title_kind_of(titleId);
     if((kind == TITLE_KIND_GAME || kind == TITLE_KIND_DEMO) && task_mods_exist(titleId)) {
         prompt_display_warning("Game mods", "This game has mods in /luma/titles (LayeredFS). Delete them too?", COLOR_TEXT, data, action_delete_title_draw_top, action_delete_title_mods_answer);
@@ -93,6 +117,12 @@ static void action_delete_title_internal(linked_list* items, list_item* selected
     data->items = items;
     data->selected = selected;
     data->ticket = ticket;
+
+    // The console's own software: said plainly first (a second question follows).
+    if(title_is_system(((title_info*) selected->data)->titleId)) {
+        message = ticket ? _("This is part of the console's own software, not a game or app you installed. Deleting it can stop the console from starting, or break one of its features. Delete it only if you know exactly what it is.\n\nDelete the selected title and ticket?")
+                         : _("This is part of the console's own software, not a game or app you installed. Deleting it can stop the console from starting, or break one of its features. Delete it only if you know exactly what it is.\n\nDelete the selected title?");
+    }
 
     prompt_display_warning("Confirmation", message, COLOR_TEXT, data, action_delete_title_draw_top, action_delete_title_onresponse);
 }

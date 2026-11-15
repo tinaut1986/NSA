@@ -184,6 +184,12 @@ What `release` holds, in the order it was built:
   it; its 3DSX sent "A la cola" (a script run from the queue: done, toast "1 hechas", which should be singular),
   shown as on the console, "Borrar el 3DSX" asked and deleted /3ds/3DElf.3dsx. Still for the owner: #52 and the web
   page's queue sheet on a console.
+  Same night, the queue screen on the New 3DS XL (opened from the new main menu entry, with its badge): an item's sheet
+  (put first, move down, pause this one: skipped by X's resume, resume this one, cancel), Y (the running one ends, the
+  queue pauses before the next), R (clears the finished), show its progress (then B), a 404 shown as failed "HTTP 404";
+  a Store CIA "Add to the download queue" installed by the queue (the card shows it, toast "1 hecha"). Fixed then: the
+  sheet came back stale after "show its progress" and after queuing a Store CIA (both close now); moves that change
+  nothing are left out of the sheet.
 - [ ] Batches choose each title's way from the receiver's free space (2026-11-14, `feat/send-batch-space`, issue #53
   phase 2; both consoles need this build: the list and the answer changed). With little room on the receiver, the
   question's top screen says how many install as they arrive and how many do not fit; those are read once on the

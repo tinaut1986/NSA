@@ -99,6 +99,7 @@ typedef struct {
     bool autoUpdate;
     bool ftpServer;
     bool webServer;   // The web page for a computer's browser: off until the owner turns it on.
+    bool linkServer;  // Links sent from web pages (linkserver.h: http://3ds.local/send): on by default.
     // The web page's PIN: a new random one each time the server starts, a fixed one (webPin) that stays between launches,
     // or none (the owner trusts the Wi-Fi). A web_pin_mode.
     u32 webPinMode;

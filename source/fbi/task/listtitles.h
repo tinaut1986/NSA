@@ -39,6 +39,9 @@ typedef enum {
 // From the upper half of a title ID; the lower half is shared by a game, its
 // update and its DLC.
 title_kind title_kind_of(u64 titleId);
+// Part of the console's own software (system apps, applets, modules, data; the DSi system apps too): deleting one can
+// stop the console from starting or break a feature.
+bool title_is_system(u64 titleId);
 
 // A CTR title's banner from its SMDH; false when it has none. The icon texture
 // is allocated and belongs to the caller.

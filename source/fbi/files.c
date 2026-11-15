@@ -331,6 +331,10 @@ static void files_draw_row(void* data, list_item* item, float x, float y, float 
     const theme_current* t = theme();
     file_info* info = (file_info*) item->data;
     bool selecting = data != NULL && ((files_data*) data)->selecting;
+    // The folder's own actions are open: no item is what they are for.
+    if(data != NULL && ((files_data*) data)->folderSheet && ui_top() != ((files_data*) data)->view) {
+        selected = false;
+    }
 
     // A ticked row keeps a soft wash of the accent when the focus is elsewhere.
     u32 fill = selected ? t->accent : selecting && info->marked ? t->accentSoft : t->palette->surface;
@@ -1004,13 +1008,21 @@ static void files_folder_actions_open(files_data* data, linked_list* items) {
         actions[count++] = (sheet_action) {ICON_TRASH_X, _("Delete folder"), true, files_delete_dir};
     }
 
-    // Not an item of the list but the folder it shows: the header says so.
-    char name[FILE_NAME_MAX];
-    files_dir_name(data->currDir, name, sizeof(name));
+    // Not an item of the list but the folder it shows: the header says so, with the folder's whole path, in a colour of
+    // its own (an item's sheet has a plain header), and the list behind it shows no item selected.
+    char name[FILE_PATH_MAX];
+    string_copy(name, data->currDir, sizeof(name));
+    size_t len = strlen(name);
+    if(len > 1 && name[len - 1] == '/') {
+        name[len - 1] = '\0';
+    }
+
     if(root) {
         string_copy(name, data->archiveId == ARCHIVE_SDMC ? _("Root of the SD card") : _("Root"), sizeof(name));
     }
-    sheet_display_list_for(_("This folder (where you are)"), name, ICON_FOLDER_OPEN, actions, count, data);
+
+    sheet_display_list_for(_("The folder you are in"), name, ICON_FOLDER_OPEN, actions, count, data);
+    sheet_set_tinted();
 }
 
 // ---- selection mode: tick several items, then copy, cut, install or delete them together ----

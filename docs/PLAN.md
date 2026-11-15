@@ -2111,6 +2111,11 @@ current, this list is the summary. What only the owner can test (local wireless)
   network for Tabler's CSS; it can take two minutes: run it again if it times out). New ones are
   appended, so existing icon IDs do not move.
 
+- **The app's version and the CIA's title version** (2026-11-15, the owner's rule): they need not go hand in hand. The
+  tags (the app's version, VERSION_STRING) go on as usual; the CIA's title version follows them up to micro 15 and stays
+  at 15 (the Makefile caps it: v0.9.16 is title 0.9.15) until the minor version goes up. The updater compares the app's
+  version and installs over the same title version; only the HOME Menu's icon, banner and jingle wait for the title
+  version to go up. The HTTP User-Agent says the app's version.
 - **Updating a console during development**: a console refuses a CIA of NSA older than the installed one (D8E08027, AM
   description 39), but `SITE INSTALL` and the web page's install (`AM_StartCiaInstallOverwrite`) take the **same**
   version; only HOME keeps the old icon, banner and sound until the version goes up. The micro version is 4 bits (max

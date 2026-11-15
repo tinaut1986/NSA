@@ -287,48 +287,109 @@ static void link_host_of(const char* url, char* out, size_t size) {
 
 // ---- HTTP ----
 
-static const char* link_page_head =
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-        "<title>NSA</title><style>body{font-family:system-ui,sans-serif;max-width:34rem;margin:2rem auto;padding:0 1rem;"
-        "background:#16181d;color:#e8e8ec}h1{font-size:1.4rem}textarea{width:100%;height:8rem;box-sizing:border-box;"
-        "background:#22252c;color:#e8e8ec;border:1px solid #3a3e48;border-radius:8px;padding:.6rem}"
-        "button{margin-top:.6rem;padding:.6rem 1.4rem;border:0;border-radius:8px;background:#7b74e0;color:#fff;font-size:1rem}"
-        ".note{background:#22252c;border-radius:8px;padding:.8rem 1rem}.small{color:#9a9ca6;font-size:.85rem}</style></head><body>"
-        "<h1>NSA on this 3DS</h1>";
+// The page, in the console's language (i18n_translate_as only reads the tables: fine on this thread).
+// Three states: the form; "sent", on a page of its own so that it can't be taken for the form; "busy".
 
-static const char* link_page_form =
-        "<form method=\"post\" action=\"/send\"><p>Paste links to files (one a line, at most 20):</p>"
-        "<textarea name=\"links\" placeholder=\"https://example.com/app.cia\"></textarea><br><button>Send</button></form>"
-        "<p class=\"small\">The console asks before it downloads anything.</p></body></html>";
+static const char* link_page_style =
+        "<style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:0 auto;padding:2.5rem 1.2rem;background:#16181d;"
+        "color:#e8e8ec;line-height:1.45}h1{font-size:1.45rem;margin:.2rem 0 .6rem}p{margin:.4rem 0 1rem}"
+        "textarea{width:100%;height:9rem;box-sizing:border-box;background:#22252c;color:#e8e8ec;border:1px solid #3a3e48;"
+        "border-radius:10px;padding:.7rem;font-size:1rem}.btn{display:inline-block;margin-top:.8rem;padding:.75rem 1.6rem;"
+        "border:0;border-radius:10px;background:#7b74e0;color:#fff;font-size:1.05rem;text-decoration:none;cursor:pointer}"
+        ".btn.alt{background:#2c3039;color:#e8e8ec}.err{background:#3a2328;color:#ffb4b4;border-radius:10px;padding:.7rem 1rem}"
+        ".mark{width:4.5rem;height:4.5rem;border-radius:50%;display:flex;align-items:center;justify-content:center;"
+        "font-size:2.6rem;margin:1.5rem 0 1rem}.ok{background:#2f8f5b}.wait{background:#a7792a}.center{text-align:center}"
+        ".center .mark{margin-left:auto;margin-right:auto}.brand{color:#9a9ca6;font-size:.85rem;letter-spacing:.04em}</style>";
+
+// `text` with & < > " made safe for HTML, appended to `out`.
+static void link_html_add(char* out, size_t size, const char* text) {
+    size_t used = strlen(out);
+    for(const char* c = text; *c != '\0' && used + 7 < size; c++) {
+        const char* entity = *c == '&' ? "&amp;" : *c == '<' ? "&lt;" : *c == '>' ? "&gt;" : *c == '"' ? "&quot;" : NULL;
+        if(entity != NULL) {
+            size_t len = strlen(entity);
+            memcpy(out + used, entity, len);
+            used += len;
+        } else {
+            out[used++] = *c;
+        }
+    }
+
+    out[used] = '\0';
+}
+
+static void link_raw_add(char* out, size_t size, const char* text) {
+    size_t used = strlen(out);
+    snprintf(out + used, size - used, "%s", text);
+}
 
 static void link_send_page(int fd, const char* query) {
+    language_id lang = i18n_effective_language();
+    #define T(text) i18n_translate_as(lang, text)
+
     char sent[8] = "";
     char busy[4] = "";
     link_form_value(query, "sent", sent, sizeof(sent));
     link_form_value(query, "busy", busy, sizeof(busy));
 
-    char note[256] = "";
-    if(busy[0] != '\0') {
-        snprintf(note, sizeof(note), "<p class=\"note\">The 3DS is still busy with the last links. Send these again once it has finished with them.</p>");
-    } else if(sent[0] != '\0') {
-        int n = atoi(sent);
-        if(n == 0) {
-            snprintf(note, sizeof(note), "<p class=\"note\">No links were found in what you sent.</p>");
-        } else {
-            snprintf(note, sizeof(note), "<p class=\"note\">Sent %d link%s. Look at your 3DS: it asks before downloading.</p>", n, n == 1 ? "" : "s");
-        }
-    }
-
-    size_t size = strlen(link_page_head) + strlen(note) + strlen(link_page_form) + 1;
+    size_t size = 8192;
     char* page = (char*) malloc(size);
     if(page == NULL) {
         link_respond(fd, 500, "Internal Server Error", "text/plain", NULL, "Out of memory\n");
         return;
     }
 
-    snprintf(page, size, "%s%s%s", link_page_head, note, link_page_form);
+    const char* code = i18n_language_code(lang);
+    snprintf(page, size, "<!doctype html><html lang=\"%s\"><head><meta charset=\"utf-8\">"
+                         "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>NSA</title>%s</head><body>",
+             strcmp(code, "tw") == 0 ? "zh-Hant" : strcmp(code, "zh") == 0 ? "zh-Hans" : strcmp(code, "system") == 0 ? "en" : code,
+             link_page_style);
+
+    int count = atoi(sent);
+    if(busy[0] != '\0') {
+        link_raw_add(page, size, "<div class=\"center\"><div class=\"mark wait\">&#8987;</div><h1>");
+        link_html_add(page, size, T("The 3DS is busy"));
+        link_raw_add(page, size, "</h1><p>");
+        link_html_add(page, size, T("It is still with the last links. Send these again once it has finished."));
+        link_raw_add(page, size, "</p><a class=\"btn alt\" href=\"/\">");
+        link_html_add(page, size, T("Back"));
+        link_raw_add(page, size, "</a></div>");
+    } else if(count > 0) {
+        char line[256];
+        if(count == 1) {
+            snprintf(line, sizeof(line), "%s", T("Answer on the console to download it."));
+        } else {
+            snprintf(line, sizeof(line), T("%lu links. Answer on the console to download them."), (unsigned long) count);
+        }
+
+        link_raw_add(page, size, "<div class=\"center\"><div class=\"mark ok\">&#10003;</div><h1>");
+        link_html_add(page, size, T("Sent to your 3DS"));
+        link_raw_add(page, size, "</h1><p>");
+        link_html_add(page, size, line);
+        link_raw_add(page, size, "</p><a class=\"btn alt\" href=\"/\">");
+        link_html_add(page, size, T("Send other links"));
+        link_raw_add(page, size, "</a></div>");
+    } else {
+        link_raw_add(page, size, "<div class=\"brand\">NSA</div><h1>");
+        link_html_add(page, size, T("Send to this 3DS"));
+        link_raw_add(page, size, "</h1>");
+        if(sent[0] != '\0') {
+            link_raw_add(page, size, "<p class=\"err\">");
+            link_html_add(page, size, T("No links were found in what you sent."));
+            link_raw_add(page, size, "</p>");
+        }
+
+        link_raw_add(page, size, "<form method=\"post\" action=\"/send\"><p>");
+        link_html_add(page, size, T("Paste links to files, one a line (at most 20):"));
+        link_raw_add(page, size, "</p><textarea name=\"links\" placeholder=\"https://example.com/app.cia\"></textarea><br><button class=\"btn\">");
+        link_html_add(page, size, T("Send"));
+        link_raw_add(page, size, "</button></form>");
+    }
+
+    link_raw_add(page, size, "</body></html>");
     link_respond(fd, 200, "OK", "text/html; charset=utf-8", NULL, page);
     free(page);
+    #undef T
 }
 
 // A header's value ("" when it is not there), from the request's head (its lines end with \r\n).

@@ -510,6 +510,7 @@ typedef struct {
     u32 texture;
     char kicker[64];   // sheet_display_list_for: what the actions are for, over the title, by `icon`.
     u32 icon;
+    bool tinted;       // sheet_set_tinted: the header filled with the accent colour.
     sheet_action actions[SHEET_ACTIONS_MAX];
     u32 count;
     void* data;
@@ -942,14 +943,32 @@ static void sheet_draw_bottom(ui_view* view, void* data, float x1, float y1, flo
         // What the actions are for: a tinted icon, the kind in the accent colour, the name under it.
         float hx = x1 + SHEET_PAD;
         float hy = top + SHEET_PAD;
-        screen_fill_round_rect(hx, hy, 26, 26, t->def->radiusSmall, t->accentSoft);
-        screen_draw_icon(s->icon, hx + 5, hy + 5, 16, t->accent);
+        // Tinted: the whole header in the accent colour, its text in the colour that goes on it.
+        u32 kickerInk = t->accent;
+        u32 titleInk = t->palette->text;
+        u32 closeInk = t->palette->textMuted;
+        if(s->tinted) {
+            screen_fill_round_rect(x1, top, x2 - x1, hy + 31 - top + r, r, t->accent);
+            screen_fill_rect(x1, hy + 31, x2 - x1, r + 1, t->palette->surface);
+            screen_fill_round_rect((x1 + x2) / 2 - 14, top + 3, 28, 3, 1, THEME_ALPHA(t->onAccent, 0x80));
+            kickerInk = THEME_ALPHA(t->onAccent, 0xD8);
+            titleInk = t->onAccent;
+            closeInk = t->onAccent;
+            screen_fill_round_rect(hx, hy, 26, 26, t->def->radiusSmall, THEME_ALPHA(t->onAccent, 0x30));
+            screen_draw_icon(s->icon, hx + 5, hy + 5, 16, t->onAccent);
+        } else {
+            screen_fill_round_rect(hx, hy, 26, 26, t->def->radiusSmall, t->accentSoft);
+            screen_draw_icon(s->icon, hx + 5, hy + 5, 16, t->accent);
+        }
+
         hx += 33;
         float smallH = widget_text_height(WIDGET_SMALL_SCALE);
-        widget_text_fit(s->kicker, hx, hy - 1, WIDGET_SMALL_SCALE, t->accent, x2 - SHEET_PAD - 24 - hx);
-        widget_text_fit(s->title, hx, hy + smallH, WIDGET_TEXT_SCALE, t->palette->text, x2 - SHEET_PAD - 24 - hx);
-        screen_draw_icon(ICON_X, x2 - SHEET_PAD - 16, hy + 5, 16, t->palette->textMuted);
-        screen_fill_rect(x1 + SHEET_PAD, hy + 30, x2 - x1 - 2 * SHEET_PAD, 1, t->palette->border);
+        widget_text_fit(s->kicker, hx, hy - 1, WIDGET_SMALL_SCALE, kickerInk, x2 - SHEET_PAD - 24 - hx);
+        widget_text_fit(s->title, hx, hy + smallH, WIDGET_TEXT_SCALE, titleInk, x2 - SHEET_PAD - 24 - hx);
+        screen_draw_icon(ICON_X, x2 - SHEET_PAD - 16, hy + 5, 16, closeInk);
+        if(!s->tinted) {
+            screen_fill_rect(x1 + SHEET_PAD, hy + 30, x2 - x1 - 2 * SHEET_PAD, 1, t->palette->border);
+        }
     } else if(s->title[0] != '\0') {
         float hx = x1 + SHEET_PAD;
         float hy = top + SHEET_PAD;
@@ -1134,6 +1153,13 @@ void sheet_set_id(const char* id) {
     ui_view* view = ui_top();
     if(view != NULL && view->update == sheet_update) {
         view->id = id;
+    }
+}
+
+void sheet_set_tinted(void) {
+    ui_view* view = ui_top();
+    if(view != NULL && view->update == sheet_update) {
+        ((sheet_data*) view->data)->tinted = true;
     }
 }
 

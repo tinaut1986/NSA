@@ -732,6 +732,11 @@ Result task_populate_titles(populate_titles_data* data) {
     return task_start_populate(task_populate_titles_thread, data, &data->cancelEvent, &data->finished, &data->result);
 }
 
+bool title_is_system(u64 titleId) {
+    u32 high = (u32) (titleId >> 32);
+    return title_kind_of(titleId) == TITLE_KIND_SYSTEM || high == 0x00048005 || high == 0x0004800F;
+}
+
 title_kind title_kind_of(u64 titleId) {
     u32 high = (u32) (titleId >> 32);
     switch(high) {

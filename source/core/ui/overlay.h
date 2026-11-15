@@ -71,6 +71,9 @@ void sheet_display_choice(const char* title, const sheet_action* actions, u32 co
 void sheet_set_id(const char* id);
 // Puts the focus of the sheet just shown on one of its actions (the one chosen last time), scrolled into view.
 void sheet_set_selected(u32 index);
+// The sheet just shown (sheet_display_list_for) gets its header filled with the accent colour: for actions on something
+// other than the selected item (Files' folder you are in), so that the two sheets can't be taken for each other.
+void sheet_set_tinted(void);
 // SITE TEST UI: a sheet's title, actions (each run with A once selected) and selection. False for any other view.
 typedef struct ui_description_s ui_description;
 bool sheet_describe(ui_view* view, ui_description* out);

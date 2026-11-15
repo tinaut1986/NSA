@@ -462,7 +462,11 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
     float nameRight = right;
     if(kind != TITLE_KIND_GAME) {
         const char* tag = titles_kind_name(kind);
-        float tagW = widget_badge_right(right, y + 4, tag, selected ? THEME_ALPHA(t->onAccent, 0x40) : t->accentSoft, selected ? t->onAccent : t->accent);
+        // The console's own software in red: deleting it is dangerous.
+        bool system = title_is_system(info->titleId);
+        u32 tagFill = selected ? THEME_ALPHA(t->onAccent, 0x40) : system ? THEME_ALPHA(t->palette->danger, 0x2A) : t->accentSoft;
+        u32 tagInk = selected ? t->onAccent : system ? t->palette->danger : t->accent;
+        float tagW = widget_badge_right(right, y + 4, tag, tagFill, tagInk);
         nameRight = right - tagW - 6;
     }
 
@@ -497,6 +501,13 @@ static void titles_draw_tile(void* data, list_item* item, float x, float y, floa
     widget_fade_in(info->loadedTime);
     titles_draw_icon(info, x + 4, y + 4, icon);
     screen_set_content_motion(0, 0, 0xFF);
+
+    // The console's own software: a red dot in the corner (the rows say "System" in red).
+    if(title_is_system(info->titleId)) {
+        const theme_current* t = theme();
+        screen_fill_round_rect(x + 6, y + 6, 10, 10, 5, t->palette->surface);
+        screen_fill_round_rect(x + 7, y + 7, 8, 8, 4, t->palette->danger);
+    }
 
     titles_data* listData = (titles_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {

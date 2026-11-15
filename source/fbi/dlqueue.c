@@ -774,6 +774,37 @@ static void dlq_clear_finished() {
     }
 }
 
+static void dlq_act_pause_after(void* data) {
+    dlq_pause_after = !dlq_pause_after;
+    dlq_changed();
+}
+
+static void dlq_act_clear_finished(void* data) {
+    dlq_clear_finished();
+}
+
+// Y: what is about the whole queue, besides pausing it (X).
+static void dlq_show_more(bool running, bool finished) {
+    sheet_action actions[2];
+    u32 count = 0;
+    if(running) {
+        actions[count++] = dlq_pause_after ? (sheet_action) {ICON_PLAYER_PLAY, _("Do not pause"), false, dlq_act_pause_after, false, NULL}
+                                           : (sheet_action) {ICON_PLAYER_PAUSE, _("Pause after this one"), false, dlq_act_pause_after, false, NULL};
+    }
+
+    if(finished) {
+        actions[count++] = (sheet_action) {ICON_TRASH, _("Clear finished"), false, dlq_act_clear_finished, false, NULL};
+    }
+
+    sheet_display_list(_("Download queue"), 0, actions, count, NULL);
+}
+
+// One button more in the screen's hint line.
+static void dlq_hint_add(char* hint, size_t size, const char* piece) {
+    size_t used = strlen(hint);
+    snprintf(hint + used, size - used, "%s%s", used > 0 ? "   " : "", piece);
+}
+
 static void dlq_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     u32 down = hidKeysDown();
     if(down & KEY_B) {
@@ -792,9 +823,32 @@ static void dlq_update(ui_view* view, void* data, linked_list* items, list_item*
     }
 
     bool stopped = dlq_paused || dlq_for_transfer;
-    view->info = stopped ? _(" actions    resume queue    clear finished    back")
-                         : dlq_pause_after ? _(" actions    pause now    do not pause    clear finished    back")
-                                           : _(" actions    pause now    pause after this one    clear finished    back");
+    // Only the buttons that do something now: five at once would be too small to read.
+    bool finished = false;
+    for(u32 i = 0; i < dlq_count && !finished; i++) {
+        finished = dlq_items[i]->state == DLQ_DONE || dlq_items[i]->state == DLQ_FAILED;
+    }
+
+    static char hint[256];
+    hint[0] = '\0';
+    if(dlq_count > 0) {
+        dlq_hint_add(hint, sizeof(hint), _("\uE000 actions"));
+    }
+
+    if(stopped) {
+        dlq_hint_add(hint, sizeof(hint), _("\uE002 resume queue"));
+    } else if(dlq_count > 0) {
+        dlq_hint_add(hint, sizeof(hint), _("\uE002 pause now"));
+    }
+
+    // The rest in a sheet (Y), so that the line never has more than four.
+    bool more = (!stopped && dlq_run != NULL) || finished;
+    if(more) {
+        dlq_hint_add(hint, sizeof(hint), _("\uE003 more"));
+    }
+
+    dlq_hint_add(hint, sizeof(hint), _("\uE001 back"));
+    view->info = hint;
 
     if(down & KEY_X) {
         if(stopped) {
@@ -809,12 +863,9 @@ static void dlq_update(ui_view* view, void* data, linked_list* items, list_item*
 
         dlq_changed();
     } else if(down & KEY_Y) {
-        if(!stopped && dlq_run != NULL) {
-            dlq_pause_after = !dlq_pause_after;
-            dlq_changed();
+        if(more) {
+            dlq_show_more(!stopped && dlq_run != NULL, finished);
         }
-    } else if(down & KEY_R) {
-        dlq_clear_finished();
     } else if(selected != NULL && (selectedTouched || (down & KEY_A))) {
         dlq_item* item = dlq_find((u32) (uintptr_t) selected->data);
         if(item != NULL) {
@@ -828,7 +879,7 @@ void dlqueue_open() {
         return;
     }
 
-    ui_view* view = list_display(_("Download queue"), _(" actions    pause now    back"), NULL, dlq_update, dlq_draw_top);
+    ui_view* view = list_display(_("Download queue"), _("\uE001 back"), NULL, dlq_update, dlq_draw_top);
     if(view == NULL) {
         return;
     }

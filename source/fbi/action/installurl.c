@@ -1409,6 +1409,8 @@ static void action_install_url_to_queue(install_url_data* installData) {
 
     if(dlqueue_add(name, urls, installData->archives, installData->userData, installData->finishedURL, installData->finishedAll)) {
         installData->finishedAll = NULL;   // The queue's now.
+        // It goes ahead: a sheet that opened this (a Store app's) closes, instead of staying with what it said before.
+        sheet_confirmed();
     }
 
     free(urls);

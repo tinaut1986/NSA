@@ -163,6 +163,14 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Store: "Remove what the Store installed" (2026-11-15, 0.9.13-dev). A script's run notes every file it is about to
+  write (+ new, * it replaced a file, - it took it away again itself) in the store's written.json; the app's sheet then
+  offers to delete them (a red yes/no; with some replaced and some new, "Delete all / Keep those / Cancel"), leaves those
+  changed since (by size: the card gives no times), and takes away the folders left empty (never /3ds, /luma, /luma/titles,
+  /luma/plugins and the like). Only for what is installed from this version on. Claude tried on the New 3DS XL with the
+  MC3DS Community Unistore's Autumnal (EUR): over the owner's earlier install (6 files marked replaced: yes/no) and a fresh
+  one (6 new): both left /luma/titles empty (kept) and took away /Minecraft 3DS, which the script leaves empty. Not tried:
+  the three-way question (some new, some replaced), a file changed after the install, a script that installs a CIA.
 - [ ] Links from web pages (`linkserver.c`, 2026-11-15, 0.9.12-dev): port 80 `/send` as 3dsDL's Receive, mDNS for
   3ds.local and nsa.local. Claude tried on the New 3DS XL .135 from the PC: Windows resolves both names; Brewology's
   real link (http://3ds.local/send?links=...Universal-Updater.cia) opened in a browser gives "Sent 1 link" and the

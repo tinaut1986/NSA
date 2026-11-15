@@ -30,6 +30,11 @@ bool storescript_resolve_path(const char* in, char* out, size_t size);
 // After a run that went through: the last file it wrote that is still on the card (not a CIA it installs), as
 // "/luma/plugins/.../plugin.3gx", or "" when none. Kept until the next run ends.
 const char* storescript_kept_file(void);
+// While a run's `done` runs (after a run that went through): every file it wrote that is on the card, one a line, as
+// "+<size> <mtime> /path" (nothing was there before), "*<size> <mtime> /path" (it replaced a file) or "-0 0 /path" (it wrote
+// it and took it away again: only its folder may be left); "" otherwise. For the
+// Store to take away later exactly what it put there (store.c, "Remove what the Store installed").
+const char* storescript_written(void);
 // The first question also offers "Add to the download queue" (issue #41): then, past the warnings, everything the script
 // will ask (its own yes/no messages, each folder to delete) is asked at once, and the run goes to the queue (dlqueue.c) as
 // `name`, to run later with those answers and no screen.

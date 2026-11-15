@@ -739,10 +739,12 @@ typedef struct {
     char placesInTop[96]; // The same for what its one top folder holds.
 } url_archive_plan;
 
-// A file with no folder that is no app (a README, a LICENSE): left in the archive when the rest goes to the SD card.
+// A file with no folder that is no app to run from /3ds/ (a README, a LICENSE, and a .cia, .3ds or .elf beside a 3ds/
+// folder, as many releases ship: TinyFormat.cia next to 3ds/TinyFormat/): left in the archive when the rest goes to the
+// SD card. A .3dsx is not (on its own it makes the archive an app for /3ds/), nor a .firm (never taken out by itself).
 static bool action_install_url_loose(const char* path) {
     size_t len = strlen(path);
-    return strchr(path, '/') == NULL && !(len > 5 && strcasecmp(path + len - 5, ".3dsx") == 0) && !(len > 4 && strcasecmp(path + len - 4, ".cia") == 0)
+    return strchr(path, '/') == NULL && !(len > 5 && strcasecmp(path + len - 5, ".3dsx") == 0)
            && !(len > 5 && strcasecmp(path + len - 5, ".firm") == 0);
 }
 

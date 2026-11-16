@@ -65,6 +65,7 @@ static const mainmenu_entry details[] = {
 static const mainmenu_entry console_settings[] = {
         {ICON_CALENDAR, "Date and time", "The console's clock: set it by hand or from the Internet, with your time zone and summer time.", "Clock, time zone, format", datetime_open, -1, -1},
         {ICON_WIFI, "Wi-Fi connections", "The console's three connections and the copies on the SD card: save, edit and restore them.", "Save and restore them", wificonnections_open, -1, -1},
+        {ICON_SUN, "Screen brightness", "The console's five brightness levels between a lowest and a highest you choose, in every game, auto-brightness too.", "Lowest and highest, in every game", brightnessview_open, -1, -1},
 };
 
 // Checks of the console's hardware (hwtest.c).
@@ -78,7 +79,7 @@ static const mainmenu_entry hardware_tests[] = {
 // System's own list: three groups.
 static const mainmenu_entry system_groups[] = {
         {ICON_INFO_CIRCLE, "Information", "", "Console, network, battery", NULL, -1, -1, systeminfo_draw_top, details, COUNT_OF(details), false},
-        {ICON_SETTINGS, "Console settings", "What NSA can change on the console itself.", "Date and time, Wi-Fi", NULL, -1, -1, NULL, console_settings, COUNT_OF(console_settings), false},
+        {ICON_SETTINGS, "Console settings", "What NSA can change on the console itself.", "Date and time, Wi-Fi, brightness", NULL, -1, -1, NULL, console_settings, COUNT_OF(console_settings), false},
         {ICON_FLASK, "Hardware tests", "Check that the buttons, the touch screen and the motion sensors work.", "Buttons, touch, motion", NULL, -1, -1, NULL, hardware_tests, COUNT_OF(hardware_tests), false},
 };
 

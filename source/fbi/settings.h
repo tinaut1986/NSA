@@ -122,6 +122,11 @@ typedef struct {
     // Background music: a bgmusic_style and a volume in percent.
     u32 music;
     u32 musicVolume;
+    // The console's brightness range (brightness.h) last chosen, kept for when "Custom" is picked again: the
+    // console's own table says whether it is in use.
+    bool brightnessCustom;   // "Custom" was picked (the range may still equal the console's own).
+    u32 brightnessLowest;
+    u32 brightnessHighest;
     // The audio player at the end of a track: 0 the next one (the last stops), 1 the list again, 2 the same track.
     u32 playerRepeat;
 

@@ -8,6 +8,7 @@
 #include "../core/core.h"
 #include "../core/bgmusic.h"
 #include "datetime.h"
+#include "brightness.h"
 
 #define SETTINGS_PATH "sdmc:" APP_DATA_DIR "settings.json"
 
@@ -24,6 +25,8 @@ static settings_data settings = {
         .soundVolume = 60,
         .music = BGMUSIC_SHOP,
         .musicVolume = 50,
+        .brightnessLowest = 16,
+        .brightnessHighest = 142,
         .language = LANGUAGE_SYSTEM,
         .titles = {.media = 7, .kinds = 0x3F, .regions = 0x1F, .group = true, .sort = 0, .grid = false, .tile = 1},
         .tickets = {.states = 3, .kinds = 0x3F, .media = 3, .group = true, .sort = 0, .grid = false, .tile = 1},
@@ -132,6 +135,20 @@ void settings_load() {
     settings.music = settings_get_uint(json, "music", settings.music, BGMUSIC_COUNT - 1);
     settings.musicVolume = settings_get_uint(json, "music_volume", settings.musicVolume, 100);
     settings.playerRepeat = settings_get_uint(json, "player_repeat", settings.playerRepeat, 2);
+    json_t* brightnessCustom = json_object_get(json, "brightness_custom");
+    if(json_is_boolean(brightnessCustom)) {
+        settings.brightnessCustom = json_is_true(brightnessCustom);
+    }
+
+    settings.brightnessLowest = settings_get_uint(json, "brightness_lowest", settings.brightnessLowest, BRIGHTNESS_HIGHEST);
+    settings.brightnessHighest = settings_get_uint(json, "brightness_highest", settings.brightnessHighest, BRIGHTNESS_HIGHEST);
+    if(settings.brightnessLowest < BRIGHTNESS_LOWEST) {
+        settings.brightnessLowest = BRIGHTNESS_LOWEST;
+    }
+
+    if(settings.brightnessHighest < settings.brightnessLowest) {
+        settings.brightnessHighest = settings.brightnessLowest;
+    }
 
     json_t* night = json_object_get(json, "night_mode");
     if(json_is_string(night)) {
@@ -340,6 +357,9 @@ Result settings_save() {
     json_object_set_new(json, "guide_seen", json_string(settings.guideSeen));
     json_object_set_new(json, "guide_known", json_integer(settings.guideKnown));
     json_object_set_new(json, "player_repeat", json_integer(settings.playerRepeat));
+    json_object_set_new(json, "brightness_custom", json_boolean(settings.brightnessCustom));
+    json_object_set_new(json, "brightness_lowest", json_integer(settings.brightnessLowest));
+    json_object_set_new(json, "brightness_highest", json_integer(settings.brightnessHighest));
     json_object_set_new(json, "date_time", json_pack("{s:i,s:i,s:s,s:i,s:b}", "clock", (int) settings.datetime.clock, "order", (int) settings.datetime.order,
                                                      "zone", settings.datetime.zone, "summer", (int) settings.datetime.summer,
                                                      "sync_on_start", settings.datetime.syncOnStart));

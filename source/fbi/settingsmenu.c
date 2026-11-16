@@ -17,7 +17,6 @@
 #include "update.h"
 #include "pinpad.h"
 #include "themeedit.h"
-#include "brightness.h"
 #include "../core/core.h"
 
 // Settings: one list. Options change in place with Left/Right (or A, or a
@@ -28,9 +27,6 @@ typedef enum {
     OPTION_THEME_EDIT,     // The theme editor (themeedit.c).
     OPTION_ACCENT,
     OPTION_NIGHT,
-    OPTION_BRIGHTNESS,      // System or Custom: the console's brightness range (brightness.h).
-    OPTION_BRIGHTNESS_LOW,  // Its two bars, only with Custom.
-    OPTION_BRIGHTNESS_HIGH,
     OPTION_LANGUAGE,
     OPTION_SOUNDS,
     OPTION_MUSIC,
@@ -51,12 +47,6 @@ typedef enum {
 #define ROW_PITCH (WIDGET_ROW_HEIGHT + WIDGET_ROW_GAP)
 #define PAD 8
 #define VOLUME_STEP 5
-#define BRIGHTNESS_STEP 2
-
-// The brightness rows: whether the console has the table NSA knows, and whether a range of the user's is in use
-// (read when Settings opens: the console's configuration says it, not settings.json).
-static bool brightnessSupported;
-static bool brightnessCustom;
 
 // Sounds and Music carry a volume slider under their selector, in the same box.
 static u32* settingsmenu_slider_value(settings_option option) {
@@ -64,32 +54,9 @@ static u32* settingsmenu_slider_value(settings_option option) {
     return option == OPTION_SOUNDS ? &settings->soundVolume : option == OPTION_MUSIC ? &settings->musicVolume : NULL;
 }
 
-// The brightness bars: a slider and no selector, in the table's own unit.
-static u32* settingsmenu_brightness_value(settings_option option) {
-    settings_data* settings = settings_get();
-    return option == OPTION_BRIGHTNESS_LOW ? &settings->brightnessLowest : option == OPTION_BRIGHTNESS_HIGH ? &settings->brightnessHighest : NULL;
-}
-
-static float settingsmenu_brightness_fraction(u32 value) {
-    return (float) (value - BRIGHTNESS_LOWEST) / (float) (BRIGHTNESS_HIGHEST - BRIGHTNESS_LOWEST);
-}
-
-// The fixed PIN's row shows only while the PIN is fixed; the brightness rows only on a console whose table NSA knows,
-// its bars only with a range of the user's.
+// The fixed PIN's row shows only while the PIN is fixed.
 static bool settingsmenu_visible(u32 index) {
-    if(index == OPTION_WEB_FIXED_PIN) {
-        return settings_get()->webPinMode == WEB_PIN_FIXED;
-    }
-
-    if(index == OPTION_BRIGHTNESS) {
-        return brightnessSupported;
-    }
-
-    if(index == OPTION_BRIGHTNESS_LOW || index == OPTION_BRIGHTNESS_HIGH) {
-        return brightnessSupported && brightnessCustom;
-    }
-
-    return true;
+    return index != OPTION_WEB_FIXED_PIN || settings_get()->webPinMode == WEB_PIN_FIXED;
 }
 
 static float settingsmenu_row_height(u32 index) {
@@ -97,7 +64,7 @@ static float settingsmenu_row_height(u32 index) {
         return 0;
     }
 
-    return settingsmenu_slider_value((settings_option) index) != NULL || settingsmenu_brightness_value((settings_option) index) != NULL ? widget_row_slider_height() : WIDGET_ROW_HEIGHT;
+    return settingsmenu_slider_value((settings_option) index) != NULL ? widget_row_slider_height() : WIDGET_ROW_HEIGHT;
 }
 
 // The next visible row in a direction (1 or -1), wrapping.
@@ -129,28 +96,6 @@ static void settingsmenu_apply_volumes() {
     bgmusic_set((bgmusic_style) settings->music, settings->musicVolume);
 }
 
-// A brightness bar moved to value: the other end never passes it (the lowest stays at most the highest). save: the
-// range goes into the console's configuration on the NAND and settings.json (a finger saves when it lifts).
-static void settingsmenu_brightness_move(settings_option option, u32 value, bool save) {
-    settings_data* settings = settings_get();
-    if(value < BRIGHTNESS_LOWEST) {
-        value = BRIGHTNESS_LOWEST;
-    } else if(value > BRIGHTNESS_HIGHEST) {
-        value = BRIGHTNESS_HIGHEST;
-    }
-
-    if(option == OPTION_BRIGHTNESS_LOW) {
-        settings->brightnessLowest = value > settings->brightnessHighest ? settings->brightnessHighest : value;
-    } else {
-        settings->brightnessHighest = value < settings->brightnessLowest ? settings->brightnessLowest : value;
-    }
-
-    Result res = brightness_set(settings->brightnessLowest, settings->brightnessHighest, save);
-    if(R_FAILED(res)) {
-        error_display_res(NULL, NULL, res, _("Failed to set the brightness."));
-    }
-}
-
 typedef struct {
     u32 selected;
     float scroll;
@@ -159,7 +104,6 @@ typedef struct {
     bool touching;
     bool dragged;
     int sliding;         // The row whose slider a finger is on, or -1.
-    bool brightnessMoved;   // A brightness bar moved and is not saved yet (it saves when the keys or the finger let go).
     bool barDrag;        // A finger holds the scrollbar.
     widget_press press;
     u16 touchStartY;
@@ -169,7 +113,7 @@ typedef struct {
 
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
-            ICON_PALETTE, ICON_PENCIL, ICON_COLOR_SWATCH, ICON_MOON, ICON_SUN, ICON_SUN, ICON_SUN, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
+            ICON_PALETTE, ICON_PENCIL, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
             ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_WORLD, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
     };
 
@@ -182,9 +126,6 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_THEME_EDIT: return _("Edit the theme");
         case OPTION_ACCENT: return _("Accent colour");
         case OPTION_NIGHT: return _("Night mode");
-        case OPTION_BRIGHTNESS: return _("Screen brightness");
-        case OPTION_BRIGHTNESS_LOW: return _("Lowest brightness");
-        case OPTION_BRIGHTNESS_HIGH: return _("Highest brightness");
         case OPTION_LANGUAGE: return _("Language");
         case OPTION_SOUNDS: return _("Sounds");
         case OPTION_MUSIC: return _("Background music");
@@ -216,7 +157,6 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_ACCENT: return _(theme_accent_get(settings->accent)->name);
         case OPTION_NIGHT:
             return settings->night == THEME_NIGHT_ON ? _("On") : settings->night == THEME_NIGHT_AUTO ? _("Automatic") : _("Off");
-        case OPTION_BRIGHTNESS: return brightnessCustom ? _("Custom") : _("System");
         case OPTION_LANGUAGE: return i18n_language_name(settings->language);
         case OPTION_SOUNDS: return settings->sounds == SOUNDS_ALL ? _("All") : settings->sounds == SOUNDS_ALERTS ? _("Alerts") : _("Off");
         case OPTION_MUSIC: return settings->music == BGMUSIC_LIFT ? _("Lift") : settings->music == BGMUSIC_CALM ? _("Calm") : settings->music == BGMUSIC_SHOP ? _("Shop") : _("Off");
@@ -276,23 +216,6 @@ static void settingsmenu_change(settings_option option, int direction) {
         case OPTION_NIGHT:
             settings->night = (theme_night_mode) settingsmenu_step(settings->night, 3, step);
             break;
-        case OPTION_BRIGHTNESS: {
-            // Custom puts the range last chosen in place, System the console's own levels; both at once and saved.
-            Result res = brightnessCustom ? brightness_restore() : brightness_set(settings->brightnessLowest, settings->brightnessHighest, true);
-            if(R_FAILED(res)) {
-                error_display_res(NULL, NULL, res, _("Failed to set the brightness."));
-                return;
-            }
-
-            settings->brightnessCustom = !brightnessCustom;
-            brightnessCustom = settings->brightnessCustom;
-            settingsmenu_save();
-            return;
-        }
-        case OPTION_BRIGHTNESS_LOW:
-        case OPTION_BRIGHTNESS_HIGH:
-            // Their bars move with Left/Right, X/Y or a finger (settingsmenu_update); A does nothing.
-            return;
         case OPTION_LANGUAGE:
             // Too many to step through: a list.
             if(direction == 0) {
@@ -445,9 +368,7 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         }
     }
 
-    view->info = settingsmenu_slider_value((settings_option) menu->selected) != NULL ? _("\uE000 change   \uE002 \uE003 volume   \uE001 back")
-                 : settingsmenu_brightness_value((settings_option) menu->selected) != NULL ? _("\uE002 \uE003 brightness   \uE001 back")
-                                                                                           :_(" change    back");
+    view->info = settingsmenu_slider_value((settings_option) menu->selected) != NULL ? _("\uE000 change   \uE002 \uE003 volume   \uE001 back") : _(" change    back");
 
     if(hidKeysDown() & KEY_B) {
         ui_pop();
@@ -499,14 +420,6 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         settingsmenu_apply_volumes();
         settings_apply();
         settingsmenu_save();
-    } else if(settingsmenu_brightness_value((settings_option) menu->selected) != NULL
-              && (settingsmenu_repeat(menu, KEY_RIGHT) || settingsmenu_repeat(menu, KEY_LEFT) || settingsmenu_repeat(menu, KEY_X) || settingsmenu_repeat(menu, KEY_Y))) {
-        // Left/Right and X/Y move a brightness bar, held to keep going; the screens follow at once.
-        settings_option option = (settings_option) menu->selected;
-        u32 value = *settingsmenu_brightness_value(option);
-        bool up = ((hidKeysHeld() | hidKeysDown()) & (KEY_RIGHT | KEY_X)) != 0;
-        settingsmenu_brightness_move(option, up ? value + BRIGHTNESS_STEP : (value > BRIGHTNESS_STEP ? value - BRIGHTNESS_STEP : 0), false);
-        menu->brightnessMoved = true;
     } else if(hidKeysDown() & KEY_RIGHT) {
         settingsmenu_change((settings_option) menu->selected, 1);
     } else if(hidKeysDown() & KEY_LEFT) {
@@ -514,17 +427,6 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
     } else if(hidKeysDown() & KEY_A) {
         settingsmenu_change((settings_option) menu->selected, 0);
         return;
-    }
-
-    if(menu->brightnessMoved && menu->sliding < 0 && !(hidKeysHeld() & (KEY_LEFT | KEY_RIGHT | KEY_X | KEY_Y))) {
-        settings_data* settings = settings_get();
-        menu->brightnessMoved = false;
-        Result res = brightness_set(settings->brightnessLowest, settings->brightnessHighest, true);
-        if(R_FAILED(res)) {
-            error_display_res(NULL, NULL, res, _("Failed to set the brightness."));
-        }
-
-        settingsmenu_save();
     }
 
     if(menu->selected != last) {
@@ -558,8 +460,7 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
                     continue;
                 }
 
-                bool slider = settingsmenu_slider_value((settings_option) index) != NULL || settingsmenu_brightness_value((settings_option) index) != NULL;
-                if(slider && offset - top >= WIDGET_ROW_HEIGHT - 2) {
+                if(settingsmenu_slider_value((settings_option) index) != NULL && offset - top >= WIDGET_ROW_HEIGHT - 2) {
                     // A finger on a slider takes it, wherever along the bar.
                     menu->sliding = (int) index;
                     menu->selected = index;
@@ -586,18 +487,8 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
         widget_row_slider_track(bx1 + PAD, 0, bx2 - bx1 - 2 * PAD - WIDGET_SCROLLBAR_WIDTH - 4, &trackX, &trackWidth, &centerY);
         float fraction = ((float) pos.px - trackX) / trackWidth;
         fraction = fraction < 0 ? 0 : fraction > 1 ? 1 : fraction;
-        settings_option option = (settings_option) menu->sliding;
-        u32* brightness = settingsmenu_brightness_value(option);
-        if(brightness != NULL) {
-            u32 value = BRIGHTNESS_LOWEST + (u32) (fraction * (BRIGHTNESS_HIGHEST - BRIGHTNESS_LOWEST) + 0.5f);
-            if(value != *brightness) {
-                settingsmenu_brightness_move(option, value, false);
-                menu->brightnessMoved = true;
-            }
-        } else {
-            *settingsmenu_slider_value(option) = ((u32) (fraction * 100 / VOLUME_STEP + 0.5f)) * VOLUME_STEP;
-            settingsmenu_apply_volumes();
-        }
+        *settingsmenu_slider_value((settings_option) menu->sliding) = ((u32) (fraction * 100 / VOLUME_STEP + 0.5f)) * VOLUME_STEP;
+        settingsmenu_apply_volumes();
     } else if(menu->touching && (hidKeysHeld() & KEY_TOUCH) && !(hidKeysDown() & KEY_TOUCH)) {
         if(abs((int) pos.py - (int) menu->touchStartY) > 6) {
             menu->dragged = true;
@@ -621,14 +512,9 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
 
         if(menu->sliding >= 0) {
             menu->sliding = -1;
-            sound_play(SOUND_TICK);
-            if(menu->brightnessMoved) {
-                // Saved next frame, once nothing holds the bar.
-                return;
-            }
-
             settings_apply();
             settingsmenu_save();
+            sound_play(SOUND_TICK);
             return;
         }
 
@@ -652,11 +538,6 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_THEME_EDIT: return _("Change the theme in use value by value, its colours with a finger, and see it at once. A built-in theme is saved as a new one of your own.");
         case OPTION_ACCENT: return _("The colour of buttons, selections and bars.");
         case OPTION_NIGHT: return _("Dark colours. Automatic: from 20:00 to 8:00.");
-        case OPTION_BRIGHTNESS:
-            return brightnessCustom ? _("Custom: the console's five brightness levels are spread between the lowest and the highest below, in every game and in HOME, auto-brightness too. It stays after NSA closes; System puts the console's own levels back.")
-                                    : _("System: the console's own brightness levels. Custom spreads its five levels between a lowest and a highest you choose, in every game, auto-brightness too: so it never gets too dark.");
-        case OPTION_BRIGHTNESS_LOW: return _("How dark the screens can get: level 1, and the least auto-brightness goes down to. The console's own is 16.");
-        case OPTION_BRIGHTNESS_HIGH: return _("How bright the screens can get: level 5, and how high auto-brightness goes. The console's own is 142.");
         case OPTION_LANGUAGE: return _("Pick NSA's language from a list. System: the console's language when NSA has it, else English.");
         case OPTION_SOUNDS:
             return settings->sounds == SOUNDS_ALL ? _("All: a tick for buttons and touches, and a tune when something ends or fails.")
@@ -748,36 +629,6 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
         }
 
         settingsmenu_draw_equalizer(x, y + 24, width, 28, 28, music.generating, t->accent);
-        return;
-    }
-
-    if(option == OPTION_BRIGHTNESS || option == OPTION_BRIGHTNESS_LOW || option == OPTION_BRIGHTNESS_HIGH) {
-        // The five levels in use and the console's own, and what the screens have now (a New 3DS can tell).
-        u16 now[5];
-        u16 factory[5];
-        brightness_factory_levels(factory);
-        if(!brightness_levels(now)) {
-            return;
-        }
-
-        char levels[96];
-        snprintf(levels, sizeof(levels), "%s %u  %u  %u  %u  %u", _("Levels:"), now[0], now[1], now[2], now[3], now[4]);
-        screen_draw_text(levels, x, y, WIDGET_TEXT_SCALE, t->palette->text);
-        snprintf(levels, sizeof(levels), "%s %u  %u  %u  %u  %u", _("The console's own:"), factory[0], factory[1], factory[2], factory[3], factory[4]);
-        screen_draw_text(levels, x, y + 18, WIDGET_SMALL_SCALE, t->palette->textMuted);
-        // Asked of GSP twice a second, not every frame.
-        static u32 current = 0;
-        static u64 nextAsk = 0;
-        if(osGetTime() >= nextAsk) {
-            current = brightness_now();
-            nextAsk = osGetTime() + 500;
-        }
-
-        if(current > 0) {
-            snprintf(levels, sizeof(levels), "%s %lu", _("Now:"), current);
-            screen_draw_text(levels, x, y + 34, WIDGET_SMALL_SCALE, t->palette->textMuted);
-        }
-
         return;
     }
 
@@ -944,21 +795,15 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
 
         settings_option option = (settings_option) i;
         u32* volume = settingsmenu_slider_value(option);
-        u32* brightness = settingsmenu_brightness_value(option);
 
         // Where a guided tour finds it (coach.h).
         static const char* const anchors[OPTION_COUNT] = {
-                "settings.theme", "settings.theme_edit", "settings.accent", "settings.night", "settings.brightness", "settings.brightness_low",
-                "settings.brightness_high", "settings.language", "settings.sounds", "settings.music", "settings.ftp", "settings.ftp_music", "settings.web",
-                "settings.web_pin", "settings.web_fixed_pin", "settings.links", "settings.channel", "settings.auto_update",
+                "settings.theme", "settings.theme_edit", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
+                "settings.ftp", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.links", "settings.channel", "settings.auto_update",
                 "settings.check_updates", "settings.changelog", "settings.guide"
         };
         coach_anchor(anchors[i], rowX, y, rowW, settingsmenu_row_height(i), i == menu->selected);
-        if(brightness != NULL) {
-            char number[8];
-            snprintf(number, sizeof(number), "%lu", *brightness);
-            widget_row_with_slider(rowX, y, rowW, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, NULL, i == menu->selected, settingsmenu_brightness_fraction(*brightness), number);
-        } else if(volume != NULL) {
+        if(volume != NULL) {
             char percent[8];
             snprintf(percent, sizeof(percent), "%lu%%", *volume);
             widget_row_with_slider(rowX, y, rowW, settingsmenu_icon(option), settingsmenu_label(option), theme()->palette->text, settingsmenu_value(option), i == menu->selected, (float) *volume / 100.0f, percent);
@@ -1003,9 +848,6 @@ void settingsmenu_open() {
 
     data->press.index = -1;
     data->sliding = -1;
-    brightnessSupported = brightness_supported();
-    // Custom when it was picked, or when the console's levels are not its own (changed by NSA before, or elsewhere).
-    brightnessCustom = brightnessSupported && (settings_get()->brightnessCustom || brightness_custom());
     // Themes copied to the SD card since NSA started show up.
     settings_get()->theme = theme_reload_custom(settings_get()->theme);
 

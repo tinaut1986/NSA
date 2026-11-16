@@ -4,6 +4,8 @@ void mainmenu_open();
 
 void dumpnand_open();
 void wificonnections_open();
+// System -> Console settings -> Screen brightness (brightnessview.c).
+void brightnessview_open();
 // System -> Hardware tests (hwtest.c).
 void hwtest_buttons_open();
 void hwtest_motion_open();

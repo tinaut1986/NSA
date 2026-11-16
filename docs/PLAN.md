@@ -163,7 +163,8 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- [ ] Settings -> Screen brightness (2026-11-16, `feat/brightness-floor`; issue #42): System / Custom, and with Custom two
+- [ ] System -> Console settings -> Screen brightness (2026-11-16, `feat/brightness-floor`, moved out of Settings into a
+  screen of its own with a guide chapter on 2026-11-17, `feat/brightness-screen`; issue #42): System / Custom, and with Custom two
   bars, Lowest and Highest brightness (10-172, the console's own 16 and 142), that never pass each other; the console's
   five levels are spread between them (each a step by the same ratio) in block 0x00050002, which also bounds
   auto-brightness, and gsp::Lcd ReloadConfig makes it take effect at once (no restart, no level change). Without
@@ -174,7 +175,8 @@ What `release` holds, in the order it was built:
   XL .135: Custom, the lowest raised to 60 with X: table 60 74 92 114 142 saved, settings.json and the backup right, 60 in
   the dark in auto (16 before); in manual at level 1 the bar moved it 11 -> 23 -> 11 at once. The owner, 2026-11-16, New 3DS XL: works, in auto and
   in manual. Not tried: a game, System again,
-  the 2DS (no auto-brightness: only the manual levels), an Old 3DS.
+  the 2DS (no auto-brightness: only the manual levels), an Old 3DS. The owner, 2026-11-17: the screen in Console settings works.
+  Not tried: the guide chapter.
 
 - [ ] Store: "Remove what the Store installed" (2026-11-15, 0.9.13-dev). A script's run notes every file it is about to
   write (+ new, * it replaced a file, - it took it away again itself) in the store's written.json; the app's sheet then
@@ -1889,8 +1891,8 @@ current, this list is the summary. What only the owner can test (local wireless)
   - `0x00050009` starts with a float (1.0): 0.5 / 1.5 changed nothing without a refresh; not tried with one. `SITE LCDSET
     <n>` (`GSPLCD_SetBrightness`) does not refresh: auto overrides it at once.
   - **gsp::Lcd command 0x000C, ReloadConfig (word 0)** makes GSP take the table at once, auto included (`SITE LCDCMD C 0`;
-    in the dark 16 -> 48 with 48 first, and back to 16 with the factory table). Done in Settings -> Screen brightness
-    (`source/fbi/brightness.c`): see "Pending tests on the console".
+    in the dark 16 -> 48 with 48 first, and back to 16 with the factory table). Done in System -> Console settings -> Screen brightness
+    (`source/fbi/brightness.c`, `brightnessview.c`): see "Pending tests on the console".
 
 ## Decisions
 

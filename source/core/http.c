@@ -18,9 +18,8 @@
 
 // NSA's own, not FBI's browser-like "Mozilla/5.0 (Nintendo 3DS; Mobile; rv:10.0) Gecko/20100101 ...": Google Drive
 // answered that with 500 (its downloads) and 403 (its share links), and a plain name with the file (2026-11-04).
-#define MAKE_HTTP_USER_AGENT_(major, minor, micro) (APP_NAME "/" #major "." #minor "." #micro " (Nintendo 3DS)")
-#define MAKE_HTTP_USER_AGENT(major, minor, micro) MAKE_HTTP_USER_AGENT_(major, minor, micro)
-#define HTTP_USER_AGENT MAKE_HTTP_USER_AGENT(VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO)
+// The app's version (VERSION_STRING), not the CIA's title version, which stops at micro 15 (Makefile).
+#define HTTP_USER_AGENT (APP_NAME "/" VERSION_STRING " (Nintendo 3DS)")
 
 static void (*http_log)(const char* format, ...) = NULL;
 

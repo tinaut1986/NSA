@@ -36,6 +36,13 @@ VERSION_MAJOR := $(word 1, $(VERSION_PARTS))
 VERSION_MINOR := $(word 2, $(VERSION_PARTS))
 VERSION_MICRO := $(word 3, $(VERSION_PARTS))
 
+# The CIA's title version (makerom's -major/-minor/-micro) and the app's own version (VERSION_STRING: the tag, what
+# Settings, the updater and GitHub show) need not go hand in hand. The updater compares VERSION_STRING, and a CIA of the
+# same title version installs over the old one; the title version only has to go up for the HOME Menu to refresh the
+# icon, banner and jingle it keeps. The micro version has 4 bits: it follows the tag up to 15 and stays at 15 (v0.9.16,
+# v0.9.17... are still title 0.9.15) until the minor version goes up (v0.10.0 is title 0.10.0 again).
+VERSION_MICRO := $(shell m='$(VERSION_MICRO)'; case "$$m" in (''|*[!0-9]*) echo "$$m" ;; (*) if [ "$$m" -gt 15 ]; then echo 15; else echo "$$m"; fi ;; esac)
+
 DESCRIPTION := Open source title manager.
 AUTHOR := Steveice10
 

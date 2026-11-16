@@ -261,6 +261,17 @@ static const coach_step hwtest_steps[] = {
         DO("back", "\uE001 goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),
 };
 
+static const coach_step brightness_steps[] = {
+        OPEN("menu.system", "Open System.", "v:System"),
+        OPEN("Console settings", "Go down to Console settings and open it with .", "v:Console settings"),
+        OPEN("Screen brightness", "Go down to Screen brightness and open it with .", "v:Screen brightness"),
+        INFO("brightness.mode", "System keeps the console's own brightness. Custom lets you choose how dark and how bright the screens can get."),
+        INFO("brightness.mode", "With Custom, two bars: the lowest is level 1 and the darkest auto-brightness goes; the highest is level 5 and the brightest it goes. Move them with  , the D-Pad or a finger."),
+        INFO("top", "Up here: the five levels in use, the console's own, and the brightness the screens have now."),
+        INFO("top", "It works in every game and in HOME, with auto-brightness too, and stays after NSA closes. System puts the console's own levels back."),
+        DO("back", " goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),
+};
+
 static const guide_chapter chapters[] = {
         {"basics", GUIDE_VERSION(0, 2), true, NULL, ICON_DEVICE_GAMEPAD_2, "Getting around", "Screens, buttons and touch", basics_steps, COUNT_OF(basics_steps)},
         {"menu", GUIDE_VERSION(0, 8), true, "basics", ICON_LAYOUT_GRID, "Your main menu", "Tiles and icons, in your order", menu_steps, COUNT_OF(menu_steps)},
@@ -283,6 +294,7 @@ static const guide_chapter chapters[] = {
         {"datetime", GUIDE_VERSION(0, 11), false, "basics", ICON_CALENDAR, "Date and time", "Its format, and the clock from the Internet", datetime_steps, COUNT_OF(datetime_steps)},
         {"hwtest", GUIDE_VERSION(0, 12), false, "basics", ICON_FLASK, "Hardware tests", "Buttons, touch screen and motion sensors", hwtest_steps, COUNT_OF(hwtest_steps)},
         {"themes", GUIDE_VERSION(0, 13), false, "look", ICON_COLOR_SWATCH, "Your own themes", "Make one, colour by colour", themes_steps, COUNT_OF(themes_steps)},
+        {"brightness", GUIDE_VERSION(0, 14), false, "basics", ICON_SUN, "Screen brightness", "How dark and how bright, in every game", brightness_steps, COUNT_OF(brightness_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)

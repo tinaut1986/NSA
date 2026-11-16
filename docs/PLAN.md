@@ -163,6 +163,21 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] System -> Console settings -> Screen brightness (2026-11-16, `feat/brightness-floor`, moved out of Settings into a
+  screen of its own with a guide chapter on 2026-11-17, `feat/brightness-screen`; issue #42): System / Custom, and with Custom two
+  bars, Lowest and Highest brightness (10-172, the console's own 16 and 142), that never pass each other; the console's
+  five levels are spread between them (each a step by the same ratio) in block 0x00050002, which also bounds
+  auto-brightness, and gsp::Lcd ReloadConfig makes it take effect at once (no restart, no level change). Without
+  auto-brightness ReloadConfig is not enough: HOME applies a level with GSPLCD_SetBrightness(level 1-5; 0 gives the 7th
+  value), so NSA sets the level in use again (0x00050001's 2nd byte) when 0x00050009's 5th byte is 0. The bars move
+  with Left/Right, X/Y (held to keep going) or a finger, apply as they move and save to the NAND when let go; the first
+  change keeps the console's own block in `/nsa/brightness-factory.bin`; System puts it back. Claude tried on the New 3DS
+  XL .135: Custom, the lowest raised to 60 with X: table 60 74 92 114 142 saved, settings.json and the backup right, 60 in
+  the dark in auto (16 before); in manual at level 1 the bar moved it 11 -> 23 -> 11 at once. The owner, 2026-11-16, New 3DS XL: works, in auto and
+  in manual. Not tried: a game, System again,
+  the 2DS (no auto-brightness: only the manual levels), an Old 3DS. The owner, 2026-11-17: the screen in Console settings works.
+  Not tried: the guide chapter.
+
 - [ ] Store: "Remove what the Store installed" (2026-11-15, 0.9.13-dev). A script's run notes every file it is about to
   write (+ new, * it replaced a file, - it took it away again itself) in the store's written.json; the app's sheet then
   offers to delete them (a red yes/no; with some replaced and some new, "Delete all / Keep those / Cancel"), leaves those
@@ -1858,6 +1873,27 @@ current, this list is the summary. What only the owner can test (local wireless)
   manifest (enable, disable, delete, conflicts), *Install as mod* from a .zip or folder in Files, a game's mods from Titles,
   then a store over GameBanana's API (check its terms, mapping its games to title IDs, .7z/.rar archives).
 
+- **A brightness range for the whole console** (issue #42, from Cosmosx007 in #33: auto-brightness goes too dark in games;
+  branch `feat/brightness-floor`, 2026-11-16). The owner's design: two bars in Settings, a minimum and a maximum (neither
+  past the other), and the console's 5 levels spread between them. Found on the New 3DS XL (DEBUG `SITE CFG`, which now
+  dumps whole blocks to `/nsa/cfg.txt`, `SITE CFGSET <block> <hex|RESTORE>` with the original kept in `/nsa/cfg-<block>.bin`,
+  and `SITE LCD`, the brightness GSP reports):
+  - Block `0x00050002` (0x38 bytes, "Backlight PWM", read by GSP): 9 floats, then `05 80`, seven u16 luminances
+    `16 28 48 82 142 142 172`, then `0x200` and `0x0A`. The first five are levels 1-5. Writing it applies **without a
+    restart**: in manual, a level gives its value at once (level 1 gave 48 with the table 48 63 82 108 142).
+  - In **auto** (`0x00050009`'s 5th byte = 1) the value is continuous, from the light sensor and the level: 64-67 at level 5
+    in a lit room, 108-126 with a torch on the sensor, 16 at every level in the dark.
+  - **In auto, GSP takes a new table only when the level changes** (HOME, 5 -> 4 -> 5); until then it keeps the old one.
+    With that refresh the table sets **both ends** of auto: the first value is its floor (in the dark it stayed at 48, not
+    16, with 48 first), and the top scales it (torch, level 5: ~115 with level 5 = 142, ~64 with level 5 = 80, both about
+    81 %; back to ~115 with the factory table). Tests without the refresh had seemed to say auto ignores the table: wrong.
+  - Manual levels give their value at once, no refresh needed.
+  - `0x00050009` starts with a float (1.0): 0.5 / 1.5 changed nothing without a refresh; not tried with one. `SITE LCDSET
+    <n>` (`GSPLCD_SetBrightness`) does not refresh: auto overrides it at once.
+  - **gsp::Lcd command 0x000C, ReloadConfig (word 0)** makes GSP take the table at once, auto included (`SITE LCDCMD C 0`;
+    in the dark 16 -> 48 with 48 first, and back to 16 with the factory table). Done in System -> Console settings -> Screen brightness
+    (`source/fbi/brightness.c`, `brightnessview.c`): see "Pending tests on the console".
+
 ## Decisions
 
 - **A .3dsx as a title** (`source/fbi/homeicon.c`, `homeiconview.c`, `ciatemplate/`; issue #46, 2026-11-10): the owner
@@ -2111,6 +2147,11 @@ current, this list is the summary. What only the owner can test (local wireless)
   network for Tabler's CSS; it can take two minutes: run it again if it times out). New ones are
   appended, so existing icon IDs do not move.
 
+- **The app's version and the CIA's title version** (2026-11-15, the owner's rule): they need not go hand in hand. The
+  tags (the app's version, VERSION_STRING) go on as usual; the CIA's title version follows them up to micro 15 and stays
+  at 15 (the Makefile caps it: v0.9.16 is title 0.9.15) until the minor version goes up. The updater compares the app's
+  version and installs over the same title version; only the HOME Menu's icon, banner and jingle wait for the title
+  version to go up. The HTTP User-Agent says the app's version.
 - **Updating a console during development**: a console refuses a CIA of NSA older than the installed one (D8E08027, AM
   description 39), but `SITE INSTALL` and the web page's install (`AM_StartCiaInstallOverwrite`) take the **same**
   version; only HOME keeps the old icon, banner and sound until the version goes up. The micro version is 4 bits (max

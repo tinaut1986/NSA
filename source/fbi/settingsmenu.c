@@ -799,7 +799,7 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
         // Where a guided tour finds it (coach.h).
         static const char* const anchors[OPTION_COUNT] = {
                 "settings.theme", "settings.theme_edit", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
-                "settings.ftp", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.channel", "settings.auto_update",
+                "settings.ftp", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.links", "settings.channel", "settings.auto_update",
                 "settings.check_updates", "settings.changelog", "settings.guide"
         };
         coach_anchor(anchors[i], rowX, y, rowW, settingsmenu_row_height(i), i == menu->selected);

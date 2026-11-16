@@ -1472,6 +1472,8 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
 
     // The system configuration's blocks 0x00050000-0x0005000F (the screens' backlight: brightness, power saving,
     // auto-brightness), as the app can read them (issue #42): "SITE CFG", or "SITE CFG <first block hex> [count]".
+    // A block is read only with its exact size, so each known size is tried; the whole blocks go to /nsa/cfg.txt
+    // (one line each: id, service, size, hex), the reply names the blocks found.
     if(NSA_DEBUG && strcmp(sub, "CFG") == 0) {
         u32 first = 0x00050000;
         u32 count = 16;
@@ -1487,12 +1489,18 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
             count = 16;
         }
 
+        FILE* f = fopen("sdmc:" APP_DATA_DIR "cfg.txt", "w");
+        if(f == NULL) {
+            ftp_reply(s, "550 Could not create " APP_DATA_DIR "cfg.txt.");
+            return;
+        }
+
+        static u8 data[0x200];
+        static const u32 sizes[] = {0x200, 0x10C, 0x96, 0x38, 0x20, 0x1C, 0x12, 16, 12, 8, 4, 2, 1};
         char out[FTP_LINE_MAX - 8];
-        size_t used = (size_t) snprintf(out, sizeof(out), "200");
-        for(u32 i = 0; i < count && used + 48 < sizeof(out); i++) {
+        size_t used = (size_t) snprintf(out, sizeof(out), "200 " APP_DATA_DIR "cfg.txt:");
+        for(u32 i = 0; i < count; i++) {
             u32 id = first + i;
-            u8 data[16];
-            static const u32 sizes[] = {16, 8, 4, 2, 1};
             for(u32 k = 0; k < sizeof(sizes) / sizeof(*sizes); k++) {
                 memset(data, 0, sizeof(data));
                 const char* how = "u";
@@ -1503,9 +1511,14 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
                 }
 
                 if(R_SUCCEEDED(res)) {
-                    used += (size_t) snprintf(out + used, sizeof(out) - used, " %lX%s[%lu]=", id, how, sizes[k]);
-                    for(u32 b = 0; b < sizes[k] && used + 3 < sizeof(out); b++) {
-                        used += (size_t) snprintf(out + used, sizeof(out) - used, "%02X", data[b]);
+                    fprintf(f, "%08lX %s %lu ", id, how, sizes[k]);
+                    for(u32 b = 0; b < sizes[k]; b++) {
+                        fprintf(f, "%02X", data[b]);
+                    }
+
+                    fprintf(f, "\n");
+                    if(used + 16 < sizeof(out)) {
+                        used += (size_t) snprintf(out + used, sizeof(out) - used, " %lX[%lX]", id, sizes[k]);
                     }
 
                     break;
@@ -1513,7 +1526,140 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
             }
         }
 
+        fclose(f);
         ftp_reply(s, "%s", out);
+        return;
+    }
+
+    // The brightness the screens have now, as GSP reports it (issue #42): "SITE LCD".
+    if(NSA_DEBUG && strcmp(sub, "LCD") == 0) {
+        u32 top = 0;
+        u32 bottom = 0;
+        Result res = gspLcdInit();
+        Result resTop = res;
+        Result resBottom = res;
+        if(R_SUCCEEDED(res)) {
+            resTop = GSPLCD_GetBrightness(GSPLCD_SCREEN_TOP, &top);
+            resBottom = GSPLCD_GetBrightness(GSPLCD_SCREEN_BOTTOM, &bottom);
+            gspLcdExit();
+        }
+
+        ftp_reply(s, "200 LCD top %lu (%08lX) bottom %lu (%08lX)", top, (u32) resTop, bottom, (u32) resBottom);
+        return;
+    }
+
+    // Sets both screens' brightness through GSP (issue #42): "SITE LCDSET <value>", or "SITE LCDSET RAW <value>".
+    if(NSA_DEBUG && strcmp(sub, "LCDSET") == 0) {
+        bool raw = path != NULL && strncmp(path, "RAW ", 4) == 0;
+        u32 value = path != NULL ? (u32) strtoul(raw ? path + 4 : path, NULL, 10) : 0;
+        Result res = gspLcdInit();
+        if(R_SUCCEEDED(res)) {
+            res = raw ? GSPLCD_SetBrightnessRaw(GSPLCD_SCREEN_BOTH, value) : GSPLCD_SetBrightness(GSPLCD_SCREEN_BOTH, value);
+            gspLcdExit();
+        }
+
+        ftp_reply(s, "200 LCDSET %s%lu %08lX", raw ? "RAW " : "", value, (u32) res);
+        return;
+    }
+
+    // gsp::Lcd's ReloadConfig (0x000C) or RestoreConfig (0x000D) with one word (issue #42): "SITE LCDCMD <C|D> <word>".
+    if(NSA_DEBUG && strcmp(sub, "LCDCMD") == 0) {
+        char* end = NULL;
+        u32 cmd = path != NULL ? (u32) strtoul(path, &end, 16) : 0;
+        u32 word = end != NULL && *end == ' ' ? (u32) strtoul(end + 1, NULL, 0) : 0;
+        if(cmd != 0xC && cmd != 0xD) {
+            ftp_reply(s, "501 SITE LCDCMD <C|D> <word>");
+            return;
+        }
+
+        Handle lcd = 0;
+        Result res = srvGetServiceHandle(&lcd, "gsp::Lcd");
+        if(R_SUCCEEDED(res)) {
+            u32* cmdbuf = getThreadCommandBuffer();
+            cmdbuf[0] = IPC_MakeHeader(cmd, 1, 0);
+            cmdbuf[1] = word;
+            res = svcSendSyncRequest(lcd);
+            if(R_SUCCEEDED(res)) {
+                res = (Result) cmdbuf[1];
+            }
+
+            svcCloseHandle(lcd);
+        }
+
+        ftp_reply(s, "200 LCDCMD %lX %lu %08lX", cmd, word, (u32) res);
+        return;
+    }
+
+    // Writes a backlight block (0x00050000-0x0005000F) of the system configuration and saves it (issue #42):
+    // "SITE CFGSET <block hex> <bytes hex>", exactly the block's size. Before the first write of a block its original
+    // goes to /nsa/cfg-<block>.bin (never overwritten), so "SITE CFGSET <block hex> RESTORE" puts it back. The system
+    // reads these blocks when it starts: restart the console to see a change.
+    if(NSA_DEBUG && strcmp(sub, "CFGSET") == 0) {
+        char* end = NULL;
+        u32 id = path != NULL ? (u32) strtoul(path, &end, 16) : 0;
+        if((id & 0xFFFFFFF0) != 0x00050000 || end == NULL || *end != ' ') {
+            ftp_reply(s, "501 SITE CFGSET <block 0005000X> <hex | RESTORE>");
+            return;
+        }
+
+        static u8 old[0x200];
+        static u8 data[0x200];
+        static const u32 sizes[] = {0x10C, 0x38, 0x20, 8, 4, 2};
+        u32 size = 0;
+        for(u32 k = 0; k < sizeof(sizes) / sizeof(*sizes) && size == 0; k++) {
+            if(R_SUCCEEDED(CFG_GetConfigInfoBlk8(sizes[k], id, old))) {
+                size = sizes[k];
+            }
+        }
+
+        if(size == 0) {
+            ftp_reply(s, "550 Block %08lX not readable.", id);
+            return;
+        }
+
+        char backup[64];
+        snprintf(backup, sizeof(backup), "sdmc:" APP_DATA_DIR "cfg-%08lX.bin", id);
+        const char* hex = end + 1;
+        if(strcmp(hex, "RESTORE") == 0) {
+            FILE* f = fopen(backup, "rb");
+            size_t got = f != NULL ? fread(data, 1, size, f) : 0;
+            if(f != NULL) {
+                fclose(f);
+            }
+
+            if(got != size) {
+                ftp_reply(s, "550 No backup of %08lX.", id);
+                return;
+            }
+        } else {
+            if(strlen(hex) != size * 2) {
+                ftp_reply(s, "501 Block %08lX is %lu bytes (%lu hex digits).", id, size, size * 2);
+                return;
+            }
+
+            for(u32 b = 0; b < size; b++) {
+                char pair[3] = {hex[b * 2], hex[b * 2 + 1], '\0'};
+                data[b] = (u8) strtoul(pair, NULL, 16);
+            }
+
+            FILE* f = fopen(backup, "rb");
+            if(f != NULL) {
+                fclose(f);
+            } else if((f = fopen(backup, "wb")) != NULL) {
+                fwrite(old, 1, size, f);
+                fclose(f);
+            } else {
+                ftp_reply(s, "550 Could not save the backup.");
+                return;
+            }
+        }
+
+        Result res = CFG_SetConfigInfoBlk8(size, id, data);
+        if(R_SUCCEEDED(res)) {
+            res = CFG_UpdateConfigSavegame();
+        }
+
+        ftp_reply(s, "200 CFGSET %08lX[%lX] %08lX", id, size, (u32) res);
         return;
     }
 

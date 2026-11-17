@@ -1411,7 +1411,6 @@ const i18n_entry i18n_tw[] = {
         {"Password", "密碼"},
         {"Automatic (DHCP)", "自動 (DHCP)"},
         {"Address", "位址"},
-        {"This connection is empty:  writes one of the saved copies to it.", "此連線為空：按  可寫入一個已儲存的副本。"},
         {"Saved as %s.", "已儲存為 %s。"},
         {"Connection %lu is now %s.", "連線 %lu 現在是 %s。"},
         {"Replace connection %lu (%s) with %s?", "將連線 %lu（%s）取代為 %s？"},
@@ -1677,6 +1676,23 @@ const i18n_entry i18n_tw[] = {
         {"Failed to create the install thread.", "無法建立安裝執行緒。"},
         {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "從 .3dsx 的動作可以將它安裝到 HOME 選單：成為獨立的軟體，橫幅以它的圖示或你的圖片製作。"},
         {"When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS.", "清單超出螢幕時，捲動期間右下角會出現兩個箭頭：可跳到第一項或最後一項。在 New 3DS 上，ZL 和 ZR 也有同樣的作用。"},
+        // Wi-Fi networks by QR code (wificonnections.c, wifiqr.c)
+        {"QR code", "QR 碼"},
+        {"Show QR code", "顯示 QR 碼"},
+        {"A phone's camera joins the network with it.", "手機相機可用它加入這個網路。"},
+        {"Replace from a QR code", "以 QR 碼取代"},
+        {"Another network, from the code a phone or router shows.", "另一個網路，來自手機或路由器顯示的碼。"},
+        {"Set up from a QR code", "以 QR 碼設定"},
+        {"The code a phone or router shows for its Wi-Fi.", "手機或路由器為其 Wi-Fi 顯示的碼。"},
+        {"This connection is empty:  sets it up from a QR code, by hand or from a saved copy.", "此連線為空： 可從 QR 碼、手動或已儲存的副本設定。"},
+        {"Point the camera at the network's QR code (a phone shows it when sharing its Wi-Fi).", "將相機對準網路的 QR 碼（手機分享 Wi-Fi 時會顯示）。"},
+        {"Scan the code on the top screen with a phone's camera to join %s.", "用手機相機掃描上螢幕的碼即可加入 %s。"},
+        {"The QR code has no network name, or one longer than 32 characters.", "QR 碼沒有網路名稱，或名稱超過 32 個字元。"},
+        {"The QR code's password is longer than 64 characters.", "QR 碼的密碼超過 64 個字元。"},
+        {"That is not a Wi-Fi network's QR code.", "這不是 Wi-Fi 網路的 QR 碼。"},
+        {"That network uses WPA3 or WPA Enterprise, which the console cannot join.", "該網路使用 WPA3 或 WPA 企業版，主機無法加入。"},
+        {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "此連線的密碼未儲存（以 WPS 或 AOSS，或其他應用程式設定），因此碼中無法包含密碼。"},
+        {"Failed to make the QR code.", "無法產生 QR 碼。"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

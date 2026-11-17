@@ -713,25 +713,7 @@ void settingsmenu_draw_web_qr(float x, float y, float side) {
         string_copy(encoded, url, sizeof(encoded));
     }
 
-    // Whole pixels per module: a blurred edge is harder for a camera.
-    int total = qr.size + 8;
-    int module = (int) (side / total);
-    if(module < 1) {
-        return;
-    }
-
-    float drawn = (float) (module * total);
-    // On whole pixels too: a half pixel rounds differently for each eye in 3D, and some columns come out wider.
-    float ox = floorf(x + (side - drawn) / 2);
-    float oy = floorf(y + (side - drawn) / 2);
-    screen_fill_rect(ox, oy, drawn, drawn, 0xFFFFFFFF);
-    for(int my = 0; my < qr.size; my++) {
-        for(int mx = 0; mx < qr.size; mx++) {
-            if(qr_dark(&qr, mx, my)) {
-                screen_fill_rect(ox + (mx + 4) * module, oy + (my + 4) * module, module, module, 0xFF000000);
-            }
-        }
-    }
+    widget_qr_code(&qr, x, y, side);
 }
 
 static void settingsmenu_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {

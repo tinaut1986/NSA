@@ -12,7 +12,7 @@ endif
 
 BUILD := build
 
-TESTS := update_manifest_test relstream_test foldermanifest_test qrencode_test themefile_test
+TESTS := update_manifest_test relstream_test foldermanifest_test qrencode_test themefile_test wifiqr_test
 
 .PHONY: all clean
 all: $(addprefix $(BUILD)/,$(TESTS))
@@ -42,3 +42,8 @@ $(BUILD)/themefile_test: themefile_test.c ../source/core/themefile.c ../source/c
 
 clean:
 	rm -rf $(BUILD)
+
+# Wi-Fi networks as QR codes: reading and writing the "WIFI:" text.
+$(BUILD)/wifiqr_test: wifiqr_test.c ../source/fbi/wifiqr.c ../source/fbi/wifiqr.h
+	@mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -o $@ wifiqr_test.c ../source/fbi/wifiqr.c

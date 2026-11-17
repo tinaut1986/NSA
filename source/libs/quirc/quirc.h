@@ -162,4 +162,8 @@ void quirc_extract(const struct quirc *q, int index,
 quirc_decode_error_t quirc_decode(const struct quirc_code *code,
 				  struct quirc_data *data);
 
+/* Flip a QR-code's cells over its diagonal, so that a mirrored code
+ * decodes (taken from later versions of quirc). */
+void quirc_flip(struct quirc_code *code);
+
 #endif

@@ -236,6 +236,7 @@ static const coach_step wifi_steps[] = {
         INFO("list", "Your console's three connections, then the copies saved on the SD card: the same ones WifiManager keeps in /3ds/WifiManager."),
         INFO("list.selected", "\uE000 on a connection: save a copy (with an alias, if you like), edit it, delete it, or write a saved copy there."),
         INFO("list.selected", "\uE000 on a copy: write it to a connection, edit it, rename its alias or delete it."),
+        INFO_SINCE(GUIDE_VERSION(0, 15), "list.selected", "A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join."),
         INFO("list.selected", "Not connected, NSA connects with what you write at once (or with Connect). The network the console is on changes only after sleep mode."),
         INFO("hints", "\uE003 shows the passwords, to type one on another device."),
         DO("back", "\uE001 goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),

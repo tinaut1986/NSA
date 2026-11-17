@@ -1419,7 +1419,6 @@ const i18n_entry i18n_ru[] = {
         {"Password", "Пароль"},
         {"Automatic (DHCP)", "Автоматически (DHCP)"},
         {"Address", "Адрес"},
-        {"This connection is empty:  writes one of the saved copies to it.", "Это подключение пустое:  запишет в него одну из сохранённых копий."},
         {"Saved as %s.", "Сохранено как %s."},
         {"Connection %lu is now %s.", "Подключение %lu теперь %s."},
         {"Replace connection %lu (%s) with %s?", "Заменить подключение %lu (%s) на %s?"},
@@ -1685,6 +1684,24 @@ const i18n_entry i18n_ru[] = {
         {"Failed to create the install thread.", "Не удалось создать поток установки."},
         {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "В действиях файла .3dsx его можно установить в меню HOME: отдельный титул с баннером из его значка или из вашего изображения."},
         {"When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS.", "Когда список длиннее экрана, при прокрутке справа внизу появляются две стрелки: они переходят к первому или к последнему элементу. На New 3DS то же делают ZL и ZR."},
+        // Wi-Fi networks by QR code (wificonnections.c, wifiqr.c)
+        {"QR code", "QR-код"},
+        {"Show QR code", "Показать QR-код"},
+        {"A phone's camera joins the network with it.", "С ним камера телефона подключается к сети."},
+        {"Replace from a QR code", "Заменить из QR-кода"},
+        {"Another network, from the code a phone or router shows.", "Другая сеть, из кода, который показывает телефон или роутер."},
+        {"Set up from a QR code", "Настроить из QR-кода"},
+        {"The code a phone or router shows for its Wi-Fi.", "Код, который телефон или роутер показывает для своего Wi-Fi."},
+        {"This connection is empty:  sets it up from a QR code, by hand or from a saved copy.", "Это подключение пустое:  настраивает его из QR-кода, вручную или из сохранённой копии."},
+        {"Point the camera at the network's QR code (a phone shows it when sharing its Wi-Fi).", "Наведите камеру на QR-код сети (телефон показывает его, когда делится своим Wi-Fi)."},
+        {"Scan the code on the top screen with a phone's camera to join %s.", "Отсканируйте код на верхнем экране камерой телефона, чтобы подключиться к %s."},
+        {"The QR code has no network name, or one longer than 32 characters.", "В QR-коде нет имени сети или оно длиннее 32 символов."},
+        {"The QR code's password is longer than 64 characters.", "Пароль в QR-коде длиннее 64 символов."},
+        {"That is not a Wi-Fi network's QR code.", "Это не QR-код сети Wi-Fi."},
+        {"That network uses WPA3 or WPA Enterprise, which the console cannot join.", "Эта сеть использует WPA3 или WPA Enterprise, к ним консоль подключиться не может."},
+        {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "Пароль этого подключения не сохранён (оно настроено через WPS или AOSS или другим приложением), поэтому код не может его содержать."},
+        {"Failed to make the QR code.", "Не удалось создать QR-код."},
+        {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "Подключение можно настроить и из QR-кода: камера читает код, который телефон показывает, когда делится своим Wi-Fi, или код роутера. «Показать QR-код» выводит подключение или копию на верхний экран, чтобы к сети подключился телефон."},
 };
 
 const u32 i18n_ru_count = sizeof(i18n_ru) / sizeof(*i18n_ru);

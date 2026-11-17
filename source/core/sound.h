@@ -26,3 +26,5 @@ void sound_exit();
 
 // The DSP is shared with the audio player: starts it on first use; false without its firmware.
 bool sound_dsp_start();
+// The firmware was just written to the SD card (Utilities): the next sound_dsp_start tries again if it had failed.
+void sound_dsp_firmware_added();

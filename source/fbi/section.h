@@ -3,6 +3,11 @@
 void mainmenu_open();
 
 void dumpnand_open();
+// Utilities (utilities.c).
+void utilities_dsp_open();
+void utilities_luma_open();
+void utilities_restart_open();
+void utilities_power_off_open();
 void wificonnections_open();
 // System -> Console settings -> Screen brightness (brightnessview.c).
 void brightnessview_open();

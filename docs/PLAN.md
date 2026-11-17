@@ -177,6 +177,18 @@ What `release` holds, in the order it was built:
   `quirc_flip` (from later quirc) and every QR scan tries the flipped code when the straight one fails: the owner's
   screenshot of that code now reads on the host, and `tests/qrencode_test.c` checks mirrored codes. Not yet scanned with
   the console's camera. Mind that the 3DS joins only 2.4 GHz networks (that code was a "5GHz" one).
+- [ ] Main menu -> Utilities (2026-11-17, `feat/utilities`, `source/fbi/utilities.c`): what Rosalina or GodMode9 were
+  opened for. **DSP firmware**: says whether `/3ds/dspfirm.cdc` is there and whole (the size after the magic and every
+  segment's SHA-256) and dumps it as DSP1 does: HOME Menu's ExeFS .code from the NAND (the console's region first, then
+  the others), undone (ctrtool's LZSS), "DSP1" found and checked, written to a .tmp and renamed; the sounds and music
+  try the DSP again afterwards. **Game patching**: reads `enable_game_patching` in Luma's `/luma/config.ini` (13+) and
+  turns it on/off by changing that one character in place, then offers a restart. **Restart** (APT_HardwareResetAsync)
+  and **Power off** (srvPublishToSubscriber 0x203, as Rosalina), refused while a transfer holds the turn.
+  Claude on the New 3DS XL, 2026-11-17: the menu shows Utilities (bolt icon) with the four entries; the console's own
+  dspfirm.cdc read as whole; the dump came out byte for byte the same (49756 bytes, sha256 8e213f3e...); game patching
+  turned off and on again left config.ini the same bytes. Not tried: Restart and Power off, a console without the
+  firmware (the sounds starting after the dump without restarting NSA), the 2DS / an Old 3DS, a Luma older than 13,
+  the HOME theme's grid (now 10 entries, two full rows). Only Spanish has the new texts.
 - [ ] System -> Console settings -> Screen brightness (2026-11-16, `feat/brightness-floor`, moved out of Settings into a
   screen of its own with a guide chapter on 2026-11-17, `feat/brightness-screen`; issue #42): System / Custom, and with Custom two
   bars, Lowest and Highest brightness (10-172, the console's own 16 and 142), that never pass each other; the console's

@@ -1705,6 +1705,7 @@ const i18n_entry i18n_ja[] = {
         {"That network uses WPA3 or WPA Enterprise, which the console cannot join.", "このネットワークはWPA3またはWPAエンタープライズを使っているため、本体は接続できません。"},
         {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "この接続先のパスワードは保存されていません（WPSやAOSS、または別のアプリで設定されました）。そのためコードに含められません。"},
         {"Failed to make the QR code.", "QRコードを作成できませんでした。"},
+        {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "接続先はQRコードからも設定できます。スマートフォンがWi-Fiを共有するときに表示するコードや、ルーターのコードをカメラで読み取ります。「QRコードを表示」では接続先やコピーを上画面に表示し、スマートフォンから接続できます。"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

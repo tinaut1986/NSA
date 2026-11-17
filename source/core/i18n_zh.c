@@ -1692,6 +1692,7 @@ const i18n_entry i18n_zh[] = {
         {"That network uses WPA3 or WPA Enterprise, which the console cannot join.", "该网络使用 WPA3 或 WPA 企业版，主机无法加入。"},
         {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "此连接的密码未保存（以 WPS 或 AOSS，或其他应用设置），因此码中无法包含密码。"},
         {"Failed to make the QR code.", "无法生成二维码。"},
+        {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "连接也可以从二维码设置：相机会读取手机分享 Wi-Fi 时显示的码，或路由器的码。“显示二维码”会把连接或副本显示在上屏幕，让手机加入。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

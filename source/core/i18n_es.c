@@ -1722,6 +1722,7 @@ const i18n_entry i18n_es[] = {
         {"That network uses WPA3 or WPA Enterprise, which the console cannot join.", "Esa red usa WPA3 o WPA Enterprise, a las que la consola no puede conectarse."},
         {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "La contraseña de esta conexión no está guardada (se configuró con WPS o AOSS, o con otra aplicación), así que el código no puede llevarla."},
         {"Failed to make the QR code.", "No se ha podido crear el código QR."},
+        {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "Una conexión también se puede configurar desde un código QR: la cámara lee el que muestra un móvil al compartir su Wi-Fi, o el de un router. Mostrar código QR pone una conexión o una copia en la pantalla superior, para que un móvil se conecte."},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

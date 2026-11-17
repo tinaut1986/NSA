@@ -1693,6 +1693,7 @@ const i18n_entry i18n_tw[] = {
         {"That network uses WPA3 or WPA Enterprise, which the console cannot join.", "該網路使用 WPA3 或 WPA 企業版，主機無法加入。"},
         {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "此連線的密碼未儲存（以 WPS 或 AOSS，或其他應用程式設定），因此碼中無法包含密碼。"},
         {"Failed to make the QR code.", "無法產生 QR 碼。"},
+        {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "連線也能從 QR 碼設定：相機會讀取手機分享 Wi-Fi 時顯示的碼，或路由器的碼。「顯示 QR 碼」會把連線或副本顯示在上螢幕，讓手機加入。"},
 };
 
 const u32 i18n_tw_count = sizeof(i18n_tw) / sizeof(*i18n_tw);

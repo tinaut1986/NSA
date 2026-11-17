@@ -171,7 +171,7 @@ What `release` holds, in the order it was built:
   top screen (`widget_qr_code`, shared with Settings' web QR), refused when the password is not stored (WPS/AOSS).
   Claude, Azahar: the copy "NSA Test;Net" showed its code, read back by quirc as `WIFI:T:WPA;S:NSA Test\;Net;P:secreta123;;`;
   the empty connection's actions. Not tried: scanning (no camera in Azahar) a phone's code into a connection and
-  connecting with it, a phone joining from the shown code, an open network.
+  connecting with it, a phone joining from the shown code, an open network. The guide's Wi-Fi chapter has a step on it (`feat/wifi-qr-guide`, marked 0.15: offered as new to whoever saw the chapter); not played on a console.
 - [ ] System -> Console settings -> Screen brightness (2026-11-16, `feat/brightness-floor`, moved out of Settings into a
   screen of its own with a guide chapter on 2026-11-17, `feat/brightness-screen`; issue #42): System / Custom, and with Custom two
   bars, Lowest and Highest brightness (10-172, the console's own 16 and 142), that never pass each other; the console's

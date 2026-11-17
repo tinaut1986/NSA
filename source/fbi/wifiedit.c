@@ -40,6 +40,7 @@ typedef struct {
 
     int connection;           // The connection it goes to (0-2), or -1 for a copy.
     bool inUse;               // The console is connected through it (when the screen opened).
+    char replaces[33];        // From a QR code: the network the connection held, which saving replaces (empty: none).
     wifislots_backup* backup;
     void (*saved)(void* data);
     void* data;
@@ -383,7 +384,11 @@ static void edit_update(ui_view* view, void* data, linked_list* items, list_item
         edit_field field = (edit_field) (u32) selected->data;
         if(field == FIELD_SAVE) {
             char message[160];
-            if(e->connection >= 0) {
+            if(e->connection >= 0 && e->replaces[0] != '\0' && strcmp(e->replaces, e->ssid) != 0) {
+                snprintf(message, sizeof(message), _("Replace connection %lu (%s) with %s?"), (u32) e->connection + 1, e->replaces, e->ssid);
+                prompt_display_warning("Confirmation", message, COLOR_TEXT, e, NULL, edit_save_answer);
+                return;
+            } else if(e->connection >= 0) {
                 snprintf(message, sizeof(message), _("Save the changes to connection %lu?"), (u32) e->connection + 1);
             } else {
                 string_copy(message, _("Save the changes to this copy?"), sizeof(message));
@@ -396,11 +401,11 @@ static void edit_update(ui_view* view, void* data, linked_list* items, list_item
     }
 }
 
-void wifiedit_open(const wifislots_slot* start, int connection, wifislots_backup* backup, void (*saved)(void* data), void* data) {
+static edit_data* edit_create(const wifislots_slot* start, int connection, wifislots_backup* backup, void (*saved)(void* data), void* data) {
     edit_data* e = (edit_data*) calloc(1, sizeof(edit_data));
     if(e == NULL) {
         error_display(NULL, NULL, "Failed to allocate Wi-Fi data.");
-        return;
+        return NULL;
     }
 
     if(start != NULL && !wifislots_empty(start)) {
@@ -432,6 +437,10 @@ void wifiedit_open(const wifislots_slot* start, int connection, wifislots_backup
         e->items[f] = item;
     }
 
+    return e;
+}
+
+static void edit_show(edit_data* e) {
     ui_view* view = list_display(_("Edit Wi-Fi connection"), "", e, edit_update, edit_draw_top);
     if(view == NULL) {
         for(u32 f = 0; f < FIELD_COUNT; f++) {
@@ -446,4 +455,30 @@ void wifiedit_open(const wifislots_slot* start, int connection, wifislots_backup
     list_style style = {.rowHeight = 38, .drawRow = edit_draw_row};
     list_set_style(view, &style);
     list_show_title_bar(view);
+}
+
+void wifiedit_open(const wifislots_slot* start, int connection, wifislots_backup* backup, void (*saved)(void* data), void* data) {
+    edit_data* e = edit_create(start, connection, backup, saved, data);
+    if(e != NULL) {
+        edit_show(e);
+    }
+}
+
+void wifiedit_open_network(u32 connection, const wifislots_slot* current, const char* ssid, u8 security, const char* password,
+                           void (*saved)(void* data), void* data) {
+    // Another network: a new connection (DHCP, automatic DNS), not the old one's addresses.
+    edit_data* e = edit_create(NULL, (int) connection, NULL, saved, data);
+    if(e == NULL) {
+        return;
+    }
+
+    string_copy(e->ssid, ssid, sizeof(e->ssid));
+    e->security = security;
+    string_copy(e->password, security == WIFISLOTS_OPEN ? "" : password, sizeof(e->password));
+    e->changed = true;
+    if(current != NULL && !wifislots_empty(current)) {
+        wifislots_name(current, e->replaces, sizeof(e->replaces));
+    }
+
+    edit_show(e);
 }

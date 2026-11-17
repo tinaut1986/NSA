@@ -7,6 +7,7 @@
 #include "ui.h"
 #include "widgets.h"
 #include "../i18n.h"
+#include "../qrencode.h"
 #include "../icons.h"
 #include "../screen.h"
 #include "../stringutil.h"
@@ -156,6 +157,27 @@ void widget_tile_frame(float x, float y, float size, bool selected) {
         screen_fill_round_rect(x, y, size, size, t->def->radius, t->accentSoft);
     } else {
         screen_frame_round_rect(x, y, size, size, t->def->radius, t->def->border, t->palette->border, t->palette->surface);
+    }
+}
+
+void widget_qr_code(const qr_code* qr, float x, float y, float side) {
+    int total = qr->size + 8;
+    int module = (int) (side / total);
+    if(module < 1) {
+        return;
+    }
+
+    float drawn = (float) (module * total);
+    // On whole pixels too: a half pixel rounds differently for each eye in 3D, and some columns come out wider.
+    float ox = floorf(x + (side - drawn) / 2);
+    float oy = floorf(y + (side - drawn) / 2);
+    screen_fill_rect(ox, oy, drawn, drawn, 0xFFFFFFFF);
+    for(int my = 0; my < qr->size; my++) {
+        for(int mx = 0; mx < qr->size; mx++) {
+            if(qr_dark(qr, mx, my)) {
+                screen_fill_rect(ox + (mx + 4) * module, oy + (my + 4) * module, module, module, 0xFF000000);
+            }
+        }
     }
 }
 

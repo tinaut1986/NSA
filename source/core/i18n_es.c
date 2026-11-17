@@ -1440,7 +1440,6 @@ const i18n_entry i18n_es[] = {
         {"Password", "Contraseña"},
         {"Automatic (DHCP)", "Automática (DHCP)"},
         {"Address", "Dirección"},
-        {"This connection is empty:  writes one of the saved copies to it.", "Esta conexión está vacía:  escribe en ella una de las copias guardadas."},
         {"Saved as %s.", "Guardada como %s."},
         {"Connection %lu is now %s.", "La conexión %lu es ahora %s."},
         {"Replace connection %lu (%s) with %s?", "¿Sustituir la conexión %lu (%s) por %s?"},
@@ -1706,6 +1705,23 @@ const i18n_entry i18n_es[] = {
         {"Failed to create the install thread.", "No se ha podido crear el hilo de instalación."},
         {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "Desde las acciones de un .3dsx se puede instalar en el menú HOME: un título propio, con un banner hecho con su icono o con una imagen tuya."},
         {"When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS.", "Cuando una lista no cabe en la pantalla, al desplazarla aparecen dos flechas abajo a la derecha: saltan a su primer o a su último elemento. En una New 3DS, ZL y ZR hacen lo mismo."},
+        // Wi-Fi networks by QR code (wificonnections.c, wifiqr.c)
+        {"QR code", "Código QR"},
+        {"Show QR code", "Mostrar código QR"},
+        {"A phone's camera joins the network with it.", "Con él, la cámara de un móvil se conecta a la red."},
+        {"Replace from a QR code", "Sustituir desde un código QR"},
+        {"Another network, from the code a phone or router shows.", "Otra red, con el código que muestra un móvil o un router."},
+        {"Set up from a QR code", "Configurar desde un código QR"},
+        {"The code a phone or router shows for its Wi-Fi.", "El código que muestra un móvil o un router para su Wi-Fi."},
+        {"This connection is empty:  sets it up from a QR code, by hand or from a saved copy.", "Esta conexión está vacía:  la configura desde un código QR, a mano o desde una copia guardada."},
+        {"Point the camera at the network's QR code (a phone shows it when sharing its Wi-Fi).", "Apunta la cámara al código QR de la red (un móvil lo muestra al compartir su Wi-Fi)."},
+        {"Scan the code on the top screen with a phone's camera to join %s.", "Escanea el código de la pantalla superior con la cámara de un móvil para conectarte a %s."},
+        {"The QR code has no network name, or one longer than 32 characters.", "El código QR no tiene nombre de red, o lo tiene de más de 32 caracteres."},
+        {"The QR code's password is longer than 64 characters.", "La contraseña del código QR tiene más de 64 caracteres."},
+        {"That is not a Wi-Fi network's QR code.", "Eso no es el código QR de una red Wi-Fi."},
+        {"That network uses WPA3 or WPA Enterprise, which the console cannot join.", "Esa red usa WPA3 o WPA Enterprise, a las que la consola no puede conectarse."},
+        {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "La contraseña de esta conexión no está guardada (se configuró con WPS o AOSS, o con otra aplicación), así que el código no puede llevarla."},
+        {"Failed to make the QR code.", "No se ha podido crear el código QR."},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

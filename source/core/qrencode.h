@@ -10,7 +10,7 @@
 #define QR_MAX_VERSION 10
 #define QR_MAX_SIZE (QR_MAX_VERSION * 4 + 17)
 
-typedef struct {
+typedef struct qr_code_s {
     int size;                                   // Modules per side (21 for version 1, 4 more each version).
     uint8_t modules[QR_MAX_SIZE * QR_MAX_SIZE]; // 1 dark, 0 light, row by row.
 } qr_code;

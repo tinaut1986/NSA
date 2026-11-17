@@ -102,6 +102,10 @@ void widget_item_frame(float x, float y, float width, float height, bool selecte
 void widget_tile_frame(float x, float y, float size, bool selected);
 // An item without an icon of its own: `icon` at half size in a rounded square of `background`.
 void widget_icon_placeholder(float x, float y, float size, u32 icon, u32 background, u32 foreground);
+// A QR code (qrencode.h) on white with its quiet zone, as large as fits in a square of `side`, centred there, in whole
+// pixels per module (a blurred edge is harder for a camera).
+struct qr_code_s;
+void widget_qr_code(const struct qr_code_s* qr, float x, float y, float side);
 // `scroll` kept within 0..max (0 when max is below 0).
 float widget_clamp_scroll(float scroll, float max);
 // While an item loads: grey blocks where its icon (`icon` wide) and its two lines of text will be.

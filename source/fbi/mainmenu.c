@@ -13,8 +13,8 @@
 #include "dlqueue.h"
 #include "../core/core.h"
 
-// The main menu: the three everyday entries as big tiles, then two groups
-// (Cleanup and data, Advanced) and System and Settings. A group opens a list
+// The main menu: the three everyday entries as big tiles, then three groups
+// (Cleanup and data, Advanced, Utilities) and System and Settings. A group opens a list
 // of its entries; Advanced asks once per session before opening. System shows
 // the console at a glance and opens its own groups: Information (the details),
 // Console settings and Hardware tests.
@@ -68,6 +68,14 @@ static const mainmenu_entry console_settings[] = {
         {ICON_SUN, "Screen brightness", "The console's five brightness levels between a lowest and a highest you choose, in every game, auto-brightness too.", "Lowest and highest, in every game", brightnessview_open, -1, -1},
 };
 
+// What Luma3DS's Rosalina menu or GodMode9 were opened for (utilities.c).
+static const mainmenu_entry utilities[] = {
+        {ICON_VOLUME, "DSP firmware", "Homebrew needs it to play sound: check it is on the SD card and dump it from the console.", "For sound", utilities_dsp_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
+        {ICON_PUZZLE, "Game patching", "Luma3DS's game patching, for LayeredFS mods and IPS patches: see whether it is on and turn it on or off.", "For mods", utilities_luma_open, SYSTEM_MEDIATYPE_SD, -1},
+        {ICON_REFRESH, "Restart", "Restart the console. NSA closes first.", "Restart the console", utilities_restart_open, -1, -1},
+        {ICON_POWER, "Power off", "Turn the console off. NSA closes first.", "Turn the console off", utilities_power_off_open, -1, -1},
+};
+
 // Checks of the console's hardware (hwtest.c).
 static const mainmenu_entry hardware_tests[] = {
         {ICON_DEVICE_GAMEPAD_2, "Buttons and touch", "Every button, the Circle Pad, the C-Stick, the sliders and the touch screen, live as you use them.", "Every input, live", hwtest_buttons_open, -1, -1},
@@ -91,6 +99,7 @@ static const mainmenu_entry entries[] = {
         {ICON_DOWNLOAD, "Download queue", "What the console downloads and installs in the background, one after the other: pause, reorder or cancel it.", NULL, dlqueue_open, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_STACK_2, "Cleanup and data", "Licences, half-finished installs, the games' extra data and mods.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, cleanup, COUNT_OF(cleanup), false},
         {ICON_ALERT_TRIANGLE, "Advanced", "The console's own memories and system data. Handle with care.", NULL, NULL, SYSTEM_MEDIATYPE_CTR_NAND, SYSTEM_MEDIATYPE_TWL_NAND, NULL, advanced, COUNT_OF(advanced), true},
+        {ICON_BOLT, "Utilities", "What Luma3DS's menu or GodMode9 were for: the DSP firmware, game patching, restart and power off.", NULL, NULL, -1, -1, NULL, utilities, COUNT_OF(utilities), false},
         {ICON_3DS, "System", "The console at a glance: model, versions, network, battery and space.", NULL, NULL, -1, -1, systeminfo_draw_top, system_groups, COUNT_OF(system_groups), false},
         {ICON_SETTINGS, "Settings", "Theme, colours, language, updates and the FTP server.", NULL, settingsmenu_open, -1, -1},
 };
@@ -107,7 +116,7 @@ static const mainmenu_entry entries[] = {
 #define PAD 8
 
 // Stable names for the layout kept in settings.json, in the order of entries[].
-static const char* const entry_ids[] = {"sd", "titles", "remote", "store", "queue", "cleanup", "advanced", "system", "settings"};
+static const char* const entry_ids[] = {"sd", "titles", "remote", "store", "queue", "cleanup", "advanced", "utilities", "system", "settings"};
 _Static_assert(COUNT_OF(entry_ids) == ENTRY_COUNT, "an id for every entry");
 
 typedef struct {

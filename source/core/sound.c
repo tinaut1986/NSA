@@ -37,6 +37,12 @@ bool sound_dsp_start() {
     return sound_dsp_ok;
 }
 
+void sound_dsp_firmware_added() {
+    if(!sound_dsp_ok) {
+        sound_dsp_tried = false;
+    }
+}
+
 // ---- making the tones ----
 
 typedef struct {

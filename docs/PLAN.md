@@ -189,6 +189,12 @@ What `release` holds, in the order it was built:
   turned off and on again left config.ini the same bytes. Not tried: Restart and Power off, a console without the
   firmware (the sounds starting after the dump without restarting NSA), the 2DS / an Old 3DS, a Luma older than 13,
   the HOME theme's grid (now 10 entries, two full rows). Only Spanish has the new texts.
+  2026-11-18 (`feat/utilities-toggles`, the owner's ask): DSP firmware and Game patching are rows that are on or off,
+  with their value on the right as Settings draws one (Yes / No; the DSP also Damaged, game patching Not found) and no
+  chevron; A or a tap changes them (Left/Right stay the list's page keys). DSP: off -> dumps at once; on -> asks, then
+  deletes /3ds/dspfirm.cdc. Game patching: changes at once, then offers a restart. The states are read when the group
+  opens and after a change. Claude on the New 3DS XL: DSP Yes -> No (file gone) -> Yes (the same 49756 bytes); game
+  patching Yes -> No -> Yes, config.ini the same bytes.
 - [ ] System -> Console settings -> Screen brightness (2026-11-16, `feat/brightness-floor`, moved out of Settings into a
   screen of its own with a guide chapter on 2026-11-17, `feat/brightness-screen`; issue #42): System / Custom, and with Custom two
   bars, Lowest and Highest brightness (10-172, the console's own 16 and 142), that never pass each other; the console's

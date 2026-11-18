@@ -35,6 +35,9 @@ struct mainmenu_entry_s {
     const mainmenu_entry* children;
     u32 childCount;
     bool warn;
+    // An entry that is on or off, changed in place (Utilities): its value, drawn as Settings draws one, and the change.
+    const char* (*value)();
+    void (*toggle)();
 };
 
 static const mainmenu_entry cleanup[] = {
@@ -70,8 +73,8 @@ static const mainmenu_entry console_settings[] = {
 
 // What Luma3DS's Rosalina menu or GodMode9 were opened for (utilities.c).
 static const mainmenu_entry utilities[] = {
-        {ICON_VOLUME, "DSP firmware", "Homebrew needs it to play sound: check it is on the SD card and dump it from the console.", "For sound", utilities_dsp_open, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND},
-        {ICON_PUZZLE, "Game patching", "Luma3DS's game patching, for LayeredFS mods and IPS patches: see whether it is on and turn it on or off.", "For mods", utilities_luma_open, SYSTEM_MEDIATYPE_SD, -1},
+        {ICON_VOLUME, "DSP firmware", "Homebrew needs it to play sound. On: /3ds/dspfirm.cdc is on the SD card and whole. Turning it on dumps it from the console.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, NULL, 0, false, utilities_dsp_value, utilities_dsp_toggle},
+        {ICON_PUZZLE, "Game patching", "Luma3DS's game patching, for LayeredFS mods and IPS patches. A change takes effect when the console restarts.", NULL, NULL, SYSTEM_MEDIATYPE_SD, -1, NULL, NULL, 0, false, utilities_luma_value, utilities_luma_toggle},
         {ICON_REFRESH, "Restart", "Restart the console. NSA closes first.", "Restart the console", utilities_restart_open, -1, -1},
         {ICON_POWER, "Power off", "Turn the console off. NSA closes first.", "Turn the console off", utilities_power_off_open, -1, -1},
 };
@@ -99,7 +102,7 @@ static const mainmenu_entry entries[] = {
         {ICON_DOWNLOAD, "Download queue", "What the console downloads and installs in the background, one after the other: pause, reorder or cancel it.", NULL, dlqueue_open, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_STACK_2, "Cleanup and data", "Licences, half-finished installs, the games' extra data and mods.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, cleanup, COUNT_OF(cleanup), false},
         {ICON_ALERT_TRIANGLE, "Advanced", "The console's own memories and system data. Handle with care.", NULL, NULL, SYSTEM_MEDIATYPE_CTR_NAND, SYSTEM_MEDIATYPE_TWL_NAND, NULL, advanced, COUNT_OF(advanced), true},
-        {ICON_BOLT, "Utilities", "What Luma3DS's menu or GodMode9 were for: the DSP firmware, game patching, restart and power off.", NULL, NULL, -1, -1, NULL, utilities, COUNT_OF(utilities), false},
+        {ICON_BOLT, "Utilities", "What Luma3DS's Rosalina menu and GodMode9 were for.", NULL, NULL, -1, -1, NULL, utilities, COUNT_OF(utilities), false},
         {ICON_3DS, "System", "The console at a glance: model, versions, network, battery and space.", NULL, NULL, -1, -1, systeminfo_draw_top, system_groups, COUNT_OF(system_groups), false},
         {ICON_SETTINGS, "Settings", "Theme, colours, language, updates and the FTP server.", NULL, settingsmenu_open, -1, -1},
 };
@@ -515,6 +518,11 @@ static bool mainmenu_entry_opens(const mainmenu_entry* entry) {
 static void mainmenu_group_draw_row(void* data, list_item* item, float x, float y, float width, float height, bool selected) {
     const theme_current* t = theme();
     const mainmenu_entry* entry = (const mainmenu_entry*) item->data;
+    if(entry->value != NULL) {
+        widget_row(x, y, width, height, entry->icon, _(entry->name), t->palette->text, entry->value(), selected);
+        return;
+    }
+
     u32 ink = 0;
     u32 muted = 0;
     widget_item_frame(x, y, width, height, selected, &ink, &muted);
@@ -553,9 +561,10 @@ static void mainmenu_group_draw_top(ui_view* view, void* data, float x1, float y
 static void mainmenu_group_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     const mainmenu_entry* group = (const mainmenu_entry*) data;
     view->name = _(group->name);
-    // System's details only show: nothing to open.
-    bool opens = selected == NULL || mainmenu_entry_opens((const mainmenu_entry*) selected->data);
-    view->info = opens ? _(" open    back") : _(" back");
+    // System's details only show: nothing to open. An entry that is on or off changes.
+    const mainmenu_entry* current = selected != NULL ? (const mainmenu_entry*) selected->data : NULL;
+    bool opens = current == NULL || mainmenu_entry_opens(current);
+    view->info = current != NULL && current->toggle != NULL ? _(" change    back") : opens ? _(" open    back") : _(" back");
 
     if(hidKeysDown() & KEY_B) {
         ui_pop();
@@ -572,6 +581,7 @@ static void mainmenu_group_update(ui_view* view, void* data, linked_list* items,
     }
 
     if(linked_list_size(items) == 0) {
+        utilities_refresh();
         for(u32 i = 0; i < group->childCount; i++) {
             list_item* item = (list_item*) calloc(1, sizeof(list_item));
             if(item != NULL) {
@@ -581,6 +591,11 @@ static void mainmenu_group_update(ui_view* view, void* data, linked_list* items,
                 linked_list_add(items, item);
             }
         }
+    }
+
+    if(current != NULL && current->toggle != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+        current->toggle();
+        return;
     }
 
     if(selected != NULL && mainmenu_entry_opens((const mainmenu_entry*) selected->data) && (selectedTouched || (hidKeysDown() & KEY_A))) {

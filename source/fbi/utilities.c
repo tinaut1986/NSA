@@ -13,9 +13,9 @@
 #include "../core/sound.h"
 #include "../core/xferturn.h"
 
-// Utilities: what people used to open Luma3DS's Rosalina menu or GodMode9 for. Each entry is a short exchange of
-// dialogs: the DSP firmware (check it and dump it), Luma3DS's game patching (check it and turn it on or off), and
-// restarting or turning off the console.
+// Utilities: what people used to open Luma3DS's Rosalina menu or GodMode9 for. The DSP firmware and Luma3DS's game
+// patching are rows that are on or off (A or a tap changes them; Left and Right turn the list's pages); restarting and turning off the
+// console ask first.
 
 // ---- the DSP firmware ----
 //
@@ -317,37 +317,45 @@ static Result utilities_dsp_dump(u32* size) {
     return 0;
 }
 
-static void utilities_dsp_answered(ui_view* view, void* data, u32 response) {
+// The row's state, worked out when Utilities opens and after each change (it hashes the file: not every frame).
+static int utilities_dsp_state = -2;   // utilities_dsp_on_sd's, or -2: not known yet.
+
+static void utilities_dsp_delete_answered(ui_view* view, void* data, u32 response) {
     if(response != PROMPT_YES) {
+        return;
+    }
+
+    if(remove(DSP_PATH) != 0) {
+        error_display(NULL, NULL, _("Failed to delete /3ds/dspfirm.cdc."));
+    }
+
+    utilities_dsp_state = -2;
+}
+
+const char* utilities_dsp_value() {
+    if(utilities_dsp_state == -2) {
+        u32 size = 0;
+        utilities_dsp_state = utilities_dsp_on_sd(&size);
+    }
+
+    return utilities_dsp_state > 0 ? _("On") : utilities_dsp_state < 0 ? _("Damaged") : _("Off");
+}
+
+// On: delete the file (asked first: homebrew loses its sound). Off or damaged: dump it from HOME Menu at once.
+void utilities_dsp_toggle() {
+    utilities_dsp_value();
+    if(utilities_dsp_state > 0) {
+        prompt_display_warning(_("DSP firmware"), _("Delete /3ds/dspfirm.cdc? Homebrew will have no sound until it is dumped again."), COLOR_TEXT, NULL, NULL,
+                               utilities_dsp_delete_answered);
         return;
     }
 
     u32 size = 0;
     Result res = utilities_dsp_dump(&size);
+    utilities_dsp_state = -2;
     if(R_FAILED(res)) {
         error_display_res(NULL, NULL, res, _("Failed to dump the DSP firmware from HOME Menu."));
-        return;
     }
-
-    static char text[256];
-    snprintf(text, sizeof(text), _("The DSP firmware is in /3ds/dspfirm.cdc (%lu bytes). Homebrew can play sound now, NSA's sounds and music too (Settings)."), size);
-    prompt_display_notify("Success", text, COLOR_TEXT, NULL, NULL, NULL);
-}
-
-void utilities_dsp_open() {
-    u32 size = 0;
-    int state = utilities_dsp_on_sd(&size);
-
-    static char text[384];
-    if(state > 0) {
-        snprintf(text, sizeof(text), _("The DSP firmware is on the SD card (/3ds/dspfirm.cdc, %lu bytes) and it is whole: homebrew can play sound.\n\nDump it again from HOME Menu?"), size);
-    } else if(state < 0) {
-        snprintf(text, sizeof(text), "%s", _("/3ds/dspfirm.cdc is on the SD card but it is not a whole DSP firmware: homebrew may have no sound or crash.\n\nDump it again from HOME Menu?"));
-    } else {
-        snprintf(text, sizeof(text), "%s", _("The DSP firmware is not on the SD card (/3ds/dspfirm.cdc). Without it homebrew has no sound: NSA's sounds, music and audio player too.\n\nDump it from HOME Menu now?"));
-    }
-
-    prompt_display_yes_no(_("DSP firmware"), text, COLOR_TEXT, NULL, NULL, utilities_dsp_answered);
 }
 
 // ---- Luma3DS ----
@@ -416,40 +424,44 @@ static bool utilities_luma_set(long offset, char value) {
 
 static void utilities_restart_answered(ui_view* view, void* data, u32 response);
 
-static void utilities_luma_answered(ui_view* view, void* data, u32 response) {
-    if(response != PROMPT_YES) {
-        return;
+static int utilities_luma_state = -2;   // 1 on, 0 off, -1 no config.ini (or no such line), -2 not read yet.
+
+const char* utilities_luma_value() {
+    if(utilities_luma_state == -2) {
+        char value = 0;
+        utilities_luma_state = utilities_luma_find(LUMA_GAME_PATCHING, &value) < 0 ? -1 : value == '1';
     }
 
-    char value = 0;
-    long offset = utilities_luma_find(LUMA_GAME_PATCHING, &value);
-    char wanted = value == '1' ? '0' : '1';
-    if(offset < 0 || !utilities_luma_set(offset, wanted)) {
-        error_display(NULL, NULL, _("Failed to change Luma3DS's /luma/config.ini."));
-        return;
-    }
-
-    prompt_display_yes_no("Success", wanted == '1' ? _("Game patching will be on from the next start of the console.\n\nRestart it now?")
-                                                   : _("Game patching will be off from the next start of the console.\n\nRestart it now?"),
-                          COLOR_TEXT, NULL, NULL, utilities_restart_answered);
+    return utilities_luma_state > 0 ? _("On") : utilities_luma_state == 0 ? _("Off") : _("Not found");
 }
 
-void utilities_luma_open() {
+// Turns it the other way at once, then offers to restart (Luma reads it at boot).
+void utilities_luma_toggle() {
     char value = 0;
     long offset = utilities_luma_find(LUMA_GAME_PATCHING, &value);
     if(offset < 0) {
+        utilities_luma_state = -1;
         prompt_display_notify(_("Luma3DS"), _("Luma3DS's options were not found (/luma/config.ini). Luma3DS 13 or later writes that file; with an older one, change them in its menu (hold SELECT while the console starts)."),
                               COLOR_TEXT, NULL, NULL, NULL);
         return;
     }
 
-    if(value == '1') {
-        prompt_display_yes_no(_("Game patching"), _("Luma3DS's game patching is on: LayeredFS mods and IPS patches work.\n\nTurn it off? It takes effect at the next restart."),
-                              COLOR_TEXT, NULL, NULL, utilities_luma_answered);
-    } else {
-        prompt_display_yes_no(_("Game patching"), _("Luma3DS's game patching is off: LayeredFS mods and IPS patches do not work.\n\nTurn it on? It takes effect at the next restart."),
-                              COLOR_TEXT, NULL, NULL, utilities_luma_answered);
+    char wanted = value == '1' ? '0' : '1';
+    utilities_luma_state = -2;
+    if(!utilities_luma_set(offset, wanted)) {
+        error_display(NULL, NULL, _("Failed to change Luma3DS's /luma/config.ini."));
+        return;
     }
+
+    prompt_display_yes_no(_("Game patching"), wanted == '1' ? _("Game patching will be on from the next start of the console.\n\nRestart it now?")
+                                                            : _("Game patching will be off from the next start of the console.\n\nRestart it now?"),
+                          COLOR_TEXT, NULL, NULL, utilities_restart_answered);
+}
+
+// Utilities opened: read both states again (the SD card may have changed meanwhile).
+void utilities_refresh() {
+    utilities_dsp_state = -2;
+    utilities_luma_state = -2;
 }
 
 // ---- restart and power off ----

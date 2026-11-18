@@ -3,9 +3,12 @@
 void mainmenu_open();
 
 void dumpnand_open();
-// Utilities (utilities.c).
-void utilities_dsp_open();
-void utilities_luma_open();
+// Utilities (utilities.c). The DSP firmware and game patching are on or off: their value ("On", "Off"...) and the change.
+void utilities_refresh();
+const char* utilities_dsp_value();
+void utilities_dsp_toggle();
+const char* utilities_luma_value();
+void utilities_luma_toggle();
 void utilities_restart_open();
 void utilities_power_off_open();
 void wificonnections_open();

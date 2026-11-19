@@ -99,6 +99,7 @@ static const coach_step files_steps[] = {
         INFO("list.selected", "\uE000 opens a folder, and a picture, a text or a song in its viewer. Hold \uE000 on a file (or keep your finger on it) to open its actions: install, copy, cut, rename, delete, send."),
         INFO_SINCE(GUIDE_VERSION(0, 11), "list.selected", "A .zip or a .7z can be extracted from its actions, on the SD card itself."),
         INFO_SINCE(GUIDE_VERSION(0, 12), "list.selected", "A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours."),
+        INFO_SINCE(GUIDE_VERSION(0, 16), "list.selected", "A .nds (a DS game) can go in the HOME Menu too: an icon that starts it with nds-bootstrap. The .nds stays on the SD card, and NSA downloads nds-bootstrap's forwarder pack when it is missing."),
         DO("tool.more", "\uE002 has the actions of the folder itself, such as installing all its CIAs. Open them.", KEY_X, true, "sheet"),
         DO("sheet", "Close them with \uE001.", KEY_B, false, "!sheet"),
         INFO("tool.clipboard", "What you copy or cut waits here until you paste it, even if you leave the SD card: you can paste it somewhere else, such as the CTR NAND."),
@@ -273,6 +274,14 @@ static const coach_step brightness_steps[] = {
         DO("back", " goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),
 };
 
+static const coach_step utilities_steps[] = {
+        OPEN("menu.utilities", "Open Utilities: what Rosalina's menu or GodMode9 were opened for.", "v:Utilities"),
+        INFO("DSP firmware", "DSP firmware: homebrew needs it to play sound. On means /3ds/dspfirm.cdc is on the SD card and whole; turning it on dumps it from the console, as DSP1 does."),
+        INFO("Game patching", "Game patching: Luma3DS's option for LayeredFS mods and IPS patches. A change takes effect when the console restarts, and NSA offers to restart it then."),
+        INFO("Restart", "Restart and Power off do what Rosalina's power menu does. NSA closes first, and not while a transfer is under way."),
+        DO("back", " goes back to the menu.", KEY_B, true, "v:Main menu"),
+};
+
 static const guide_chapter chapters[] = {
         {"basics", GUIDE_VERSION(0, 2), true, NULL, ICON_DEVICE_GAMEPAD_2, "Getting around", "Screens, buttons and touch", basics_steps, COUNT_OF(basics_steps)},
         {"menu", GUIDE_VERSION(0, 8), true, "basics", ICON_LAYOUT_GRID, "Your main menu", "Tiles and icons, in your order", menu_steps, COUNT_OF(menu_steps)},
@@ -296,6 +305,7 @@ static const guide_chapter chapters[] = {
         {"hwtest", GUIDE_VERSION(0, 12), false, "basics", ICON_FLASK, "Hardware tests", "Buttons, touch screen and motion sensors", hwtest_steps, COUNT_OF(hwtest_steps)},
         {"themes", GUIDE_VERSION(0, 13), false, "look", ICON_COLOR_SWATCH, "Your own themes", "Make one, colour by colour", themes_steps, COUNT_OF(themes_steps)},
         {"brightness", GUIDE_VERSION(0, 14), false, "basics", ICON_SUN, "Screen brightness", "How dark and how bright, in every game", brightness_steps, COUNT_OF(brightness_steps)},
+        {"utilities", GUIDE_VERSION(0, 16), false, "basics", ICON_BOLT, "Utilities", "Sound for homebrew, game patching, restart", utilities_steps, COUNT_OF(utilities_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)

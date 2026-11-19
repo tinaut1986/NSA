@@ -3,6 +3,14 @@
 void mainmenu_open();
 
 void dumpnand_open();
+// Utilities (utilities.c). The DSP firmware and game patching are on or off: their value ("On", "Off"...) and the change.
+void utilities_refresh();
+const char* utilities_dsp_value();
+void utilities_dsp_toggle();
+const char* utilities_luma_value();
+void utilities_luma_toggle();
+void utilities_restart_open();
+void utilities_power_off_open();
 void wificonnections_open();
 // System -> Console settings -> Screen brightness (brightnessview.c).
 void brightnessview_open();
@@ -20,6 +28,8 @@ void files_open_twl_sound();
 void files_pick_picture(const char* dir, void (*picked)(void* data, const char* path), void* data);
 // A .3dsx made a title of its own in the HOME Menu (homeiconview.c): its banner, then the install.
 void homeicon_open(const char* path);
+// A .nds as an icon in the HOME Menu that starts it with nds-bootstrap (ndsfwdview.c, ndsfwd.h).
+void ndsfwd_open(const char* path);
 // The folders of /luma/titles (mods.c).
 void mods_open();
 void pendingtitles_open();

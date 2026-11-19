@@ -175,6 +175,11 @@ What `release` holds, in the order it was built:
   made again over itself ("already has an icon"), the pack downloaded from GitHub and unpacked, the template downloaded
   byte for byte. Not tried: a console (signature patches, the HOME Menu's icon and name, starting a real game, no room for
   DSiWare), a DSi-enhanced game, deleting the icon from Titles. The guide's SD card chapter has a step (0.16).
+  The owner, 2026-11-19 (New 3DS XL .135): Pokémon Black's icon hung on two white screens before nds-bootstrap (its
+  nds-bootstrap.ini still the pack's). The game is DSi-enhanced (unit code 2) with an empty DSi title ID, which NSA (as
+  ndsForwarder) took: the title was 0004800400000000. `fix/nds-forwarder-tid` takes the ID from the game code always
+  (0004800449524253 for IRBS). Not yet tried; the old 0004800400000000 has to be deleted. The pack also replaced
+  TWiLight Menu++'s /_nds/nds-bootstrap.ini (TWiLight writes it again at each launch) and nds-bootstrap-release.nds.
 - [ ] Wi-Fi networks by QR code (2026-11-17, `feat/wifi-qr`; System -> Console settings -> Wi-Fi connections). A connection's
   actions have "Set up from a QR code" (empty) or "Replace from a QR code" (in use): the camera reads the code a phone
   or router shows (`WIFI:T:WPA;S:<name>;P:<password>;;`, `wifiqr.c`, `tests/wifiqr_test.c`) and opens the editor filled

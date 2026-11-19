@@ -1706,6 +1706,21 @@ const i18n_entry i18n_it[] = {
         {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "La password di questa connessione non è salvata (è stata configurata con WPS o AOSS, o da un'altra app), quindi il codice non può contenerla."},
         {"Failed to make the QR code.", "Impossibile creare il codice QR."},
         {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "Una connessione si può anche configurare da un codice QR: la fotocamera legge quello che mostra un telefono quando condivide il suo Wi-Fi, o quello di un router. Mostra codice QR mette una connessione o una copia sullo schermo superiore, perché un telefono vi si colleghi."},
+        {"Put this game in the HOME Menu? The .nds stays where it is: the icon starts it from there with nds-bootstrap.", "Mettere questo gioco nel menu HOME? Il .nds resta dov'è: l'icona lo avvia da lì con nds-bootstrap."},
+        {"This game already has an icon in the HOME Menu. Make it again from this file?", "Questo gioco ha già un'icona nel menu HOME. Rifarla da questo file?"},
+        {"A game started from the HOME Menu needs nds-bootstrap's forwarder pack (sd:/_nds/ntr-forwarder), which is not on the SD card. Download it from GitHub (RocketRobz/NTR_Forwarder, about 2 MB) and put it there?", "Un gioco avviato dal menu HOME ha bisogno del forwarder pack di nds-bootstrap (sd:/_nds/ntr-forwarder), che non è sulla scheda SD. Scaricarlo da GitHub (RocketRobz/NTR_Forwarder, circa 2 MB) e metterlo lì?"},
+        {"\"%s\" is in the HOME Menu now. Keep the .nds where it is: the icon starts it from there with nds-bootstrap.", "\"%s\" ora è nel menu HOME. Lascia il .nds dov'è: l'icona lo avvia da lì con nds-bootstrap."},
+        {"Failed to install the game in the HOME Menu.", "Impossibile installare il gioco nel menu HOME."},
+        {"Could not download the forwarder template (olmectron.github.io). Check the internet connection.", "Impossibile scaricare il modello del forwarder (olmectron.github.io). Controlla la connessione a Internet."},
+        {"The downloaded forwarder template is not one NSA knows how to fill.", "Il modello del forwarder scaricato non è uno che NSA sa compilare."},
+        {"The game's path is too long for a forwarder: move it to a shorter one.", "Il percorso del gioco è troppo lungo per un forwarder: spostalo in uno più corto."},
+        {"The forwarder template is not one NSA knows how to fill.", "Il modello del forwarder non è uno che NSA sa compilare."},
+        {"There is no room left for DSiWare on the console. Delete a DSiWare title or a forwarder first.", "Sulla console non c'è più spazio per i DSiWare. Elimina prima un titolo DSiWare o un forwarder."},
+        {"The forwarder pack did not leave sd:/_nds/ntr-forwarder/sdcard.nds on the SD card.", "Il forwarder pack non ha lasciato sd:/_nds/ntr-forwarder/sdcard.nds sulla scheda SD."},
+        {"This game has no icon and title, which a HOME Menu icon is made from.", "Questo gioco non ha né icona né titolo, da cui si fa un'icona del menu HOME."},
+        {"This game's icon and title are damaged.", "L'icona e il titolo di questo gioco sono danneggiati."},
+        {"This is not a DS game, or the file is damaged.", "Non è un gioco DS, oppure il file è danneggiato."},
+        {"A .nds (a DS game) can go in the HOME Menu too: an icon that starts it with nds-bootstrap. The .nds stays on the SD card, and NSA downloads nds-bootstrap's forwarder pack when it is missing.", "Anche un .nds (un gioco DS) può andare nel menu HOME: un'icona che lo avvia con nds-bootstrap. Il .nds resta sulla scheda SD, e NSA scarica il forwarder pack di nds-bootstrap se manca."},
 };
 
 const u32 i18n_it_count = sizeof(i18n_it) / sizeof(*i18n_it);

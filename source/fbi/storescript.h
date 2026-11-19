@@ -39,6 +39,8 @@ const char* storescript_written(void);
 // will ask (its own yes/no messages, each folder to delete) is asked at once, and the run goes to the queue (dlqueue.c) as
 // `name`, to run later with those answers and no screen.
 void storescript_run(const char* scriptText, const char* question, const char* name, void* userData, void (*done)(void* userData, bool ok));
+// The same for a run that only makes sense now (another screen waits for it): the question is yes or no, without the queue.
+void storescript_run_now(const char* scriptText, const char* question, void* userData, void (*done)(void* userData, bool ok));
 
 // The download queue's side of a queued run (`run` as dlqueue_add_script got it). Start runs it from where it stands (the
 // start, or where a pause left it); `done` says how it ended (the run is gone then, but after a pause). Poll moves it on

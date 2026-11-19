@@ -1410,7 +1410,6 @@ const i18n_entry i18n_zh[] = {
         {"Password", "密码"},
         {"Automatic (DHCP)", "自动 (DHCP)"},
         {"Address", "地址"},
-        {"This connection is empty:  writes one of the saved copies to it.", "此连接为空：按  可写入一个已保存的副本。"},
         {"Saved as %s.", "已保存为 %s。"},
         {"Connection %lu is now %s.", "连接 %lu 现在是 %s。"},
         {"Replace connection %lu (%s) with %s?", "将连接 %lu（%s）替换为 %s？"},
@@ -1676,6 +1675,24 @@ const i18n_entry i18n_zh[] = {
         {"Failed to create the install thread.", "无法创建安装线程。"},
         {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "在 .3dsx 的操作中可以将它安装到 HOME 菜单：成为独立的软件，横幅用它的图标或你的图片制作。"},
         {"When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS.", "列表超出屏幕时，滚动期间右下角会出现两个箭头：可跳到第一项或最后一项。在 New 3DS 上，ZL 和 ZR 也有同样的作用。"},
+        // Wi-Fi networks by QR code (wificonnections.c, wifiqr.c)
+        {"QR code", "二维码"},
+        {"Show QR code", "显示二维码"},
+        {"A phone's camera joins the network with it.", "手机相机可用它加入这个网络。"},
+        {"Replace from a QR code", "用二维码替换"},
+        {"Another network, from the code a phone or router shows.", "另一个网络，来自手机或路由器显示的码。"},
+        {"Set up from a QR code", "用二维码设置"},
+        {"The code a phone or router shows for its Wi-Fi.", "手机或路由器为其 Wi-Fi 显示的码。"},
+        {"This connection is empty:  sets it up from a QR code, by hand or from a saved copy.", "此连接为空： 可从二维码、手动或已保存的副本设置。"},
+        {"Point the camera at the network's QR code (a phone shows it when sharing its Wi-Fi).", "将相机对准网络的二维码（手机分享 Wi-Fi 时会显示）。"},
+        {"Scan the code on the top screen with a phone's camera to join %s.", "用手机相机扫描上屏幕的码即可加入 %s。"},
+        {"The QR code has no network name, or one longer than 32 characters.", "二维码没有网络名称，或名称超过 32 个字符。"},
+        {"The QR code's password is longer than 64 characters.", "二维码的密码超过 64 个字符。"},
+        {"That is not a Wi-Fi network's QR code.", "这不是 Wi-Fi 网络的二维码。"},
+        {"That network uses WPA3 or WPA Enterprise, which the console cannot join.", "该网络使用 WPA3 或 WPA 企业版，主机无法加入。"},
+        {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "此连接的密码未保存（以 WPS 或 AOSS，或其他应用设置），因此码中无法包含密码。"},
+        {"Failed to make the QR code.", "无法生成二维码。"},
+        {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "连接也可以从二维码设置：相机会读取手机分享 Wi-Fi 时显示的码，或路由器的码。“显示二维码”会把连接或副本显示在上屏幕，让手机加入。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

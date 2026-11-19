@@ -47,13 +47,71 @@ static float info_bar_height(const info_data* infoData) {
     return infoData->bar ? 10 + 5 + widget_text_height(WIDGET_SMALL_SCALE) + 8 : INFO_WHEEL_RADIUS * 2 + 4 + 10;
 }
 
+// The text in a card of `width` at `x`: each line centred, as FBI laid out its progress text, and a line too wide for
+// the card broken at its spaces. Returns its height; draws it only when `draw`.
+static float info_text(const char* text, float x, float width, float y, bool draw) {
+    const float maxWidth = width - 24;
+    const float lineHeight = widget_text_height(WIDGET_TEXT_SCALE);
+    float lineY = y;
+    char buf[PROGRESS_TEXT_MAX];
+    const char* line = text;
+    while(line != NULL && *line) {
+        const char* end = strchr(line, '\n');
+        size_t len = end != NULL ? (size_t) (end - line) : strlen(line);
+        size_t start = 0;
+        do {
+            // The longest run of words from `start` that fits; one word too long stays whole.
+            size_t take = len - start;
+            for(;;) {
+                size_t n = take < sizeof(buf) ? take : sizeof(buf) - 1;
+                memcpy(buf, line + start, n);
+                buf[n] = '\0';
+                if(widget_text_width(buf, WIDGET_TEXT_SCALE) <= maxWidth) {
+                    break;
+                }
+
+                size_t space = n;
+                while(space > 0 && buf[space - 1] != ' ') {
+                    space--;
+                }
+
+                while(space > 0 && buf[space - 1] == ' ') {
+                    space--;
+                }
+
+                if(space == 0) {
+                    break;
+                }
+
+                take = space;
+            }
+
+            if(take > sizeof(buf) - 1) {
+                take = sizeof(buf) - 1;
+            }
+
+            if(draw) {
+                widget_text_centered(buf, x, x + width, lineY, WIDGET_TEXT_SCALE, theme()->palette->text);
+            }
+
+            lineY += lineHeight;
+            start += take;
+            while(start < len && line[start] == ' ') {
+                start++;
+            }
+        } while(start < len);
+
+        line = end != NULL ? end + 1 : NULL;
+    }
+
+    return lineY - y;
+}
+
 // Where the card and the button go on the bottom screen.
 static void info_layout(info_data* infoData, float x1, float y1, float x2, float y2, float* cardX, float* cardY, float* cardW, float* cardH,
                         float* btnX, float* btnY, float* btnW) {
     float width = x2 - x1 - 24;
-    float textWidth = 0;
-    float textHeight = 0;
-    screen_get_string_size_wrap(&textWidth, &textHeight, infoData->text, WIDGET_TEXT_SCALE, WIDGET_TEXT_SCALE, width - 24);
+    float textHeight = info_text(infoData->text, 0, width, 0, false);
 
     float barHeight = info_bar_height(infoData);
     float height = 14 + barHeight + textHeight + 14;
@@ -195,23 +253,7 @@ static void info_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
         cy += barHeight;
     }
 
-    // Each line centred, as FBI laid out its progress text.
-    float lineY = cy;
-    const char* line = infoData->text;
-    char buf[PROGRESS_TEXT_MAX];
-    while(line != NULL && *line) {
-        const char* end = strchr(line, '\n');
-        size_t len = end != NULL ? (size_t) (end - line) : strlen(line);
-        if(len >= sizeof(buf)) {
-            len = sizeof(buf) - 1;
-        }
-
-        memcpy(buf, line, len);
-        buf[len] = '\0';
-        widget_text_centered(buf, x, x + width, lineY, WIDGET_TEXT_SCALE, t->palette->text);
-        lineY += widget_text_height(WIDGET_TEXT_SCALE);
-        line = end != NULL ? end + 1 : NULL;
-    }
+    info_text(infoData->text, x, width, cy, true);
 }
 
 ui_view* info_display(const char* name, const char* info, bool bar, void* data, void (*update)(ui_view* view, void* data, float* progress, char* text),

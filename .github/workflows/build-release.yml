@@ -35,7 +35,7 @@ jobs:
       - name: Install host build tools
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends xxd qrencode python3 >/dev/null
+          apt-get install -y -qq --no-install-recommends xxd qrencode python3 jq ca-certificates curl >/dev/null
 
       - name: Determine release tag and channel
         id: vars

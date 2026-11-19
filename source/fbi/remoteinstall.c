@@ -596,6 +596,11 @@ static void remoteinstall_qr_update(ui_view* view, void* data, float* progress, 
 
         struct quirc_data qrData;
         quirc_decode_error_t err = quirc_decode(&qrCode, &qrData);
+        if(err != 0) {
+            // Some phones show their codes mirrored (Android's Share Wi-Fi does); their readers try both ways.
+            quirc_flip(&qrCode);
+            err = quirc_decode(&qrCode, &qrData);
+        }
 
         if(err == 0 && installData->found != NULL) {
             static char text[QUIRC_MAX_PAYLOAD + 1];

@@ -163,6 +163,20 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Wi-Fi networks by QR code (2026-11-17, `feat/wifi-qr`; System -> Console settings -> Wi-Fi connections). A connection's
+  actions have "Set up from a QR code" (empty) or "Replace from a QR code" (in use): the camera reads the code a phone
+  or router shows (`WIFI:T:WPA;S:<name>;P:<password>;;`, `wifiqr.c`, `tests/wifiqr_test.c`) and opens the editor filled
+  in (WPA -> WPA2-PSK (AES), WEP by the key's length, addresses automatic) to check and save; replacing another network
+  asks in red. WPA3 (SAE) and enterprise codes are refused. A connection or a copy has "Show QR code": the code on the
+  top screen (`widget_qr_code`, shared with Settings' web QR), refused when the password is not stored (WPS/AOSS).
+  Claude, Azahar: the copy "NSA Test;Net" showed its code, read back by quirc as `WIFI:T:WPA;S:NSA Test\;Net;P:secreta123;;`;
+  the empty connection's actions. Not tried: scanning (no camera in Azahar) a phone's code into a connection and
+  connecting with it, a phone joining from the shown code, an open network. The guide's Wi-Fi chapter has a step on it (`feat/wifi-qr-guide`, marked 0.15: offered as new to whoever saw the chapter); not played on a console.
+  The owner, 2026-11-17: the console did not read Android's Share Wi-Fi code. That code is drawn mirrored (flipped
+  over its diagonal; phone readers try both ways) and FBI's old quirc only reads it straight. `fix/qr-mirrored` adds
+  `quirc_flip` (from later quirc) and every QR scan tries the flipped code when the straight one fails: the owner's
+  screenshot of that code now reads on the host, and `tests/qrencode_test.c` checks mirrored codes. Not yet scanned with
+  the console's camera. Mind that the 3DS joins only 2.4 GHz networks (that code was a "5GHz" one).
 - [ ] System -> Console settings -> Screen brightness (2026-11-16, `feat/brightness-floor`, moved out of Settings into a
   screen of its own with a guide chapter on 2026-11-17, `feat/brightness-screen`; issue #42): System / Custom, and with Custom two
   bars, Lowest and Highest brightness (10-172, the console's own 16 and 142), that never pass each other; the console's

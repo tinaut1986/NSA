@@ -9,6 +9,8 @@
 #include "section.h"
 #include "wifiedit.h"
 #include "wifislots.h"
+#include "wifiqr.h"
+#include "../core/qrencode.h"
 #include "../core/core.h"
 
 // Wi-Fi connections (System -> Network, A): the console's three connections and the copies saved on the SD card, in
@@ -248,7 +250,7 @@ static void wifi_draw_top(ui_view* view, void* listData, float x1, float y1, flo
     y += HEADER_HEIGHT + CELL_GAP;
 
     if(!used) {
-        screen_draw_text_wrap(_("This connection is empty:  writes one of the saved copies to it."),
+        screen_draw_text_wrap(_("This connection is empty:  sets it up from a QR code, by hand or from a saved copy."),
                               x + 2, y + 4, WIDGET_SMALL_SCALE + 0.04f, t->palette->textMuted, x + w - 2);
         return;
     }
@@ -605,6 +607,107 @@ static void wifi_edit(void* listData) {
     }
 }
 
+// ---- QR codes ----
+
+// Scanning: the network a phone or router shows ("WIFI:T:WPA;S:...;P:...;;") goes to the connection, through the editor,
+// which shows it filled in before saving.
+static wifi_data* wifi_qr_data;
+
+static void wifi_qr_found(void* unused, const char* text) {
+    wifi_data* data = wifi_qr_data;
+    if(data == NULL) {
+        return;
+    }
+
+    wifiqr_network net;
+    switch(wifiqr_parse(text, &net)) {
+        case WIFIQR_OK: break;
+        case WIFIQR_NO_NAME:
+            error_display(NULL, NULL, "The QR code has no network name, or one longer than 32 characters.");
+            return;
+        case WIFIQR_TOO_LONG:
+            error_display(NULL, NULL, "The QR code's password is longer than 64 characters.");
+            return;
+        default:
+            error_display(NULL, NULL, "That is not a Wi-Fi network's QR code.");
+            return;
+    }
+
+    u8 security = WIFISLOTS_OPEN;
+    size_t length = strlen(net.password);
+    switch(net.kind) {
+        case WIFIQR_UNSUPPORTED:
+            error_display(NULL, NULL, "That network uses WPA3 or WPA Enterprise, which the console cannot join.");
+            return;
+        case WIFIQR_WEP:
+            security = length == 13 || length == 26 ? WIFISLOTS_WEP_128 : length == 16 || length == 32 ? WIFISLOTS_WEP_152 : WIFISLOTS_WEP_64;
+            break;
+        case WIFIQR_WPA:
+            // The code does not say which: WPA2 with AES is what routers use (the editor can change it).
+            security = WIFISLOTS_WPA2_AES;
+            break;
+        default:
+            break;
+    }
+
+    u32 index = data->target;
+    wifiedit_open_network(index, wifi_slot_used(data, index) ? &data->slots[index] : NULL, net.ssid, security, net.password, wifi_edit_saved, data);
+}
+
+static void wifi_scan_qr(void* listData) {
+    wifi_data* data = (wifi_data*) listData;
+    data->target = ((wifi_entry*) data->actionSelected->data)->index;
+    wifi_qr_data = data;
+    qr_scan("Wi-Fi connections", "Point the camera at the network's QR code (a phone shows it when sharing its Wi-Fi).", NULL, wifi_qr_found);
+}
+
+// Showing: the selected connection or copy as a code a phone's camera joins.
+typedef struct {
+    qr_code qr;
+    char name[33];
+} wifi_shown_qr;
+
+static void wifi_qr_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    wifi_shown_qr* shown = (wifi_shown_qr*) data;
+    float side = y2 - y1 - 8;
+    widget_qr_code(&shown->qr, x1 + (x2 - x1 - side) / 2, y1 + 4, side);
+}
+
+static void wifi_qr_closed(ui_view* view, void* data, u32 response) {
+    free(data);
+}
+
+static void wifi_show_qr(void* listData) {
+    wifi_data* data = (wifi_data*) listData;
+    const wifislots_slot* slot = wifi_slot_of(data, (wifi_entry*) data->actionSelected->data);
+    const wifislots_network* net = wifislots_network_of(slot);
+    char password[0x41];
+    wifislots_password(slot, password, sizeof(password));
+    if(net->security != WIFISLOTS_OPEN && password[0] == '\0') {
+        error_display(NULL, NULL, "The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.");
+        return;
+    }
+
+    wifi_shown_qr* shown = (wifi_shown_qr*) calloc(1, sizeof(wifi_shown_qr));
+    if(shown == NULL) {
+        error_display(NULL, NULL, "Failed to allocate Wi-Fi data.");
+        return;
+    }
+
+    wifislots_name(slot, shown->name, sizeof(shown->name));
+    wifiqr_kind kind = net->security == WIFISLOTS_OPEN ? WIFIQR_OPEN : net->security <= WIFISLOTS_WEP_152 ? WIFIQR_WEP : WIFIQR_WPA;
+    char text[200];
+    if(!wifiqr_build(shown->name, kind, password, text, sizeof(text)) || !qr_encode(text, &shown->qr)) {
+        free(shown);
+        error_display(NULL, NULL, "Failed to make the QR code.");
+        return;
+    }
+
+    char message[200];
+    snprintf(message, sizeof(message), _("Scan the code on the top screen with a phone's camera to join %s."), shown->name);
+    prompt_display_notify("QR code", message, COLOR_TEXT, shown, wifi_qr_draw_top, wifi_qr_closed);
+}
+
 static void wifi_actions_open(wifi_data* data, list_item* selected) {
     data->actionSelected = selected;
     wifi_entry* entry = (wifi_entry*) selected->data;
@@ -621,8 +724,11 @@ static void wifi_actions_open(wifi_data* data, list_item* selected) {
         if(wifi_slot_used(data, entry->index)) {
             actions[count++] = (sheet_action) {ICON_DEVICE_FLOPPY, _("Save a copy"), false, wifi_save};
             actions[count++] = (sheet_action) {ICON_PENCIL, _("Edit"), false, wifi_edit};
+            actions[count++] = (sheet_action) {ICON_QRCODE, _("Show QR code"), false, wifi_show_qr, false, _("A phone's camera joins the network with it.")};
+            actions[count++] = (sheet_action) {ICON_QRCODE, _("Replace from a QR code"), false, wifi_scan_qr, false, _("Another network, from the code a phone or router shows.")};
             actions[count++] = (sheet_action) {ICON_TRASH, _("Delete connection"), true, wifi_remove};
         } else {
+            actions[count++] = (sheet_action) {ICON_QRCODE, _("Set up from a QR code"), false, wifi_scan_qr, false, _("The code a phone or router shows for its Wi-Fi.")};
             actions[count++] = (sheet_action) {ICON_PENCIL, _("Set up by hand"), false, wifi_edit};
         }
 
@@ -653,6 +759,7 @@ static void wifi_actions_open(wifi_data* data, list_item* selected) {
     }
 
     actions[count++] = (sheet_action) {ICON_PENCIL, _("Edit"), false, wifi_edit};
+    actions[count++] = (sheet_action) {ICON_QRCODE, _("Show QR code"), false, wifi_show_qr, false, _("A phone's camera joins the network with it.")};
     actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename alias"), false, wifi_rename};
     actions[count++] = (sheet_action) {ICON_TRASH, _("Delete this copy"), true, wifi_delete};
     sheet_display_list_for(_("Saved copy"), selected->name, ICON_DEVICE_FLOPPY, actions, count, data);

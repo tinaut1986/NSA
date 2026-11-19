@@ -12,7 +12,9 @@
 
 static int failures = 0;
 
-static void check(const char* text) {
+// `mirrored` draws the code flipped over its diagonal, as some phones show theirs; it is read the way NSA's camera
+// reads (remoteinstall.c): straight, then flipped.
+static void check_drawn(const char* text, bool mirrored) {
     qr_code qr;
     if(!qr_encode(text, &qr)) {
         printf("FAIL encode: %zu bytes did not fit\n", strlen(text));
@@ -32,7 +34,7 @@ static void check(const char* text) {
     memset(image, 0xFF, (size_t) w * h);
     for(int y = 0; y < qr.size; y++) {
         for(int x = 0; x < qr.size; x++) {
-            if(qr_dark(&qr, x, y)) {
+            if(mirrored ? qr_dark(&qr, y, x) : qr_dark(&qr, x, y)) {
                 for(int dy = 0; dy < SCALE; dy++) {
                     memset(image + ((y + QUIET) * SCALE + dy) * w + (x + QUIET) * SCALE, 0, SCALE);
                 }
@@ -49,6 +51,11 @@ static void check(const char* text) {
         struct quirc_data data;
         quirc_extract(q, i, &code);
         quirc_decode_error_t err = quirc_decode(&code, &data);
+        if(err != QUIRC_SUCCESS) {
+            quirc_flip(&code);
+            err = quirc_decode(&code, &data);
+        }
+
         if(err == QUIRC_SUCCESS && data.payload_len == (int) strlen(text) && memcmp(data.payload, text, strlen(text)) == 0) {
             ok = true;
         } else if(err != QUIRC_SUCCESS) {
@@ -57,11 +64,16 @@ static void check(const char* text) {
     }
 
     if(!ok) {
-        printf("FAIL decode: %zu bytes (version %d, %d codes found): %.60s\n", strlen(text), (qr.size - 17) / 4, found, text);
+        printf("FAIL decode%s: %zu bytes (version %d, %d codes found): %.60s\n", mirrored ? " (mirrored)" : "", strlen(text), (qr.size - 17) / 4, found, text);
         failures++;
     }
 
     quirc_destroy(q);
+}
+
+static void check(const char* text) {
+    check_drawn(text, false);
+    check_drawn(text, true);
 }
 
 int main() {

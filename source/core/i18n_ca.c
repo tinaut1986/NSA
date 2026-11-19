@@ -1418,7 +1418,6 @@ const i18n_entry i18n_ca[] = {
         {"Password", "Contrasenya"},
         {"Automatic (DHCP)", "Automàtica (DHCP)"},
         {"Address", "Adreça"},
-        {"This connection is empty:  writes one of the saved copies to it.", "Aquesta connexió és buida:  hi escriu una de les còpies desades."},
         {"Saved as %s.", "Desada com a %s."},
         {"Connection %lu is now %s.", "La connexió %lu ara és %s."},
         {"Replace connection %lu (%s) with %s?", "Substituir la connexió %lu (%s) per %s?"},
@@ -1684,6 +1683,24 @@ const i18n_entry i18n_ca[] = {
         {"Failed to create the install thread.", "No s'ha pogut crear el fil d'instal·lació."},
         {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", "Des de les accions d'un .3dsx es pot instal·lar al menú HOME: un títol propi, amb un bàner fet amb la seva icona o amb una imatge teva."},
         {"When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS.", "Quan una llista no cap a la pantalla, en desplaçar-la apareixen dues fletxes a baix a la dreta: salten al seu primer o al seu darrer element. En una New 3DS, ZL i ZR fan el mateix."},
+        // Wi-Fi networks by QR code (wificonnections.c, wifiqr.c)
+        {"QR code", "Codi QR"},
+        {"Show QR code", "Mostrar el codi QR"},
+        {"A phone's camera joins the network with it.", "Amb ell, la càmera d'un mòbil es connecta a la xarxa."},
+        {"Replace from a QR code", "Substituir des d'un codi QR"},
+        {"Another network, from the code a phone or router shows.", "Una altra xarxa, amb el codi que mostra un mòbil o un router."},
+        {"Set up from a QR code", "Configurar des d'un codi QR"},
+        {"The code a phone or router shows for its Wi-Fi.", "El codi que mostra un mòbil o un router per a la seva Wi-Fi."},
+        {"This connection is empty:  sets it up from a QR code, by hand or from a saved copy.", "Aquesta connexió és buida:  la configura des d'un codi QR, a mà o des d'una còpia desada."},
+        {"Point the camera at the network's QR code (a phone shows it when sharing its Wi-Fi).", "Apunta la càmera al codi QR de la xarxa (un mòbil el mostra quan comparteix la seva Wi-Fi)."},
+        {"Scan the code on the top screen with a phone's camera to join %s.", "Escaneja el codi de la pantalla superior amb la càmera d'un mòbil per connectar-te a %s."},
+        {"The QR code has no network name, or one longer than 32 characters.", "El codi QR no té nom de xarxa, o en té un de més de 32 caràcters."},
+        {"The QR code's password is longer than 64 characters.", "La contrasenya del codi QR té més de 64 caràcters."},
+        {"That is not a Wi-Fi network's QR code.", "Això no és el codi QR d'una xarxa Wi-Fi."},
+        {"That network uses WPA3 or WPA Enterprise, which the console cannot join.", "Aquesta xarxa fa servir WPA3 o WPA Enterprise, a les quals la consola no es pot connectar."},
+        {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "La contrasenya d'aquesta connexió no està desada (es va configurar amb WPS o AOSS, o amb una altra aplicació), així que el codi no la pot portar."},
+        {"Failed to make the QR code.", "No s'ha pogut crear el codi QR."},
+        {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "Una connexió també es pot configurar des d'un codi QR: la càmera llegeix el que mostra un mòbil quan comparteix la seva Wi-Fi, o el d'un router. Mostrar el codi QR posa una connexió o una còpia a la pantalla superior, perquè un mòbil s'hi connecti."},
 };
 
 const u32 i18n_ca_count = sizeof(i18n_ca) / sizeof(*i18n_ca);

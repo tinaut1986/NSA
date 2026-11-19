@@ -1423,7 +1423,6 @@ const i18n_entry i18n_ja[] = {
         {"Password", "パスワード"},
         {"Automatic (DHCP)", "自動 (DHCP)"},
         {"Address", "アドレス"},
-        {"This connection is empty:  writes one of the saved copies to it.", "この接続先は空です。で保存したコピーを書き込めます。"},
         {"Saved as %s.", "%sとして保存しました。"},
         {"Connection %lu is now %s.", "接続先%luは%sになりました。"},
         {"Replace connection %lu (%s) with %s?", "接続先%lu (%s) を%sに置き換えますか？"},
@@ -1689,6 +1688,24 @@ const i18n_entry i18n_ja[] = {
         {"Failed to create the install thread.", "インストール用のスレッドを作成できませんでした。"},
         {"A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours.", ".3dsxの操作から、HOMEメニューにインストールできます。独立したタイトルになり、バナーはアイコンか好きな画像から作ります。"},
         {"When a list is longer than the screen, two arrows show at its bottom right while it scrolls: they jump to its first or its last item. ZL and ZR do the same on a New 3DS.", "リストが画面に収まらないときは、スクロール中に右下に2つの矢印が出ます。最初または最後の項目へ移動できます。New 3DSではZLとZRでも同じことができます。"},
+        // Wi-Fi networks by QR code (wificonnections.c, wifiqr.c)
+        {"QR code", "QRコード"},
+        {"Show QR code", "QRコードを表示"},
+        {"A phone's camera joins the network with it.", "スマートフォンのカメラでこのネットワークに接続できます。"},
+        {"Replace from a QR code", "QRコードで置き換える"},
+        {"Another network, from the code a phone or router shows.", "スマートフォンやルーターが表示するコードから、別のネットワークを設定します。"},
+        {"Set up from a QR code", "QRコードで設定"},
+        {"The code a phone or router shows for its Wi-Fi.", "スマートフォンやルーターがWi-Fi用に表示するコードです。"},
+        {"This connection is empty:  sets it up from a QR code, by hand or from a saved copy.", "この接続先は空です。でQRコード、手動、または保存したコピーから設定できます。"},
+        {"Point the camera at the network's QR code (a phone shows it when sharing its Wi-Fi).", "ネットワークのQRコードにカメラを向けてください（スマートフォンはWi-Fiを共有するときに表示します）。"},
+        {"Scan the code on the top screen with a phone's camera to join %s.", "上画面のコードをスマートフォンのカメラで読み取ると、%sに接続できます。"},
+        {"The QR code has no network name, or one longer than 32 characters.", "QRコードにネットワーク名がないか、32文字を超えています。"},
+        {"The QR code's password is longer than 64 characters.", "QRコードのパスワードが64文字を超えています。"},
+        {"That is not a Wi-Fi network's QR code.", "Wi-FiネットワークのQRコードではありません。"},
+        {"That network uses WPA3 or WPA Enterprise, which the console cannot join.", "このネットワークはWPA3またはWPAエンタープライズを使っているため、本体は接続できません。"},
+        {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "この接続先のパスワードは保存されていません（WPSやAOSS、または別のアプリで設定されました）。そのためコードに含められません。"},
+        {"Failed to make the QR code.", "QRコードを作成できませんでした。"},
+        {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "接続先はQRコードからも設定できます。スマートフォンがWi-Fiを共有するときに表示するコードや、ルーターのコードをカメラで読み取ります。「QRコードを表示」では接続先やコピーを上画面に表示し、スマートフォンから接続できます。"},
 };
 
 const u32 i18n_ja_count = sizeof(i18n_ja) / sizeof(*i18n_ja);

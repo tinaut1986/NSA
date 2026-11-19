@@ -28,7 +28,7 @@ typedef struct {
     uint8_t gameTitle[12];
     uint8_t gameCode[4];
     uint8_t maker[2];
-    uint8_t emagCode[4];   // The DSi title ID's low half as the header stores it (the game code reversed on a DS game).
+    uint8_t emagCode[4];   // The title ID's low half as the DSi header stores it: the game code reversed.
     uint8_t icon[0x200];   // 32x32, 4 bits a pixel in 8x8 tiles.
     uint8_t palette[0x20]; // 16 colours, BGR555; colour 0 is transparent.
     uint16_t names[NDSFWD_NAMES][NDSFWD_NAME_CHARS];   // UTF-16, lines split by '\n' (name, then publisher).

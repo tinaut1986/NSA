@@ -1344,7 +1344,12 @@ static void script_question_answered(ui_view* view, void* data, u32 response) {
     script_warnings(run);
 }
 
-void storescript_run(const char* scriptText, const char* question, const char* name, void* userData, void (*done)(void* userData, bool ok)) {
+// The question without the download queue: yes runs it now.
+static void script_question_answered_now(ui_view* view, void* data, u32 response) {
+    script_question_answered(view, data, response == PROMPT_YES ? 0 : 2);
+}
+
+static void script_start(const char* scriptText, const char* question, const char* name, bool queue, void* userData, void (*done)(void* userData, bool ok)) {
     script_run* run = (script_run*) calloc(1, sizeof(script_run));
     json_error_t error;
     json_t* script = scriptText != NULL ? json_loads(scriptText, 0, &error) : NULL;
@@ -1373,6 +1378,11 @@ void storescript_run(const char* scriptText, const char* question, const char* n
     run->progress.created = script_extracted;
     run->progress.allowed = script_extract_allowed;
 
+    if(!queue) {
+        prompt_display_yes_no("Confirmation", question, COLOR_TEXT, run, NULL, script_question_answered_now);
+        return;
+    }
+
     static const char* options[] = {"Yes", "To the queue", "No"};   // A button: short.
     static u32 buttons[] = {KEY_A, KEY_X, KEY_B};
     static const char* translated[3];
@@ -1381,6 +1391,14 @@ void storescript_run(const char* scriptText, const char* question, const char* n
     }
 
     prompt_display_multi_choice("Confirmation", question, COLOR_TEXT, translated, buttons, 3, run, NULL, script_question_answered);
+}
+
+void storescript_run(const char* scriptText, const char* question, const char* name, void* userData, void (*done)(void* userData, bool ok)) {
+    script_start(scriptText, question, name, true, userData, done);
+}
+
+void storescript_run_now(const char* scriptText, const char* question, void* userData, void (*done)(void* userData, bool ok)) {
+    script_start(scriptText, question, NULL, false, userData, done);
 }
 
 // ---- the download queue's side (dlqueue.c) ----

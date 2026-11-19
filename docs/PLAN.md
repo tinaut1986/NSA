@@ -163,6 +163,26 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] DS game forwarders (2026-11-19, `feat/nds-forwarder`; asked on Reddit by SignalEntrepreneur80: ndsForwarder is slow).
+  Files -> a .nds -> "Install in the HOME Menu" (`ndsfwdview.c`, `ndsfwd.c`, `tests/ndsfwd_test.c`): the question shows the
+  game's icon and name; NSA fills a DSiWare template (Olmectron's `sdcard.nds` + `.fwd`, as ndsForwarder and the DS-Homebrew
+  wiki use it; downloaded once to `sdmc:/nsa/forwarder/`) with the game's header, icon, names and path, wraps it in a CIA
+  (ticket and TMD without signatures: signature patches needed) and installs it to the NAND as 00048004xxxxxxxx (the game's
+  code; homebrew "####" gets one from its path). The .nds stays on the SD card: the icon starts
+  sd:/_nds/ntr-forwarder/sdcard.nds (nds-bootstrap's forwarder pack), which NSA downloads and unpacks with the Store's
+  script engine (`storescript_run_now`) when it is missing. Not ndsForwarder's code (GPLv3): written from GBATEK.
+  Claude, Azahar: the template as a "game" installed (00048004514C464C, path `sd:/nsatest/Game.nds` in the content),
+  made again over itself ("already has an icon"), the pack downloaded from GitHub and unpacked, the template downloaded
+  byte for byte. Not tried: a console (signature patches, the HOME Menu's icon and name, starting a real game, no room for
+  DSiWare), a DSi-enhanced game, deleting the icon from Titles. The guide's SD card chapter has a step (0.16).
+  The owner, 2026-11-19 (New 3DS XL .135): Pokémon Black's icon hung on two white screens before nds-bootstrap (its
+  nds-bootstrap.ini still the pack's). The game is DSi-enhanced (unit code 2) with an empty DSi title ID, which NSA (as
+  ndsForwarder) took: the title was 0004800400000000. `fix/nds-forwarder-tid` takes the ID from the game code always
+  (0004800449524253 for IRBS). The owner, same day, with it: the icon starts the game. nds-bootstrap says the DSi binaries
+  are missing (their dump has none) and A runs it in DS mode; the first start makes /_nds/pagefile.sys and its caches; the
+  save is the one TWiLight Menu++ kept (/roms/nds/saves/<game>.sav). Still to try: the HOME Menu's icon and name, deleting
+  it from Titles, no room for DSiWare. The pack also replaced
+  TWiLight Menu++'s /_nds/nds-bootstrap.ini (TWiLight writes it again at each launch) and nds-bootstrap-release.nds.
 - [ ] Wi-Fi networks by QR code (2026-11-17, `feat/wifi-qr`; System -> Console settings -> Wi-Fi connections). A connection's
   actions have "Set up from a QR code" (empty) or "Replace from a QR code" (in use): the camera reads the code a phone
   or router shows (`WIFI:T:WPA;S:<name>;P:<password>;;`, `wifiqr.c`, `tests/wifiqr_test.c`) and opens the editor filled
@@ -175,8 +195,26 @@ What `release` holds, in the order it was built:
   The owner, 2026-11-17: the console did not read Android's Share Wi-Fi code. That code is drawn mirrored (flipped
   over its diagonal; phone readers try both ways) and FBI's old quirc only reads it straight. `fix/qr-mirrored` adds
   `quirc_flip` (from later quirc) and every QR scan tries the flipped code when the straight one fails: the owner's
-  screenshot of that code now reads on the host, and `tests/qrencode_test.c` checks mirrored codes. Not yet scanned with
-  the console's camera. Mind that the 3DS joins only 2.4 GHz networks (that code was a "5GHz" one).
+  screenshot of that code now reads on the host, and `tests/qrencode_test.c` checks mirrored codes. The owner, 2026-11-19:
+  scanning the QR works on the console with v0.9.16 (beta), promoted to stable the same day. Mind that the 3DS joins only 2.4 GHz networks (that code was a "5GHz" one).
+- [ ] Main menu -> Utilities (2026-11-17, `feat/utilities`, `source/fbi/utilities.c`): what Rosalina or GodMode9 were
+  opened for. **DSP firmware**: says whether `/3ds/dspfirm.cdc` is there and whole (the size after the magic and every
+  segment's SHA-256) and dumps it as DSP1 does: HOME Menu's ExeFS .code from the NAND (the console's region first, then
+  the others), undone (ctrtool's LZSS), "DSP1" found and checked, written to a .tmp and renamed; the sounds and music
+  try the DSP again afterwards. **Game patching**: reads `enable_game_patching` in Luma's `/luma/config.ini` (13+) and
+  turns it on/off by changing that one character in place, then offers a restart. **Restart** (APT_HardwareResetAsync)
+  and **Power off** (srvPublishToSubscriber 0x203, as Rosalina), refused while a transfer holds the turn.
+  Claude on the New 3DS XL, 2026-11-17: the menu shows Utilities (bolt icon) with the four entries; the console's own
+  dspfirm.cdc read as whole; the dump came out byte for byte the same (49756 bytes, sha256 8e213f3e...); game patching
+  turned off and on again left config.ini the same bytes. Not tried: Restart and Power off, a console without the
+  firmware (the sounds starting after the dump without restarting NSA), the 2DS / an Old 3DS, a Luma older than 13,
+  the HOME theme's grid (now 10 entries, two full rows). Only Spanish has the new texts.
+  2026-11-18 (`feat/utilities-toggles`, the owner's ask): DSP firmware and Game patching are rows that are on or off,
+  with their value on the right as Settings draws one (Yes / No; the DSP also Damaged, game patching Not found) and no
+  chevron; A or a tap changes them (Left/Right stay the list's page keys). DSP: off -> dumps at once; on -> asks, then
+  deletes /3ds/dspfirm.cdc. Game patching: changes at once, then offers a restart. The states are read when the group
+  opens and after a change. Claude on the New 3DS XL: DSP Yes -> No (file gone) -> Yes (the same 49756 bytes); game
+  patching Yes -> No -> Yes, config.ini the same bytes.
 - [ ] System -> Console settings -> Screen brightness (2026-11-16, `feat/brightness-floor`, moved out of Settings into a
   screen of its own with a guide chapter on 2026-11-17, `feat/brightness-screen`; issue #42): System / Custom, and with Custom two
   bars, Lowest and Highest brightness (10-172, the console's own 16 and 142), that never pass each other; the console's

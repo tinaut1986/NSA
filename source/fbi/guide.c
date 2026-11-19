@@ -274,6 +274,14 @@ static const coach_step brightness_steps[] = {
         DO("back", " goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),
 };
 
+static const coach_step utilities_steps[] = {
+        OPEN("menu.utilities", "Open Utilities: what Rosalina's menu or GodMode9 were opened for.", "v:Utilities"),
+        INFO("DSP firmware", "DSP firmware: homebrew needs it to play sound. On means /3ds/dspfirm.cdc is on the SD card and whole; turning it on dumps it from the console, as DSP1 does."),
+        INFO("Game patching", "Game patching: Luma3DS's option for LayeredFS mods and IPS patches. A change takes effect when the console restarts, and NSA offers to restart it then."),
+        INFO("Restart", "Restart and Power off do what Rosalina's power menu does. NSA closes first, and not while a transfer is under way."),
+        DO("back", " goes back to the menu.", KEY_B, true, "v:Main menu"),
+};
+
 static const guide_chapter chapters[] = {
         {"basics", GUIDE_VERSION(0, 2), true, NULL, ICON_DEVICE_GAMEPAD_2, "Getting around", "Screens, buttons and touch", basics_steps, COUNT_OF(basics_steps)},
         {"menu", GUIDE_VERSION(0, 8), true, "basics", ICON_LAYOUT_GRID, "Your main menu", "Tiles and icons, in your order", menu_steps, COUNT_OF(menu_steps)},
@@ -297,6 +305,7 @@ static const guide_chapter chapters[] = {
         {"hwtest", GUIDE_VERSION(0, 12), false, "basics", ICON_FLASK, "Hardware tests", "Buttons, touch screen and motion sensors", hwtest_steps, COUNT_OF(hwtest_steps)},
         {"themes", GUIDE_VERSION(0, 13), false, "look", ICON_COLOR_SWATCH, "Your own themes", "Make one, colour by colour", themes_steps, COUNT_OF(themes_steps)},
         {"brightness", GUIDE_VERSION(0, 14), false, "basics", ICON_SUN, "Screen brightness", "How dark and how bright, in every game", brightness_steps, COUNT_OF(brightness_steps)},
+        {"utilities", GUIDE_VERSION(0, 16), false, "basics", ICON_BOLT, "Utilities", "Sound for homebrew, game patching, restart", utilities_steps, COUNT_OF(utilities_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)

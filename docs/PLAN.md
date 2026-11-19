@@ -178,7 +178,10 @@ What `release` holds, in the order it was built:
   The owner, 2026-11-19 (New 3DS XL .135): Pokémon Black's icon hung on two white screens before nds-bootstrap (its
   nds-bootstrap.ini still the pack's). The game is DSi-enhanced (unit code 2) with an empty DSi title ID, which NSA (as
   ndsForwarder) took: the title was 0004800400000000. `fix/nds-forwarder-tid` takes the ID from the game code always
-  (0004800449524253 for IRBS). Not yet tried; the old 0004800400000000 has to be deleted. The pack also replaced
+  (0004800449524253 for IRBS). The owner, same day, with it: the icon starts the game. nds-bootstrap says the DSi binaries
+  are missing (their dump has none) and A runs it in DS mode; the first start makes /_nds/pagefile.sys and its caches; the
+  save is the one TWiLight Menu++ kept (/roms/nds/saves/<game>.sav). Still to try: the HOME Menu's icon and name, deleting
+  it from Titles, no room for DSiWare. The pack also replaced
   TWiLight Menu++'s /_nds/nds-bootstrap.ini (TWiLight writes it again at each launch) and nds-bootstrap-release.nds.
 - [ ] Wi-Fi networks by QR code (2026-11-17, `feat/wifi-qr`; System -> Console settings -> Wi-Fi connections). A connection's
   actions have "Set up from a QR code" (empty) or "Replace from a QR code" (in use): the camera reads the code a phone

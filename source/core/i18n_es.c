@@ -1763,6 +1763,11 @@ const i18n_entry i18n_es[] = {
         {"This game's icon and title are damaged.", "El icono y el título de este juego están dañados."},
         {"This is not a DS game, or the file is damaged.", "No es un juego de DS, o el archivo está dañado."},
         {"A .nds (a DS game) can go in the HOME Menu too: an icon that starts it with nds-bootstrap. The .nds stays on the SD card, and NSA downloads nds-bootstrap's forwarder pack when it is missing.", "Un .nds (un juego de DS) también puede ir al menú HOME: un icono que lo arranca con nds-bootstrap. El .nds se queda en la tarjeta SD, y NSA descarga el forwarder pack de nds-bootstrap si falta."},
+        {"Open Utilities: what Rosalina's menu or GodMode9 were opened for.", "Abre Utilidades: lo que antes se hacía con el menú de Rosalina o con GodMode9."},
+        {"DSP firmware: homebrew needs it to play sound. On means /3ds/dspfirm.cdc is on the SD card and whole; turning it on dumps it from the console, as DSP1 does.", "Firmware del DSP: el homebrew lo necesita para tener sonido. Sí quiere decir que /3ds/dspfirm.cdc está en la tarjeta SD y completo; al activarlo se extrae de la consola, como hace DSP1."},
+        {"Game patching: Luma3DS's option for LayeredFS mods and IPS patches. A change takes effect when the console restarts, and NSA offers to restart it then.", "Parcheo de juegos: la opción de Luma3DS para los mods LayeredFS y los parches IPS. Un cambio se aplica al reiniciar la consola, y NSA ofrece reiniciarla en ese momento."},
+        {"Restart and Power off do what Rosalina's power menu does. NSA closes first, and not while a transfer is under way.", "Reiniciar y Apagar hacen lo mismo que el menú de energía de Rosalina. Antes se cierra NSA, y no mientras haya una transferencia en curso."},
+        {"Sound for homebrew, game patching, restart", "Sonido para homebrew, parcheo de juegos, reiniciar"},
 };
 
 const u32 i18n_es_count = sizeof(i18n_es) / sizeof(*i18n_es);

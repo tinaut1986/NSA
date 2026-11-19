@@ -1706,6 +1706,21 @@ const i18n_entry i18n_de[] = {
         {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "Das Passwort dieser Verbindung ist nicht gespeichert (sie wurde mit WPS oder AOSS oder von einer anderen App eingerichtet), daher kann der Code es nicht enthalten."},
         {"Failed to make the QR code.", "Der QR-Code konnte nicht erstellt werden."},
         {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "Eine Verbindung lässt sich auch mit einem QR-Code einrichten: Die Kamera liest den Code, den ein Handy beim Teilen seines WLANs zeigt, oder den eines Routers. QR-Code anzeigen bringt eine Verbindung oder Kopie auf den oberen Bildschirm, damit sich ein Handy verbinden kann."},
+        {"Put this game in the HOME Menu? The .nds stays where it is: the icon starts it from there with nds-bootstrap.", "Dieses Spiel ins HOME-Menü legen? Die .nds bleibt, wo sie ist: Das Symbol startet sie von dort mit nds-bootstrap."},
+        {"This game already has an icon in the HOME Menu. Make it again from this file?", "Dieses Spiel hat schon ein Symbol im HOME-Menü. Mit dieser Datei neu erstellen?"},
+        {"A game started from the HOME Menu needs nds-bootstrap's forwarder pack (sd:/_nds/ntr-forwarder), which is not on the SD card. Download it from GitHub (RocketRobz/NTR_Forwarder, about 2 MB) and put it there?", "Ein Spiel, das aus dem HOME-Menü startet, braucht das Forwarder-Paket von nds-bootstrap (sd:/_nds/ntr-forwarder), das nicht auf der SD-Karte ist. Von GitHub herunterladen (RocketRobz/NTR_Forwarder, etwa 2 MB) und dort ablegen?"},
+        {"\"%s\" is in the HOME Menu now. Keep the .nds where it is: the icon starts it from there with nds-bootstrap.", "\"%s\" ist jetzt im HOME-Menü. Lass die .nds, wo sie ist: Das Symbol startet sie von dort mit nds-bootstrap."},
+        {"Failed to install the game in the HOME Menu.", "Das Spiel konnte nicht ins HOME-Menü installiert werden."},
+        {"Could not download the forwarder template (olmectron.github.io). Check the internet connection.", "Die Forwarder-Vorlage (olmectron.github.io) konnte nicht heruntergeladen werden. Prüfe die Internetverbindung."},
+        {"The downloaded forwarder template is not one NSA knows how to fill.", "Die heruntergeladene Forwarder-Vorlage kann NSA nicht ausfüllen."},
+        {"The game's path is too long for a forwarder: move it to a shorter one.", "Der Pfad des Spiels ist zu lang für einen Forwarder: Verschiebe es an einen kürzeren."},
+        {"The forwarder template is not one NSA knows how to fill.", "Diese Forwarder-Vorlage kann NSA nicht ausfüllen."},
+        {"There is no room left for DSiWare on the console. Delete a DSiWare title or a forwarder first.", "Auf der Konsole ist kein Platz mehr für DSiWare. Lösche zuerst einen DSiWare-Titel oder einen Forwarder."},
+        {"The forwarder pack did not leave sd:/_nds/ntr-forwarder/sdcard.nds on the SD card.", "Das Forwarder-Paket hat sd:/_nds/ntr-forwarder/sdcard.nds nicht auf der SD-Karte hinterlassen."},
+        {"This game has no icon and title, which a HOME Menu icon is made from.", "Dieses Spiel hat weder Symbol noch Titel, aus denen ein Symbol im HOME-Menü gemacht wird."},
+        {"This game's icon and title are damaged.", "Symbol und Titel dieses Spiels sind beschädigt."},
+        {"This is not a DS game, or the file is damaged.", "Das ist kein DS-Spiel, oder die Datei ist beschädigt."},
+        {"A .nds (a DS game) can go in the HOME Menu too: an icon that starts it with nds-bootstrap. The .nds stays on the SD card, and NSA downloads nds-bootstrap's forwarder pack when it is missing.", "Auch eine .nds (ein DS-Spiel) kann ins HOME-Menü: ein Symbol, das sie mit nds-bootstrap startet. Die .nds bleibt auf der SD-Karte, und NSA lädt das Forwarder-Paket von nds-bootstrap herunter, wenn es fehlt."},
 };
 
 const u32 i18n_de_count = sizeof(i18n_de) / sizeof(*i18n_de);

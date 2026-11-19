@@ -1693,6 +1693,21 @@ const i18n_entry i18n_zh[] = {
         {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "此连接的密码未保存（以 WPS 或 AOSS，或其他应用设置），因此码中无法包含密码。"},
         {"Failed to make the QR code.", "无法生成二维码。"},
         {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "连接也可以从二维码设置：相机会读取手机分享 Wi-Fi 时显示的码，或路由器的码。“显示二维码”会把连接或副本显示在上屏幕，让手机加入。"},
+        {"Put this game in the HOME Menu? The .nds stays where it is: the icon starts it from there with nds-bootstrap.", "要把这个游戏放到 HOME 菜单吗？.nds 留在原处：图标会用 nds-bootstrap 从那里启动它。"},
+        {"This game already has an icon in the HOME Menu. Make it again from this file?", "这个游戏在 HOME 菜单中已有图标。要用这个文件重新制作吗？"},
+        {"A game started from the HOME Menu needs nds-bootstrap's forwarder pack (sd:/_nds/ntr-forwarder), which is not on the SD card. Download it from GitHub (RocketRobz/NTR_Forwarder, about 2 MB) and put it there?", "从 HOME 菜单启动的游戏需要 nds-bootstrap 的 forwarder pack（sd:/_nds/ntr-forwarder），但 SD 卡上没有。要从 GitHub（RocketRobz/NTR_Forwarder，约 2 MB）下载并放到那里吗？"},
+        {"\"%s\" is in the HOME Menu now. Keep the .nds where it is: the icon starts it from there with nds-bootstrap.", "“%s”已在 HOME 菜单中。请把 .nds 留在原处：图标会用 nds-bootstrap 从那里启动它。"},
+        {"Failed to install the game in the HOME Menu.", "无法把游戏安装到 HOME 菜单。"},
+        {"Could not download the forwarder template (olmectron.github.io). Check the internet connection.", "无法下载 forwarder 模板（olmectron.github.io）。请检查网络连接。"},
+        {"The downloaded forwarder template is not one NSA knows how to fill.", "下载的 forwarder 模板不是 NSA 能填写的格式。"},
+        {"The game's path is too long for a forwarder: move it to a shorter one.", "游戏的路径太长，放不进 forwarder：请把它移到更短的路径。"},
+        {"The forwarder template is not one NSA knows how to fill.", "这个 forwarder 模板不是 NSA 能填写的格式。"},
+        {"There is no room left for DSiWare on the console. Delete a DSiWare title or a forwarder first.", "主机上已没有 DSiWare 的空间。请先删除一个 DSiWare 软件或 forwarder。"},
+        {"The forwarder pack did not leave sd:/_nds/ntr-forwarder/sdcard.nds on the SD card.", "forwarder pack 没有在 SD 卡上留下 sd:/_nds/ntr-forwarder/sdcard.nds。"},
+        {"This game has no icon and title, which a HOME Menu icon is made from.", "这个游戏没有图标和标题，无法制作 HOME 菜单图标。"},
+        {"This game's icon and title are damaged.", "这个游戏的图标和标题已损坏。"},
+        {"This is not a DS game, or the file is damaged.", "这不是 DS 游戏，或文件已损坏。"},
+        {"A .nds (a DS game) can go in the HOME Menu too: an icon that starts it with nds-bootstrap. The .nds stays on the SD card, and NSA downloads nds-bootstrap's forwarder pack when it is missing.", ".nds（DS 游戏）也能放到 HOME 菜单：图标会用 nds-bootstrap 启动它。.nds 留在 SD 卡上，缺少 nds-bootstrap 的 forwarder pack 时 NSA 会下载。"},
 };
 
 const u32 i18n_zh_count = sizeof(i18n_zh) / sizeof(*i18n_zh);

@@ -1701,6 +1701,21 @@ const i18n_entry i18n_fr[] = {
         {"The password of this connection is not stored (it was set up with WPS or AOSS, or by another app), so the code cannot carry it.", "Le mot de passe de cette connexion n'est pas enregistré (elle a été configurée avec WPS ou AOSS, ou par une autre application), le code ne peut donc pas le contenir."},
         {"Failed to make the QR code.", "Impossible de créer le code QR."},
         {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "Une connexion peut aussi être configurée depuis un code QR : l'appareil photo lit celui qu'affiche un téléphone quand il partage son Wi-Fi, ou celui d'un routeur. Afficher le code QR met une connexion ou une copie sur l'écran supérieur, pour qu'un téléphone la rejoigne."},
+        {"Put this game in the HOME Menu? The .nds stays where it is: the icon starts it from there with nds-bootstrap.", "Mettre ce jeu dans le menu HOME ? Le .nds reste où il est : l'icône le lance depuis là avec nds-bootstrap."},
+        {"This game already has an icon in the HOME Menu. Make it again from this file?", "Ce jeu a déjà une icône dans le menu HOME. La refaire à partir de ce fichier ?"},
+        {"A game started from the HOME Menu needs nds-bootstrap's forwarder pack (sd:/_nds/ntr-forwarder), which is not on the SD card. Download it from GitHub (RocketRobz/NTR_Forwarder, about 2 MB) and put it there?", "Un jeu lancé depuis le menu HOME a besoin du forwarder pack de nds-bootstrap (sd:/_nds/ntr-forwarder), absent de la carte SD. Le télécharger depuis GitHub (RocketRobz/NTR_Forwarder, environ 2 Mo) et le mettre là ?"},
+        {"\"%s\" is in the HOME Menu now. Keep the .nds where it is: the icon starts it from there with nds-bootstrap.", "« %s » est maintenant dans le menu HOME. Laissez le .nds où il est : l'icône le lance depuis là avec nds-bootstrap."},
+        {"Failed to install the game in the HOME Menu.", "Impossible d'installer le jeu dans le menu HOME."},
+        {"Could not download the forwarder template (olmectron.github.io). Check the internet connection.", "Impossible de télécharger le modèle de forwarder (olmectron.github.io). Vérifiez la connexion à Internet."},
+        {"The downloaded forwarder template is not one NSA knows how to fill.", "Le modèle de forwarder téléchargé n'est pas un modèle que NSA sait remplir."},
+        {"The game's path is too long for a forwarder: move it to a shorter one.", "Le chemin du jeu est trop long pour un forwarder : déplacez-le vers un chemin plus court."},
+        {"The forwarder template is not one NSA knows how to fill.", "Ce modèle de forwarder n'est pas un modèle que NSA sait remplir."},
+        {"There is no room left for DSiWare on the console. Delete a DSiWare title or a forwarder first.", "Il n'y a plus de place pour les DSiWare sur la console. Supprimez d'abord un titre DSiWare ou un forwarder."},
+        {"The forwarder pack did not leave sd:/_nds/ntr-forwarder/sdcard.nds on the SD card.", "Le forwarder pack n'a pas laissé sd:/_nds/ntr-forwarder/sdcard.nds sur la carte SD."},
+        {"This game has no icon and title, which a HOME Menu icon is made from.", "Ce jeu n'a ni icône ni titre, à partir desquels une icône du menu HOME est faite."},
+        {"This game's icon and title are damaged.", "L'icône et le titre de ce jeu sont endommagés."},
+        {"This is not a DS game, or the file is damaged.", "Ce n'est pas un jeu DS, ou le fichier est endommagé."},
+        {"A .nds (a DS game) can go in the HOME Menu too: an icon that starts it with nds-bootstrap. The .nds stays on the SD card, and NSA downloads nds-bootstrap's forwarder pack when it is missing.", "Un .nds (un jeu DS) peut aussi aller dans le menu HOME : une icône qui le lance avec nds-bootstrap. Le .nds reste sur la carte SD, et NSA télécharge le forwarder pack de nds-bootstrap s'il manque."},
 };
 
 const u32 i18n_fr_count = sizeof(i18n_fr) / sizeof(*i18n_fr);

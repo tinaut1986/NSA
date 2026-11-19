@@ -28,6 +28,8 @@ void files_open_twl_sound();
 void files_pick_picture(const char* dir, void (*picked)(void* data, const char* path), void* data);
 // A .3dsx made a title of its own in the HOME Menu (homeiconview.c): its banner, then the install.
 void homeicon_open(const char* path);
+// A .nds as an icon in the HOME Menu that starts it with nds-bootstrap (ndsfwdview.c, ndsfwd.h).
+void ndsfwd_open(const char* path);
 // The folders of /luma/titles (mods.c).
 void mods_open();
 void pendingtitles_open();

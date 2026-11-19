@@ -819,6 +819,12 @@ static void files_home_icon(void* data) {
     homeicon_open(((file_info*) listData->actionSelected->data)->path);
 }
 
+// The selected .nds as an icon in the HOME Menu that starts it with nds-bootstrap (ndsfwdview.c).
+static void files_nds_home(void* data) {
+    files_data* listData = (files_data*) data;
+    ndsfwd_open(((file_info*) listData->actionSelected->data)->path);
+}
+
 static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
 
 static void files_extract(files_data* data, bool intoFolder) {
@@ -867,6 +873,10 @@ static void files_file_actions_open(files_data* data, linked_list* items, list_i
     if(files_type_of(info) == TYPE_PROGRAM && data->archiveId == ARCHIVE_SDMC && viewers_has_ext(info->name, "3dsx")) {
         actions[count++] = (sheet_action) {ICON_PLAYER_PLAY, _("Run program"), false, files_launch};
         actions[count++] = (sheet_action) {ICON_APPS, _("Install in the HOME Menu"), false, files_home_icon};
+    }
+
+    if(data->archiveId == ARCHIVE_SDMC && viewers_has_ext(info->name, "nds")) {
+        actions[count++] = (sheet_action) {ICON_APPS, _("Install in the HOME Menu"), false, files_nds_home};
     }
 
     viewer_kind viewer = viewers_kind_of(info->name);

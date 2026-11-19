@@ -163,6 +163,18 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] DS game forwarders (2026-11-19, `feat/nds-forwarder`; asked on Reddit by SignalEntrepreneur80: ndsForwarder is slow).
+  Files -> a .nds -> "Install in the HOME Menu" (`ndsfwdview.c`, `ndsfwd.c`, `tests/ndsfwd_test.c`): the question shows the
+  game's icon and name; NSA fills a DSiWare template (Olmectron's `sdcard.nds` + `.fwd`, as ndsForwarder and the DS-Homebrew
+  wiki use it; downloaded once to `sdmc:/nsa/forwarder/`) with the game's header, icon, names and path, wraps it in a CIA
+  (ticket and TMD without signatures: signature patches needed) and installs it to the NAND as 00048004xxxxxxxx (the game's
+  code; homebrew "####" gets one from its path). The .nds stays on the SD card: the icon starts
+  sd:/_nds/ntr-forwarder/sdcard.nds (nds-bootstrap's forwarder pack), which NSA downloads and unpacks with the Store's
+  script engine (`storescript_run_now`) when it is missing. Not ndsForwarder's code (GPLv3): written from GBATEK.
+  Claude, Azahar: the template as a "game" installed (00048004514C464C, path `sd:/nsatest/Game.nds` in the content),
+  made again over itself ("already has an icon"), the pack downloaded from GitHub and unpacked, the template downloaded
+  byte for byte. Not tried: a console (signature patches, the HOME Menu's icon and name, starting a real game, no room for
+  DSiWare), a DSi-enhanced game, deleting the icon from Titles. The guide's SD card chapter has a step (0.16).
 - [ ] Wi-Fi networks by QR code (2026-11-17, `feat/wifi-qr`; System -> Console settings -> Wi-Fi connections). A connection's
   actions have "Set up from a QR code" (empty) or "Replace from a QR code" (in use): the camera reads the code a phone
   or router shows (`WIFI:T:WPA;S:<name>;P:<password>;;`, `wifiqr.c`, `tests/wifiqr_test.c`) and opens the editor filled

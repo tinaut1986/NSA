@@ -12,7 +12,7 @@ endif
 
 BUILD := build
 
-TESTS := update_manifest_test relstream_test foldermanifest_test qrencode_test themefile_test wifiqr_test
+TESTS := update_manifest_test relstream_test foldermanifest_test qrencode_test themefile_test wifiqr_test ndsfwd_test
 
 .PHONY: all clean
 all: $(addprefix $(BUILD)/,$(TESTS))
@@ -39,6 +39,11 @@ $(BUILD)/qrencode_test: qrencode_test.c ../source/core/qrencode.c ../source/core
 $(BUILD)/themefile_test: themefile_test.c ../source/core/themefile.c ../source/core/themefile.h ../source/core/theme.h
 	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -o $@ themefile_test.c ../source/core/themefile.c $(LDLIBS)
+
+# DS game forwarders: filling the template SRL.
+$(BUILD)/ndsfwd_test: ndsfwd_test.c ../source/fbi/ndsfwd.c ../source/fbi/ndsfwd.h
+	@mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -o $@ ndsfwd_test.c ../source/fbi/ndsfwd.c
 
 clean:
 	rm -rf $(BUILD)

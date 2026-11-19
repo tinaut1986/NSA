@@ -160,6 +160,16 @@ int main(void) {
     seal_header(nds);
     CHECK(ndsfwd_read_game(nds, nds + 0x4000, 0x840, &game) == NDSFWD_NO_BANNER);
 
+    // DSi-enhanced (unit code 2) with an empty DSi title ID, as Pokémon Black and White: the ID still comes from the code.
+    free(nds);
+    nds = make_game("IRBS", 1, &size);
+    nds[0x12] = 2;
+    seal_header(nds);
+    CHECK(ndsfwd_read_game(nds, nds + 0x4000, 0x840, &game) == NDSFWD_OK);
+    CHECK(ndsfwd_game_title_id(&game, "/roms/nds/x.nds") == 0x0004800449524253ULL);
+    memcpy(srl, tpl, TEMPLATE_SIZE);
+    CHECK(ndsfwd_make_srl(srl, TEMPLATE_SIZE, &t, &game, "/roms/nds/x.nds") == NDSFWD_OK && ndsfwd_title_id(srl) == 0x0004800449524253ULL);
+
     // A version 3 block that says so but whose newer checksums do not match is read as version 1.
     free(nds);
     nds = make_game("BXYZ", 3, &size);

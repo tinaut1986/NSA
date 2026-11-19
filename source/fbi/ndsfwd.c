@@ -8,7 +8,6 @@
 #define H_TITLE 0x000
 #define H_CODE 0x00C
 #define H_MAKER 0x010
-#define H_UNIT 0x012
 #define H_BANNER 0x068
 #define H_CRC 0x15E
 #define H_TID_LOW 0x230   // DSi: the title ID's low half (its high half follows).
@@ -143,13 +142,11 @@ ndsfwd_result ndsfwd_read_game(const uint8_t* header, const uint8_t* banner, siz
     memcpy(out->gameTitle, header + H_TITLE, sizeof(out->gameTitle));
     memcpy(out->gameCode, header + H_CODE, sizeof(out->gameCode));
     memcpy(out->maker, header + H_MAKER, sizeof(out->maker));
-    if(header[H_UNIT] != 0) {
-        // DSi-enhanced or DSi-only: its own title ID.
-        memcpy(out->emagCode, header + H_TID_LOW, sizeof(out->emagCode));
-    } else {
-        for(int i = 0; i < 4; i++) {
-            out->emagCode[i] = out->gameCode[3 - i];
-        }
+    // The title ID from the game code, also for a DSi-enhanced game: its DSi header would hold the same, but some leave it
+    // empty (Pokémon Black and White: unit code 2, title ID 0), and a forwarder installed as 0004800400000000 hangs on
+    // white screens.
+    for(int i = 0; i < 4; i++) {
+        out->emagCode[i] = out->gameCode[3 - i];
     }
 
     memcpy(out->icon, banner + B_ICON, sizeof(out->icon));

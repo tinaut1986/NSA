@@ -175,8 +175,8 @@ What `release` holds, in the order it was built:
   The owner, 2026-11-17: the console did not read Android's Share Wi-Fi code. That code is drawn mirrored (flipped
   over its diagonal; phone readers try both ways) and FBI's old quirc only reads it straight. `fix/qr-mirrored` adds
   `quirc_flip` (from later quirc) and every QR scan tries the flipped code when the straight one fails: the owner's
-  screenshot of that code now reads on the host, and `tests/qrencode_test.c` checks mirrored codes. Not yet scanned with
-  the console's camera. Mind that the 3DS joins only 2.4 GHz networks (that code was a "5GHz" one).
+  screenshot of that code now reads on the host, and `tests/qrencode_test.c` checks mirrored codes. The owner, 2026-11-19:
+  scanning the QR works on the console with v0.9.16 (beta), promoted to stable the same day. Mind that the 3DS joins only 2.4 GHz networks (that code was a "5GHz" one).
 - [ ] Main menu -> Utilities (2026-11-17, `feat/utilities`, `source/fbi/utilities.c`): what Rosalina or GodMode9 were
   opened for. **DSP firmware**: says whether `/3ds/dspfirm.cdc` is there and whole (the size after the magic and every
   segment's SHA-256) and dumps it as DSP1 does: HOME Menu's ExeFS .code from the NAND (the console's region first, then

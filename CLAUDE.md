@@ -86,10 +86,11 @@ version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in 
 `make` does not rebuild on a version or `DEBUG` change: `make clean` first.
 
 **On Windows** (devkitPro's msys2 shell, `C:/devkitpro/msys2/usr/bin/bash.exe -l`, with Git's `usr/bin` on the PATH for
-`xxd`): pass `VERSION_MAJOR=0 VERSION_MINOR=6 VERSION_MICRO=N` (version.sh's parts are not picked up there), and package the
-CIA with the Linux `tools/bin/makerom` from WSL: devkitPro's `makerom.exe` ignores `-minor` (0.6.2 comes out as 0.0.2, which a
-console refuses as older, D8E08027). Take the line from `make -n ... output/3ds-arm/NSA.cia` (with the CIA moved away) and run
-it in WSL from the repo with `./tools/bin/makerom`; check the TMD's title version (98 = 0.6.2) before installing.
+`xxd`): pass `VERSION_MAJOR=0 VERSION_MINOR=6 VERSION_MICRO=N` (version.sh's parts are not picked up there). The Makefiles
+(the app's and `ciatemplate/`'s) then use devkitPro's `bannertool.exe` and the fixed `makerom.exe` of
+`tools/fetch-makerom.sh` (downloaded once into `AppData\Local\3ds-tools`, copied to `build/windows-tools/`): devkitPro's
+`makerom.exe` 0.19.0 drops `-minor` (0.6.2 comes out as 0.0.2, which a console refuses as older, D8E08027;
+3DSGuy/Project_CTR#169). Still check the TMD's title version (98 = 0.6.2) before installing.
 
 ## Interface
 

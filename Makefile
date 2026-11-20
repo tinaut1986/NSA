@@ -4,7 +4,22 @@ NAME := NSA
 TITLE := NSA
 
 # bannertool and makerom are not in the devkitARM image; use the vendored ones.
-export PATH := $(CURDIR)/tools/bin:$(PATH)
+# On Windows tools/bin's Linux programs cannot run: devkitPro's bannertool.exe instead, and the makerom.exe of
+# tools/fetch-makerom.sh, because devkitPro's makerom.exe 0.19.0 drops the title version's minor number (0.6.2 becomes
+# 0.0.2, 3DSGuy/Project_CTR#169). buildtools calls "makerom", so it is copied to build/windows-tools/makerom.exe.
+# (uname, not OS=Windows_NT: devkitPro's MSYS2 shell does not always have OS.)
+ifneq ($(filter MINGW% MSYS% CYGWIN%,$(shell uname -s)),)
+    WINDOWS_MAKEROM := $(shell sh tools/fetch-makerom.sh)
+    ifeq ($(WINDOWS_MAKEROM),)
+        $(error tools/fetch-makerom.sh gave no makerom)
+    endif
+    ifeq ($(shell mkdir -p build/windows-tools && cp -f "$(WINDOWS_MAKEROM)" build/windows-tools/makerom.exe && echo ok),)
+        $(error cannot copy $(WINDOWS_MAKEROM) to build/windows-tools)
+    endif
+    export PATH := $(CURDIR)/build/windows-tools:$(DEVKITPRO)/tools/bin:$(PATH)
+else
+    export PATH := $(CURDIR)/tools/bin:$(PATH)
+endif
 
 BUILD_DIR := build
 OUTPUT_DIR := output

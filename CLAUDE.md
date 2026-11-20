@@ -85,12 +85,15 @@ make -C tests                        # host tests (needs libjansson-dev)
 version itself comes from `tools/version.sh`. `bannertool` and `makerom` are in `tools/bin/`.
 `make` does not rebuild on a version or `DEBUG` change: `make clean` first.
 
-**On Windows** (devkitPro's msys2 shell, `C:/devkitpro/msys2/usr/bin/bash.exe -l`, with Git's `usr/bin` on the PATH for
-`xxd`): pass `VERSION_MAJOR=0 VERSION_MINOR=6 VERSION_MICRO=N` (version.sh's parts are not picked up there). The Makefiles
-(the app's and `ciatemplate/`'s) then use devkitPro's `bannertool.exe` and the fixed `makerom.exe` of
-`tools/fetch-makerom.sh` (downloaded once into `AppData\Local\3ds-tools`, copied to `build/windows-tools/`): devkitPro's
+**On Windows** the same commands work from devkitPro's MSYS2 shell (`C:/devkitpro/msys2/usr/bin/bash.exe -l`, or its
+Start menu entry), nothing else to export or put on the PATH. The Makefiles (the app's and `ciatemplate/`'s) see Windows
+by `uname` and use devkitPro's `bannertool.exe` and the stand-ins in `tools/windows/`: `makerom` runs the fixed
+`makerom.exe` of `tools/fetch-makerom.sh` (downloaded once into `AppData\Local\3ds-tools`), because devkitPro's
 `makerom.exe` 0.19.0 drops `-minor` (0.6.2 comes out as 0.0.2, which a console refuses as older, D8E08027;
-3DSGuy/Project_CTR#169). Still check the TMD's title version (98 = 0.6.2) before installing.
+3DSGuy/Project_CTR#169); `xxd -i` and `zip` (with `bsdtar`) are there because that MSYS2 has neither. Still check the TMD's
+title version (98 = 0.6.2) before installing. **Not from Git Bash**: devkitPro's `make` started from there gets no
+environment (`DEVKITPRO`, `DEVKITARM` and `OS` come up empty, `/3ds_rules: No such file`); from Git Bash run it through
+that shell: `/c/devkitpro/msys2/usr/bin/bash.exe -lc 'cd /d/path/to/NSA && make -j8 DEBUG=1'`.
 
 ## Interface
 

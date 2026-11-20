@@ -1,0 +1,22 @@
+#!/bin/sh
+# "xxd -i FILE [OUT]" on Windows, the only form buildtools uses (shaders, .bin files): devkitPro's MSYS2 has no xxd.
+# Same output as vim's xxd: the array name is FILE with every other character than [A-Za-z0-9] made "_", "__" in
+# front of a leading digit, and 12 bytes a line.
+if [ "$1" != -i ] || [ -z "$2" ]; then
+    echo "xxd (tools/windows): only \"xxd -i FILE [OUT]\" is supported" >&2
+    exit 2
+fi
+name=$(printf '%s' "$2" | sed -e 's/[^A-Za-z0-9]/_/g' -e 's/^\([0-9]\)/__\1/')
+[ -r "$2" ] || { echo "xxd: $2: cannot read" >&2; exit 2; }
+od -An -v -tx1 "$2" | awk -v name="$name" '
+    { for (i = 1; i <= NF; i++) b[n++] = $i }
+    END {
+        printf "unsigned char %s[] = {\n", name
+        for (i = 0; i < n; i++) {
+            if (i % 12 == 0) printf "  "
+            printf "0x%s", b[i]
+            if (i < n - 1) printf (i % 12 == 11) ? ",\n" : ", "
+        }
+        if (n > 0) printf "\n"
+        printf "};\nunsigned int %s_len = %d;\n", name, n
+    }' > "${3:-/dev/stdout}"

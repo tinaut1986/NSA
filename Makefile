@@ -4,19 +4,16 @@ NAME := NSA
 TITLE := NSA
 
 # bannertool and makerom are not in the devkitARM image; use the vendored ones.
-# On Windows tools/bin's Linux programs cannot run: devkitPro's bannertool.exe instead, and the makerom.exe of
-# tools/fetch-makerom.sh, because devkitPro's makerom.exe 0.19.0 drops the title version's minor number (0.6.2 becomes
-# 0.0.2, 3DSGuy/Project_CTR#169). buildtools calls "makerom", so it is copied to build/windows-tools/makerom.exe.
-# (uname, not OS=Windows_NT: devkitPro's MSYS2 shell does not always have OS.)
+# On Windows tools/bin's Linux programs cannot run: devkitPro's bannertool.exe instead, and tools/windows' stand-ins
+# for what devkitPro's MSYS2 lacks or gets wrong: makerom (the fixed makerom.exe of tools/fetch-makerom.sh, because
+# devkitPro's makerom.exe 0.19.0 drops the title version's minor number: 0.6.2 becomes 0.0.2, 3DSGuy/Project_CTR#169),
+# xxd and zip. (uname, not OS=Windows_NT: devkitPro's MSYS2 shell does not always have OS.)
 ifneq ($(filter MINGW% MSYS% CYGWIN%,$(shell uname -s)),)
-    WINDOWS_MAKEROM := $(shell sh tools/fetch-makerom.sh)
-    ifeq ($(WINDOWS_MAKEROM),)
-        $(error tools/fetch-makerom.sh gave no makerom)
+    # buildtools/make_base tells the host by OS alone and stops without it ("Unsupported host OS.").
+    ifeq ($(OS),)
+        OS := Windows_NT
     endif
-    ifeq ($(shell mkdir -p build/windows-tools && cp -f "$(WINDOWS_MAKEROM)" build/windows-tools/makerom.exe && echo ok),)
-        $(error cannot copy $(WINDOWS_MAKEROM) to build/windows-tools)
-    endif
-    export PATH := $(CURDIR)/build/windows-tools:$(DEVKITPRO)/tools/bin:$(PATH)
+    export PATH := $(CURDIR)/tools/windows:$(DEVKITPRO)/tools/bin:$(PATH)
 else
     export PATH := $(CURDIR)/tools/bin:$(PATH)
 endif
@@ -55,8 +52,9 @@ VERSION_MICRO := $(word 3, $(VERSION_PARTS))
 # Settings, the updater and GitHub show) need not go hand in hand. The updater compares VERSION_STRING, and a CIA of the
 # same title version installs over the old one; the title version only has to go up for the HOME Menu to refresh the
 # icon, banner and jingle it keeps. The micro version has 4 bits: it follows the tag up to 15 and stays at 15 (v0.9.16,
-# v0.9.17... are still title 0.9.15) until the minor version goes up (v0.10.0 is title 0.10.0 again).
-VERSION_MICRO := $(shell m='$(VERSION_MICRO)'; case "$$m" in (''|*[!0-9]*) echo "$$m" ;; (*) if [ "$$m" -gt 15 ]; then echo 15; else echo "$$m"; fi ;; esac)
+# v0.9.17... are still title 0.9.15) until the minor version goes up (v0.10.0 is title 0.10.0 again). "override": a
+# VERSION_MICRO=N on the command line is capped too (and make_base's default of 0 no longer applies, hence the 0).
+override VERSION_MICRO := $(shell m='$(VERSION_MICRO)'; case "$$m" in ('') echo 0 ;; (*[!0-9]*) echo "$$m" ;; (*) if [ "$$m" -gt 15 ]; then echo 15; else echo "$$m"; fi ;; esac)
 
 DESCRIPTION := Open source title manager.
 AUTHOR := Steveice10

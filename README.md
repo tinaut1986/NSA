@@ -167,6 +167,8 @@ make -j"$(nproc)" DEBUG=1            # output/3ds-arm/NSA.cia and 3ds/NSA/NSA.3d
 make -C tests                        # host tests (needs libjansson-dev)
 ```
 
+On Windows, build from devkitPro's MSYS2 shell, not from Git Bash (devkitPro's `make` gets no environment there).
+
 `DEBUG=1` starts the FTP server with the app and shows DEBUG next to the version. Without it the
 version comes from the git tags (`tools/version.sh`).
 

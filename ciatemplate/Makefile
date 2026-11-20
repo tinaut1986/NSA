@@ -3,7 +3,8 @@
 # exheader and banner model and puts the .3dsx's code, RomFS, icon and banner picture in. The CIA is committed: run
 # `make -C ciatemplate` only after changing something here.
 #
-# Needs devkitARM and libctru; bannertool and makerom come from ../tools/bin (Linux) or devkitPro's tools (Windows).
+# Needs devkitARM and libctru; bannertool and makerom come from ../tools/bin (Linux); on Windows bannertool is
+# devkitPro's and makerom ../tools/windows/makerom.
 
 DEVKITPRO ?= /opt/devkitpro
 DEVKITARM ?= $(DEVKITPRO)/devkitARM
@@ -12,6 +13,13 @@ DEVKITARM ?= $(DEVKITPRO)/devkitARM
 export PATH := $(DEVKITPRO)/tools/bin:$(CURDIR)/../tools/bin:$(DEVKITARM)/bin:$(PATH)
 
 BUILD := build
+
+# On Windows, makerom is ../tools/windows/makerom (the fixed makerom.exe of ../tools/fetch-makerom.sh), not
+# devkitPro's: its makerom.exe 0.19.0 drops the title version's minor number (3DSGuy/Project_CTR#169).
+ifneq ($(filter MINGW% MSYS% CYGWIN%,$(shell uname -s)),)
+    export PATH := $(CURDIR)/../tools/windows:$(PATH)
+endif
+
 OUTPUT := ../romfs/ciatemplate.cia
 
 ARCH := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft

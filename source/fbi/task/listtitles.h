@@ -62,6 +62,19 @@ typedef struct populate_titles_data_s {
     Handle cancelEvent;
 } populate_titles_data;
 
+// What is in the game card slot.
+typedef enum {
+    TASK_CARD_NONE,
+    TASK_CARD_UNKNOWN,   // Inserted, but the console does not say what yet.
+    TASK_CARD_CTR,
+    TASK_CARD_TWL
+} task_card_state;
+
+task_card_state task_titles_card_state(void);
+// Takes the game card's titles out of `items` (they are freed), and puts in the ones of the card now in the slot
+// (`filter` as in a populate: NULL lists them). Fails while the system has not read the card yet: try again a little later.
+Result task_titles_sync_card(linked_list* items, void* userData, bool (*filter)(void* data, u64 titleId, FS_MediaType mediaType));
+
 // One CTR title, loaded at once, as a list item (free it with task_free_title).
 list_item* task_title_item(FS_MediaType mediaType, u64 titleId);
 void task_free_title(list_item* item);

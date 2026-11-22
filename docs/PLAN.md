@@ -163,6 +163,11 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Game card in Titles (2026-11-22, `feat/game-card-title`). Tried on the New 3DS XL with a CTR card: it is listed with a grey
+  background, the "Game card" tag and a gamepad badge, rounded icon corners, save backup works. Not tried: taking the card out
+  and putting it in with the list open (it must go and come back by itself), restoring a backup onto the card's save (writes
+  the real cartridge), "Send current data to another 3DS" for the card's save, a DS card, light mode. Export as CIA is not
+  offered for a card: fs gives no raw NCCH (E0C046F8); GodMode9 does it from the ARM9.
 - [ ] DS game forwarders (2026-11-19, `feat/nds-forwarder`; asked on Reddit by SignalEntrepreneur80: ndsForwarder is slow).
   Files -> a .nds -> "Install in the HOME Menu" (`ndsfwdview.c`, `ndsfwd.c`, `tests/ndsfwd_test.c`): the question shows the
   game's icon and name; NSA fills a DSiWare template (Olmectron's `sdcard.nds` + `.fwd`, as ndsForwarder and the DS-Homebrew

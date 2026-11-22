@@ -74,6 +74,7 @@ static struct {
 #define SHAPE_CIRCLE_SIZE 128
 static u32 shape_white = 0;
 static u32 shape_circle = 0;
+static u32 shape_corner = 0;   // The disc turned inside out: what a rounded corner leaves out of a square.
 // Icon atlases, one per cell size: an icon is drawn from the one closest to
 // its size, at whole pixels when the sizes match.
 static u32 shape_icons16 = 0;
@@ -1283,6 +1284,18 @@ static void screen_init_shapes() {
         }
     }
 
+    u8* corner = (u8*) malloc(SHAPE_CIRCLE_SIZE * SHAPE_CIRCLE_SIZE * 4);
+    if(corner != NULL) {
+        memcpy(corner, circle, SHAPE_CIRCLE_SIZE * SHAPE_CIRCLE_SIZE * 4);
+        for(u32 i = 0; i < SHAPE_CIRCLE_SIZE * SHAPE_CIRCLE_SIZE; i++) {
+            corner[i * 4] = (u8) (0xFF - corner[i * 4]);
+        }
+
+        shape_corner = screen_allocate_free_texture();
+        screen_load_texture_untiled(shape_corner, corner, SHAPE_CIRCLE_SIZE * SHAPE_CIRCLE_SIZE * 4, SHAPE_CIRCLE_SIZE, SHAPE_CIRCLE_SIZE, GPU_RGBA8, true);
+        free(corner);
+    }
+
     shape_white = screen_allocate_free_texture();
     screen_load_texture_untiled(shape_white, white, 64 * 64 * 4, 64, 64, GPU_RGBA8, false);
     shape_circle = screen_allocate_free_texture();
@@ -1376,6 +1389,30 @@ void screen_frame_round_rect(float x, float y, float width, float height, float 
 
     screen_fill_round_rect(x, y, width, height, radius, borderColor);
     screen_fill_round_rect(x + border, y + border, width - 2 * border, height - 2 * border, radius > border ? radius - border : 0, fillColor);
+}
+
+void screen_round_corners(float x, float y, float width, float height, float radius, u32 color) {
+    if(square_corners) {
+        return;
+    }
+
+    float max = (width < height ? width : height) / 2;
+    if(radius > max) {
+        radius = max;
+    }
+
+    if(radius < 1 || shape_corner == 0) {
+        return;
+    }
+
+    // Content: it moves with the item (not its fade: the corners must stay covered).
+    x += content_dx;
+    y += content_dy;
+    float r = radius;
+    screen_draw_mask_any(shape_corner, x, y, x + r, y + r, 0, 0, 0.5f, 0.5f, color);
+    screen_draw_mask_any(shape_corner, x + width - r, y, x + width, y + r, 0.5f, 0, 1, 0.5f, color);
+    screen_draw_mask_any(shape_corner, x, y + height - r, x + r, y + height, 0, 0.5f, 0.5f, 1, color);
+    screen_draw_mask_any(shape_corner, x + width - r, y + height - r, x + width, y + height, 0.5f, 0.5f, 1, 1, color);
 }
 
 void screen_fill_circle(float cx, float cy, float radius, u32 color) {

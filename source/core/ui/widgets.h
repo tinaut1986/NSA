@@ -100,6 +100,9 @@ void widget_button_row_hold(int* pressed, const touchPosition* pos, int count);
 void widget_item_frame(float x, float y, float width, float height, bool selected, u32* ink, u32* muted);
 // The frame of a tile of a grid: a ring of accent around it when selected.
 void widget_tile_frame(float x, float y, float size, bool selected);
+// A title's icon (a 48x48 texture) on whole pixels, with the corners rounded as the theme rounds `radius`; `backdrop` is
+// the colour behind it. Without whole pixels the last column picked up the texture's black padding.
+void widget_texture_rounded(u32 texture, float x, float y, float size, float radius, u32 backdrop);
 // An item without an icon of its own: `icon` at half size in a rounded square of `background`.
 void widget_icon_placeholder(float x, float y, float size, u32 icon, u32 background, u32 foreground);
 // A QR code (qrencode.h) on white with its quiet zone, as large as fits in a square of `side`, centred there, in whole

@@ -1,4 +1,5 @@
 #include <malloc.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -56,6 +57,12 @@ typedef struct {
     // The title the action sheet is for.
     linked_list* actionItems;
     list_item* actionSelected;
+
+    // The game card slot, watched while the list is open: a card put in or taken out shows up or goes at once.
+    task_card_state cardState;
+    bool cardListed;     // The list holds what the card in the slot has.
+    u32 cardPollFrame;
+    u32 cardTries;
 
     // Marking several titles to send to another 3DS at once (issue #53): A marks, START sends.
     bool picking;
@@ -412,10 +419,19 @@ static void titles_pick_press(ui_view* view, void* data) {
 
 // ---- items ----
 
-static void titles_draw_icon(title_info* info, float x, float y, float size) {
+// A game card is a title with a different background: the theme's surface turned a little towards its muted text
+// colour, so it follows every theme and is not the accent (that is the selection's).
+static u32 titles_card_fill(void) {
+    const theme_current* t = theme();
+    u32 grey = theme_mix(t->palette->surface, t->palette->textMuted, 70);
+    // Set apart from the other titles: a little lighter at night, a little darker by day.
+    return theme_mix(grey, t->night ? 0xFFFFFFFF : 0xFF000000, 26);
+}
+
+static void titles_draw_icon(title_info* info, float x, float y, float size, float radius, u32 backdrop) {
     const theme_current* t = theme();
     if(info->hasMeta && info->meta.texture != 0) {
-        screen_draw_texture(info->meta.texture, x, y, size, size);
+        widget_texture_rounded(info->meta.texture, x, y, size, radius, backdrop);
     } else {
         widget_icon_placeholder(x, y, size, info->twl ? ICON_DEVICE_FLOPPY : ICON_APPS, t->accentSoft, t->accent);
     }
@@ -429,6 +445,18 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
     u32 muted = 0;
     widget_item_frame(x, y, width, height, selected, &ink, &muted);
 
+    // A game card: the same frame on another background (selected, a thin line inside the selection's frame).
+    bool card = info->mediaType == MEDIATYPE_GAME_CARD;
+    u32 backdrop = selected ? t->accent : t->palette->surface;
+    if(card) {
+        if(selected) {
+            screen_frame_round_rect(x + 2, y + 2, width - 4, height - 4, t->def->radiusSmall, 1, THEME_ALPHA(t->onAccent, 0x90), t->accent);
+        } else {
+            backdrop = titles_card_fill();
+            screen_frame_round_rect(x, y, width, height, t->def->radiusSmall, t->def->border, t->palette->border, backdrop);
+        }
+    }
+
     if(!info->loaded) {
         widget_skeleton(x + 5, y + 5, width - 18, height - 10, height - 10, selected);
         return;
@@ -437,7 +465,7 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
     widget_fade_in(info->loadedTime);
 
     float icon = height - 10;
-    titles_draw_icon(info, x + 5, y + 5, icon);
+    titles_draw_icon(info, x + 5, y + 5, icon, t->def->radiusSmall, backdrop);
 
     titles_data* listData = (titles_data*) data;
     if(listData != NULL && listData->group && info->linkedCount > 0) {
@@ -460,12 +488,13 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
     // Anything but a game says what it is.
     title_kind kind = title_kind_of(info->titleId);
     float nameRight = right;
-    if(kind != TITLE_KIND_GAME) {
-        const char* tag = titles_kind_name(kind);
+    if(kind != TITLE_KIND_GAME || card) {
+        const char* tag = kind != TITLE_KIND_GAME ? titles_kind_name(kind) : _("Game card");
         // The console's own software in red: deleting it is dangerous.
         bool system = title_is_system(info->titleId);
-        u32 tagFill = selected ? THEME_ALPHA(t->onAccent, 0x40) : system ? THEME_ALPHA(t->palette->danger, 0x2A) : t->accentSoft;
-        u32 tagInk = selected ? t->onAccent : system ? t->palette->danger : t->accent;
+        bool cardTag = kind == TITLE_KIND_GAME;   // "Game card": grey like its frame.
+        u32 tagFill = selected ? THEME_ALPHA(t->onAccent, 0x40) : system ? THEME_ALPHA(t->palette->danger, 0x2A) : cardTag ? THEME_ALPHA(t->palette->textMuted, 0x30) : t->accentSoft;
+        u32 tagInk = selected ? t->onAccent : system ? t->palette->danger : cardTag ? t->palette->textMuted : t->accent;
         float tagW = widget_badge_right(right, y + 4, tag, tagFill, tagInk);
         nameRight = right - tagW - 6;
     }
@@ -489,8 +518,20 @@ static void titles_draw_row(void* data, list_item* item, float x, float y, float
 
 static void titles_draw_tile(void* data, list_item* item, float x, float y, float size, bool selected) {
     title_info* info = (title_info*) item->data;
+    const theme_current* tt = theme();
+
+    // On whole pixels: the icon is a texture, and half a pixel shows its padding as a dark line.
+    x = floorf(x + 0.5f);
+    y = floorf(y + 0.5f);
+    size = floorf(size + 0.5f);
 
     widget_tile_frame(x, y, size, selected);
+    bool card = info->mediaType == MEDIATYPE_GAME_CARD;
+    u32 backdrop = selected ? tt->accentSoft : tt->palette->surface;
+    if(card && !selected) {
+        backdrop = titles_card_fill();
+        screen_frame_round_rect(x, y, size, size, tt->def->radius, tt->def->border, tt->palette->border, backdrop);
+    }
 
     float icon = size - 8;
     if(!info->loaded) {
@@ -499,7 +540,7 @@ static void titles_draw_tile(void* data, list_item* item, float x, float y, floa
     }
 
     widget_fade_in(info->loadedTime);
-    titles_draw_icon(info, x + 4, y + 4, icon);
+    titles_draw_icon(info, x + 4, y + 4, icon, tt->def->radius, backdrop);
     screen_set_content_motion(0, 0, 0xFF);
 
     // The console's own software: a red dot in the corner (the rows say "System" in red).
@@ -507,6 +548,13 @@ static void titles_draw_tile(void* data, list_item* item, float x, float y, floa
         const theme_current* t = theme();
         screen_fill_round_rect(x + 6, y + 6, 10, 10, 5, t->palette->surface);
         screen_fill_round_rect(x + 7, y + 7, 8, 8, 4, t->palette->danger);
+    }
+
+    // A game card: a small cartridge at the bottom left.
+    if(card) {
+        const theme_current* t = theme();
+        screen_fill_round_rect(x + 5, y + size - 21, 16, 16, 4, t->palette->textMuted);
+        screen_draw_icon(ICON_DEVICE_GAMEPAD_2, x + 5, y + size - 21, 16, t->palette->surface);
     }
 
     titles_data* listData = (titles_data*) data;
@@ -602,7 +650,7 @@ static void titles_draw_details(linked_list* items, list_item* selected, float x
     float icon = 56;
     float cardDepth = screen_get_depth();
     screen_set_depth(cardDepth + 1);
-    titles_draw_icon(info, cardX + 10, cardY + (cardH - icon) / 2, icon);
+    titles_draw_icon(info, cardX + 10, cardY + (cardH - icon) / 2, icon, t->def->radius, t->palette->surface);
     screen_set_depth(cardDepth);
 
     const char* media = titles_media_name(info->mediaType);
@@ -995,6 +1043,7 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
         // Its code, icon, banner and logo, for mods and patches (a game card's too).
         actions[count++] = (sheet_action) {ICON_FOLDER, _("Extract ExeFS"), false, titles_extract_exefs};
 
+        // A game card's contents can not be read from here (fs gives no raw NCCH of a card): no CIA of it.
         if(!card) {
             actions[count++] = (sheet_action) {ICON_PACKAGE, _("Export as CIA"), false, titles_export_cia};
             actions[count++] = (sheet_action) {ICON_3DS, _("Send to another 3DS"), false, titles_export_cia_send};
@@ -1198,6 +1247,36 @@ static bool titles_item_ready(list_item* item) {
     return ((title_info*) item->data)->loaded;
 }
 
+// A card put in or taken out while the list is open: its titles come or go (the slot is looked at a few times a second).
+static bool titles_card_poll(titles_data* data, linked_list* items) {
+    if(!data->populateData.finished || data->picking || ++data->cardPollFrame < 20) {
+        return false;
+    }
+
+    data->cardPollFrame = 0;
+    task_card_state state = task_titles_card_state();
+    if(state != data->cardState) {
+        data->cardState = state;
+        data->cardListed = false;
+        data->cardTries = 0;
+    }
+
+    if(data->cardListed || data->cardTries >= 25) {
+        return false;
+    }
+
+    // Just put in, the system may still be reading it: a few tries, then X lists it again.
+    data->cardTries++;
+    if(R_SUCCEEDED(task_titles_sync_card(items, data, data->populateData.filter))) {
+        data->cardListed = true;
+        data->sorted = false;
+        data->groupedCount = (u32) -1;
+        return true;
+    }
+
+    return false;
+}
+
 static void titles_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     titles_data* listData = (titles_data*) data;
 
@@ -1268,6 +1347,9 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
 
         listData->populateData.items = items;
         listData->populateData.refresh = listData->populated;
+        listData->cardState = task_titles_card_state();
+        listData->cardListed = true;
+        listData->cardTries = 0;
         listData->sorted = false;
         listData->sortedLoaded = 0;
         Result res = task_populate_titles(&listData->populateData);
@@ -1292,6 +1374,11 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         error_display_res(NULL, NULL, listData->populateData.result, "Failed to populate title list.");
 
         listData->populateData.result = 0;
+    }
+
+    // The list changed under the selection: draw it again before anything touches it.
+    if(titles_card_poll(listData, items)) {
+        return;
     }
 
     // A title still loading has nothing to act on yet.

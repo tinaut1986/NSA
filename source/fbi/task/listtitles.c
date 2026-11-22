@@ -692,6 +692,83 @@ static void task_populate_titles_thread(void* arg) {
     data->finished = true;
 }
 
+task_card_state task_titles_card_state(void) {
+    bool inserted = false;
+    FS_CardType type;
+    if(R_FAILED(FSUSER_CardSlotIsInserted(&inserted)) || !inserted) {
+        return TASK_CARD_NONE;
+    }
+
+    if(R_FAILED(FSUSER_GetCardType(&type))) {
+        return TASK_CARD_UNKNOWN;
+    }
+
+    return type == CARD_CTR ? TASK_CARD_CTR : TASK_CARD_TWL;
+}
+
+static void task_titles_remove_card(linked_list* items) {
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        if(((title_info*) item->data)->mediaType == MEDIATYPE_GAME_CARD) {
+            linked_list_iter_remove(&iter);
+            task_free_title(item);
+        }
+    }
+}
+
+Result task_titles_sync_card(linked_list* items, void* userData, bool (*filter)(void* data, u64 titleId, FS_MediaType mediaType)) {
+    task_card_state state = task_titles_card_state();
+    if(state == TASK_CARD_UNKNOWN) {
+        return R_APP_BAD_DATA;
+    }
+
+    // Read before the old ones go: a card that is not ready leaves the list as it was.
+    u64* ids = NULL;
+    u32 count = 0;
+    if(state == TASK_CARD_CTR) {
+        Result res = AM_GetTitleCount(MEDIATYPE_GAME_CARD, &count);
+        if(R_FAILED(res)) {
+            return res;
+        }
+
+        if(count > 0) {
+            ids = (u64*) calloc(count, sizeof(u64));
+            if(ids == NULL) {
+                return R_APP_OUT_OF_MEMORY;
+            }
+
+            if(R_FAILED(res = AM_GetTitleList(&count, MEDIATYPE_GAME_CARD, count, ids))) {
+                free(ids);
+                return res;
+            }
+        }
+    }
+
+    task_titles_remove_card(items);
+
+    if(state == TASK_CARD_CTR) {
+        for(u32 i = 0; i < count; i++) {
+            if(filter == NULL || filter(userData, ids[i], MEDIATYPE_GAME_CARD)) {
+                list_item* item = task_title_item(MEDIATYPE_GAME_CARD, ids[i]);
+                if(item != NULL) {
+                    linked_list_add(items, item);
+                }
+            }
+        }
+    } else if(state == TASK_CARD_TWL) {
+        list_item* item = task_populate_titles_placeholder(MEDIATYPE_GAME_CARD, 0, true);
+        if(item != NULL) {
+            task_populate_titles_load_twl(item);
+            linked_list_add(items, item);
+        }
+    }
+
+    free(ids);
+    return 0;
+}
+
 list_item* task_title_item(FS_MediaType mediaType, u64 titleId) {
     list_item* item = task_populate_titles_placeholder(mediaType, titleId, false);
     if(item != NULL) {

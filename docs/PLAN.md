@@ -163,6 +163,25 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Button remapping with Rehid (2026-11-22, `feat/rehid`; the owner asked for a GUI for hax0kartik/rehid inside NSA).
+  Utilities -> Button remapping (`rehid.c`: module, files, limits; `rehidview.c`: screens), and "Button remapping" in a
+  game's sheet in Titles once Rehid is on the SD card. Rehid is a HID module Luma3DS loads (`/luma/sysmodules/
+  0004013000001D02.cxi`, needs "Enable loading external FIRMs and modules"); its repo has **no licence**, so NSA never
+  carries it: it downloads the latest release's module from GitHub, checks the SHA-256 GitHub gives, keeps the one it
+  replaces in `sdmc:/nsa/rehid/previous.cxi` ("Go back to the previous version"). Off/on renames the module and its IR
+  patch to rehidhelper's names (`rehid.cxi`, `rehid_ir.ips`). Remappings: `/rehid/rehid.json` (global, HOME Menu too) and
+  `/rehid/<TID>/rehid.json` (a game's file replaces the global one whole). The editor writes every change at once, read back
+  first, keeping Rehid's limits it does not check itself: **10 entries per list** (an 11th overflows Rehid's arrays),
+  key/touch/cpad entries with exactly two fields, whole-number coordinates; a game's file that is not JSON stops that game
+  with an error screen, so NSA offers to delete one. NSA's own title keeps a `{}` file, so NSA always has the console's
+  buttons. Buttons are taken by pressing them (a screen takes every key down until all are let go; Cancel is a tap). If the
+  buttons stop working: hold POWER, start holding SELECT, untick the Luma option (in the screen's help), or
+  `SITE REHID OFF` over FTP. Claude, Azahar: the list, global and game editors (keys, turbo, touch point, touch zone with
+  `/api/input/drag?x2=`, Circle Pad, Circle Pad as D-Pad, HOME combo), a file of 13 entries (10 kept, "4 entries... go"),
+  a damaged file (deleted from the question), off/on renames, Luma's option written in config.ini, the game picker.
+  Azahar answers any HID command with success, so there the state always reads "Running". Not tried: a console (the
+  download and checksum, the state after a restart, Rehid applying the files in a game, `SITE REHID`), the web page (no
+  editor there yet: phase 2), an Old 3DS (no ZL/ZR/C-Stick: the editor still offers them).
 - [ ] Game card in Titles (2026-11-22, `feat/game-card-title`). Tried on the New 3DS XL with a CTR card: it is listed with a grey
   background, the "Game card" tag and a gamepad badge, rounded icon corners, save backup works. Not tried: taking the card out
   and putting it in with the list open (it must go and come back by itself), restoring a backup onto the card's save (writes

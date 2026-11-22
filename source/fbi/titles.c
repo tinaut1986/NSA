@@ -7,6 +7,7 @@
 
 #include "resources.h"
 #include "chain.h"
+#include "rehid.h"
 #include "section.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -711,6 +712,11 @@ static void titles_run(titles_data* data, void (*action)(linked_list*, list_item
 static void titles_launch(void* data) { titles_run(data, action_launch_title); }
 static void titles_delete(void* data) { titles_run(data, action_delete_title); }
 static void titles_delete_ticket(void* data) { titles_run(data, action_delete_title_ticket); }
+static void titles_remap_buttons(void* data) {
+    titles_data* listData = (titles_data*) data;
+    rehidview_open_title(((title_info*) listData->actionSelected->data)->titleId);
+}
+
 static void titles_extract_smdh(void* data) { titles_run(data, action_extract_smdh); }
 static void titles_extract_exefs(void* data) { titles_run(data, action_extract_exefs); }
 static void titles_export_cia(void* data) { titles_run(data, action_export_cia); }
@@ -1037,6 +1043,11 @@ static void titles_actions_open(titles_data* data, linked_list* items, list_item
 
         if(hasBoss) {
             actions[count++] = (sheet_action) {ICON_WORLD_DOWNLOAD, _("SpotPass data"), false, titles_manage_boss, true};
+        }
+
+        // Its button remapping (Rehid), once Rehid is on the SD card or the game already has one.
+        if(title_kind_of(info->titleId) == TITLE_KIND_GAME && (rehid_get_state() != REHID_NOT_INSTALLED || rehid_config_exists(info->titleId))) {
+            actions[count++] = (sheet_action) {ICON_DEVICE_GAMEPAD_2, _("Button remapping"), false, titles_remap_buttons, true};
         }
 
         actions[count++] = (sheet_action) {ICON_PHOTO, _("Extract icon"), false, titles_extract_smdh};

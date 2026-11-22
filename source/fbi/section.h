@@ -9,7 +9,15 @@ const char* utilities_dsp_value();
 void utilities_dsp_toggle();
 const char* utilities_luma_value();
 void utilities_luma_toggle();
+// An option of Luma3DS's /luma/config.ini that is 0 or 1 ("enable_game_patching"): the offset of its value and the
+// value, or -1; and writing that one character.
+long utilities_luma_option_find(const char* key, char* value);
+bool utilities_luma_option_set(long offset, char value);
 void utilities_restart_open();
+// Utilities -> Button remapping (rehidview.c): Rehid's module and its remappings.
+void rehidview_open();
+// The remapping of one game, from its sheet in Titles.
+void rehidview_open_title(u64 titleId);
 void utilities_power_off_open();
 void wificonnections_open();
 // System -> Console settings -> Screen brightness (brightnessview.c).

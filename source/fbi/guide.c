@@ -276,10 +276,25 @@ static const coach_step brightness_steps[] = {
 
 static const coach_step utilities_steps[] = {
         OPEN("menu.utilities", "Open Utilities: what Rosalina's menu or GodMode9 were opened for.", "v:Utilities"),
-        INFO("DSP firmware", "DSP firmware: homebrew needs it to play sound. On means /3ds/dspfirm.cdc is Nintendo's, on the SD card and whole; OpenDSP, that it is the open source one, which plays what most homebrew needs. Choosing it asks where it comes from: dumped from the console, as DSP1 does, or OpenDSP, downloaded from GitHub (NSA's own copy without internet)."),
+        INFO("DSP firmware", "DSP firmware: homebrew needs it to play sound. On means /3ds/dspfirm.cdc, Nintendo's, is on the SD card and whole."),
+        INFO_SINCE(GUIDE_VERSION(0, 17), "DSP firmware", "\uE000 on it asks where the firmware comes from: dumped from the console, as DSP1 does, or OpenDSP, an open source one that plays what most homebrew needs. OpenDSP comes from GitHub (without internet, the copy NSA carries), and the row says OpenDSP then."),
         INFO("Game patching", "Game patching: Luma3DS's option for LayeredFS mods and IPS patches. A change takes effect when the console restarts, and NSA offers to restart it then."),
+        INFO_SINCE(GUIDE_VERSION(0, 17), "Button remapping", "Button remapping changes what the buttons do in every game, or in one, with Rehid. It has a chapter of its own."),
         INFO("Restart", "Restart and Power off do what Rosalina's power menu does. NSA closes first, and not while a transfer is under way."),
         DO("back", " goes back to the menu.", KEY_B, true, "v:Main menu"),
+};
+
+static const coach_step rehid_steps[] = {
+        OPEN("menu.utilities", "Open Utilities.", "v:Utilities"),
+        OPEN("Button remapping", "Go down to Button remapping and open it with \uE000.", "v:Button remapping"),
+        INFO("Rehid", "Rehid, by hax0kartik, is a module Luma3DS loads in place of the console's own buttons. This row says how it is: \uE000 on it installs it from GitHub, lets Luma3DS load it or restarts the console, whatever is missing. Once it runs: update it or turn it off."),
+        INFO("Every game (global)", "The global remapping is used in every game without one of its own, HOME Menu too."),
+        REACH("Add a game", "Go down to Add a game."),
+        INFO("Add a game", "Add a game gives one game a remapping of its own, used instead of the global one. A game's actions in Titles have Button remapping too."),
+        INFO("list", "Inside a remapping: buttons that press others, turbo, buttons that touch the screen, touch zones that press a button, the Circle Pad as D-Pad and a button combo for HOME. A change counts the next time the game starts."),
+        REACH("If the buttons stop working", "Go down to the last row."),
+        INFO("If the buttons stop working", "If a remapping leaves the console without buttons, turn it on holding SELECT and, in Luma3DS's menu, turn off \"Enable loading external FIRMs and modules\". This row says it again."),
+        DO("back", "\uE001 goes back, a screen at a time, to the menu.", KEY_B, true, "v:Main menu"),
 };
 
 static const guide_chapter chapters[] = {
@@ -306,6 +321,7 @@ static const guide_chapter chapters[] = {
         {"themes", GUIDE_VERSION(0, 13), false, "look", ICON_COLOR_SWATCH, "Your own themes", "Make one, colour by colour", themes_steps, COUNT_OF(themes_steps)},
         {"brightness", GUIDE_VERSION(0, 14), false, "basics", ICON_SUN, "Screen brightness", "How dark and how bright, in every game", brightness_steps, COUNT_OF(brightness_steps)},
         {"utilities", GUIDE_VERSION(0, 16), false, "basics", ICON_BOLT, "Utilities", "Sound for homebrew, game patching, restart", utilities_steps, COUNT_OF(utilities_steps)},
+        {"rehid", GUIDE_VERSION(0, 17), false, "utilities", ICON_DEVICE_GAMEPAD_2, "Button remapping", "Other buttons in every game, or in one, with Rehid", rehid_steps, COUNT_OF(rehid_steps)},
 };
 
 #define CHAPTER_COUNT COUNT_OF(chapters)

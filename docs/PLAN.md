@@ -179,9 +179,10 @@ What `release` holds, in the order it was built:
   `SITE REHID OFF` over FTP. Claude, Azahar: the list, global and game editors (keys, turbo, touch point, touch zone with
   `/api/input/drag?x2=`, Circle Pad, Circle Pad as D-Pad, HOME combo), a file of 13 entries (10 kept, "4 entries... go"),
   a damaged file (deleted from the question), off/on renames, Luma's option written in config.ini, the game picker.
-  Azahar answers any HID command with success, so there the state always reads "Running". Not tried: a console (the
-  download and checksum, the state after a restart, Rehid applying the files in a game, `SITE REHID`), the web page (no
-  editor there yet: phase 2), an Old 3DS (no ZL/ZR/C-Stick: the editor still offers them).
+  Azahar answers any HID command with success, so there the state always reads "Running". 2026-11-25, the owner on the
+  New 3DS XL: Rehid v5.0 installed from NSA (download and checksum) and remappings work in games. The guide has a chapter
+  for it (0.17, "Button remapping") and two new Utilities steps, not tried on a console yet. Not tried: `SITE REHID`, the
+  web page (no editor there yet: phase 2), an Old 3DS (no ZL/ZR/C-Stick: the editor still offers them).
 - [ ] Game card in Titles (2026-11-22, `feat/game-card-title`). Tried on the New 3DS XL with a CTR card: it is listed with a grey
   background, the "Game card" tag and a gamepad badge, rounded icon corners, save backup works. Not tried: taking the card out
   and putting it in with the list open (it must go and come back by itself), restoring a backup onto the card's save (writes

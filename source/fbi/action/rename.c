@@ -7,6 +7,7 @@
 #include "action.h"
 #include "../resources.h"
 #include "../task/uitask.h"
+#include "../foldersize.h"
 #include "../../core/core.h"
 
 typedef struct {
@@ -47,6 +48,7 @@ static void action_rename_onresponse(ui_view* view, void* data, SwkbdButton butt
                 }
 
                 fs_free_path_utf8(dstFsPath);
+                foldersize_forget_all();
             } else {
                 res = R_APP_OUT_OF_MEMORY;
             }

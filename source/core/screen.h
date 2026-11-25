@@ -85,6 +85,8 @@ void screen_fill_rect(float x, float y, float width, float height, u32 color);
 void screen_fill_round_rect(float x, float y, float width, float height, float radius, u32 color);
 // A rounded rectangle filled with fillColor inside a `border` px edge of borderColor.
 void screen_frame_round_rect(float x, float y, float width, float height, float radius, float border, u32 borderColor, u32 fillColor);
+// Covers the four corners of a picture with `color` (what is behind it), rounded as a round rect of `radius` is.
+void screen_round_corners(float x, float y, float width, float height, float radius, u32 color);
 void screen_fill_circle(float cx, float cy, float radius, u32 color);
 // An icon from romfs:/icons.png (icons.h), drawn in `size` px and tinted.
 void screen_draw_icon(u32 icon, float x, float y, float size, u32 color);

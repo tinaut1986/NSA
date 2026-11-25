@@ -150,6 +150,14 @@ void widget_item_frame(float x, float y, float width, float height, bool selecte
     }
 }
 
+void widget_texture_rounded(u32 texture, float x, float y, float size, float radius, u32 backdrop) {
+    x = floorf(x + 0.5f);
+    y = floorf(y + 0.5f);
+    size = floorf(size + 0.5f);
+    screen_draw_texture(texture, x, y, size, size);
+    screen_round_corners(x, y, size, size, radius, backdrop);
+}
+
 void widget_tile_frame(float x, float y, float size, bool selected) {
     const theme_current* t = theme();
     if(selected) {

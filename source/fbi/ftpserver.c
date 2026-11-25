@@ -16,6 +16,7 @@
 #include <3ds.h>
 
 #include "ftpserver.h"
+#include "rehid.h"
 #include "relaunch.h"
 #include "remotehelp.h"
 #include "homeicon.h"
@@ -1760,6 +1761,35 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         }
 
         ftp_reply(s, "200 TESTSAVE %s %08lX %s", op, (u32) res, got);
+        return;
+    }
+
+    // Rehid's button remapping (rehid.h), from a computer when the console's buttons no longer answer: "SITE REHID"
+    // says its state, "SITE REHID OFF" turns it off (from the next start), "SITE REHID ON" back on.
+    if(strcmp(sub, "REHID") == 0) {
+        static const char* const states[] = {"not installed", "off", "installed, but Luma3DS does not load external modules",
+                                             "installed, starts at the next start", "running"};
+        const char* arg2 = path != NULL ? path : "";
+        if(strcasecmp(arg2, "OFF") == 0 || strcasecmp(arg2, "ON") == 0) {
+            bool on = strcasecmp(arg2, "ON") == 0;
+            if(!rehid_set_enabled(on)) {
+                ftp_reply(s, "550 Rehid's module was not found in /luma/sysmodules, or could not be moved.");
+                return;
+            }
+
+            ftp_reply(s, "200 Rehid is %s from the next start of the console: restart it to apply.", on ? "on" : "off");
+            return;
+        }
+
+        if(arg2[0] != '\0') {
+            ftp_reply(s, "501 SITE REHID [ON|OFF]");
+            return;
+        }
+
+        rehid_state state = rehid_get_state();
+        char version[32];
+        rehid_installed_version(version, sizeof(version));
+        ftp_reply(s, "200 Rehid: %s%s%s.", states[state], version[0] != '\0' ? ", version " : "", version);
         return;
     }
 

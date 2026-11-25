@@ -90,3 +90,5 @@ typedef struct data_op_data_s {
 } data_op_data;
 
 Result task_data_op(data_op_data* data);
+// Called on the operation's thread each time a data operation ends: something may have changed files (folder sizes).
+void task_data_op_set_end_hook(void (*hook)());

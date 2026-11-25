@@ -974,7 +974,7 @@ const i18n_entry i18n_ja[] = {
         {"\uE005, or this button on the one with the focus, makes it big or small. The others move aside to make room; when there is none, it shakes.", "\uE005か、選んでいる項目のこのボタンで、大きくしたり小さくしたりできます。ほかの項目はよけて場所を空けます。場所がないときは項目が揺れます。"},
         {"Big and small entries, where you want them", "大小の項目を好きな場所に"},
         {"\uE000 move   \uE003 reset   SELECT done", "\uE000 移動   \uE003 元に戻す   SELECT 完了"},
-        {"Drag a tile, or pick it up with A and use the D-Pad, to put it where you want. The history row stays at the bottom.", "タイルをドラッグするか、Aで持ち上げて十字ボタンで動かし、好きな場所に置きます。履歴の列は下に残ります。"},
+        {"Drag a tile or a part of the bar, or pick it up with A and use the D-Pad, to put it where you want: the bar goes above, between or under the tiles, and its parts change places along it. Drop a tile, FTP or Web on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back.", "タイルやバーの一部をドラッグするか、Aで持ち上げて十字ボタンで動かし、好きな場所に置きます。バーはタイルの上、間、下に置け、その中の部分も並べ替えられます。タイル、FTP、Webを下の列にドロップするか、Xを押すと非表示になります。非表示のものはタッチすると戻ります。"},
         {"Reinstall the CIA", "CIAを再インストール"},
         {"Download the CIA", "CIAをダウンロード"},
         {"Saves it in /nsa/received/ to install it later from Files.", "/nsa/received/ に保存し、あとでファイル画面からインストールします。"},
@@ -1617,6 +1617,7 @@ const i18n_entry i18n_ja[] = {
         {"Status", "状態"},
         {"PIN", "PIN"},
         {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "履歴の横にある2つの小さなボタンで、FTPサーバーとWebサーバーをオン／オフします。どちらかに合わせると、上画面にアドレスが表示されます（Webサーバーはさらに PIN とQRコードも）。"},
+        {"SELECT, or holding a tile, edits this screen: move the tiles, and the bar with History, FTP and Web above, between or under them, and hide what you do not use.", "SELECTか、タイルを長押しすると、この画面を編集できます。タイルや、履歴・FTP・Webのバーをタイルの上、間、下に動かせ、使わないものは非表示にできます。"},
         {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "FTPサーバーとWebサーバーは、リモートインストールの履歴の横にある2つの小さなボタンでもオン／オフできます。"},
         // System's groups and hardware tests
         {"Model, versions and region", "モデル、バージョン、地域"},

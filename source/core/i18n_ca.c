@@ -969,7 +969,7 @@ const i18n_entry i18n_ca[] = {
         {"\uE005, or this button on the one with the focus, makes it big or small. The others move aside to make room; when there is none, it shakes.", "\uE005, o aquest botó de la que té el focus, la fa gran o petita. Les altres s'aparten per fer-li lloc; si no n'hi ha, tremola."},
         {"Big and small entries, where you want them", "Entrades grans i petites, on vulguis"},
         {"\uE000 move   \uE003 reset   SELECT done", "\uE000 moure   \uE003 restaurar   SELECT fet"},
-        {"Drag a tile, or pick it up with A and use the D-Pad, to put it where you want. The history row stays at the bottom.", "Arrossega un mosaic, o agafa'l amb A i fes servir la creueta, per posar-lo on vulguis. La fila de l'historial es queda a baix."},
+        {"Drag a tile or a part of the bar, or pick it up with A and use the D-Pad, to put it where you want: the bar goes above, between or under the tiles, and its parts change places along it. Drop a tile, FTP or Web on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back.", "Arrossega una fitxa o una part de la barra, o agafa-la amb A i fes servir la creueta, per posar-la on vulguis: la barra va a sobre, entre o sota les fitxes, i les seves parts canvien de lloc al llarg d'ella. Deixa una fitxa, FTP o Web a la fila de baix, o prem X, per amagar-la; toca'n una d'oculta per recuperar-la."},
         {"Reinstall the CIA", "Reinstal·lar el CIA"},
         {"Download the CIA", "Baixar el CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "El desa a /nsa/received/ per instal·lar-lo després des de Fitxers."},
@@ -1612,6 +1612,7 @@ const i18n_entry i18n_ca[] = {
         {"Status", "Estat"},
         {"PIN", "PIN"},
         {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "Els dos botons petits al costat de l'Historial activen o desactiven el servidor FTP i el servidor web. Posa't sobre un i la pantalla de dalt mostra la seva adreça (el web, també el PIN i un codi QR)."},
+        {"SELECT, or holding a tile, edits this screen: move the tiles, and the bar with History, FTP and Web above, between or under them, and hide what you do not use.", "SELECT, o mantenir premuda una fitxa, edita aquesta pantalla: mou les fitxes, i la barra amb Historial, FTP i Web a sobre, entre o sota d'elles, i amaga el que no facis servir."},
         {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "També pots activar o desactivar el servidor FTP i el servidor web des d'Instal·lació remota, amb els dos botons petits al costat de l'Historial."},
         // System's groups and hardware tests
         {"Model, versions and region", "Model, versions i regió"},

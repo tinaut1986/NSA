@@ -133,8 +133,9 @@ typedef struct {
     // The main menu's layout as one line: the entries shown, in order, each with its cell and size ("sd:00B"), then "|"
     // and the hidden ones; "" for the default. settings.json keeps it as "menu_layout" (settings.c).
     char menu[512];
-    // Remote install's four tiles in order, by id ("3ds,pc,qr,url"); "" for the default.
-    char remoteMenu[32];
+    // Remote install's layout as one line: its tiles (shown, "|", hidden), ";", the bar's parts (the same), ";", the
+    // bar's row: "3ds,pc,qr|url;history,ftp|web;2"; "" for the default. settings.json keeps it as "remote_layout".
+    char remoteMenu[96];
 
     // The guide (guide.h): the ids of the chapters seen ("basics,titles"), and the newest chapter version this
     // console was offered (0 on a first start; consoles that ran NSA before the guide start at v0.7).

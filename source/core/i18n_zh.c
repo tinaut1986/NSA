@@ -961,7 +961,7 @@ const i18n_entry i18n_zh[] = {
         {"\uE005, or this button on the one with the focus, makes it big or small. The others move aside to make room; when there is none, it shakes.", "按 \uE005，或点击选中项目上的这个按钮，可以把它变大或变小。其他项目会让出位置；没有空间时它会晃动。"},
         {"Big and small entries, where you want them", "大小项目，随你摆放"},
         {"\uE000 move   \uE003 reset   SELECT done", "\uE000 移动   \uE003 还原   SELECT 完成"},
-        {"Drag a tile, or pick it up with A and use the D-Pad, to put it where you want. The history row stays at the bottom.", "拖动图块，或按 A 拿起后用十字键移动，放到你想要的位置。历史记录那一行固定在底部。"},
+        {"Drag a tile or a part of the bar, or pick it up with A and use the D-Pad, to put it where you want: the bar goes above, between or under the tiles, and its parts change places along it. Drop a tile, FTP or Web on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back.", "拖动图块或栏的一部分，或按 A 拿起后用十字键移动，放到你想要的位置：栏可以放在图块上方、中间或下方，栏内各部分也可以互换位置。把图块、FTP 或 Web 拖到底部那一行或按 X 即可隐藏；点击已隐藏的项目可恢复。"},
         {"Reinstall the CIA", "重新安装 CIA"},
         {"Download the CIA", "下载 CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "保存到 /nsa/received/，之后可在文件中安装。"},
@@ -1604,6 +1604,7 @@ const i18n_entry i18n_zh[] = {
         {"Status", "状态"},
         {"PIN", "PIN"},
         {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "历史记录旁边的两个小按钮用来开启或关闭 FTP 服务器和网页服务器。移到其中一个上，上屏会显示它的地址（网页服务器还有 PIN 和二维码）。"},
+        {"SELECT, or holding a tile, edits this screen: move the tiles, and the bar with History, FTP and Web above, between or under them, and hide what you do not use.", "按 SELECT 或长按图块即可编辑此画面：移动图块，把带有历史记录、FTP 和 Web 的栏放到图块上方、中间或下方，并隐藏不用的项目。"},
         {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "你也可以在远程安装中，用历史记录旁边的两个小按钮开启或关闭 FTP 服务器和网页服务器。"},
         // System's groups and hardware tests
         {"Model, versions and region", "型号、版本和地区"},

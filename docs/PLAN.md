@@ -163,6 +163,17 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Remote install's layout (2026-11-25, `feat/menu-grid`; issue #55 asked to hide what is not used there, the owner
+  added moving the history bar). Editing (SELECT or a long press on any item): the four tiles change places (two to a
+  row, sizes fixed) and can be hidden; the bar (History, FTP, Web) goes above, between or under the rows of tiles (a
+  drag onto another row, or Up/Down when picked up) and its parts change places along it; FTP and Web can be hidden,
+  History cannot (it shows whenever there is a request). Hidden ones wait in a tray at the bottom while editing (the
+  tiles get shorter); a tap brings one back. settings.json keeps `"remote_layout": {"tiles", "hidden_tiles", "bar",
+  "hidden_bar", "bar_row"}` (nothing for the default); remoteinstall.c works with it as one line
+  `3ds,pc,qr|url;history,ftp|web;2` (the 0.16 `"remote_menu"` order is still read). The D-Pad moves to the closest item
+  that way. A 0.17 guide step in the Remote install chapter tells about it. Claude, Azahar: the bar to the top and to the
+  middle, Web before History, FTP and QR hidden, saved and read back after a restart. Not tried: a console, the guide
+  step, a screen with no history.
 - [ ] Main menu as a grid (2026-11-25, `feat/menu-grid`; the owner's idea for issue #55's "Main menu - Gaps between tiles?").
   Every theme but HOME's draws the menu as a grid six cells across and four down (`mainmenu.c`): a big entry takes two by
   two, a small one a cell, each where the user puts it. NSA comes with the old look (the first three big across the top,

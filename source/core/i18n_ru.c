@@ -970,7 +970,7 @@ const i18n_entry i18n_ru[] = {
         {"\uE005, or this button on the one with the focus, makes it big or small. The others move aside to make room; when there is none, it shakes.", "\uE005 или эта кнопка на пункте в фокусе делает его большим или маленьким. Остальные сдвигаются, освобождая место; если места нет, он дрожит."},
         {"Big and small entries, where you want them", "Большие и маленькие пункты, где захотите"},
         {"\uE000 move   \uE003 reset   SELECT done", "\uE000 двигать   \uE003 сброс   SELECT готово"},
-        {"Drag a tile, or pick it up with A and use the D-Pad, to put it where you want. The history row stays at the bottom.", "Перетащите плитку или возьмите ее кнопкой A и двигайте крестовиной, чтобы поставить куда нужно. Ряд истории остается внизу."},
+        {"Drag a tile or a part of the bar, or pick it up with A and use the D-Pad, to put it where you want: the bar goes above, between or under the tiles, and its parts change places along it. Drop a tile, FTP or Web on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back.", "Перетащите плитку или часть панели, или возьмите её кнопкой A и двигайте крестовиной, чтобы поставить куда нужно: панель встаёт над плитками, между ними или под ними, а её части меняются местами вдоль неё. Бросьте плитку, FTP или Web на нижний ряд или нажмите X, чтобы скрыть; коснитесь скрытой, чтобы вернуть."},
         {"Reinstall the CIA", "Переустановить CIA"},
         {"Download the CIA", "Скачать CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "Сохраняет в /nsa/received/, чтобы установить позже из «Файлов»."},
@@ -1613,6 +1613,7 @@ const i18n_entry i18n_ru[] = {
         {"Status", "Состояние"},
         {"PIN", "PIN"},
         {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "Две маленькие кнопки рядом с Историей включают и выключают FTP-сервер и веб-сервер. Наведитесь на одну, и верхний экран покажет её адрес (у веб-сервера ещё PIN и QR-код)."},
+        {"SELECT, or holding a tile, edits this screen: move the tiles, and the bar with History, FTP and Web above, between or under them, and hide what you do not use.", "SELECT или долгое нажатие на плитку открывает правку этого экрана: двигайте плитки и панель с историей, FTP и Web над ними, между ними или под ними, и скрывайте то, чем не пользуетесь."},
         {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "FTP-сервер и веб-сервер можно также включать и выключать в разделе «Удаленная установка» двумя маленькими кнопками рядом с Историей."},
         // System's groups and hardware tests
         {"Model, versions and region", "Модель, версии и регион"},

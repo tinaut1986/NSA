@@ -962,7 +962,7 @@ const i18n_entry i18n_tw[] = {
         {"\uE005, or this button on the one with the focus, makes it big or small. The others move aside to make room; when there is none, it shakes.", "按 \uE005，或點一下選中項目上的這個按鈕，即可把它變大或變小。其他項目會讓出位置；沒有空間時它會晃動。"},
         {"Big and small entries, where you want them", "大小項目，隨你擺放"},
         {"\uE000 move   \uE003 reset   SELECT done", "\uE000 移動   \uE003 還原   SELECT 完成"},
-        {"Drag a tile, or pick it up with A and use the D-Pad, to put it where you want. The history row stays at the bottom.", "拉動圖塊，或按 A 拿起後用十字鍵移動，放到想要的位置。記録那一列固定在底部。"},
+        {"Drag a tile or a part of the bar, or pick it up with A and use the D-Pad, to put it where you want: the bar goes above, between or under the tiles, and its parts change places along it. Drop a tile, FTP or Web on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back.", "拉動圖塊或列的一部分，或按 A 拿起後用十字鍵移動，放到想要的位置：列可以放在圖塊上方、中間或下方，列內各部分也能互換位置。把圖塊、FTP 或 Web 拉到底部那一列或按 X 即可隱藏；點一下已隱藏的項目即可恢復。"},
         {"Reinstall the CIA", "重新安裝CIA"},
         {"Download the CIA", "下載CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "儲存到 /nsa/received/，之後再從文件畫面安裝。"},
@@ -1605,6 +1605,7 @@ const i18n_entry i18n_tw[] = {
         {"Status", "狀態"},
         {"PIN", "PIN"},
         {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "記錄旁邊的兩個小按鈕用來開啓或關閉 FTP 伺服器和網頁伺服器。移到其中一個上，上螢幕會顯示它的位址（網頁伺服器還有 PIN 和 QR 碼）。"},
+        {"SELECT, or holding a tile, edits this screen: move the tiles, and the bar with History, FTP and Web above, between or under them, and hide what you do not use.", "按 SELECT 或長按圖塊即可編輯此畫面：移動圖塊，把含有歷史記錄、FTP 和 Web 的列放到圖塊上方、中間或下方，並隱藏不用的項目。"},
         {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "你也可以在遠端安裝中，用記錄旁邊的兩個小按鈕開啓或關閉 FTP 伺服器和網頁伺服器。"},
         // System's groups and hardware tests
         {"Model, versions and region", "型號、版本與地區"},

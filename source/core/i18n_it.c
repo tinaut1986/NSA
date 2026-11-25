@@ -974,7 +974,7 @@ const i18n_entry i18n_it[] = {
         {"\uE005, or this button on the one with the focus, makes it big or small. The others move aside to make room; when there is none, it shakes.", "\uE005, o questo pulsante su quella con il focus, la rende grande o piccola. Le altre si spostano per farle spazio; se non c'è, trema."},
         {"Big and small entries, where you want them", "Voci grandi e piccole, dove vuoi"},
         {"\uE000 move   \uE003 reset   SELECT done", "\uE000 sposta   \uE003 ripristina   SELECT fatto"},
-        {"Drag a tile, or pick it up with A and use the D-Pad, to put it where you want. The history row stays at the bottom.", "Trascina un riquadro, o prendilo con A e usa la croce direzionale, per metterlo dove vuoi. La riga della cronologia resta in basso."},
+        {"Drag a tile or a part of the bar, or pick it up with A and use the D-Pad, to put it where you want: the bar goes above, between or under the tiles, and its parts change places along it. Drop a tile, FTP or Web on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back.", "Trascina un riquadro o una parte della barra, o prendilo con A e usa la croce direzionale, per metterlo dove vuoi: la barra va sopra, in mezzo o sotto i riquadri, e le sue parti cambiano posto lungo di essa. Lascia un riquadro, FTP o Web sulla riga in basso, o premi X, per nasconderlo; tocca uno nascosto per riportarlo."},
         {"Reinstall the CIA", "Reinstalla il CIA"},
         {"Download the CIA", "Scarica il CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "Lo salva in /nsa/received/ per installarlo dopo da File."},
@@ -1617,6 +1617,7 @@ const i18n_entry i18n_it[] = {
         {"Status", "Stato"},
         {"PIN", "PIN"},
         {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "I due piccoli pulsanti accanto alla Cronologia attivano o disattivano il server FTP e il server web. Mettiti su uno e lo schermo superiore mostra il suo indirizzo (per il web anche il PIN e un codice QR)."},
+        {"SELECT, or holding a tile, edits this screen: move the tiles, and the bar with History, FTP and Web above, between or under them, and hide what you do not use.", "SELECT, o tenere premuto un riquadro, modifica questa schermata: sposta i riquadri, e la barra con Cronologia, FTP e Web sopra, in mezzo o sotto di essi, e nascondi ciò che non usi."},
         {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "Puoi anche attivare o disattivare il server FTP e il server web da Installazione remota, con i due piccoli pulsanti accanto alla Cronologia."},
         // System's groups and hardware tests
         {"Model, versions and region", "Modello, versioni e regione"},

@@ -1005,7 +1005,7 @@ const i18n_entry i18n_es[] = {
         {"\uE005, or this button on the one with the focus, makes it big or small. The others move aside to make room; when there is none, it shakes.", "\uE005, o este botón de la que tiene el foco, la hace grande o pequeña. Las demás se apartan para hacerle sitio; si no hay, tiembla."},
         {"Big and small entries, where you want them", "Entradas grandes y pequeñas, donde quieras"},
         {" move    reset   SELECT done", " mover    restaurar   SELECT listo"},
-        {"Drag a tile, or pick it up with A and use the D-Pad, to put it where you want. The history row stays at the bottom.", "Arrastra un botón, o cógelo con A y usa la cruceta, para ponerlo donde quieras. La fila del historial se queda abajo."},
+        {"Drag a tile or a part of the bar, or pick it up with A and use the D-Pad, to put it where you want: the bar goes above, between or under the tiles, and its parts change places along it. Drop a tile, FTP or Web on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back.", "Arrastra una ficha o una parte de la barra, o cógela con A y usa la cruceta, para ponerla donde quieras: la barra va encima, entre o debajo de las fichas, y sus partes cambian de sitio a lo largo de ella. Suelta una ficha, FTP o Web en la fila de abajo, o pulsa X, para ocultarla; toca una oculta para recuperarla."},
         // Store
         {"Reinstall the CIA", "Reinstalar el CIA"},
         {"Download the CIA", "Descargar el CIA"},
@@ -1658,6 +1658,7 @@ const i18n_entry i18n_es[] = {
         {"Status", "Estado"},
         {"PIN", "PIN"},
         {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "Los dos botones pequeños junto a Historial activan o desactivan el servidor FTP y el servidor web. Ponte sobre uno y la pantalla de arriba muestra su dirección (el web, también su PIN y un código QR)."},
+        {"SELECT, or holding a tile, edits this screen: move the tiles, and the bar with History, FTP and Web above, between or under them, and hide what you do not use.", "SELECT, o mantener pulsada una ficha, edita esta pantalla: mueve las fichas, y la barra con Historial, FTP y Web encima, entre o debajo de ellas, y oculta lo que no uses."},
         {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "También puedes activar o desactivar el servidor FTP y el servidor web desde Instalación remota, con los dos botones pequeños junto a Historial."},
         // System's groups and hardware tests
         {"Model, versions and region", "Modelo, versiones y región"},

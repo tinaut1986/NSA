@@ -116,6 +116,7 @@ static const coach_step remote_steps[] = {
         INFO_SINCE(GUIDE_VERSION(0, 11), NULL, "Installing a game that is already there keeps its save. An older version asks first, and NSA backs up the save and puts it back."),
         INFO_SINCE(GUIDE_VERSION(0, 11), NULL, "When a download, an install or a transfer ends, the notification light blinks. Any button turns it off."),
         INFO_SINCE(GUIDE_VERSION(0, 12), "remote.web", "The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code)."),
+        INFO_SINCE(GUIDE_VERSION(0, 17), "remote.history", "SELECT, or holding a tile, edits this screen: move the tiles, and the bar with History, FTP and Web above, between or under them, and hide what you do not use."),
         DO("back", "\uE001 goes back to the menu.", KEY_B, true, "v:Main menu"),
 };
 

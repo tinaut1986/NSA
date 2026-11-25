@@ -969,7 +969,7 @@ const i18n_entry i18n_fr[] = {
         {"\uE005, or this button on the one with the focus, makes it big or small. The others move aside to make room; when there is none, it shakes.", "\uE005, ou ce bouton sur celle qui a le focus, l'agrandit ou la réduit. Les autres s'écartent pour lui faire de la place ; s'il n'y en a pas, elle tremble."},
         {"Big and small entries, where you want them", "Grandes et petites entrées, où vous voulez"},
         {"\uE000 move   \uE003 reset   SELECT done", "\uE000 déplacer   \uE003 rétablir   SELECT fini"},
-        {"Drag a tile, or pick it up with A and use the D-Pad, to put it where you want. The history row stays at the bottom.", "Faites glisser une tuile, ou prenez-la avec A et utilisez la croix directionnelle, pour la placer où vous voulez. La rangée de l'historique reste en bas."},
+        {"Drag a tile or a part of the bar, or pick it up with A and use the D-Pad, to put it where you want: the bar goes above, between or under the tiles, and its parts change places along it. Drop a tile, FTP or Web on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back.", "Faites glisser une tuile ou une partie de la barre, ou prenez-la avec A et utilisez la croix directionnelle, pour la mettre où vous voulez : la barre va au-dessus, entre ou sous les tuiles, et ses parties changent de place le long d'elle. Déposez une tuile, FTP ou Web sur la rangée du bas, ou appuyez sur X, pour la cacher ; touchez-en une cachée pour la récupérer."},
         {"Reinstall the CIA", "Réinstaller le CIA"},
         {"Download the CIA", "Télécharger le CIA"},
         {"Saves it in /nsa/received/ to install it later from Files.", "L'enregistre dans /nsa/received/ pour l'installer plus tard depuis Fichiers."},
@@ -1612,6 +1612,7 @@ const i18n_entry i18n_fr[] = {
         {"Status", "État"},
         {"PIN", "PIN"},
         {"The two small buttons beside History turn the FTP server and the web server on or off. Move onto one and the top screen shows its address (the web one also its PIN and a QR code).", "Les deux petits boutons à côté de l'Historique activent ou désactivent le serveur FTP et le serveur web. Placez-vous sur l'un d'eux et l'écran du haut affiche son adresse (pour le web, aussi le PIN et un code QR)."},
+        {"SELECT, or holding a tile, edits this screen: move the tiles, and the bar with History, FTP and Web above, between or under them, and hide what you do not use.", "SELECT, ou un appui long sur une tuile, modifie cet écran : déplacez les tuiles, et la barre avec Historique, FTP et Web au-dessus, entre ou sous elles, et cachez ce que vous n'utilisez pas."},
         {"You can also turn the FTP server and the web server on or off from Remote install, with the two small buttons beside History.", "Vous pouvez aussi activer ou désactiver le serveur FTP et le serveur web depuis Installation à distance, avec les deux petits boutons à côté de l'Historique."},
         // System's groups and hardware tests
         {"Model, versions and region", "Modèle, versions et région"},

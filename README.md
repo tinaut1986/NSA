@@ -187,3 +187,5 @@ version comes from the git tags (`tools/version.sh`).
 - Audio decoding: [dr_libs](https://github.com/mackron/dr_libs) (public domain / MIT-0) and
   Tremor; pictures: [stb_image](https://github.com/nothings/stb); QR codes:
   [quirc](https://github.com/dlbeer/quirc).
+- Open source DSP firmware: [OpenDSP](https://github.com/Cellenseres/OpenDSP) by Cellenseres (BSD 2-Clause, the
+  licence in `romfs/opendsp/LICENSE.txt`). NSA carries a copy of its `opendsp.cdc` for consoles without internet.

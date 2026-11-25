@@ -73,7 +73,7 @@ static const mainmenu_entry console_settings[] = {
 
 // What Luma3DS's Rosalina menu or GodMode9 were opened for (utilities.c).
 static const mainmenu_entry utilities[] = {
-        {ICON_VOLUME, "DSP firmware", "Homebrew needs it to play sound. On: /3ds/dspfirm.cdc is on the SD card and whole. Turning it on dumps it from the console.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, NULL, 0, false, utilities_dsp_value, utilities_dsp_toggle},
+        {ICON_VOLUME, "DSP firmware", "Homebrew needs it to play sound. On: Nintendo's, whole; OpenDSP: the open source one. A or a tap: dump it or put OpenDSP.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, NULL, 0, false, utilities_dsp_value, utilities_dsp_toggle},
         {ICON_PUZZLE, "Game patching", "Luma3DS's game patching, for LayeredFS mods and IPS patches. A change takes effect when the console restarts.", NULL, NULL, SYSTEM_MEDIATYPE_SD, -1, NULL, NULL, 0, false, utilities_luma_value, utilities_luma_toggle},
         {ICON_DEVICE_GAMEPAD_2, "Button remapping", "Change what the buttons do in every game, or in one, with Rehid (a HID module Luma3DS loads). NSA installs it and edits its remappings.", "Rehid, in every game", rehidview_open, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_REFRESH, "Restart", "Restart the console. NSA closes first.", "Restart the console", utilities_restart_open, -1, -1},

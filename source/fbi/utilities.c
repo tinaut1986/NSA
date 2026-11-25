@@ -35,7 +35,10 @@
 #define DSP_SEGMENTS_OFFSET 0x120
 #define DSP_SEGMENT_SIZE 0x30
 #define DSP_SEGMENTS_MAX 10
-#define DSP_SIZE_MAX 0x10000
+// The DSP's memory (512 KiB) is the bound. Nintendo's firmware is 49756 bytes, but OpenDSP (an open source one, unsigned,
+// that libctru's ndsp loads all the same) is over 200 KiB.
+#define DSP_SIZE_MAX 0x80000
+#define DSP_SIGNATURE_SIZE 0x100
 
 static u32 utilities_le32(const u8* p) {
     return p[0] | (p[1] << 8) | (p[2] << 16) | ((u32) p[3] << 24);
@@ -78,7 +81,8 @@ static u32 utilities_dsp_check(const u8* firm, u32 available) {
     return segments > 0 ? size : 0;
 }
 
-// The firmware already on the SD card: 1 whole, 0 none, -1 there but not a whole firmware. `size` gets its size.
+// The firmware already on the SD card: 1 whole, 2 whole but unsigned (not Nintendo's: OpenDSP), 0 none, -1 there but
+// not a whole firmware. `size` gets its size.
 static int utilities_dsp_on_sd(u32* size) {
     *size = 0;
     FILE* f = fopen(DSP_PATH, "rb");
@@ -93,6 +97,15 @@ static int utilities_dsp_on_sd(u32* size) {
         u32 checked = utilities_dsp_check(buffer, length);
         if(checked != 0 && checked == length) {
             state = 1;
+            // Nintendo's carries an RSA signature in its first 0x100 bytes; OpenDSP leaves them zero.
+            bool signedFirm = false;
+            for(u32 i = 0; i < DSP_SIGNATURE_SIZE && !signedFirm; i++) {
+                signedFirm = buffer[i] != 0;
+            }
+
+            if(!signedFirm) {
+                state = 2;
+            }
         }
 
         *size = length;
@@ -338,7 +351,7 @@ const char* utilities_dsp_value() {
         utilities_dsp_state = utilities_dsp_on_sd(&size);
     }
 
-    return utilities_dsp_state > 0 ? _("On") : utilities_dsp_state < 0 ? _("Damaged") : _("Off");
+    return utilities_dsp_state == 2 ? _("Custom") : utilities_dsp_state > 0 ? _("On") : utilities_dsp_state < 0 ? _("Damaged") : _("Off");
 }
 
 // On: delete the file (asked first: homebrew loses its sound). Off or damaged: dump it from HOME Menu at once.

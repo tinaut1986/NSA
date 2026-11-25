@@ -16,6 +16,7 @@
 #include "../core/data/smdh.h"
 #include "settings.h"
 #include "transfer.h"
+#include "foldersize.h"
 
 // Files: rows with an icon by kind (a CIA shows its title's icon), the path in
 // the title bar and tools for the clipboard, filter and sort, search and the
@@ -862,6 +863,15 @@ static void files_dir_name(const char* path, char* out, size_t size) {
     out[n] = 0;
 }
 
+// Counts what the folder holds (the one the sheet is for: an item of the list, or the folder shown).
+static void files_folder_size(void* data) {
+    files_data* listData = (files_data*) data;
+    file_info* info = (file_info*) listData->actionSelected->data;
+    char name[FILE_NAME_MAX];
+    files_dir_name(info->path, name, sizeof(name));
+    foldersize_open(info->archive, info->path, name);
+}
+
 static void files_file_actions_open(files_data* data, linked_list* items, list_item* selected) {
     file_info* info = (file_info*) selected->data;
     data->actionItems = items;
@@ -941,6 +951,7 @@ static void files_dir_actions_open(files_data* data, linked_list* items, list_it
             {ICON_COPY, _("Copy contents"), false, files_copy_contents},
             {ICON_SCISSORS, _("Cut folder (move)"), false, files_cut},
             {ICON_PENCIL, _("Rename folder"), false, files_rename},
+            {ICON_DATABASE, _("Calculate size"), false, files_folder_size},
             {ICON_SQUARE_CHECK, _("Select several"), false, files_select_from_sheet},
             {ICON_TRASH, _("Delete contents"), true, files_delete_contents},
             {ICON_TRASH_X, _("Delete folder"), true, files_delete_dir}
@@ -1003,6 +1014,7 @@ static void files_folder_actions_open(files_data* data, linked_list* items) {
         actions[count++] = (sheet_action) {ICON_PENCIL, _("Rename folder"), false, files_rename};
     }
 
+    actions[count++] = (sheet_action) {ICON_DATABASE, _("Calculate size"), false, files_folder_size};
     actions[count++] = (sheet_action) {ICON_REFRESH, _("Refresh"), false, files_refresh};
 
     if(cias) {

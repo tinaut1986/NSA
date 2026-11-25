@@ -163,13 +163,13 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- [ ] DS forwarder that replaces another (2026-11-26, `fix/nds-forwarder-replace`; issue #56: two .nds, one icon). The
+- [x] DS forwarder that replaces another (2026-11-26, `fix/nds-forwarder-replace`; issue #56: two .nds, one icon). The
   forwarder's title ID comes from the game code, so two files with the same code (a copy, a patched game, a romhack) share
   it and the second replaced the first, while the question only said "This game already has an icon". Now, when a title
   with that ID is installed, NSA reads which file it starts (its SRL in TWL NAND, /title/00048004/<low>/content/*.app, at
   the template's gamepath_location): the same file keeps that question; another one says which and that its icon goes;
   unknown (no template yet, a forwarder made by another tool) says one with the game's code exists, maybe for another
-  file. Builds; not tried anywhere (Azahar has no forwarders).
+  file. The owner tried it on the New 3DS XL (2026-11-26): it works.
 - [ ] A folder's size and what takes the room (2026-11-25, `feat/folder-size`, cut from `feat/menu-grid`; issue #55,
   "Calculate folder size" and 3dsDirStat). "Calculate size" in a folder's actions (an item of the list, or the folder
   shown, with X) counts everything in it on a thread (`foldersize.c`, below the UI's priority, 32 levels at most): the

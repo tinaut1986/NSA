@@ -64,6 +64,202 @@ static u32 settings_get_uint(json_t* object, const char* key, u32 fallback, u32 
     return number >= 0 && number <= (json_int_t) max ? (u32) number : fallback;
 }
 
+// The main menu's layout. settings.json keeps it as
+//   "menu_layout": {"shown": [{"id": "sd", "col": 0, "row": 0, "big": true}, ...], "hidden": ["advanced"]}
+// and mainmenu.c works with the same thing as one line, "sd:00B,...|advanced" (settings_data.menu). NSA 0.16 and older
+// kept that line as "menu", without places: it is still read.
+
+// An id fit for the line: short, and none of its separators.
+static bool settings_menu_id_ok(const char* id) {
+    size_t len = strlen(id);
+    return len > 0 && len < 16 && strpbrk(id, ",|:") == NULL;
+}
+
+static void settings_menu_from_json(json_t* layout) {
+    char text[sizeof(settings.menu)];
+    size_t len = 0;
+    text[0] = '\0';
+
+    json_t* shown = json_object_get(layout, "shown");
+    size_t i;
+    json_t* item;
+    json_array_foreach(shown, i, item) {
+        const char* id = json_string_value(json_object_get(item, "id"));
+        if(id == NULL || !settings_menu_id_ok(id) || len + 24 >= sizeof(text)) {
+            continue;
+        }
+
+        u32 col = settings_get_uint(item, "col", 99, 9);
+        u32 row = settings_get_uint(item, "row", 99, 9);
+        if(len > 0) {
+            text[len++] = ',';
+        }
+
+        if(col <= 9 && row <= 9) {
+            len += snprintf(text + len, sizeof(text) - len, "%s:%lu%lu%s", id, col, row, settings_get_bool(item, "big", false) ? "B" : "");
+        } else {
+            len += snprintf(text + len, sizeof(text) - len, "%s", id);
+        }
+    }
+
+    text[len++] = '|';
+    text[len] = '\0';
+    json_t* hidden = json_object_get(layout, "hidden");
+    bool first = true;
+    json_array_foreach(hidden, i, item) {
+        const char* id = json_string_value(item);
+        if(id == NULL || !settings_menu_id_ok(id) || len + 18 >= sizeof(text)) {
+            continue;
+        }
+
+        len += snprintf(text + len, sizeof(text) - len, "%s%s", first ? "" : ",", id);
+        first = false;
+    }
+
+    string_copy(settings.menu, text, sizeof(settings.menu));
+}
+
+static json_t* settings_menu_to_json() {
+    json_t* shown = json_array();
+    json_t* hidden = json_array();
+    bool inHidden = false;
+    const char* c = settings.menu;
+    while(*c != '\0') {
+        if(*c == '|' || *c == ',') {
+            inHidden |= *c == '|';
+            c++;
+            continue;
+        }
+
+        char id[16];
+        size_t len = 0;
+        while(*c != '\0' && *c != ',' && *c != '|' && *c != ':') {
+            if(len < sizeof(id) - 1) {
+                id[len++] = *c;
+            }
+
+            c++;
+        }
+
+        id[len] = '\0';
+        json_t* entry = json_pack("{s:s}", "id", id);
+        if(*c == ':') {
+            c++;
+            if(c[0] >= '0' && c[0] <= '9' && c[1] >= '0' && c[1] <= '9') {
+                json_object_set_new(entry, "col", json_integer(c[0] - '0'));
+                json_object_set_new(entry, "row", json_integer(c[1] - '0'));
+                c += 2;
+            }
+
+            json_object_set_new(entry, "big", json_boolean(*c == 'B'));
+            while(*c != '\0' && *c != ',' && *c != '|') {
+                c++;
+            }
+        }
+
+        if(inHidden) {
+            json_array_append_new(hidden, json_string(id));
+            json_decref(entry);
+        } else {
+            json_array_append_new(shown, entry);
+        }
+    }
+
+    return json_pack("{s:o,s:o}", "shown", shown, "hidden", hidden);
+}
+
+// Remote install's layout. settings.json keeps it as
+//   "remote_layout": {"tiles": ["3ds", "pc", "qr"], "hidden_tiles": ["url"], "bar": ["history", "ftp"],
+//                     "hidden_bar": ["web"], "bar_row": 2}
+// and remoteinstall.c works with it as one line, "3ds,pc,qr|url;history,ftp|web;2" (settings_data.remoteMenu).
+// NSA 0.16 and older kept only the tiles' order as "remote_menu": it is still read.
+
+// Appends the ids of `array` to `text`, comma separated.
+static size_t settings_remote_ids(json_t* array, char* text, size_t len, size_t size) {
+    size_t i;
+    json_t* item;
+    bool first = true;
+    json_array_foreach(array, i, item) {
+        const char* id = json_string_value(item);
+        if(id == NULL || !settings_menu_id_ok(id) || strpbrk(id, ";") != NULL || len + 18 >= size) {
+            continue;
+        }
+
+        len += snprintf(text + len, size - len, "%s%s", first ? "" : ",", id);
+        first = false;
+    }
+
+    return len;
+}
+
+static void settings_remote_from_json(json_t* layout) {
+    char text[sizeof(settings.remoteMenu)];
+    size_t len = 0;
+    text[0] = '\0';
+    len = settings_remote_ids(json_object_get(layout, "tiles"), text, len, sizeof(text));
+    len += snprintf(text + len, sizeof(text) - len, "|");
+    len = settings_remote_ids(json_object_get(layout, "hidden_tiles"), text, len, sizeof(text));
+    len += snprintf(text + len, sizeof(text) - len, ";");
+    len = settings_remote_ids(json_object_get(layout, "bar"), text, len, sizeof(text));
+    len += snprintf(text + len, sizeof(text) - len, "|");
+    len = settings_remote_ids(json_object_get(layout, "hidden_bar"), text, len, sizeof(text));
+    snprintf(text + len, sizeof(text) - len, ";%lu", settings_get_uint(layout, "bar_row", 2, 2));
+    string_copy(settings.remoteMenu, text, sizeof(settings.remoteMenu));
+}
+
+// One section of the line ("a,b|c") as its shown and hidden arrays.
+static void settings_remote_section(const char* c, const char* end, json_t* shown, json_t* hidden) {
+    bool inHidden = false;
+    while(c < end) {
+        if(*c == ',' || *c == '|') {
+            inHidden |= *c == '|';
+            c++;
+            continue;
+        }
+
+        char id[16];
+        size_t len = 0;
+        while(c < end && *c != ',' && *c != '|') {
+            if(len < sizeof(id) - 1) {
+                id[len++] = *c;
+            }
+
+            c++;
+        }
+
+        id[len] = '\0';
+        json_array_append_new(inHidden ? hidden : shown, json_string(id));
+    }
+}
+
+static json_t* settings_remote_to_json() {
+    json_t* tiles = json_array();
+    json_t* hiddenTiles = json_array();
+    json_t* bar = json_array();
+    json_t* hiddenBar = json_array();
+    const char* text = settings.remoteMenu;
+    const char* tilesEnd = strchr(text, ';');
+    if(tilesEnd == NULL) {
+        tilesEnd = text + strlen(text);
+    }
+
+    settings_remote_section(text, tilesEnd, tiles, hiddenTiles);
+    int row = 2;
+    if(*tilesEnd == ';') {
+        const char* barEnd = strchr(tilesEnd + 1, ';');
+        if(barEnd == NULL) {
+            barEnd = tilesEnd + 1 + strlen(tilesEnd + 1);
+        }
+
+        settings_remote_section(tilesEnd + 1, barEnd, bar, hiddenBar);
+        if(*barEnd == ';' && barEnd[1] >= '0' && barEnd[1] <= '2') {
+            row = barEnd[1] - '0';
+        }
+    }
+
+    return json_pack("{s:o,s:o,s:o,s:o,s:i}", "tiles", tiles, "hidden_tiles", hiddenTiles, "bar", bar, "hidden_bar", hiddenBar, "bar_row", row);
+}
+
 void settings_load() {
     // Off everywhere: with 5% of the system core during transfers (xferturn.h) the music costs an Old 3DS's FTP only 2-3%.
     settings.ftpPausesMusic = false;
@@ -155,13 +351,19 @@ void settings_load() {
         settings.night = (theme_night_mode) settings_find(night_ids, 3, json_string_value(night));
     }
 
+    json_t* menuLayout = json_object_get(json, "menu_layout");
     json_t* menu = json_object_get(json, "menu");
-    if(json_is_string(menu)) {
+    if(json_is_object(menuLayout)) {
+        settings_menu_from_json(menuLayout);
+    } else if(json_is_string(menu)) {
         string_copy(settings.menu, json_string_value(menu), sizeof(settings.menu));
     }
 
+    json_t* remoteLayout = json_object_get(json, "remote_layout");
     json_t* remoteMenu = json_object_get(json, "remote_menu");
-    if(json_is_string(remoteMenu)) {
+    if(json_is_object(remoteLayout)) {
+        settings_remote_from_json(remoteLayout);
+    } else if(json_is_string(remoteMenu)) {
         string_copy(settings.remoteMenu, json_string_value(remoteMenu), sizeof(settings.remoteMenu));
     }
 
@@ -352,8 +554,14 @@ Result settings_save() {
     json_object_set_new(json_object_get(json, "extsave"), "tile", json_integer(settings.extsave.tile));
     json_object_set_new(json, "mods", json_pack("{s:i,s:i,s:b,s:b}", "states", (int) settings.mods.states, "sort", (int) settings.mods.sort, "sortReverse", settings.mods.sortReverse, "grid", settings.mods.grid));
     json_object_set_new(json_object_get(json, "mods"), "tile", json_integer(settings.mods.tile));
-    json_object_set_new(json, "menu", json_string(settings.menu));
-    json_object_set_new(json, "remote_menu", json_string(settings.remoteMenu));
+    if(settings.menu[0] != '\0') {
+        json_object_set_new(json, "menu_layout", settings_menu_to_json());
+    }
+
+    if(settings.remoteMenu[0] != '\0') {
+        json_object_set_new(json, "remote_layout", settings_remote_to_json());
+    }
+
     json_object_set_new(json, "guide_seen", json_string(settings.guideSeen));
     json_object_set_new(json, "guide_known", json_integer(settings.guideKnown));
     json_object_set_new(json, "player_repeat", json_integer(settings.playerRepeat));

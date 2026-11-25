@@ -163,6 +163,37 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Remote install's layout (2026-11-25, `feat/menu-grid`; issue #55 asked to hide what is not used there, the owner
+  added moving the history bar). Editing (SELECT or a long press on any item): the four tiles change places (two to a
+  row, sizes fixed) and can be hidden; the bar (History, FTP, Web) goes above, between or under the rows of tiles (a
+  drag onto another row, or Up/Down when picked up) and its parts change places along it; FTP and Web can be hidden,
+  History cannot (it shows whenever there is a request). Hidden ones wait in a tray at the bottom while editing (the
+  tiles get shorter); a tap brings one back. settings.json keeps `"remote_layout": {"tiles", "hidden_tiles", "bar",
+  "hidden_bar", "bar_row"}` (nothing for the default); remoteinstall.c works with it as one line
+  `3ds,pc,qr|url;history,ftp|web;2` (the 0.16 `"remote_menu"` order is still read). The D-Pad moves to the closest item
+  that way. A 0.17 guide step in the Remote install chapter tells about it. Claude, Azahar: the bar to the top and to the
+  middle, Web before History, FTP and QR hidden, saved and read back after a restart. Not tried: a console, the guide
+  step, a screen with no history.
+- [ ] Main menu as a grid (2026-11-25, `feat/menu-grid`; the owner's idea for issue #55's "Main menu - Gaps between tiles?").
+  Every theme but HOME's draws the menu as a grid six cells across and four down (`mainmenu.c`): a big entry takes two by
+  two, a small one a cell, each where the user puts it. NSA comes with the old look (the first three big across the top,
+  the rest as icons in the two rows under them), and a layout saved by 0.16 or older gets it too. Editing (SELECT or a
+  long press): drag an entry anywhere and the ones in the way move to the free places closest to theirs (each step starts
+  again from the layout the drag began with, so they come back when the finger moves on; with no room the last good
+  layout stays); A and the D-Pad move it a cell at a time; R, or the round button on the corner of the one with the focus
+  (arrows out on a small one, in on a big one: Tabler's arrows-diagonal and arrows-diagonal-minimize-2, added to the
+  atlases without redrawing the other cells), makes it big or small (it grows into the two by two square around it that moves the fewest others) and an entry with no
+  room shakes with the error tone; the cells get shorter and a tray for the hidden ones opens under them ("Drop an entry
+  here to hide it" when empty); a hidden one comes back as an icon in the first free cell. The focused small entry's name
+  shows in a bubble with a cone pointing at it, with the theme's card radius and outline (Pixel: square, 2 px outline,
+  the cone outlined too). settings.json keeps `"menu_layout": {"shown": [{"id", "col", "row", "big"}...], "hidden": [ids]}`
+  (nothing for the default); mainmenu.c works with it as one line, `sd:00B,...|advanced` (settings.c converts; the
+  0.16 `"menu"` string is still read). HOME's theme keeps its flow of
+  tiles and its own reordering; an entry shown there gets a free cell when the grid comes back. The guide's "Your main
+  menu" is marked updated in 0.17 (the grid, the size button). Claude, Azahar: the default, shrink, grow (others pushed
+  aside), a drag with no room, hiding by dragging to the tray, a tap bringing one back, the save and a 0.16 layout
+  converted, Spanish, the bubble in Cards and Pixel, `menu_layout` saved and read back after a restart. Not tried: a
+  console, HOME's theme, the guide chapter, the shake (not seen in a still).
 - [ ] Button remapping with Rehid (2026-11-22, `feat/rehid`; the owner asked for a GUI for hax0kartik/rehid inside NSA).
   Utilities -> Button remapping (`rehid.c`: module, files, limits; `rehidview.c`: screens), and "Button remapping" in a
   game's sheet in Titles once Rehid is on the SD card. Rehid is a HID module Luma3DS loads (`/luma/sysmodules/

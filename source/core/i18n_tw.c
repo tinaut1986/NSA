@@ -1726,6 +1726,8 @@ const i18n_entry i18n_tw[] = {
         {"A connection can also be set up from a QR code: the camera reads the one a phone shows when it shares its Wi-Fi, or a router's. Show QR code puts a connection or a copy on the top screen, for a phone to join.", "連線也能從 QR 碼設定：相機會讀取手機分享 Wi-Fi 時顯示的碼，或路由器的碼。「顯示 QR 碼」會把連線或副本顯示在上螢幕，讓手機加入。"},
         {"Put this game in the HOME Menu? The .nds stays where it is: the icon starts it from there with nds-bootstrap.", "要把這個遊戲放到 HOME 選單嗎？.nds 留在原處：圖示會用 nds-bootstrap 從那裡啟動它。"},
         {"This game already has an icon in the HOME Menu. Make it again from this file?", "這個遊戲在 HOME 選單中已有圖示。要用這個檔案重新製作嗎？"},
+        {"The HOME Menu already has an icon with this game's code (%s), maybe for another file. Installing this one replaces it. Go on?", "HOME 選單中已有使用這個遊戲代碼（%s）的圖示，可能屬於另一個檔案。安裝這個會取代它。要繼續嗎？"},
+        {"The HOME Menu already has an icon with this game's code, for another file: %s. Installing this one replaces it, and that icon goes. Go on?", "HOME 選單中已有使用這個遊戲代碼的圖示，屬於另一個檔案：%s。安裝這個會取代它，那個圖示會消失。要繼續嗎？"},
         {"A game started from the HOME Menu needs nds-bootstrap's forwarder pack (sd:/_nds/ntr-forwarder), which is not on the SD card. Download it from GitHub (RocketRobz/NTR_Forwarder, about 2 MB) and put it there?", "從 HOME 選單啟動的遊戲需要 nds-bootstrap 的 forwarder pack（sd:/_nds/ntr-forwarder），但 SD 卡上沒有。要從 GitHub（RocketRobz/NTR_Forwarder，約 2 MB）下載並放到那裡嗎？"},
         {"\"%s\" is in the HOME Menu now. Keep the .nds where it is: the icon starts it from there with nds-bootstrap.", "「%s」已在 HOME 選單中。請把 .nds 留在原處：圖示會用 nds-bootstrap 從那裡啟動它。"},
         {"Failed to install the game in the HOME Menu.", "無法把遊戲安裝到 HOME 選單。"},

@@ -6,6 +6,7 @@
 #include "action.h"
 #include "../resources.h"
 #include "../task/uitask.h"
+#include "../foldersize.h"
 #include "../../core/core.h"
 
 typedef struct {
@@ -30,6 +31,7 @@ static void action_new_folder_onresponse(ui_view* view, void* data, SwkbdButton 
         FS_Path* fsPath = fs_make_path_utf8(path);
         if(fsPath != NULL) {
             res = FSUSER_CreateDirectory(parentDir->archive, *fsPath, FS_ATTRIBUTE_DIRECTORY);
+            foldersize_forget_all();
 
             fs_free_path_utf8(fsPath);
         } else {

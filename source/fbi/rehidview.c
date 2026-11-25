@@ -1274,7 +1274,7 @@ static const char* rv_state_text(rehid_state state) {
         case REHID_OFF: return _("Turned off");
         case REHID_NEEDS_LUMA: return _("Luma3DS does not load it");
         case REHID_NEEDS_RESTART: return _("Restart to start it");
-        default: return _("Running");
+        default: return _("Active");
     }
 }
 

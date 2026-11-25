@@ -8,6 +8,7 @@
 
 #include "resources.h"
 #include "section.h"
+#include "foldersize.h"
 #include "settings.h"
 #include "datetime.h"
 #include "dlqueue.h"
@@ -75,6 +76,7 @@ static const mainmenu_entry console_settings[] = {
 static const mainmenu_entry utilities[] = {
         {ICON_VOLUME, "DSP firmware", "Homebrew needs it to play sound. On: Nintendo's, whole; OpenDSP: the open source one. A or a tap: dump it or put OpenDSP.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, NULL, 0, false, utilities_dsp_value, utilities_dsp_toggle},
         {ICON_PUZZLE, "Game patching", "Luma3DS's game patching, for LayeredFS mods and IPS patches. A change takes effect when the console restarts.", NULL, NULL, SYSTEM_MEDIATYPE_SD, -1, NULL, NULL, 0, false, utilities_luma_value, utilities_luma_toggle},
+        {ICON_DATABASE, "What takes the room", "Which folders and files take the most room on the SD card, biggest first, each with its share.", "Biggest first", foldersize_open_sd, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_DEVICE_GAMEPAD_2, "Button remapping", "Change what the buttons do in every game, or in one, with Rehid (a HID module Luma3DS loads). NSA installs it and edits its remappings.", "Rehid, in every game", rehidview_open, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_REFRESH, "Restart", "Restart the console. NSA closes first.", "Restart the console", utilities_restart_open, -1, -1},
         {ICON_POWER, "Power off", "Turn the console off. NSA closes first.", "Turn the console off", utilities_power_off_open, -1, -1},
@@ -732,6 +734,67 @@ static void mainmenu_rows_of(u32 p, int* top, int* bottom) {
     *bottom = grid_row[e] + grid_span(e) - 1;
 }
 
+// The row Left and Right go along: the one the D-Pad came in on, for a big entry (two rows). It holds for `nav_entry`
+// only: a touch or another entry starts again from the top row.
+static int nav_row = -1;
+static int nav_entry = -1;
+
+// Left or Right along a row of the grid: the next entry on that row that way (a big one, then on past it on the same
+// row); at the end of the row, the first one of the next row (the last of the one before). In the tray, along it.
+static u32 mainmenu_move_along(u32 selected, bool right, u32 limit) {
+    if(selected >= layout_visible) {
+        if(right) {
+            return selected + 1 < limit ? selected + 1 : 0;
+        }
+
+        return selected > layout_visible ? selected - 1 : (layout_visible > 0 ? layout_visible - 1 : selected);
+    }
+
+    int top, bottom;
+    mainmenu_rows_of(selected, &top, &bottom);
+    int line = nav_entry == (int) layout_perm[selected] && nav_row >= top && nav_row <= bottom ? nav_row : top;
+    float cx = mainmenu_center(selected);
+
+    for(int step = 0; step <= GRID_ROWS; step++) {
+        // Past the last row, going right: the tray first, when editing shows it.
+        if(right && step > 0 && line + step >= GRID_ROWS && limit > layout_visible) {
+            return layout_visible;
+        }
+
+        int row = step == 0 ? line : right ? (line + step) % GRID_ROWS : (line - step + GRID_ROWS) % GRID_ROWS;
+        u32 best = selected;
+        float bestX = 0;
+        for(u32 q = 0; q < layout_visible; q++) {
+            int qTop, qBottom;
+            mainmenu_rows_of(q, &qTop, &qBottom);
+            if(q == selected || row < qTop || row > qBottom) {
+                continue;
+            }
+
+            float qx = mainmenu_center(q);
+            // On its own row, the closest that way; on the next one, the first from its start (or its end).
+            if(step == 0 && (right ? qx <= cx : qx >= cx)) {
+                continue;
+            }
+
+            bool better = best == selected || (right ? qx < bestX : qx > bestX);
+            if(better) {
+                best = q;
+                bestX = qx;
+            }
+        }
+
+        if(best != selected) {
+            nav_entry = layout_perm[best];
+            nav_row = row;
+            return best;
+        }
+
+    }
+
+    return selected;
+}
+
 // The D-Pad among the first `limit` positions: Left and Right go through them in reading order, Up and Down to the row
 // above or under (the tray, editing, is the last), landing on the one closest across; past the edge they go round.
 static u32 mainmenu_move(u32 selected, u32 key, u32 limit) {
@@ -760,10 +823,8 @@ static u32 mainmenu_move(u32 selected, u32 key, u32 limit) {
         }
     }
 
-    if(key == KEY_RIGHT) {
-        return (selected + 1) % limit;
-    } else if(key == KEY_LEFT) {
-        return selected > 0 ? selected - 1 : limit - 1;
+    if(key == KEY_RIGHT || key == KEY_LEFT) {
+        return mainmenu_move_along(selected, key == KEY_RIGHT, limit);
     }
 
     bool down = key == KEY_DOWN;
@@ -800,6 +861,13 @@ static u32 mainmenu_move(u32 selected, u32 key, u32 limit) {
         }
 
         if(best != selected) {
+            if(best < layout_visible) {
+                int bTop, bBottom;
+                mainmenu_rows_of(best, &bTop, &bBottom);
+                nav_entry = layout_perm[best];
+                nav_row = down ? bTop : bBottom;
+            }
+
             return best;
         }
     }
@@ -1920,6 +1988,9 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
 
 
 void mainmenu_open() {
+    // Anything a data operation changes makes the folder sizes counted out of date.
+    task_data_op_set_end_hook(foldersize_forget_all);
+
     mainmenu_data* data = (mainmenu_data*) calloc(1, sizeof(mainmenu_data));
     if(data == NULL) {
         error_panic("Failed to allocate main menu data.");

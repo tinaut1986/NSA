@@ -8,6 +8,7 @@
 
 #include "resources.h"
 #include "section.h"
+#include "foldersize.h"
 #include "settings.h"
 #include "datetime.h"
 #include "dlqueue.h"
@@ -75,6 +76,7 @@ static const mainmenu_entry console_settings[] = {
 static const mainmenu_entry utilities[] = {
         {ICON_VOLUME, "DSP firmware", "Homebrew needs it to play sound. On: Nintendo's, whole; OpenDSP: the open source one. A or a tap: dump it or put OpenDSP.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, NULL, 0, false, utilities_dsp_value, utilities_dsp_toggle},
         {ICON_PUZZLE, "Game patching", "Luma3DS's game patching, for LayeredFS mods and IPS patches. A change takes effect when the console restarts.", NULL, NULL, SYSTEM_MEDIATYPE_SD, -1, NULL, NULL, 0, false, utilities_luma_value, utilities_luma_toggle},
+        {ICON_DATABASE, "What takes the room", "Which folders and files take the most room on the SD card, biggest first, each with its share.", "Biggest first", foldersize_open_sd, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_DEVICE_GAMEPAD_2, "Button remapping", "Change what the buttons do in every game, or in one, with Rehid (a HID module Luma3DS loads). NSA installs it and edits its remappings.", "Rehid, in every game", rehidview_open, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_REFRESH, "Restart", "Restart the console. NSA closes first.", "Restart the console", utilities_restart_open, -1, -1},
         {ICON_POWER, "Power off", "Turn the console off. NSA closes first.", "Turn the console off", utilities_power_off_open, -1, -1},
@@ -1920,6 +1922,9 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
 
 
 void mainmenu_open() {
+    // Anything a data operation changes makes the folder sizes counted out of date.
+    task_data_op_set_end_hook(foldersize_forget_all);
+
     mainmenu_data* data = (mainmenu_data*) calloc(1, sizeof(mainmenu_data));
     if(data == NULL) {
         error_panic("Failed to allocate main menu data.");

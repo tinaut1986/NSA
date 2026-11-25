@@ -293,13 +293,22 @@ static void files_draw_icon(file_info* info, float x, float y, float size) {
     screen_draw_icon(icon, x + size * 0.2f, y + size * 0.2f, size * 0.6f, ink);
 }
 
-// The row's second line: what it is and how big.
-static void files_subtitle(char* out, size_t size, file_info* info) {
+// The row's second line: what it is and how big (a folder, once it was counted: Calculate size).
+static void files_subtitle(char* out, size_t size, file_info* info, u32 archiveId) {
     char bytes[32];
     ui_format_size(bytes, sizeof(bytes), info->size);
+    u64 folderBytes = 0;
+    u32 folderFiles = 0;
     switch(files_kind_of(info)) {
         case KIND_DIR:
-            snprintf(out, size, "%s", _("Folder"));
+            if(foldersize_cached(archiveId, info->path, &folderBytes, &folderFiles, NULL)) {
+                ui_format_size(bytes, sizeof(bytes), folderBytes);
+                char files[48];
+                snprintf(files, sizeof(files), folderFiles == 1 ? _("%lu file") : _("%lu files"), folderFiles);
+                snprintf(out, size, "%s   %s   %s", _("Folder"), bytes, files);
+            } else {
+                snprintf(out, size, "%s", _("Folder"));
+            }
             break;
         case KIND_CIA:
             if(info->ciaInfo.loaded && info->ciaInfo.hasMeta) {
@@ -360,7 +369,7 @@ static void files_draw_row(void* data, list_item* item, float x, float y, float 
     widget_text_fit(item->name, tx, y + 3, WIDGET_TEXT_SCALE, ink, right - tx);
 
     char subtitle[LIST_ITEM_NAME_MAX];
-    files_subtitle(subtitle, sizeof(subtitle), info);
+    files_subtitle(subtitle, sizeof(subtitle), info, data != NULL ? ((files_data*) data)->archiveId : ARCHIVE_SDMC);
     widget_text_fit(subtitle, tx, y + height - 3 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, muted, right - tx);
 }
 
@@ -826,7 +835,10 @@ static void files_nds_home(void* data) {
     ndsfwd_open(((file_info*) listData->actionSelected->data)->path);
 }
 
-static void files_refresh(void* data) { ((files_data*) data)->populated = false; }
+static void files_refresh(void* data) {
+    foldersize_forget_all();
+    ((files_data*) data)->populated = false;
+}
 
 static void files_extract(files_data* data, bool intoFolder) {
     file_info* info = (file_info*) data->actionSelected->data;
@@ -869,7 +881,11 @@ static void files_folder_size(void* data) {
     file_info* info = (file_info*) listData->actionSelected->data;
     char name[FILE_NAME_MAX];
     files_dir_name(info->path, name, sizeof(name));
-    foldersize_open(info->archive, info->path, name);
+    if(strcmp(name, "/") == 0) {
+        string_copy(name, files_archive_name(listData->archiveId), sizeof(name));
+    }
+
+    foldersize_open(info->archive, listData->archiveId, info->path, name);
 }
 
 static void files_file_actions_open(files_data* data, linked_list* items, list_item* selected) {

@@ -163,14 +163,19 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- [ ] A folder's size (2026-11-25, `feat/folder-size`, cut from `feat/menu-grid`; issue #55, "Calculate folder size").
-  "Calculate size" in a folder's actions (an item of the list, and the folder shown, its own sheet with X) counts
-  everything in it on a thread of its own (`foldersize.c`, below the UI's priority, 32 levels deep at most): the top
-  screen shows the total growing, the files and folders so far, the folder being read and the time; B stops it. At the
-  end a message says "NAME: 1.2 GB in 340 files and 12 folders" (and that it is at least that when a folder could not be
-  read). Nothing is kept: each time counts again. Next, if the owner wants it: a 3dsDirStat-like view of what takes the
-  room. Claude, Azahar: the SD card's root (54 files, 17 folders, at once). Not tried: a console, a big folder (the
-  counting screen, B in the middle).
+- [ ] A folder's size and what takes the room (2026-11-25, `feat/folder-size`, cut from `feat/menu-grid`; issue #55,
+  "Calculate folder size" and 3dsDirStat). "Calculate size" in a folder's actions (an item of the list, or the folder
+  shown, with X) counts everything in it on a thread (`foldersize.c`, below the UI's priority, 32 levels at most): the
+  top screen shows the total growing, the files and folders so far, the folder being read and the time; B stops it.
+  Then "What takes the room": the folder's contents biggest first, each row with its share as a bar and a percentage
+  and a colour; the top screen, the folder's size big, a bar of the 7 biggest (shades of the accent, the rest in the
+  last) and their legend. A goes into a folder, B up to where it was opened, then out. Utilities -> What takes the room
+  opens it on the whole SD card. Every folder counted is kept for the session (a hash by archive and path), so a folder
+  inside one counted opens at once, and Files shows "Folder   1.2 GB   340 files" in its row. Forgotten whole when
+  anything may have changed files: the end of any data operation (a hook in dataop.c, set by the main menu), rename,
+  new folder, Files' Refresh. Not forgotten: changes over FTP, the web page or a transfer received (Refresh does it).
+  Claude, Azahar: the SD card's root, into 3ds and back, Utilities, the rows in Files. Not tried: a console, a big
+  folder (the counting screen, B in the middle), a folder that cannot be read ("?").
 - [ ] Remote install's layout (2026-11-25, `feat/menu-grid`; issue #55 asked to hide what is not used there, the owner
   added moving the history bar). Editing (SELECT or a long press on any item): the four tiles change places (two to a
   row, sizes fixed) and can be hidden; the bar (History, FTP, Web) goes above, between or under the rows of tiles (a

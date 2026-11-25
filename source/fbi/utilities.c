@@ -636,7 +636,7 @@ void utilities_dsp_toggle() {
 #define LUMA_GAME_PATCHING "enable_game_patching"
 
 // The offset of the value of `key` in config.ini (one '0' or '1'), or -1.
-static long utilities_luma_find(const char* key, char* value) {
+long utilities_luma_option_find(const char* key, char* value) {
     FILE* f = fopen(LUMA_CONFIG_PATH, "rb");
     if(f == NULL) {
         return -1;
@@ -679,7 +679,7 @@ static long utilities_luma_find(const char* key, char* value) {
     return found;
 }
 
-static bool utilities_luma_set(long offset, char value) {
+bool utilities_luma_option_set(long offset, char value) {
     FILE* f = fopen(LUMA_CONFIG_PATH, "r+b");
     if(f == NULL) {
         return false;
@@ -697,7 +697,7 @@ static int utilities_luma_state = -2;   // 1 on, 0 off, -1 no config.ini (or no 
 const char* utilities_luma_value() {
     if(utilities_luma_state == -2) {
         char value = 0;
-        utilities_luma_state = utilities_luma_find(LUMA_GAME_PATCHING, &value) < 0 ? -1 : value == '1';
+        utilities_luma_state = utilities_luma_option_find(LUMA_GAME_PATCHING, &value) < 0 ? -1 : value == '1';
     }
 
     return utilities_luma_state > 0 ? _("On") : utilities_luma_state == 0 ? _("Off") : _("Not found");
@@ -706,7 +706,7 @@ const char* utilities_luma_value() {
 // Turns it the other way at once, then offers to restart (Luma reads it at boot).
 void utilities_luma_toggle() {
     char value = 0;
-    long offset = utilities_luma_find(LUMA_GAME_PATCHING, &value);
+    long offset = utilities_luma_option_find(LUMA_GAME_PATCHING, &value);
     if(offset < 0) {
         utilities_luma_state = -1;
         prompt_display_notify(_("Luma3DS"), _("Luma3DS's options were not found (/luma/config.ini). Luma3DS 13 or later writes that file; with an older one, change them in its menu (hold SELECT while the console starts)."),
@@ -716,7 +716,7 @@ void utilities_luma_toggle() {
 
     char wanted = value == '1' ? '0' : '1';
     utilities_luma_state = -2;
-    if(!utilities_luma_set(offset, wanted)) {
+    if(!utilities_luma_option_set(offset, wanted)) {
         error_display(NULL, NULL, _("Failed to change Luma3DS's /luma/config.ini."));
         return;
     }

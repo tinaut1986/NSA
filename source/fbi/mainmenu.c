@@ -113,6 +113,7 @@ static const mainmenu_entry entries[] = {
 #define TIP_HEIGHT 26         // A tooltip by the small entry with the focus, with its name.
 #define TIP_SLIDE 10          // The tooltip slides this far while it appears.
 #define TIP_TIME 200
+#define TIP_CONE 6           // The tooltip's cone, in rows of pixels.
 #define TRAY_HEIGHT 30        // Editing: the hidden entries wait in a row at the bottom.
 #define GAP 6
 #define PAD 8
@@ -430,7 +431,7 @@ static void mainmenu_layout_default() {
     grid_flow();
 }
 
-// settings.json keeps the layout as "sd:00B,titles:20B,...|advanced": the shown entries in order, each with its column
+// settings.c keeps the layout as one line, "sd:00B,titles:20B,...|advanced": the shown entries in order, each with its column
 // and row (and B when big), then the hidden ones. A list without places (NSA 0.16 and older) gets the default places.
 static void mainmenu_layout_load() {
     mainmenu_layout_default();
@@ -540,7 +541,7 @@ static void mainmenu_layout_load() {
     grid_validate();
 }
 
-// The layout as settings.json keeps it (above).
+// The layout as that line (above).
 static void mainmenu_layout_text(char* text, size_t size) {
     size_t len = 0;
     text[0] = '\0';
@@ -1713,12 +1714,29 @@ static void mainmenu_draw_tip(const mainmenu_data* menu, float x1, float y1, flo
     u32 fill = danger ? t->palette->danger : t->accent;
     u32 ink = danger ? (t->night ? t->palette->background : t->onAccent) : t->onAccent;
 
-    // A small notch pointing at the icon.
-    float notch = 10;
-    float notchY = above ? y + TIP_HEIGHT - notch / 2 : y - notch / 2;
-    screen_fill_round_rect(ix + iw / 2 - notch / 2, notchY, notch, notch, 2, THEME_ALPHA(fill, alpha));
+    // The theme's corners and outline: a bubble with its card's radius, and the outline round the cone too.
+    float radius = t->def->radius;
+    int border = (int) t->def->border;
+    u32 edge = THEME_ALPHA(t->palette->border, alpha);
+    screen_frame_round_rect(x, y, width, TIP_HEIGHT, radius, (float) border, edge, THEME_ALPHA(fill, alpha));
 
-    screen_fill_round_rect(x, y, width, TIP_HEIGHT, t->def->radiusSmall, THEME_ALPHA(fill, alpha));
+    // A cone pointing at the icon, one row of pixels at a time: two wide at the tip, wider towards the bubble. With an
+    // outline, the cone is drawn in its colour and filled inside, the fill going on through the bubble's outline so the
+    // two are one shape.
+    float cx = (float) (int) (ix + iw / 2);
+    for(int pass = border > 0 ? 0 : 1; pass < 2; pass++) {
+        int rows = pass == 0 ? TIP_CONE : TIP_CONE + border;
+        for(int row = 0; row < rows; row++) {
+            float half = (float) (row + 1) - (pass == 1 ? border * 1.4f : 0);
+            if(half <= 0) {
+                continue;
+            }
+
+            float rowY = above ? y + TIP_HEIGHT + TIP_CONE - 1 - row : y - TIP_CONE + row;
+            screen_fill_rect(cx - half, rowY, 2 * half, 1, pass == 0 ? edge : THEME_ALPHA(fill, alpha));
+        }
+    }
+
     widget_text_fit(name, x + 12, y + (TIP_HEIGHT - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, THEME_ALPHA(ink, alpha), width - 24);
 }
 
@@ -1749,7 +1767,7 @@ static bool mainmenu_anim_step(u32 e, const float target[4], float out[4]) {
     return moving;
 }
 
-// The corner button of the entry with the focus while editing: a magnifier with + to grow it, with - to shrink it.
+// The corner button of the entry with the focus while editing: arrows out to grow it, in to shrink it.
 static void mainmenu_draw_size_button(const mainmenu_data* menu, float x1, float y1, float x2) {
     float bx, by;
     if(!mainmenu_size_button(menu, x1, y1, x2, &bx, &by)) {
@@ -1759,7 +1777,7 @@ static void mainmenu_draw_size_button(const mainmenu_data* menu, float x1, float
     const theme_current* t = theme();
     bool big = grid_big[layout_perm[menu->selected]];
     screen_frame_round_rect(bx, by, SIZE_BUTTON, SIZE_BUTTON, SIZE_BUTTON / 2, 2, t->palette->surface, t->accent);
-    screen_draw_icon(big ? ICON_ZOOM_OUT : ICON_ZOOM_IN, bx + 2, by + 2, 16, t->onAccent);
+    screen_draw_icon(big ? ICON_ARROWS_DIAGONAL_MINIMIZE_2 : ICON_ARROWS_DIAGONAL, bx + 2, by + 2, 16, t->onAccent);
     coach_anchor("menu.size", bx, by, SIZE_BUTTON, SIZE_BUTTON, false);
 }
 

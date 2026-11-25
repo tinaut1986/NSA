@@ -130,8 +130,9 @@ typedef struct {
     // The audio player at the end of a track: 0 the next one (the last stops), 1 the list again, 2 the same track.
     u32 playerRepeat;
 
-    // The main menu's layout: the ids of the entries shown in order, then "|" and the hidden ones; "" for the default.
-    char menu[128];
+    // The main menu's layout as one line: the entries shown, in order, each with its cell and size ("sd:00B"), then "|"
+    // and the hidden ones; "" for the default. settings.json keeps it as "menu_layout" (settings.c).
+    char menu[512];
     // Remote install's four tiles in order, by id ("3ds,pc,qr,url"); "" for the default.
     char remoteMenu[32];
 

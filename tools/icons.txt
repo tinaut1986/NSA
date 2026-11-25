@@ -118,3 +118,5 @@ repeat
 repeat-once
 repeat-off
 calendar
+arrows-diagonal
+arrows-diagonal-minimize-2

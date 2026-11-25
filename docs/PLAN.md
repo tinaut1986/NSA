@@ -223,8 +223,14 @@ What `release` holds, in the order it was built:
   2026-11-25 (`feat/opendsp`, issue #55): OpenDSP's `opendsp.cdc` (v1.3.1, 222528 bytes, BSD-2-Clause) put in as
   dspfirm.cdc showed Damaged: only because the size cap was 64 KiB (Nintendo's is 49756 bytes); its header and the
   three segments' SHA-256 are right. The cap is now the DSP's 512 KiB, and a whole firmware whose signature (the first
-  0x100 bytes) is zero, as OpenDSP's, shows Custom instead of Yes. Not tried on a console: the row with OpenDSP in place
-  (Custom; A asks to delete it, as with Nintendo's).
+  0x100 bytes) is zero, as OpenDSP's, shows OpenDSP instead of Yes.
+  Then (the owner's ask): A on the row opens a sheet, Dump the console's (first) / OpenDSP / Delete (when there is a
+  file). OpenDSP downloads the latest release (GitHub API, then its SHA256SUMS.txt and opendsp.cdc, checked against
+  both); without internet, or while another transfer holds the turn, NSA's own copy (`romfs/opendsp/`, v1.3.1, with its
+  LICENSE.txt; README credits it) goes in without asking, and the message says which. A failed dump offers OpenDSP.
+  The owner on the New 3DS XL, 2026-11-25: the sheet, OpenDSP downloaded from GitHub (v1.3.1, the log shows the three
+  requests) and the console's dumped again afterwards. Not tried: the fallback to NSA's copy on purpose (no Wi-Fi), a
+  dump that fails, the 2DS. Refresh `romfs/opendsp/` when OpenDSP publishes a new release.
 - [ ] System -> Console settings -> Screen brightness (2026-11-16, `feat/brightness-floor`, moved out of Settings into a
   screen of its own with a guide chapter on 2026-11-17, `feat/brightness-screen`; issue #42): System / Custom, and with Custom two
   bars, Lowest and Highest brightness (10-172, the console's own 16 and 142), that never pass each other; the console's

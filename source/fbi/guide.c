@@ -304,7 +304,9 @@ static const coach_step room_steps[] = {
         OPEN("menu.sd", "Open SD card.", "tool.clipboard"),
         DO("tool.more", "\uE002 opens the actions of the folder you are in. Open them.", KEY_X, true, "sheet"),
         REACH("Calculate size", "Go down to Calculate size."),
-        DO("Calculate size", "\uE000 counts everything in it, the folders inside too. The top screen shows the total as it grows; \uE001 stops it.", KEY_A, true, "v:What takes the room"),
+        DO("Calculate size", "\uE000 counts everything in it, the folders inside too.", KEY_A, true, "v:Folder size|v:What takes the room"),
+        // The count can take a while: a step that waits for it, with no time limit (a folder counted before skips it).
+        {.anchor = NULL, .text = "The top screen shows the total as it grows; \uE001 stops it. A big folder takes a while: when it is done, the next screen shows what takes its room.", .until = "v:What takes the room"},
         INFO("top", "The folder's size, and a bar with everything in it, in order: the biggest in shades of the accent. The one with the focus is outlined in it."),
         INFO("list", "What is in it, biggest first: each with its size, a bar with its share and the percentage."),
         INFO("list.selected", "\uE000 goes into a folder, again biggest first; \uE001 goes back up, to the folder you came from."),

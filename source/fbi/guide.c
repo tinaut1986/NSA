@@ -100,6 +100,7 @@ static const coach_step files_steps[] = {
         INFO_SINCE(GUIDE_VERSION(0, 11), "list.selected", "A .zip or a .7z can be extracted from its actions, on the SD card itself."),
         INFO_SINCE(GUIDE_VERSION(0, 12), "list.selected", "A .3dsx can be installed in the HOME Menu from its actions: a title of its own, with a banner made from its icon or from a picture of yours."),
         INFO_SINCE(GUIDE_VERSION(0, 16), "list.selected", "A .nds (a DS game) can go in the HOME Menu too: an icon that starts it with nds-bootstrap. The .nds stays on the SD card, and NSA downloads nds-bootstrap's forwarder pack when it is missing."),
+        INFO_SINCE(GUIDE_VERSION(0, 17), "list.selected", "A folder's actions have Calculate size: it counts everything in it and shows what takes its room, biggest first, folder by folder. Once counted, a folder shows its size in this list."),
         DO("tool.more", "\uE002 has the actions of the folder itself, such as installing all its CIAs. Open them.", KEY_X, true, "sheet"),
         DO("sheet", "Close them with \uE001.", KEY_B, false, "!sheet"),
         INFO("tool.clipboard", "What you copy or cut waits here until you paste it, even if you leave the SD card: you can paste it somewhere else, such as the CTR NAND."),
@@ -277,10 +278,11 @@ static const coach_step brightness_steps[] = {
 
 static const coach_step utilities_steps[] = {
         OPEN("menu.utilities", "Open Utilities: what Rosalina's menu or GodMode9 were opened for.", "v:Utilities"),
-        INFO("DSP firmware", "DSP firmware: homebrew needs it to play sound. On means /3ds/dspfirm.cdc, Nintendo's, is on the SD card and whole."),
-        INFO_SINCE(GUIDE_VERSION(0, 17), "DSP firmware", "\uE000 on it asks where the firmware comes from: dumped from the console, as DSP1 does, or OpenDSP, an open source one that plays what most homebrew needs. OpenDSP comes from GitHub (without internet, the copy NSA carries), and the row says OpenDSP then."),
+        INFO("DSP firmware", "DSP firmware: homebrew needs it to play sound. \"On\" means /3ds/dspfirm.cdc, Nintendo's, is on the SD card and whole."),
+        INFO_SINCE(GUIDE_VERSION(0, 17), "DSP firmware", "\uE000 on it asks where the firmware comes from: dumped from the console, as DSP1 does, or OpenDSP, an open source one that plays what most homebrew needs. OpenDSP comes from GitHub (if there is no internet, the copy NSA carries), and the row says OpenDSP then."),
         INFO("Game patching", "Game patching: Luma3DS's option for LayeredFS mods and IPS patches. A change takes effect when the console restarts, and NSA offers to restart it then."),
         INFO_SINCE(GUIDE_VERSION(0, 17), "Button remapping", "Button remapping changes what the buttons do in every game, or in one, with Rehid. It has a chapter of its own."),
+        INFO_SINCE(GUIDE_VERSION(0, 17), "What takes the room", "What takes the room does the same for the whole SD card: what takes the most room, biggest first."),
         INFO("Restart", "Restart and Power off do what Rosalina's power menu does. NSA closes first, and not while a transfer is under way."),
         DO("back", " goes back to the menu.", KEY_B, true, "v:Main menu"),
 };

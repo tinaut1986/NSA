@@ -340,7 +340,7 @@ static void foldersize_count_draw_top(ui_view* view, void* data, float x1, float
     char took[32];
     u64 ms = osGetTime() - d->started;
     snprintf(took, sizeof(took), "%llu.%llu s", ms / 1000, (ms % 1000) / 100);
-    widget_cell(cardX + cardW - timeW, cellY, timeW, _("Time"), took);
+    widget_cell(cardX + cardW - timeW, cellY, timeW, _("Time taken"), took);
 }
 
 static void foldersize_count_update(ui_view* view, void* data, float* progress, char* text) {
@@ -649,46 +649,62 @@ static void foldersize_view_draw_top(ui_view* view, void* data, float x1, float 
 
     foldersize_draw_card(cardX, y1 + 10, cardW, 84, name, v->total, counts, false);
 
-    // The biggest ones as one bar, a shade each, all the rest in the last.
+    // Everything in it as one bar, in order, each with its place: the biggest in a shade each, the rest in the last
+    // shade. Each keeps at least a pixel (so the small ones still show, and the last ends at the bar's end); several
+    // tiny ones can end up on the same line.
     float barY = y1 + 10 + 84 + 10;
     float barH = 14;
     screen_fill_round_rect(cardX, barY, cardW, barH, t->def->radiusSmall > 4 ? 4 : t->def->radiusSmall, t->palette->border);
-    if(v->total > 0) {
-        float bx = cardX;
-        u64 shown = 0;
-        for(u32 i = 0; i < v->count && i < FOLDERSIZE_SHADES; i++) {
-            float w = (float) ((double) v->children[i].bytes / (double) v->total * cardW);
-            if(w >= 1) {
-                screen_fill_rect(bx, barY, w, barH, foldersize_shade(i));
-                bx += w;
-            }
-
-            shown += v->children[i].bytes;
+    u32 n = v->count;
+    float* ends = n > 0 && v->total > 0 ? (float*) malloc(n * sizeof(float)) : NULL;
+    if(ends != NULL) {
+        u64 sum = 0;
+        for(u32 i = 0; i < n; i++) {
+            sum += v->children[i].bytes;
+            float end = (float) ((double) sum / (double) v->total * cardW);
+            float before = i > 0 ? ends[i - 1] : 0;
+            ends[i] = end < before + 1 ? before + 1 : end;
         }
 
-        if(v->total > shown && bx < cardX + cardW) {
-            screen_fill_rect(bx, barY, cardX + cardW - bx, barH, foldersize_shade(FOLDERSIZE_SHADES));
+        // From the end back: room left for the ones after, the last on the bar's end.
+        ends[n - 1] = cardW;
+        for(int i = (int) n - 2; i >= 0; i--) {
+            if(ends[i] > ends[i + 1] - 1) {
+                ends[i] = ends[i + 1] - 1;
+            }
+        }
+
+        for(u32 i = 0; i < n; i++) {
+            float from = i > 0 ? ends[i - 1] : 0;
+            if(ends[i] - from > 0) {
+                screen_fill_rect(cardX + from, barY, ends[i] - from, barH, foldersize_shade(i));
+            }
+
+            // A line between one and the next.
+            if(i + 1 < n && ends[i] > 0) {
+                screen_fill_rect(cardX + ends[i], barY, 1, barH, t->palette->surface);
+            }
         }
 
         // The one with the focus, outlined in the bar.
         if(selected != NULL) {
             u32 index = (u32) (uintptr_t) selected->data;
-            if(index < FOLDERSIZE_SHADES && index < v->count) {
-                float sx = cardX;
-                for(u32 i = 0; i < index; i++) {
-                    sx += (float) ((double) v->children[i].bytes / (double) v->total * cardW);
+            if(index < n) {
+                float from = index > 0 ? ends[index - 1] : 0;
+                float sx = cardX + from;
+                float w = ends[index] - from;
+                if(w < 2) {
+                    w = 2;
                 }
 
-                float w = (float) ((double) v->children[index].bytes / (double) v->total * cardW);
-                if(w >= 1) {
-                    // An outline, its four sides.
-                    screen_fill_rect(sx - 1, barY - 2, w + 2, 2, t->palette->text);
-                    screen_fill_rect(sx - 1, barY + barH, w + 2, 2, t->palette->text);
-                    screen_fill_rect(sx - 1, barY, 2, barH, t->palette->text);
-                    screen_fill_rect(sx + w - 1, barY, 2, barH, t->palette->text);
-                }
+                screen_fill_rect(sx - 1, barY - 2, w + 2, 2, t->palette->text);
+                screen_fill_rect(sx - 1, barY + barH, w + 2, 2, t->palette->text);
+                screen_fill_rect(sx - 1, barY, 2, barH, t->palette->text);
+                screen_fill_rect(sx + w - 1, barY, 2, barH, t->palette->text);
             }
         }
+
+        free(ends);
     }
 
     // The legend: the biggest ones, two columns.
@@ -792,7 +808,12 @@ static void foldersize_view_update(ui_view* view, void* data, linked_list* items
             }
         }
 
+        // Going in: the first (the biggest); going up: the folder it came from.
         v->reselect[0] = '\0';
+        if(focus == NULL) {
+            focus = (list_item*) linked_list_get(items, 0);
+        }
+
         if(focus != NULL) {
             list_select(view, focus);
         }

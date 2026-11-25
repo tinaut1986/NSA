@@ -109,15 +109,21 @@ static const mainmenu_entry entries[] = {
 };
 
 #define ENTRY_COUNT COUNT_OF(entries)
-#define TILE_COUNT 3      // The first entries, as big tiles in one row.
-#define TILE_HEIGHT 80
-#define SMALL_ROW_HEIGHT 44   // The small entries: one row of icons...
-#define TIP_HEIGHT 26         // ...and a tooltip under the one with the focus, with its name.
-#define TIP_SLIDE 10          // The tooltip slides down this far while it appears.
+#define TILE_COUNT 3          // The default layout: the first entries as big tiles, the rest as icons.
+#define TIP_HEIGHT 26         // A tooltip by the small entry with the focus, with its name.
+#define TIP_SLIDE 10          // The tooltip slides this far while it appears.
 #define TIP_TIME 200
-#define TRAY_HEIGHT 38        // Editing: the hidden entries wait in a row at the bottom.
+#define TRAY_HEIGHT 30        // Editing: the hidden entries wait in a row at the bottom.
 #define GAP 6
 #define PAD 8
+
+// The grid: six cells across, four down. A small entry takes one cell, a big one two by two. Editing, the cells get
+// shorter to make room for the tray.
+#define GRID_COLS 6
+#define GRID_ROWS 4
+#define GRID_GAP 5
+#define GRID_PAD 6
+#define SHAKE_TIME 360        // An entry that has no room to grow, or to come back, shakes this long.
 
 // Stable names for the layout kept in settings.json, in the order of entries[].
 static const char* const entry_ids[] = {"sd", "titles", "remote", "store", "queue", "cleanup", "advanced", "utilities", "system", "settings"};
@@ -144,16 +150,27 @@ typedef struct {
     int dragFrom;       // A finger holds the entry at this position, or -1.
     bool dragMoved;
     float dragStartX, dragStartY, dragX, dragY;
+
+    // The entry that had no room, shaking since `shakeTime`.
+    int shakeEntry;
+    u64 shakeTime;
 } mainmenu_data;
 
-// ---- the layout: which entries show and in which order ----
+/// ---- the layout: which entries show, in which order and where ----
 //
-// A permutation of entries[]: the first `layout_visible` positions are shown (the first three as big tiles, the rest as
-// icons), the others are hidden. Editing shows the hidden ones in a tray under the icons.
+// A permutation of entries[]: the first `layout_visible` positions are shown, the others are hidden. Editing shows the
+// hidden ones in a tray at the bottom. In the grid (every theme but HOME's) each shown entry also has a cell, its top
+// left one, and a size; the shown positions are kept in reading order (by row, then column), so the D-Pad's Left and
+// Right and HOME's own order follow the grid.
 
 static u8 layout_perm[ENTRY_COUNT];
 static u32 layout_visible = ENTRY_COUNT;
 static bool layout_editing = false;
+
+// By entry, not by position.
+static s8 grid_col[ENTRY_COUNT];
+static s8 grid_row[ENTRY_COUNT];
+static bool grid_big[ENTRY_COUNT];
 
 #define POS(p) (&entries[layout_perm[p]])
 
@@ -162,14 +179,259 @@ static bool mainmenu_pinned(u32 entry) {
     return strcmp(entry_ids[entry], "system") == 0 || strcmp(entry_ids[entry], "settings") == 0;
 }
 
+// The position of entry `e`.
+static u32 mainmenu_pos_of(u8 e) {
+    for(u32 p = 0; p < ENTRY_COUNT; p++) {
+        if(layout_perm[p] == e) {
+            return p;
+        }
+    }
+
+    return 0;
+}
+
+static int grid_span(u8 e) {
+    return grid_big[e] ? 2 : 1;
+}
+
+static bool grid_in_bounds(int col, int row, bool big) {
+    int span = big ? 2 : 1;
+    return col >= 0 && row >= 0 && col + span <= GRID_COLS && row + span <= GRID_ROWS;
+}
+
+static bool grid_free(u8 occ[GRID_ROWS][GRID_COLS], int col, int row, bool big) {
+    if(!grid_in_bounds(col, row, big)) {
+        return false;
+    }
+
+    int span = big ? 2 : 1;
+    for(int r = 0; r < span; r++) {
+        for(int c = 0; c < span; c++) {
+            if(occ[row + r][col + c] != 0xFF) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+static void grid_mark(u8 occ[GRID_ROWS][GRID_COLS], int col, int row, bool big, u8 e) {
+    int span = big ? 2 : 1;
+    for(int r = 0; r < span; r++) {
+        for(int c = 0; c < span; c++) {
+            occ[row + r][col + c] = e;
+        }
+    }
+}
+
+// The cells the shown entries take (0xFF: free).
+static void grid_occupancy(u8 occ[GRID_ROWS][GRID_COLS]) {
+    memset(occ, 0xFF, GRID_ROWS * GRID_COLS);
+    for(u32 p = 0; p < layout_visible; p++) {
+        u8 e = layout_perm[p];
+        if(grid_col[e] >= 0) {
+            grid_mark(occ, grid_col[e], grid_row[e], grid_big[e], e);
+        }
+    }
+}
+
+// The free place for a big (or small) entry closest to (col, row); false when there is none.
+static bool grid_nearest_free(u8 occ[GRID_ROWS][GRID_COLS], int col, int row, bool big, int* outCol, int* outRow) {
+    int best = -1;
+    for(int r = 0; r < GRID_ROWS; r++) {
+        for(int c = 0; c < GRID_COLS; c++) {
+            if(!grid_free(occ, c, r, big)) {
+                continue;
+            }
+
+            // Up or down counts a little more than sideways: entries rather slide along their row.
+            int distance = (c - col) * (c - col) * 2 + (r - row) * (r - row) * 3;
+            if(best < 0 || distance < best) {
+                best = distance;
+                *outCol = c;
+                *outRow = r;
+            }
+        }
+    }
+
+    return best >= 0;
+}
+
+// The first free cell in reading order; false when the grid is full.
+static bool grid_first_free(u8 occ[GRID_ROWS][GRID_COLS], int* outCol, int* outRow) {
+    for(int r = 0; r < GRID_ROWS; r++) {
+        for(int c = 0; c < GRID_COLS; c++) {
+            if(occ[r][c] == 0xFF) {
+                *outCol = c;
+                *outRow = r;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+// Keeps the shown positions in reading order: by the row, then the column, of each entry's top left cell.
+static void grid_sort() {
+    for(u32 i = 1; i < layout_visible; i++) {
+        u8 e = layout_perm[i];
+        int key = grid_row[e] * GRID_COLS + grid_col[e];
+        u32 j = i;
+        while(j > 0 && grid_row[layout_perm[j - 1]] * GRID_COLS + grid_col[layout_perm[j - 1]] > key) {
+            layout_perm[j] = layout_perm[j - 1];
+            j--;
+        }
+
+        layout_perm[j] = e;
+    }
+}
+
+// Puts the shown entry `e` at (col, row) in that size; the entries in the way move to the free places closest to theirs.
+// False, and nothing changed, when they do not all fit.
+static bool grid_put(u8 e, int col, int row, bool big) {
+    if(!grid_in_bounds(col, row, big)) {
+        return false;
+    }
+
+    s8 cols[ENTRY_COUNT];
+    s8 rows[ENTRY_COUNT];
+    memcpy(cols, grid_col, sizeof(cols));
+    memcpy(rows, grid_row, sizeof(rows));
+
+    u8 occ[GRID_ROWS][GRID_COLS];
+    memset(occ, 0xFF, sizeof(occ));
+    grid_mark(occ, col, row, big, e);
+    cols[e] = (s8) col;
+    rows[e] = (s8) row;
+
+    // The others keep their place while it is still free (in reading order); the rest move, the big ones first: they
+    // are the hardest to fit.
+    u8 moved[ENTRY_COUNT];
+    u32 movedCount = 0;
+    for(u32 p = 0; p < layout_visible; p++) {
+        u8 o = layout_perm[p];
+        if(o == e) {
+            continue;
+        }
+
+        if(grid_col[o] >= 0 && grid_free(occ, grid_col[o], grid_row[o], grid_big[o])) {
+            grid_mark(occ, grid_col[o], grid_row[o], grid_big[o], o);
+        } else {
+            moved[movedCount++] = o;
+        }
+    }
+
+    for(int pass = 0; pass < 2; pass++) {
+        for(u32 i = 0; i < movedCount; i++) {
+            u8 o = moved[i];
+            if(grid_big[o] != (pass == 0)) {
+                continue;
+            }
+
+            int c = 0, r = 0;
+            int fromCol = grid_col[o] >= 0 ? grid_col[o] : 0;
+            int fromRow = grid_row[o] >= 0 ? grid_row[o] : 0;
+            if(!grid_nearest_free(occ, fromCol, fromRow, grid_big[o], &c, &r)) {
+                return false;
+            }
+
+            grid_mark(occ, c, r, grid_big[o], o);
+            cols[o] = (s8) c;
+            rows[o] = (s8) r;
+        }
+    }
+
+    memcpy(grid_col, cols, sizeof(cols));
+    memcpy(grid_row, rows, sizeof(rows));
+    grid_big[e] = big;
+    grid_sort();
+    return true;
+}
+
+// Shown entries without a place, or in one taken or out of the grid (a layout of an older NSA, an entry shown again in
+// HOME's theme, a new entry), get the first free cell; with none left, the last big one is made small.
+static void grid_validate() {
+    u8 occ[GRID_ROWS][GRID_COLS];
+    memset(occ, 0xFF, sizeof(occ));
+    u8 lost[ENTRY_COUNT];
+    u32 lostCount = 0;
+    for(u32 p = 0; p < layout_visible; p++) {
+        u8 e = layout_perm[p];
+        if(grid_col[e] >= 0 && grid_free(occ, grid_col[e], grid_row[e], grid_big[e])) {
+            grid_mark(occ, grid_col[e], grid_row[e], grid_big[e], e);
+        } else {
+            lost[lostCount++] = e;
+        }
+    }
+
+    for(u32 i = 0; i < lostCount; i++) {
+        u8 e = lost[i];
+        int c = 0, r = 0;
+        grid_big[e] = false;
+        while(!grid_first_free(occ, &c, &r)) {
+            int shrink = -1;
+            for(u32 p = 0; p < layout_visible; p++) {
+                u8 o = layout_perm[p];
+                if(grid_big[o] && grid_col[o] >= 0 && occ[grid_row[o]][grid_col[o]] == o) {
+                    shrink = o;
+                }
+            }
+
+            if(shrink < 0) {
+                break;
+            }
+
+            grid_big[shrink] = false;
+            occ[grid_row[shrink]][grid_col[shrink] + 1] = 0xFF;
+            occ[grid_row[shrink] + 1][grid_col[shrink]] = 0xFF;
+            occ[grid_row[shrink] + 1][grid_col[shrink] + 1] = 0xFF;
+        }
+
+        grid_mark(occ, c, r, false, e);
+        grid_col[e] = (s8) c;
+        grid_row[e] = (s8) r;
+    }
+
+    grid_sort();
+}
+
+// The layout NSA comes with, and the one a list without places (an older NSA's) gets: the first three shown as big tiles
+// across the top, the rest as icons in the two rows under them.
+static void grid_flow() {
+    u32 small = 0;
+    for(u32 p = 0; p < ENTRY_COUNT; p++) {
+        u8 e = layout_perm[p];
+        if(p >= layout_visible) {
+            grid_col[e] = grid_row[e] = -1;
+            grid_big[e] = false;
+        } else if(p < TILE_COUNT) {
+            grid_big[e] = true;
+            grid_col[e] = (s8) (p * 2);
+            grid_row[e] = 0;
+        } else {
+            grid_big[e] = false;
+            grid_col[e] = (s8) (small % GRID_COLS);
+            grid_row[e] = (s8) (2 + small / GRID_COLS);
+            small++;
+        }
+    }
+
+    grid_validate();
+}
+
 static void mainmenu_layout_default() {
     for(u32 i = 0; i < ENTRY_COUNT; i++) {
         layout_perm[i] = (u8) i;
     }
 
     layout_visible = ENTRY_COUNT;
+    grid_flow();
 }
 
+// settings.json keeps the layout as "sd:00B,titles:20B,...|advanced": the shown entries in order, each with its column
+// and row (and B when big), then the hidden ones. A list without places (NSA 0.16 and older) gets the default places.
 static void mainmenu_layout_load() {
     mainmenu_layout_default();
 
@@ -184,6 +446,13 @@ static void mainmenu_layout_load() {
     u32 shownCount = 0;
     u32 hiddenCount = 0;
     bool inHidden = false;
+    bool anyPlace = false;
+    s8 cols[ENTRY_COUNT];
+    s8 rows[ENTRY_COUNT];
+    bool bigs[ENTRY_COUNT];
+    memset(cols, -1, sizeof(cols));
+    memset(rows, -1, sizeof(rows));
+    memset(bigs, 0, sizeof(bigs));
     while(*c != '\0') {
         if(*c == '|') {
             inHidden = true;
@@ -198,7 +467,7 @@ static void mainmenu_layout_load() {
 
         char id[16];
         size_t len = 0;
-        while(*c != '\0' && *c != ',' && *c != '|') {
+        while(*c != '\0' && *c != ',' && *c != '|' && *c != ':') {
             if(len < sizeof(id) - 1) {
                 id[len++] = *c;
             }
@@ -207,6 +476,28 @@ static void mainmenu_layout_load() {
         }
 
         id[len] = '\0';
+
+        // ":CR", then B when big.
+        int col = -1, row = -1;
+        bool big = false;
+        if(*c == ':') {
+            c++;
+            if(c[0] >= '0' && c[0] <= '9' && c[1] >= '0' && c[1] <= '9') {
+                col = c[0] - '0';
+                row = c[1] - '0';
+                c += 2;
+            }
+
+            if(*c == 'B') {
+                big = true;
+                c++;
+            }
+
+            while(*c != '\0' && *c != ',' && *c != '|') {
+                c++;
+            }
+        }
+
         for(u32 e = 0; e < ENTRY_COUNT; e++) {
             if(!used[e] && strcmp(id, entry_ids[e]) == 0) {
                 used[e] = true;
@@ -214,6 +505,12 @@ static void mainmenu_layout_load() {
                     hidden[hiddenCount++] = (u8) e;
                 } else {
                     shown[shownCount++] = (u8) e;
+                    if(col >= 0) {
+                        cols[e] = (s8) col;
+                        rows[e] = (s8) row;
+                        bigs[e] = big;
+                        anyPlace = true;
+                    }
                 }
 
                 break;
@@ -231,29 +528,79 @@ static void mainmenu_layout_load() {
     memcpy(layout_perm, shown, shownCount);
     memcpy(layout_perm + shownCount, hidden, hiddenCount);
     layout_visible = shownCount;
-}
 
-static void mainmenu_layout_save() {
-    char text[sizeof(settings_get()->menu)];
-    size_t len = 0;
-    bool isDefault = layout_visible == ENTRY_COUNT;
-    for(u32 p = 0; p < ENTRY_COUNT; p++) {
-        isDefault = isDefault && layout_perm[p] == p;
+    if(!anyPlace) {
+        grid_flow();
+        return;
     }
 
-    if(!isDefault) {
-        for(u32 p = 0; p < ENTRY_COUNT; p++) {
-            if(p > 0) {
-                text[len++] = p == layout_visible ? '|' : ',';
-            } else if(layout_visible == 0) {
-                text[len++] = '|';
-            }
+    memcpy(grid_col, cols, sizeof(cols));
+    memcpy(grid_row, rows, sizeof(rows));
+    memcpy(grid_big, bigs, sizeof(bigs));
+    grid_validate();
+}
 
-            len += snprintf(text + len, sizeof(text) - len, "%s", entry_ids[layout_perm[p]]);
+// The layout as settings.json keeps it (above).
+static void mainmenu_layout_text(char* text, size_t size) {
+    size_t len = 0;
+    text[0] = '\0';
+    for(u32 p = 0; p < ENTRY_COUNT && len + 16 < size; p++) {
+        u8 e = layout_perm[p];
+        if(p > 0) {
+            text[len++] = p == layout_visible ? '|' : ',';
+        } else if(layout_visible == 0) {
+            text[len++] = '|';
+        }
+
+        len += snprintf(text + len, size - len, "%s", entry_ids[e]);
+        if(p < layout_visible && grid_col[e] >= 0) {
+            len += snprintf(text + len, size - len, ":%d%d%s", grid_col[e], grid_row[e], grid_big[e] ? "B" : "");
         }
     }
 
     text[len] = '\0';
+}
+
+// The whole layout, to try a change and take it back.
+typedef struct {
+    u8 perm[ENTRY_COUNT];
+    u32 visible;
+    s8 col[ENTRY_COUNT];
+    s8 row[ENTRY_COUNT];
+    bool big[ENTRY_COUNT];
+} mainmenu_layout_copy;
+
+static void mainmenu_layout_keep(mainmenu_layout_copy* copy) {
+    memcpy(copy->perm, layout_perm, sizeof(copy->perm));
+    copy->visible = layout_visible;
+    memcpy(copy->col, grid_col, sizeof(copy->col));
+    memcpy(copy->row, grid_row, sizeof(copy->row));
+    memcpy(copy->big, grid_big, sizeof(copy->big));
+}
+
+static void mainmenu_layout_restore(const mainmenu_layout_copy* copy) {
+    memcpy(layout_perm, copy->perm, sizeof(copy->perm));
+    layout_visible = copy->visible;
+    memcpy(grid_col, copy->col, sizeof(copy->col));
+    memcpy(grid_row, copy->row, sizeof(copy->row));
+    memcpy(grid_big, copy->big, sizeof(copy->big));
+}
+
+static void mainmenu_layout_save() {
+    char text[sizeof(settings_get()->menu)];
+    mainmenu_layout_text(text, sizeof(text));
+
+    // The default layout is kept as nothing, so a later NSA's default applies.
+    mainmenu_layout_copy mine;
+    mainmenu_layout_keep(&mine);
+    mainmenu_layout_default();
+    char defaultText[sizeof(settings_get()->menu)];
+    mainmenu_layout_text(defaultText, sizeof(defaultText));
+    mainmenu_layout_restore(&mine);
+    if(strcmp(text, defaultText) == 0) {
+        text[0] = '\0';
+    }
+
     string_copy(settings_get()->menu, text, sizeof(settings_get()->menu));
     Result res = settings_save();
     if(R_FAILED(res)) {
@@ -310,39 +657,54 @@ static bool mainmenu_home() {
     return theme()->def->menuLayout == THEME_MENU_TILES;
 }
 
-// Where the hidden entries are while editing, from the top of the bottom screen.
+/// The bottom screen's content, under the title bar and over the hint bar.
+#define CONTENT_HEIGHT (BOTTOM_SCREEN_HEIGHT - WIDGET_TITLE_BAR_HEIGHT - WIDGET_HINT_BAR_HEIGHT)
+
+// Where the hidden entries are while editing, from the top of the content.
 static float mainmenu_tray_top(float y1) {
-    return y1 + PAD + TILE_HEIGHT + GAP + SMALL_ROW_HEIGHT + GAP + TIP_HEIGHT + 8;
+    return y1 + CONTENT_HEIGHT - GRID_PAD - TRAY_HEIGHT;
 }
 
-// Position `p`'s place: tiles across the top, then one row of icons (or, in HOME, the grid of tiles); a hidden one, while
-// editing, goes in the tray (or on in the grid).
+// The grid's cells: their size and where the first one starts. Editing, they are shorter: the tray goes under them.
+static void mainmenu_cell(float x1, float y1, float x2, float* gx, float* gy, float* cw, float* ch) {
+    float bottom = layout_editing ? mainmenu_tray_top(y1) - GRID_GAP : y1 + CONTENT_HEIGHT - GRID_PAD;
+    *gx = x1 + GRID_PAD;
+    *gy = y1 + GRID_PAD;
+    *cw = (x2 - x1 - 2 * GRID_PAD - (GRID_COLS - 1) * GRID_GAP) / GRID_COLS;
+    *ch = (bottom - *gy - (GRID_ROWS - 1) * GRID_GAP) / GRID_ROWS;
+}
+
+// Position `p`'s place: its cells in the grid (or, in HOME, the flow of tiles); a hidden one, while editing, goes in the
+// tray (or on in HOME's flow).
 static void mainmenu_button_rect(u32 p, float x1, float y1, float x2, float* x, float* y, float* w, float* h) {
-    float area = x2 - x1 - 2 * PAD;
     if(mainmenu_home()) {
+        float area = x2 - x1 - 2 * PAD;
         float label = widget_text_height(WIDGET_SMALL_SCALE);
         *w = (area - (HOME_COLUMNS - 1) * GAP) / HOME_COLUMNS;
         *h = HOME_TILE + 4 + 2 * label;
         *x = x1 + PAD + (p % HOME_COLUMNS) * (*w + GAP);
         *y = y1 + PAD + (p / HOME_COLUMNS) * (*h + 5);
-    } else if(p >= layout_visible) {
-        u32 slots = ENTRY_COUNT - 2;
-        *w = (area - (slots - 1) * GAP) / slots;
-        *h = TRAY_HEIGHT;
-        *x = x1 + PAD + (p - layout_visible) * (*w + GAP);
-        *y = mainmenu_tray_top(y1);
-    } else if(p < TILE_COUNT) {
-        *w = (area - (TILE_COUNT - 1) * GAP) / TILE_COUNT;
-        *h = TILE_HEIGHT;
-        *x = x1 + PAD + p * (*w + GAP);
-        *y = y1 + PAD;
-    } else {
-        u32 slots = ENTRY_COUNT - TILE_COUNT;
-        *w = (area - (slots - 1) * GAP) / slots;
-        *h = SMALL_ROW_HEIGHT;
-        *x = x1 + PAD + (p - TILE_COUNT) * (*w + GAP);
-        *y = y1 + PAD + TILE_HEIGHT + GAP;
+        return;
     }
+
+    if(p >= layout_visible) {
+        float area = x2 - x1 - 2 * GRID_PAD;
+        u32 slots = ENTRY_COUNT - 2;
+        *w = (area - (slots - 1) * GRID_GAP) / slots;
+        *h = TRAY_HEIGHT;
+        *x = x1 + GRID_PAD + (p - layout_visible) * (*w + GRID_GAP);
+        *y = mainmenu_tray_top(y1);
+        return;
+    }
+
+    float gx, gy, cw, ch;
+    mainmenu_cell(x1, y1, x2, &gx, &gy, &cw, &ch);
+    u8 e = layout_perm[p];
+    int span = grid_span(e);
+    *x = gx + grid_col[e] * (cw + GRID_GAP);
+    *y = gy + grid_row[e] * (ch + GRID_GAP);
+    *w = span * cw + (span - 1) * GRID_GAP;
+    *h = span * ch + (span - 1) * GRID_GAP;
 }
 
 static bool mainmenu_hit(u32 p, const touchPosition* pos, float x1, float y1, float x2) {
@@ -357,25 +719,25 @@ static float mainmenu_center(u32 p) {
     return x + w / 2;
 }
 
-// The position in [from, to) whose centre is closest to `cx`.
-static u32 mainmenu_nearest(u32 from, u32 to, float cx) {
-    u32 best = from;
-    float bestDistance = 1e9f;
-    for(u32 p = from; p < to; p++) {
-        float distance = mainmenu_center(p) - cx;
-        distance = distance < 0 ? -distance : distance;
-        if(distance < bestDistance) {
-            bestDistance = distance;
-            best = p;
-        }
+// The rows position `p` spans in the grid; the tray is one more row under it.
+static void mainmenu_rows_of(u32 p, int* top, int* bottom) {
+    if(p >= layout_visible) {
+        *top = *bottom = GRID_ROWS;
+        return;
     }
 
-    return best;
+    u8 e = layout_perm[p];
+    *top = grid_row[e];
+    *bottom = grid_row[e] + grid_span(e) - 1;
 }
 
-// The D-Pad over tiles and icons among the first `limit` positions: Left and Right go through them in order, Up and Down
-// go between the rows (tiles, icons and, editing, the hidden ones), landing on the one closest across.
+// The D-Pad among the first `limit` positions: Left and Right go through them in reading order, Up and Down to the row
+// above or under (the tray, editing, is the last), landing on the one closest across; past the edge they go round.
 static u32 mainmenu_move(u32 selected, u32 key, u32 limit) {
+    if(limit == 0) {
+        return selected;
+    }
+
     if(mainmenu_home()) {
         if(key == KEY_RIGHT) {
             return (selected + 1) % limit;
@@ -403,16 +765,41 @@ static u32 mainmenu_move(u32 selected, u32 key, u32 limit) {
         return selected > 0 ? selected - 1 : limit - 1;
     }
 
-    // Rows: tiles [0, tileEnd), icons [TILE_COUNT, shown), hidden [shown, limit).
-    u32 shown = layout_visible < limit ? layout_visible : limit;
-    u32 tileEnd = shown < TILE_COUNT ? shown : TILE_COUNT;
-    u32 starts[3] = {0, TILE_COUNT, shown};
-    u32 ends[3] = {tileEnd, shown, limit};
-    int row = selected >= shown ? 2 : selected >= TILE_COUNT ? 1 : 0;
-    for(int step = 1; step <= 3; step++) {
-        int next = ((row + (key == KEY_DOWN ? step : 3 - step)) % 3);
-        if(starts[next] < ends[next]) {
-            return mainmenu_nearest(starts[next], ends[next], mainmenu_center(selected));
+    bool down = key == KEY_DOWN;
+    int top, bottom;
+    mainmenu_rows_of(selected, &top, &bottom);
+    float cx = mainmenu_center(selected);
+    for(int wrap = 0; wrap < 2; wrap++) {
+        u32 best = selected;
+        float bestScore = 1e9f;
+        for(u32 q = 0; q < limit; q++) {
+            if(q == selected) {
+                continue;
+            }
+
+            int qTop, qBottom;
+            mainmenu_rows_of(q, &qTop, &qBottom);
+            int rows;
+            if(wrap == 0) {
+                rows = down ? qTop - bottom : top - qBottom;
+                if(rows <= 0) {
+                    continue;
+                }
+            } else {
+                // Round: from the top row (going down) or the bottom one (going up).
+                rows = down ? qTop + 1 : GRID_ROWS + 1 - qBottom;
+            }
+
+            float dx = mainmenu_center(q) - cx;
+            float score = (float) rows * 1000 + (dx < 0 ? -dx : dx);
+            if(score < bestScore) {
+                bestScore = score;
+                best = q;
+            }
+        }
+
+        if(best != selected) {
+            return best;
         }
     }
 
@@ -642,19 +1029,96 @@ static void mainmenu_open_entry(const mainmenu_entry* entry) {
     mainmenu_group_show(entry);
 }
 
-// ---- the menu ----
+/// ---- the menu ----
+
+// The layout as a drag started, and the last one the drag could have.
+static mainmenu_layout_copy drag_base;
+static mainmenu_layout_copy drag_good;
+
+// An entry with no room shakes, with the error tone.
+static void mainmenu_shake(mainmenu_data* menu, u8 e) {
+    menu->shakeEntry = e;
+    menu->shakeTime = osGetTime();
+    sound_play(SOUND_ERROR);
+}
+
+// Shows the hidden entry `e` as an icon in the first free cell; false, and still hidden, when the grid is full.
+static bool grid_show(u8 e) {
+    mainmenu_layout_show(mainmenu_pos_of(e), layout_visible);
+    grid_big[e] = false;
+    grid_col[e] = grid_row[e] = -1;
+
+    u8 occ[GRID_ROWS][GRID_COLS];
+    grid_occupancy(occ);
+    int c = 0, r = 0;
+    if(!grid_first_free(occ, &c, &r)) {
+        mainmenu_layout_hide(mainmenu_pos_of(e));
+        return false;
+    }
+
+    grid_col[e] = (s8) c;
+    grid_row[e] = (s8) r;
+    grid_sort();
+    return true;
+}
+
+// Big to small keeps the top left cell; small to big takes the two by two square around it that moves the fewest others.
+// False when no square has room.
+static bool grid_toggle(u8 e) {
+    if(grid_big[e]) {
+        return grid_put(e, grid_col[e], grid_row[e], false);
+    }
+
+    u8 occ[GRID_ROWS][GRID_COLS];
+    grid_occupancy(occ);
+    int anchors[4][2] = {{grid_col[e], grid_row[e]}, {grid_col[e] - 1, grid_row[e]}, {grid_col[e], grid_row[e] - 1}, {grid_col[e] - 1, grid_row[e] - 1}};
+    int taken[4];
+    for(int i = 0; i < 4; i++) {
+        taken[i] = 99;
+        if(grid_in_bounds(anchors[i][0], anchors[i][1], true)) {
+            taken[i] = 0;
+            for(int r = 0; r < 2; r++) {
+                for(int c = 0; c < 2; c++) {
+                    u8 o = occ[anchors[i][1] + r][anchors[i][0] + c];
+                    taken[i] += o != 0xFF && o != e;
+                }
+            }
+        }
+    }
+
+    for(int tries = 0; tries < 4; tries++) {
+        int pick = -1;
+        for(int i = 0; i < 4; i++) {
+            if(taken[i] < 99 && (pick < 0 || taken[i] < taken[pick])) {
+                pick = i;
+            }
+        }
+
+        if(pick < 0) {
+            break;
+        }
+
+        if(grid_put(e, anchors[pick][0], anchors[pick][1], true)) {
+            return true;
+        }
+
+        taken[pick] = 99;
+    }
+
+    return false;
+}
 
 // While an entry is dragged, the layout follows the finger at once: the entry sits where it would land if let go, the
-// others make way (they ease into their new places when drawn), and it becomes a tile over the tiles, an icon over the icons
-// and a hidden one over the tray.
+// others make way (they ease into their new places when drawn). Every step starts again from the layout the drag began
+// with, so entries pushed aside come back when the finger moves on; where there is no room, the last good layout stays.
 static void mainmenu_drag_apply(mainmenu_data* menu, float x1, float y1, float x2) {
     u32 cur = (u32) menu->dragFrom;
     bool fromShown = cur < layout_visible;
-    bool intoHidden = false;
-    u32 target = cur;
-    float fx = menu->dragX - x1 - PAD;
 
     if(mainmenu_home()) {
+        bool intoHidden = false;
+        u32 target = cur;
+        float fx = menu->dragX - x1 - PAD;
         float cx, cy, cw, ch;
         mainmenu_button_rect(0, x1, y1, x2, &cx, &cy, &cw, &ch);
         int col = (int) (fx / (cw + GAP));
@@ -668,40 +1132,69 @@ static void mainmenu_drag_apply(mainmenu_data* menu, float x1, float y1, float x
         } else {
             target = index;
         }
-    } else if(menu->dragY >= mainmenu_tray_top(y1) - 4) {
-        intoHidden = true;
-    } else if(menu->dragY < y1 + PAD + TILE_HEIGHT + GAP / 2) {
-        // Over the tiles.
-        float tileW = (x2 - x1 - 2 * PAD - (TILE_COUNT - 1) * GAP) / TILE_COUNT;
-        int slot = (int) (fx / (tileW + GAP));
-        target = (u32) (slot < 0 ? 0 : slot >= TILE_COUNT ? TILE_COUNT - 1 : slot);
-    } else {
-        // Over the icons.
-        u32 slots = ENTRY_COUNT - TILE_COUNT;
-        float slotW = (x2 - x1 - 2 * PAD - (slots - 1) * GAP) / slots;
-        int slot = (int) (fx / (slotW + GAP));
-        target = TILE_COUNT + (u32) (slot < 0 ? 0 : slot >= (int) slots ? (int) slots - 1 : slot);
-    }
 
-    // A hidden entry can come in at the end of the shown ones; a shown one only moves among them.
-    u32 last = fromShown ? layout_visible - 1 : layout_visible;
-    if(target > last) {
-        target = last;
-    }
-
-    if(intoHidden) {
-        if(fromShown && !mainmenu_pinned(layout_perm[cur])) {
-            menu->dragFrom = (int) mainmenu_layout_hide(cur);
+        // A hidden entry can come in at the end of the shown ones; a shown one only moves among them.
+        u32 last = fromShown ? layout_visible - 1 : layout_visible;
+        if(target > last) {
+            target = last;
         }
-    } else if(fromShown) {
-        if(target != cur) {
-            mainmenu_layout_reorder(cur, target);
-            menu->dragFrom = (int) target;
+
+        if(intoHidden) {
+            if(fromShown && !mainmenu_pinned(layout_perm[cur])) {
+                menu->dragFrom = (int) mainmenu_layout_hide(cur);
+            }
+        } else if(fromShown) {
+            if(target != cur) {
+                mainmenu_layout_reorder(cur, target);
+                menu->dragFrom = (int) target;
+            }
+        } else {
+            menu->dragFrom = (int) mainmenu_layout_show(cur, target);
         }
-    } else {
-        menu->dragFrom = (int) mainmenu_layout_show(cur, target);
+
+        menu->selected = (u32) menu->dragFrom;
+        return;
     }
 
+    u8 e = layout_perm[cur];
+    mainmenu_layout_restore(&drag_base);
+    bool wasShown = mainmenu_pos_of(e) < layout_visible;
+    bool ok = true;
+    if(menu->dragY >= mainmenu_tray_top(y1) - 4) {
+        // Over the tray: hidden (System and Settings stay).
+        if(wasShown && !mainmenu_pinned(e)) {
+            mainmenu_layout_hide(mainmenu_pos_of(e));
+        } else if(wasShown) {
+            ok = false;
+        }
+    } else {
+        // The cells it would take, centred on the finger (drawn a little above it).
+        bool big = wasShown && grid_big[e];
+        int span = big ? 2 : 1;
+        float gx, gy, cw, ch;
+        mainmenu_cell(x1, y1, x2, &gx, &gy, &cw, &ch);
+        float w = span * cw + (span - 1) * GRID_GAP;
+        float h = span * ch + (span - 1) * GRID_GAP;
+        int col = (int) floorf((menu->dragX - w / 2 - gx) / (cw + GRID_GAP) + 0.5f);
+        int row = (int) floorf((menu->dragY - 8 - h / 2 - gy) / (ch + GRID_GAP) + 0.5f);
+        col = col < 0 ? 0 : col > GRID_COLS - span ? GRID_COLS - span : col;
+        row = row < 0 ? 0 : row > GRID_ROWS - span ? GRID_ROWS - span : row;
+        if(!wasShown) {
+            mainmenu_layout_show(mainmenu_pos_of(e), layout_visible);
+            grid_big[e] = false;
+            grid_col[e] = grid_row[e] = -1;
+        }
+
+        ok = grid_put(e, col, row, big);
+    }
+
+    if(ok) {
+        mainmenu_layout_keep(&drag_good);
+    } else {
+        mainmenu_layout_restore(&drag_good);
+    }
+
+    menu->dragFrom = (int) mainmenu_pos_of(e);
     menu->selected = (u32) menu->dragFrom;
 }
 
@@ -710,7 +1203,7 @@ static void mainmenu_edit_exit(mainmenu_data* menu) {
     menu->grabbed = false;
     menu->dragFrom = -1;
     if(menu->selected >= layout_visible) {
-        menu->selected = layout_visible - 1;
+        menu->selected = 0;
     }
 
     mainmenu_layout_save();
@@ -727,8 +1220,63 @@ static void mainmenu_reset_onresponse(ui_view* view, void* data, u32 response) {
     }
 }
 
-// Editing: A picks an entry up (and the D-Pad moves it) or brings a hidden one back, X hides, Y puts everything back,
-// SELECT or B finish. By touch, drag an entry to a place or down to the hidden ones; tap a hidden one to bring it back.
+// Editing, the grid's entry with the focus has a button at its top right corner: small to big, or back.
+#define SIZE_BUTTON 20
+
+static bool mainmenu_size_button(const mainmenu_data* menu, float x1, float y1, float x2, float* bx, float* by) {
+    if(mainmenu_home() || !layout_editing || menu->selected >= layout_visible) {
+        return false;
+    }
+
+    float x, y, w, h;
+    mainmenu_button_rect(menu->selected, x1, y1, x2, &x, &y, &w, &h);
+    *bx = x + w - SIZE_BUTTON + 4;
+    *by = y - 4;
+    if(*by < y1 + 1) {
+        *by = y1 + 1;
+    }
+
+    if(*bx + SIZE_BUTTON > x2 - 1) {
+        *bx = x2 - 1 - SIZE_BUTTON;
+    }
+
+    return true;
+}
+
+// Makes the selected entry big or small; one that has no room to grow shakes.
+static void mainmenu_toggle_size(mainmenu_data* menu) {
+    if(mainmenu_home() || menu->selected >= layout_visible) {
+        return;
+    }
+
+    u8 e = layout_perm[menu->selected];
+    if(grid_toggle(e)) {
+        sound_play(SOUND_TICK);
+    } else {
+        mainmenu_shake(menu, e);
+    }
+
+    menu->selected = mainmenu_pos_of(e);
+}
+
+// Brings the hidden entry at position `p` back; in the grid, one that has no room shakes.
+static void mainmenu_bring_back(mainmenu_data* menu, u32 p) {
+    if(mainmenu_home()) {
+        menu->selected = mainmenu_layout_show(p, layout_visible);
+        return;
+    }
+
+    u8 e = layout_perm[p];
+    if(!grid_show(e)) {
+        mainmenu_shake(menu, e);
+    }
+
+    menu->selected = mainmenu_pos_of(e);
+}
+
+// Editing: A picks an entry up (and the D-Pad moves it) or brings a hidden one back, R makes it big or small, X hides,
+// Y puts everything back, SELECT or B finish. By touch, drag an entry to a place or down to the hidden ones, tap the
+// corner button of the one with the focus to change its size, and tap a hidden one to bring it back.
 static void mainmenu_edit_update(mainmenu_data* menu, float bx1, float by1, float bx2) {
     u32 down = hidKeysDown();
     if((down & KEY_SELECT) || ((down & KEY_B) && !menu->grabbed)) {
@@ -743,12 +1291,22 @@ static void mainmenu_edit_update(mainmenu_data* menu, float bx1, float by1, floa
     static const u32 keys[] = {KEY_DOWN, KEY_UP, KEY_RIGHT, KEY_LEFT};
     for(u32 i = 0; i < COUNT_OF(keys); i++) {
         if(mainmenu_repeat(menu, keys[i])) {
-            if(menu->grabbed) {
+            if(menu->grabbed && mainmenu_home()) {
                 u32 target = mainmenu_move(menu->selected, keys[i], layout_visible);
                 if(target != menu->selected) {
                     mainmenu_layout_reorder(menu->selected, target);
                     menu->selected = target;
                 }
+            } else if(menu->grabbed) {
+                // One cell that way; the others make room.
+                u8 e = layout_perm[menu->selected];
+                int dc = keys[i] == KEY_RIGHT ? 1 : keys[i] == KEY_LEFT ? -1 : 0;
+                int dr = keys[i] == KEY_DOWN ? 1 : keys[i] == KEY_UP ? -1 : 0;
+                if(grid_in_bounds(grid_col[e] + dc, grid_row[e] + dr, grid_big[e]) && !grid_put(e, grid_col[e] + dc, grid_row[e] + dr, grid_big[e])) {
+                    mainmenu_shake(menu, e);
+                }
+
+                menu->selected = mainmenu_pos_of(e);
             } else {
                 menu->selected = mainmenu_move(menu->selected, keys[i], ENTRY_COUNT);
             }
@@ -759,10 +1317,14 @@ static void mainmenu_edit_update(mainmenu_data* menu, float bx1, float by1, floa
 
     if(down & KEY_A) {
         if(menu->selected >= layout_visible) {
-            menu->selected = mainmenu_layout_show(menu->selected, layout_visible);
+            mainmenu_bring_back(menu, menu->selected);
         } else {
             menu->grabbed = !menu->grabbed;
         }
+    }
+
+    if(down & KEY_R) {
+        mainmenu_toggle_size(menu);
     }
 
     if((down & KEY_X) && !menu->grabbed && menu->selected < layout_visible && !mainmenu_pinned(layout_perm[menu->selected])) {
@@ -779,6 +1341,13 @@ static void mainmenu_edit_update(mainmenu_data* menu, float bx1, float by1, floa
     if(down & KEY_TOUCH) {
         menu->dragFrom = -1;
         menu->dragMoved = false;
+
+        float sx, sy;
+        if(mainmenu_size_button(menu, bx1, by1, bx2, &sx, &sy) && widget_touched(&pos, sx - 3, sy - 3, SIZE_BUTTON + 6, SIZE_BUTTON + 6)) {
+            mainmenu_toggle_size(menu);
+            return;
+        }
+
         for(u32 p = 0; p < ENTRY_COUNT; p++) {
             if(mainmenu_hit(p, &pos, bx1, by1, bx2)) {
                 menu->dragFrom = (int) p;
@@ -786,6 +1355,8 @@ static void mainmenu_edit_update(mainmenu_data* menu, float bx1, float by1, floa
                 menu->grabbed = false;
                 menu->dragStartX = menu->dragX = pos.px;
                 menu->dragStartY = menu->dragY = pos.py;
+                mainmenu_layout_keep(&drag_base);
+                mainmenu_layout_keep(&drag_good);
                 break;
             }
         }
@@ -805,21 +1376,33 @@ static void mainmenu_edit_update(mainmenu_data* menu, float bx1, float by1, floa
         u32 from = (u32) menu->dragFrom;
         menu->dragFrom = -1;
         if(!menu->dragMoved) {
-            // A tap: a hidden entry comes back at the end.
-            menu->selected = from >= layout_visible ? mainmenu_layout_show(from, layout_visible) : from;
+            // A tap: a hidden entry comes back.
+            if(from >= layout_visible) {
+                mainmenu_bring_back(menu, from);
+            } else {
+                menu->selected = from;
+            }
         }
 
         // A drag was applied as it went.
     }
 }
 
+
 static void mainmenu_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     mainmenu_data* menu = (mainmenu_data*) data;
+
+    // A layout changed in HOME's theme comes back whole into the grid.
+    if(!mainmenu_home() && menu->dragFrom < 0) {
+        u8 e = layout_perm[menu->selected < ENTRY_COUNT ? menu->selected : 0];
+        grid_validate();
+        menu->selected = mainmenu_pos_of(e);
+    }
 
     // Set every frame: the language can change in Settings.
     view->name = _("Main menu");
     if(layout_editing) {
-        view->info = _(" move    hide    reset   SELECT done");
+        view->info = mainmenu_home() ? _(" move    hide    reset   SELECT done") : _(" move   size   hide   reset  SELECT done");
     } else {
         view->info = mainmenu_can_open(POS(menu->selected)) ? _("\uE000 open   START exit") : _("START exit");
     }
@@ -935,8 +1518,9 @@ static void mainmenu_draw_edit_help(float x1, float y1, float x2, float y2) {
     screen_draw_icon(ICON_SETTINGS, textX, cardY + 12, 16, t->accent);
     screen_draw_text(_("Edit the menu"), textX + 24, cardY + 12, WIDGET_TITLE_SCALE, t->palette->text);
     float y = cardY + 12 + widget_text_height(WIDGET_TITLE_SCALE) + 10;
-    screen_draw_text_wrap(_("Drag an entry to move it, or pick it up with A and use the D-Pad. Drop it on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back. The first three are big tiles, the rest icons. System and Settings always stay."),
-                          textX, y, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap);
+    const char* help = mainmenu_home() ? _("Drag an entry to move it, or pick it up with A and use the D-Pad. Drop it on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back. The first three are big tiles, the rest icons. System and Settings always stay.")
+                                       : _("Drag an entry to move it, or pick it up with A and use the D-Pad: the others make room. R, or the button on its corner, makes it big or small, if there is room. Drop it on the row at the bottom, or press X, to hide it; tap a hidden one to bring it back. System and Settings always stay.");
+    screen_draw_text_wrap(help, textX, y, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap);
 }
 
 static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -1080,7 +1664,7 @@ static void mainmenu_draw_home_tile(const mainmenu_entry* entry, float x, float 
     }
 }
 
-// A small entry: just its icon, filled when it has the focus.
+/// A small entry: just its icon, filled when it has the focus (smaller while editing makes the cells short).
 static void mainmenu_draw_small(const mainmenu_entry* entry, float x, float y, float w, float h, bool selected) {
     const theme_current* t = theme();
     bool danger = entry->warn;
@@ -1090,12 +1674,13 @@ static void mainmenu_draw_small(const mainmenu_entry* entry, float x, float y, f
     u32 ink = selected ? (danger ? onDanger : t->onAccent) : danger ? t->palette->danger : t->accent;
     screen_frame_round_rect(x, y, w, h, t->def->radiusSmall, t->def->border, edge, fill);
 
-    float iconSize = 32;
+    float iconSize = h >= 38 && w >= 38 ? 32 : 24;
     screen_draw_icon(entry->icon, x + (float) (int) ((w - iconSize) / 2), y + (float) (int) ((h - iconSize) / 2), iconSize, ink);
 }
 
-// The name of the entry with the focus, in a bubble under its row of icons that slides down and fades in.
-static void mainmenu_draw_tip(const mainmenu_data* menu, float x1, float y1, float x2) {
+// The name of the small entry with the focus, in a bubble under it (over it near the bottom, and over the tray for a
+// hidden one) that slides out and fades in.
+static void mainmenu_draw_tip(const mainmenu_data* menu, float x1, float y1, float x2, float y2) {
     const theme_current* t = theme();
     const mainmenu_entry* entry = POS(menu->selected);
     bool danger = entry->warn;
@@ -1111,7 +1696,7 @@ static void mainmenu_draw_tip(const mainmenu_data* menu, float x1, float y1, flo
         width = maxWidth;
     }
 
-    // Centred under the icon, kept inside the screen.
+    // Centred on the icon, kept inside the screen.
     float x = ix + (iw - width) / 2;
     if(x < x1 + PAD) {
         x = x1 + PAD;
@@ -1119,26 +1704,26 @@ static void mainmenu_draw_tip(const mainmenu_data* menu, float x1, float y1, flo
         x = x2 - PAD - width;
     }
 
+    bool above = hidden || iy + ih + GAP + TIP_HEIGHT > y2 - 2;
     float p = widget_ease(menu->tipTime, TIP_TIME);
-    float restY = hidden ? y1 + PAD + TILE_HEIGHT + GAP + SMALL_ROW_HEIGHT + GAP : iy + ih + GAP;
-    float y = (float) (int) (restY - (1 - p) * TIP_SLIDE);
+    float restY = above ? iy - GAP - TIP_HEIGHT : iy + ih + GAP;
+    float y = (float) (int) (restY + (above ? 1 : -1) * (1 - p) * TIP_SLIDE);
     u32 alpha = (u32) (p * 255);
 
     u32 fill = danger ? t->palette->danger : t->accent;
     u32 ink = danger ? (t->night ? t->palette->background : t->onAccent) : t->onAccent;
 
-    // A small notch pointing at the icon (a hidden one is further down: none).
-    if(!hidden) {
-        float notch = 10;
-        screen_fill_round_rect(ix + iw / 2 - notch / 2, y - notch / 2, notch, notch, 2, THEME_ALPHA(fill, alpha));
-    }
+    // A small notch pointing at the icon.
+    float notch = 10;
+    float notchY = above ? y + TIP_HEIGHT - notch / 2 : y - notch / 2;
+    screen_fill_round_rect(ix + iw / 2 - notch / 2, notchY, notch, notch, 2, THEME_ALPHA(fill, alpha));
 
     screen_fill_round_rect(x, y, width, TIP_HEIGHT, t->def->radiusSmall, THEME_ALPHA(fill, alpha));
     widget_text_fit(name, x + 12, y + (TIP_HEIGHT - widget_text_height(WIDGET_TEXT_SCALE)) / 2, WIDGET_TEXT_SCALE, THEME_ALPHA(ink, alpha), width - 24);
 }
 
 // Where each entry is drawn (by entry): it eases towards its place, so while one is dragged the others make way and an
-// entry that changes from tile to icon (or back) grows or shrinks on the way.
+// entry that changes size grows or shrinks on the way.
 static float mainmenu_anim[ENTRY_COUNT][4];
 static bool mainmenu_anim_valid[ENTRY_COUNT];
 
@@ -1164,17 +1749,52 @@ static bool mainmenu_anim_step(u32 e, const float target[4], float out[4]) {
     return moving;
 }
 
+// The corner button of the entry with the focus while editing: a magnifier with + to grow it, with - to shrink it.
+static void mainmenu_draw_size_button(const mainmenu_data* menu, float x1, float y1, float x2) {
+    float bx, by;
+    if(!mainmenu_size_button(menu, x1, y1, x2, &bx, &by)) {
+        return;
+    }
+
+    const theme_current* t = theme();
+    bool big = grid_big[layout_perm[menu->selected]];
+    screen_frame_round_rect(bx, by, SIZE_BUTTON, SIZE_BUTTON, SIZE_BUTTON / 2, 2, t->palette->surface, t->accent);
+    screen_draw_icon(big ? ICON_ZOOM_OUT : ICON_ZOOM_IN, bx + 2, by + 2, 16, t->onAccent);
+    coach_anchor("menu.size", bx, by, SIZE_BUTTON, SIZE_BUTTON, false);
+}
+
 static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     mainmenu_data* menu = (mainmenu_data*) data;
     const theme_current* t = theme();
     bool dragging = menu->dragFrom >= 0 && menu->dragMoved;
     bool moving = false;
 
-    // A rectangle wider than this is drawn as a tile, so the change shows as it grows.
-    float area = x2 - x1 - 2 * PAD;
-    float tileWidth = (area - (TILE_COUNT - 1) * GAP) / TILE_COUNT;
-    float iconWidth = (area - (ENTRY_COUNT - TILE_COUNT - 1) * GAP) / (ENTRY_COUNT - TILE_COUNT);
-    float asTile = (tileWidth + iconWidth) / 2;
+    // A rectangle wider than a cell and a half is drawn as a tile, so a change of size shows as it grows.
+    float gx, gy, cw, ch;
+    mainmenu_cell(x1, y1, x2, &gx, &gy, &cw, &ch);
+    float asTile = cw * 1.5f;
+
+    float shake = 0;
+    if(menu->shakeEntry >= 0) {
+        u64 since = osGetTime() - menu->shakeTime;
+        if(since < SHAKE_TIME) {
+            shake = roundf(sinf((float) since * 0.07f) * 4 * (1 - (float) since / SHAKE_TIME));
+            moving = true;
+        } else {
+            menu->shakeEntry = -1;
+        }
+    }
+
+    // Editing, the tray for the hidden ones; empty, it says what it is for.
+    if(layout_editing && !mainmenu_home()) {
+        float trayY = mainmenu_tray_top(y1);
+        screen_fill_round_rect(x1 + GRID_PAD - 2, trayY - 2, x2 - x1 - 2 * GRID_PAD + 4, TRAY_HEIGHT + 4, t->def->radiusSmall, THEME_ALPHA(t->palette->border, 0x50));
+        if(layout_visible == ENTRY_COUNT) {
+            widget_text_centered(_("Drop an entry here to hide it"), x1, x2, trayY + (TRAY_HEIGHT - widget_text_height(WIDGET_SMALL_SCALE)) / 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
+        }
+
+        coach_anchor("menu.tray", x1 + GRID_PAD, trayY, x2 - x1 - 2 * GRID_PAD, TRAY_HEIGHT, false);
+    }
 
     // The one dragged is drawn last, over the rest.
     for(int pass = 0; pass < 2; pass++) {
@@ -1215,12 +1835,16 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
                 y += roundf(cosf(phase * 1.3f));
             }
 
+            if((int) layout_perm[p] == menu->shakeEntry) {
+                x += shake;
+            }
+
             float radius = t->def->radiusSmall;
             if(mainmenu_home()) {
                 mainmenu_draw_home_tile(entry, x, y, w, selected, &menu->press, (int) p);
                 radius = t->def->radius;
                 mainmenu_draw_badge(entry, x + (w + HOME_TILE) / 2 - 2, y + 2);
-            } else if(w > asTile) {
+            } else if(w > asTile && !hidden) {
                 mainmenu_draw_tile(x, y, w, h, entry->icon, _(entry->name), selected, entry->warn);
                 radius = t->def->radius;
                 mainmenu_draw_badge(entry, x + w - 4, y + 4);
@@ -1252,27 +1876,22 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
         }
     }
 
-    // The big tiles and the row of icons, as groups.
-    if(!mainmenu_home() && layout_visible > 0) {
-        float ax, ay, aw, ah, bx, by, bw, bh;
-        u32 tiles = layout_visible < TILE_COUNT ? layout_visible : TILE_COUNT;
-        mainmenu_button_rect(0, x1, y1, x2, &ax, &ay, &aw, &ah);
-        mainmenu_button_rect(tiles - 1, x1, y1, x2, &bx, &by, &bw, &bh);
-        coach_anchor("menu.tiles", ax, ay, bx + bw - ax, ah, false);
-        if(layout_visible > TILE_COUNT) {
-            mainmenu_button_rect(TILE_COUNT, x1, y1, x2, &ax, &ay, &aw, &ah);
-            mainmenu_button_rect(layout_visible - 1, x1, y1, x2, &bx, &by, &bw, &bh);
-            coach_anchor("menu.icons", ax, ay, bx + bw - ax, ah, false);
-        }
+    // The grid as a whole.
+    if(!mainmenu_home()) {
+        coach_anchor("menu.grid", gx, gy, GRID_COLS * cw + (GRID_COLS - 1) * GRID_GAP, GRID_ROWS * ch + (GRID_ROWS - 1) * GRID_GAP, false);
     }
 
     if(layout_editing) {
         coach_anchor("menu.editing", x1, y1, x2 - x1, y2 - y1, false);
+        if(!dragging) {
+            mainmenu_draw_size_button(menu, x1, y1, x2);
+        }
     }
 
-    // The name of the focused icon.
-    if(!mainmenu_home() && !dragging && (menu->selected >= TILE_COUNT || menu->selected >= layout_visible)) {
-        mainmenu_draw_tip(menu, x1, y1, x2);
+    // The name of the focused icon (a big tile shows its own).
+    bool smallSelected = menu->selected >= layout_visible || !grid_big[layout_perm[menu->selected]];
+    if(!mainmenu_home() && !dragging && smallSelected && mainmenu_limit() > 0) {
+        mainmenu_draw_tip(menu, x1, y1, x2, y2);
     }
 
     // Keep drawing while things are still gliding into place.
@@ -1280,6 +1899,7 @@ static void mainmenu_draw_bottom(ui_view* view, void* data, float x1, float y1, 
         ui_wake();
     }
 }
+
 
 void mainmenu_open() {
     mainmenu_data* data = (mainmenu_data*) calloc(1, sizeof(mainmenu_data));
@@ -1290,6 +1910,7 @@ void mainmenu_open() {
 
     data->press.index = -1;
     data->dragFrom = -1;
+    data->shakeEntry = -1;
     data->lastSelected = data->selected;
     layout_editing = false;
     mainmenu_layout_load();

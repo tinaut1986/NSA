@@ -163,6 +163,21 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Main menu as a grid (2026-11-25, `feat/menu-grid`; the owner's idea for issue #55's "Main menu - Gaps between tiles?").
+  Every theme but HOME's draws the menu as a grid six cells across and four down (`mainmenu.c`): a big entry takes two by
+  two, a small one a cell, each where the user puts it. NSA comes with the old look (the first three big across the top,
+  the rest as icons in the two rows under them), and a layout saved by 0.16 or older gets it too. Editing (SELECT or a
+  long press): drag an entry anywhere and the ones in the way move to the free places closest to theirs (each step starts
+  again from the layout the drag began with, so they come back when the finger moves on; with no room the last good
+  layout stays); A and the D-Pad move it a cell at a time; R, or the round button on the corner of the one with the focus,
+  makes it big or small (it grows into the two by two square around it that moves the fewest others) and an entry with no
+  room shakes with the error tone; the cells get shorter and a tray for the hidden ones opens under them ("Drop an entry
+  here to hide it" when empty); a hidden one comes back as an icon in the first free cell. settings.json `menu` keeps
+  `sd:00B,titles:20B,...|advanced` (column, row, B when big; the default is kept as ""). HOME's theme keeps its flow of
+  tiles and its own reordering; an entry shown there gets a free cell when the grid comes back. The guide's "Your main
+  menu" is marked updated in 0.17 (the grid, the size button). Claude, Azahar: the default, shrink, grow (others pushed
+  aside), a drag with no room, hiding by dragging to the tray, a tap bringing one back, the save and a 0.16 layout
+  converted, Spanish. Not tried: a console, HOME's theme, the guide chapter, the shake (not seen in a still).
 - [ ] Button remapping with Rehid (2026-11-22, `feat/rehid`; the owner asked for a GUI for hax0kartik/rehid inside NSA).
   Utilities -> Button remapping (`rehid.c`: module, files, limits; `rehidview.c`: screens), and "Button remapping" in a
   game's sheet in Titles once Rehid is on the SD card. Rehid is a HID module Luma3DS loads (`/luma/sysmodules/

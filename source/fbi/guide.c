@@ -75,10 +75,10 @@ static const coach_step basics_steps[] = {
 };
 
 static const coach_step menu_steps[] = {
-        INFO("menu.tiles", "The first three entries are big tiles."),
-        INFO("menu.icons", "The rest wait in this row of icons. The one with the focus shows its name."),
+        INFO_SINCE(GUIDE_VERSION(0, 17), "menu.grid", "The menu is a grid, six cells across and four down: a big entry takes four of them, a small one only its icon. The small one with the focus shows its name."),
         DO(NULL, "Press SELECT to edit the menu (holding an entry does it too).", KEY_SELECT, false, "menu.editing"),
         INFO("menu.editing", "Now you can drag the entries, or pick one up with \uE000 and move it with the D-Pad. \uE002 hides one, \uE003 puts it all back as it came."),
+        INFO_SINCE(GUIDE_VERSION(0, 17), "menu.size", "\uE005, or this button on the one with the focus, makes it big or small. The others move aside to make room; when there is none, it shakes."),
         DO(NULL, "Press SELECT again to finish.", KEY_SELECT, false, "!menu.editing"),
 };
 
@@ -299,7 +299,7 @@ static const coach_step rehid_steps[] = {
 
 static const guide_chapter chapters[] = {
         {"basics", GUIDE_VERSION(0, 2), true, NULL, ICON_DEVICE_GAMEPAD_2, "Getting around", "Screens, buttons and touch", basics_steps, COUNT_OF(basics_steps)},
-        {"menu", GUIDE_VERSION(0, 8), true, "basics", ICON_LAYOUT_GRID, "Your main menu", "Tiles and icons, in your order", menu_steps, COUNT_OF(menu_steps)},
+        {"menu", GUIDE_VERSION(0, 8), true, "basics", ICON_LAYOUT_GRID, "Your main menu", "Big and small entries, where you want them", menu_steps, COUNT_OF(menu_steps), GUIDE_VERSION(0, 17)},
         {"titles", GUIDE_VERSION(0, 2), true, "basics", ICON_APPS, "Titles", "Your games and apps", titles_steps, COUNT_OF(titles_steps)},
         {"files", GUIDE_VERSION(0, 2), true, "basics", ICON_DEVICE_SD_CARD, "SD card", "Files, pictures, music and CIAs", files_steps, COUNT_OF(files_steps)},
         {"remote", GUIDE_VERSION(0, 2), true, "basics", ICON_WORLD_DOWNLOAD, "Remote install", "Install from a QR code, a link or a computer", remote_steps, COUNT_OF(remote_steps)},

@@ -5,8 +5,8 @@ The logo is an LZ11-compressed darc holding Nintendo's logo layout (a .bclyt and
 screen) and its textures (.bclim). The base is FBI's old logo (removed in 706c209, read back from git); NSA's
 redraws it and adds to it:
   - timg/3dsLogo_01.bclim, 128x128 ETC1A4: the square in the middle of the top screen (FBI's said "FBI"):
-    a square take on the banner (meta/banner_3ds.png), cards and NSA on navy, fading out to clear around it;
-    its pane is shown bigger (SQUARE_SHOWN) so the fade fits;
+    a square take on the banner (meta/banner_3ds.png), cards and NSA on a navy card with rounded corners, as
+    the app's cards (clear around it); its pane is shown at SQUARE_SHOWN;
   - timg/3dsLogo_00 / _02 (top) and _03 / _04 (bottom), 16x256 ETC1 (240 used): each screen's background as
     the app draws it with the Cards theme, by day and by night (bars, border lines, background). The night one
     is a pane, material and texture of its own, added above the day one, that fades in during the intro;
@@ -338,8 +338,9 @@ BOTTOM_BAR = 25   # and of the bottom screen's title bar (WIDGET_TITLE_BAR_HEIGH
 HINT_BAR = 21     # and of its hint bar at the foot (WIDGET_HINT_BAR_HEIGHT 22)
 
 
-SQUARE_SHOWN = 200   # the square pane's size on the top screen (144 in FBI's): room for the fade around it
-CORE = 88           # the picture inside the square texture, in texels; the rest fades from navy to clear
+SQUARE_SHOWN = 160   # the square pane's size on the top screen (144 in FBI's)
+CARD = 120          # the card inside the square texture, in texels; clear around it
+CARD_RADIUS = 8     # its corners, in texels (10 px on the screen, as the Cards theme's cards)
 
 
 def picture():
@@ -359,25 +360,15 @@ def picture():
 
 
 def square():
-    """128x128 with alpha: the picture in the middle, its navy fading out around it, so it melts into the
-    background whatever its colour (day or night)."""
-    m = (128 - CORE) // 2
-    radius = 10
-    feather = m
+    """128x128 with alpha: the picture on a navy card with rounded corners, as the app draws its cards, clear
+    around it whatever the background's colour (day or night). The corners are drawn four times bigger and
+    scaled down, so their edge is smooth."""
+    m = (128 - CARD) // 2
     im = Image.new("RGBA", (128, 128), NAVY + (0,))
-    alpha = Image.new("L", (128, 128), 0)
-    ap = alpha.load()
-    lo, hi = m + radius, 128 - m - radius
-    for y in range(128):
-        for x in range(128):
-            cx, cy = x + 0.5, y + 0.5
-            dx = max(lo - cx, 0, cx - hi)
-            dy = max(lo - cy, 0, cy - hi)
-            dist = (dx * dx + dy * dy) ** 0.5 - radius
-            t = min(max(1 - dist / feather, 0.0), 1.0)
-            ap[x, y] = round(255 * t * t * (3 - 2 * t))   # smoothstep
-    im.paste(picture().resize((CORE, CORE), Image.LANCZOS), (m, m))
-    im.putalpha(alpha)
+    im.paste(picture().resize((CARD, CARD), Image.LANCZOS), (m, m))
+    big = Image.new("L", (128 * 4, 128 * 4), 0)
+    ImageDraw.Draw(big).rounded_rectangle([m * 4, m * 4, (m + CARD) * 4 - 1, (m + CARD) * 4 - 1], CARD_RADIUS * 4, fill=255)
+    im.putalpha(big.resize((128, 128), Image.LANCZOS))
     return im
 
 

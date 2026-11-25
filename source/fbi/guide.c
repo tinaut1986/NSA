@@ -276,7 +276,7 @@ static const coach_step brightness_steps[] = {
 
 static const coach_step utilities_steps[] = {
         OPEN("menu.utilities", "Open Utilities: what Rosalina's menu or GodMode9 were opened for.", "v:Utilities"),
-        INFO("DSP firmware", "DSP firmware: homebrew needs it to play sound. On means /3ds/dspfirm.cdc is on the SD card and whole; turning it on dumps it from the console, as DSP1 does."),
+        INFO("DSP firmware", "DSP firmware: homebrew needs it to play sound. On means /3ds/dspfirm.cdc is Nintendo's, on the SD card and whole; OpenDSP, that it is the open source one, which plays what most homebrew needs. Choosing it asks where it comes from: dumped from the console, as DSP1 does, or OpenDSP, downloaded from GitHub (NSA's own copy without internet)."),
         INFO("Game patching", "Game patching: Luma3DS's option for LayeredFS mods and IPS patches. A change takes effect when the console restarts, and NSA offers to restart it then."),
         INFO("Restart", "Restart and Power off do what Rosalina's power menu does. NSA closes first, and not while a transfer is under way."),
         DO("back", " goes back to the menu.", KEY_B, true, "v:Main menu"),

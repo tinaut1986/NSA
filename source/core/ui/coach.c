@@ -363,6 +363,12 @@ void coach_update() {
     missingFrames = step->anchor != NULL && a == NULL && !acted ? missingFrames + 1 : 0;
     bool stuck = missingFrames > COACH_MISSING_FRAMES || (acted && !coach_wait_step(step) && osGetTime() - actedTime > COACH_WAIT_LIMIT);
 
+    // Done, and what it waits for came (maybe after the wait limit: a long task): on, without asking for A.
+    if(acted && step->until != NULL && coach_until_met(step->until)) {
+        coach_next();
+        return;
+    }
+
     if(coach_info_step(step) || stuck) {
         if((rawDown & KEY_A) || coach_tap_on_bubble()) {
             coach_next();

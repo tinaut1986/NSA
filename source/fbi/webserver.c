@@ -1497,13 +1497,18 @@ static void web_api_drag(web_request* r) {
     u32 x = web_number(r, "x", 999);
     u32 y1 = web_number(r, "y1", 999);
     u32 y2 = web_number(r, "y2", 999);
+    u32 x2 = web_number(r, "x2", x);   // To slide sideways too (a box drawn on the screen).
     u32 frames = web_number(r, "frames", 20);
-    if(x >= WEB_BOTTOM_W || y1 >= WEB_SCREEN_H || y2 >= WEB_SCREEN_H || frames == 0 || frames > 600) {
-        web_send_error(r, 400, "x 0-319, y1 and y2 0-239");
+    if(x >= WEB_BOTTOM_W || x2 >= WEB_BOTTOM_W || y1 >= WEB_SCREEN_H || y2 >= WEB_SCREEN_H || frames == 0 || frames > 600) {
+        web_send_error(r, 400, "x and x2 0-319, y1 and y2 0-239");
         return;
     }
 
-    input_inject_drag((u16) x, (u16) y1, (u16) y2, frames);
+    if(x2 != x) {
+        input_inject_slide((u16) x, (u16) y1, (u16) x2, (u16) y2, frames);
+    } else {
+        input_inject_drag((u16) x, (u16) y1, (u16) y2, frames);
+    }
     web_send_ok(r);
 }
 

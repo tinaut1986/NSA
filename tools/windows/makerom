@@ -1,0 +1,6 @@
+#!/bin/sh
+# makerom on Windows: the fixed makerom.exe of ../fetch-makerom.sh (downloaded once per machine). devkitPro's
+# makerom.exe 0.19.0 drops the title version's minor number (3DSGuy/Project_CTR#169: 0.6.2 becomes 0.0.2).
+# A script here, not a copy under build/: "make clean all" would delete the copy before it is used.
+exe=$(sh "$(dirname "$0")/../fetch-makerom.sh") || exit 1
+exec "$exe" "$@"

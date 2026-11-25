@@ -343,6 +343,12 @@ static void task_data_op_retry_onresponse(ui_view* view, void* data, u32 respons
     ((data_op_data*) data)->retryResponse = response == PROMPT_YES;
 }
 
+static void (*task_data_op_end_hook)() = NULL;
+
+void task_data_op_set_end_hook(void (*hook)()) {
+    task_data_op_end_hook = hook;
+}
+
 static void task_data_op_thread(void* arg) {
     data_op_data* data = (data_op_data*) arg;
 
@@ -408,6 +414,10 @@ static void task_data_op_thread(void* arg) {
     }
 
     svcCloseHandle(data->cancelEvent);
+
+    if(task_data_op_end_hook != NULL) {
+        task_data_op_end_hook();
+    }
 
     data->finished = true;
 

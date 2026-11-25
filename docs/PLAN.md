@@ -163,6 +163,77 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] A folder's size and what takes the room (2026-11-25, `feat/folder-size`, cut from `feat/menu-grid`; issue #55,
+  "Calculate folder size" and 3dsDirStat). "Calculate size" in a folder's actions (an item of the list, or the folder
+  shown, with X) counts everything in it on a thread (`foldersize.c`, below the UI's priority, 32 levels at most): the
+  top screen shows the total growing, the files and folders so far, the folder being read and the time; B stops it.
+  Then "What takes the room": the folder's contents biggest first, each row with its share as a bar and a percentage
+  and a colour; the top screen, the folder's size big, a bar of the 7 biggest (shades of the accent, the rest in the
+  last) and their legend. A goes into a folder, B up to where it was opened, then out. Utilities -> What takes the room
+  opens it on the whole SD card. Every folder counted is kept for the session (a hash by archive and path), so a folder
+  inside one counted opens at once, and Files shows "Folder   1.2 GB   340 files" in its row. Forgotten whole when
+  anything may have changed files: the end of any data operation (a hook in dataop.c, set by the main menu), rename,
+  new folder, Files' Refresh. Not forgotten: changes over FTP, the web page or a transfer received (Refresh does it).
+  Claude, Azahar: the SD card's root, into 3ds and back, Utilities, the rows in Files. Not tried: a console, a big
+  folder (the counting screen, B in the middle), a folder that cannot be read ("?"). The guide has a chapter for it
+  ("room", 0.17, after SD card: the folder's actions, Calculate size, the bar, the list, going in and out); the SD card
+  and Utilities chapters point to it. Claude, Azahar: the chapter played through, to the main menu.
+- [ ] Remote install's layout (2026-11-25, `feat/menu-grid`; issue #55 asked to hide what is not used there, the owner
+  added moving the history bar). Editing (SELECT or a long press on any item): the four tiles change places (two to a
+  row, sizes fixed) and can be hidden; the bar (History, FTP, Web) goes above, between or under the rows of tiles (a
+  drag onto another row, or Up/Down when picked up) and its parts change places along it; FTP and Web can be hidden,
+  History cannot (it shows whenever there is a request). Hidden ones wait in a tray at the bottom while editing (the
+  tiles get shorter); a tap brings one back. settings.json keeps `"remote_layout": {"tiles", "hidden_tiles", "bar",
+  "hidden_bar", "bar_row"}` (nothing for the default); remoteinstall.c works with it as one line
+  `3ds,pc,qr|url;history,ftp|web;2` (the 0.16 `"remote_menu"` order is still read). The D-Pad moves to the closest item
+  that way. A 0.17 guide step in the Remote install chapter tells about it. Claude, Azahar: the bar to the top and to the
+  middle, Web before History, FTP and QR hidden, saved and read back after a restart. Not tried: a console, the guide
+  step, a screen with no history.
+- [ ] Main menu as a grid (2026-11-25, `feat/menu-grid`; the owner's idea for issue #55's "Main menu - Gaps between tiles?").
+  Every theme but HOME's draws the menu as a grid six cells across and four down (`mainmenu.c`): a big entry takes two by
+  two, a small one a cell, each where the user puts it. NSA comes with the old look (the first three big across the top,
+  the rest as icons in the two rows under them), and a layout saved by 0.16 or older gets it too. Editing (SELECT or a
+  long press): drag an entry anywhere and the ones in the way move to the free places closest to theirs (each step starts
+  again from the layout the drag began with, so they come back when the finger moves on; with no room the last good
+  layout stays); A and the D-Pad move it a cell at a time; R, or the round button on the corner of the one with the focus
+  (arrows out on a small one, in on a big one: Tabler's arrows-diagonal and arrows-diagonal-minimize-2, added to the
+  atlases without redrawing the other cells), makes it big or small (it grows into the two by two square around it that moves the fewest others) and an entry with no
+  room shakes with the error tone; the cells get shorter and a tray for the hidden ones opens under them ("Drop an entry
+  here to hide it" when empty); a hidden one comes back as an icon in the first free cell. The focused small entry's name
+  shows in a bubble with a cone pointing at it, with the theme's card radius and outline (Pixel: square, 2 px outline,
+  the cone outlined too). settings.json keeps `"menu_layout": {"shown": [{"id", "col", "row", "big"}...], "hidden": [ids]}`
+  (nothing for the default); mainmenu.c works with it as one line, `sd:00B,...|advanced` (settings.c converts; the
+  0.16 `"menu"` string is still read). HOME's theme keeps its flow of
+  tiles and its own reordering; an entry shown there gets a free cell when the grid comes back. The guide's "Your main
+  menu" is marked updated in 0.17 (the grid, the size button). Claude, Azahar: the default, shrink, grow (others pushed
+  aside), a drag with no room, hiding by dragging to the tray, a tap bringing one back, the save and a 0.16 layout
+  converted, Spanish, the bubble in Cards and Pixel, `menu_layout` saved and read back after a restart. Not tried: a
+  console, HOME's theme, the guide chapter, the shake (not seen in a still).
+- [ ] Button remapping with Rehid (2026-11-22, `feat/rehid`; the owner asked for a GUI for hax0kartik/rehid inside NSA).
+  Utilities -> Button remapping (`rehid.c`: module, files, limits; `rehidview.c`: screens), and "Button remapping" in a
+  game's sheet in Titles once Rehid is on the SD card. Rehid is a HID module Luma3DS loads (`/luma/sysmodules/
+  0004013000001D02.cxi`, needs "Enable loading external FIRMs and modules"); its repo has **no licence**, so NSA never
+  carries it: it downloads the latest release's module from GitHub, checks the SHA-256 GitHub gives, keeps the one it
+  replaces in `sdmc:/nsa/rehid/previous.cxi` ("Go back to the previous version"). Off/on renames the module and its IR
+  patch to rehidhelper's names (`rehid.cxi`, `rehid_ir.ips`). Remappings: `/rehid/rehid.json` (global, HOME Menu too) and
+  `/rehid/<TID>/rehid.json` (a game's file replaces the global one whole). The editor writes every change at once, read back
+  first, keeping Rehid's limits it does not check itself: **10 entries per list** (an 11th overflows Rehid's arrays),
+  key/touch/cpad entries with exactly two fields, whole-number coordinates; a game's file that is not JSON stops that game
+  with an error screen, so NSA offers to delete one. NSA's own title keeps a `{}` file, so NSA always has the console's
+  buttons. Buttons are taken by pressing them (a screen takes every key down until all are let go; Cancel is a tap). If the
+  buttons stop working: hold POWER, start holding SELECT, untick the Luma option (in the screen's help), or
+  `SITE REHID OFF` over FTP. Claude, Azahar: the list, global and game editors (keys, turbo, touch point, touch zone with
+  `/api/input/drag?x2=`, Circle Pad, Circle Pad as D-Pad, HOME combo), a file of 13 entries (10 kept, "4 entries... go"),
+  a damaged file (deleted from the question), off/on renames, Luma's option written in config.ini, the game picker.
+  Azahar answers any HID command with success, so there the state always reads "Running". 2026-11-25, the owner on the
+  New 3DS XL: Rehid v5.0 installed from NSA (download and checksum) and remappings work in games. The guide has a chapter
+  for it (0.17, "Button remapping") and two new Utilities steps, not tried on a console yet. Not tried: `SITE REHID`, the
+  web page (no editor there yet: phase 2), an Old 3DS (no ZL/ZR/C-Stick: the editor still offers them).
+- [ ] Game card in Titles (2026-11-22, `feat/game-card-title`). Tried on the New 3DS XL with a CTR card: it is listed with a grey
+  background, the "Game card" tag and a gamepad badge, rounded icon corners, save backup works. Not tried: taking the card out
+  and putting it in with the list open (it must go and come back by itself), restoring a backup onto the card's save (writes
+  the real cartridge), "Send current data to another 3DS" for the card's save, a DS card, light mode. Export as CIA is not
+  offered for a card: fs gives no raw NCCH (E0C046F8); GodMode9 does it from the ARM9.
 - [ ] DS game forwarders (2026-11-19, `feat/nds-forwarder`; asked on Reddit by SignalEntrepreneur80: ndsForwarder is slow).
   Files -> a .nds -> "Install in the HOME Menu" (`ndsfwdview.c`, `ndsfwd.c`, `tests/ndsfwd_test.c`): the question shows the
   game's icon and name; NSA fills a DSiWare template (Olmectron's `sdcard.nds` + `.fwd`, as ndsForwarder and the DS-Homebrew
@@ -215,6 +286,17 @@ What `release` holds, in the order it was built:
   deletes /3ds/dspfirm.cdc. Game patching: changes at once, then offers a restart. The states are read when the group
   opens and after a change. Claude on the New 3DS XL: DSP Yes -> No (file gone) -> Yes (the same 49756 bytes); game
   patching Yes -> No -> Yes, config.ini the same bytes.
+  2026-11-25 (`feat/opendsp`, issue #55): OpenDSP's `opendsp.cdc` (v1.3.1, 222528 bytes, BSD-2-Clause) put in as
+  dspfirm.cdc showed Damaged: only because the size cap was 64 KiB (Nintendo's is 49756 bytes); its header and the
+  three segments' SHA-256 are right. The cap is now the DSP's 512 KiB, and a whole firmware whose signature (the first
+  0x100 bytes) is zero, as OpenDSP's, shows OpenDSP instead of Yes.
+  Then (the owner's ask): A on the row opens a sheet, Dump the console's (first) / OpenDSP / Delete (when there is a
+  file). OpenDSP downloads the latest release (GitHub API, then its SHA256SUMS.txt and opendsp.cdc, checked against
+  both); without internet, or while another transfer holds the turn, NSA's own copy (`romfs/opendsp/`, v1.3.1, with its
+  LICENSE.txt; README credits it) goes in without asking, and the message says which. A failed dump offers OpenDSP.
+  The owner on the New 3DS XL, 2026-11-25: the sheet, OpenDSP downloaded from GitHub (v1.3.1, the log shows the three
+  requests) and the console's dumped again afterwards. Not tried: the fallback to NSA's copy on purpose (no Wi-Fi), a
+  dump that fails, the 2DS. Refresh `romfs/opendsp/` when OpenDSP publishes a new release.
 - [ ] System -> Console settings -> Screen brightness (2026-11-16, `feat/brightness-floor`, moved out of Settings into a
   screen of its own with a guide chapter on 2026-11-17, `feat/brightness-screen`; issue #42): System / Custom, and with Custom two
   bars, Lowest and Highest brightness (10-172, the console's own 16 and 142), that never pass each other; the console's

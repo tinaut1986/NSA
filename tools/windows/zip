@@ -1,0 +1,25 @@
+#!/bin/sh
+# "zip -r ARCHIVE FILES... [-x EXCLUDED...]" on Windows, the form buildtools uses for output/NSA.zip: devkitPro's MSYS2
+# has no zip, but it has bsdtar (pacman needs it). The archive is made anew each time (zip would update it).
+# Without bsdtar the zip is skipped: it is only the release bundle, the CIA and the .3dsx are already made.
+archive= files= excluding=
+for arg in "$@"; do
+    case "$arg" in
+        -x) excluding=1 ;;
+        -*) ;;
+        *) if [ -n "$excluding" ]; then :
+           elif [ -z "$archive" ]; then archive=$arg
+           else files="$files
+$arg"
+           fi ;;
+    esac
+done
+if ! command -v bsdtar >/dev/null 2>&1; then
+    echo "zip (tools/windows): no bsdtar, $archive not made (the CIA and the .3dsx are)" >&2
+    exit 0
+fi
+rm -f "$archive"
+# One name a line: the output folders hold no names with line breaks.
+printf '%s\n' "$files" | sed '/^$/d' |
+    bsdtar --format zip -cf "$archive.part" --exclude "$archive" --exclude "$archive.part" -T - &&
+    mv "$archive.part" "$archive"

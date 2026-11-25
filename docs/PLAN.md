@@ -175,7 +175,9 @@ What `release` holds, in the order it was built:
   anything may have changed files: the end of any data operation (a hook in dataop.c, set by the main menu), rename,
   new folder, Files' Refresh. Not forgotten: changes over FTP, the web page or a transfer received (Refresh does it).
   Claude, Azahar: the SD card's root, into 3ds and back, Utilities, the rows in Files. Not tried: a console, a big
-  folder (the counting screen, B in the middle), a folder that cannot be read ("?").
+  folder (the counting screen, B in the middle), a folder that cannot be read ("?"). The guide has a chapter for it
+  ("room", 0.17, after SD card: the folder's actions, Calculate size, the bar, the list, going in and out); the SD card
+  and Utilities chapters point to it. Claude, Azahar: the chapter played through, to the main menu.
 - [ ] Remote install's layout (2026-11-25, `feat/menu-grid`; issue #55 asked to hide what is not used there, the owner
   added moving the history bar). Editing (SELECT or a long press on any item): the four tiles change places (two to a
   row, sizes fixed) and can be hidden; the bar (History, FTP, Web) goes above, between or under the rows of tiles (a

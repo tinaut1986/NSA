@@ -163,6 +163,13 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] DS forwarder: nds-bootstrap checked first (2026-11-26, `fix/nds-bootstrap-check`; issue #56). Before making the icon,
+  NSA checks every file of nds-bootstrap's forwarder pack the icon needs: `_nds/ntr-forwarder/sdcard.nds` (what the icon
+  starts), `_nds/nds-bootstrap-release.nds` (games) and `_nds/nds-bootstrap-hb-release.nds` (homebrew), each at least
+  16 KiB (an empty or cut copy is not whole). Before, only the first: with nds-bootstrap deleted the icon was made and
+  did not start. A missing pack asks as before; a missing nds-bootstrap names the file and offers the same pack (it
+  brings nds-bootstrap too); after the download, a file still missing is named. The owner's New 3DS XL has all three
+  (TWiLight Menu++ keeps the same files), so nothing changes there. Not tried: a missing file (needs one of them moved).
 - [x] DS forwarder that replaces another (2026-11-26, `fix/nds-forwarder-replace`; issue #56: two .nds, one icon). The
   forwarder's title ID comes from the game code, so two files with the same code (a copy, a patched game, a romhack) share
   it and the second replaced the first, while the question only said "This game already has an icon". Now, when a title

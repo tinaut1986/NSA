@@ -30,6 +30,11 @@
 #define NF_FWD_MAX 4096
 #define NF_PACK_FILE "sdmc:/_nds/ntr-forwarder/sdcard.nds"
 
+// What the icon needs on the SD card, all of it in nds-bootstrap's forwarder pack: the forwarder the icon starts, and
+// nds-bootstrap, which starts the game (its -hb- build starts homebrew). TWiLight Menu++ keeps the same two.
+static const char* const nf_needed[] = {NF_PACK_FILE, "sdmc:/_nds/nds-bootstrap-release.nds", "sdmc:/_nds/nds-bootstrap-hb-release.nds"};
+#define NF_NEEDED_MIN 16384   // A file smaller than this is not a whole nds-bootstrap or forwarder (an empty one, a cut copy).
+
 // nds-bootstrap's forwarder pack, as Universal-DB's script for ndsForwarder installs it.
 static const char* nf_pack_script =
         "[{\"type\":\"downloadFile\",\"file\":\"https://github.com/RocketRobz/NTR_Forwarder/releases/latest/download/DS.Game.Forwarder.pack.nds-bootstrap.7z\","
@@ -82,9 +87,16 @@ static void nf_put64(u8* p, u64 v) {
     nf_put32(p + 4, (u32) v);
 }
 
-static bool nf_exists(const char* path) {
-    struct stat st;
-    return stat(path, &st) == 0;
+// The first needed file that is missing, or too small to be whole; NULL when they are all there.
+static const char* nf_missing() {
+    for(u32 i = 0; i < sizeof(nf_needed) / sizeof(*nf_needed); i++) {
+        struct stat st;
+        if(stat(nf_needed[i], &st) != 0 || st.st_size < NF_NEEDED_MIN) {
+            return nf_needed[i];
+        }
+    }
+
+    return NULL;
 }
 
 // ---- the template ----
@@ -445,13 +457,15 @@ static void nf_start(ndsfwd_view* v) {
 
 static void nf_pack_done(void* data, bool ok) {
     ndsfwd_view* v = (ndsfwd_view*) data;
-    if(nf_exists(NF_PACK_FILE)) {
+    const char* missing = nf_missing();
+    if(missing == NULL) {
         nf_start(v);
         return;
     }
 
     if(ok) {
-        prompt_display_notify("Failure", "The forwarder pack did not leave sd:/_nds/ntr-forwarder/sdcard.nds on the SD card.", COLOR_TEXT, NULL, NULL, NULL);
+        snprintf(v->question, sizeof(v->question), _("The forwarder pack did not leave %s on the SD card."), missing + 5);
+        prompt_display_notify("Failure", v->question, COLOR_TEXT, NULL, NULL, NULL);
     }
 
     nf_free(v);
@@ -464,10 +478,17 @@ static void nf_confirmed(ui_view* view, void* data, u32 response) {
         return;
     }
 
-    if(!nf_exists(NF_PACK_FILE)) {
-        storescript_run_now(nf_pack_script,
-                            _("A game started from the HOME Menu needs nds-bootstrap's forwarder pack (sd:/_nds/ntr-forwarder), which is not on the SD card. Download it from GitHub (RocketRobz/NTR_Forwarder, about 2 MB) and put it there?"),
-                            v, nf_pack_done);
+    // The forwarder pack: missing whole, or a part of it (nds-bootstrap deleted, a cut copy). Downloading it puts every
+    // part back (nds-bootstrap too, which TWiLight Menu++ shares).
+    const char* missing = nf_missing();
+    if(missing != NULL) {
+        if(strcmp(missing, NF_PACK_FILE) == 0) {
+            string_copy(v->question, _("A game started from the HOME Menu needs nds-bootstrap's forwarder pack (sd:/_nds/ntr-forwarder), which is not on the SD card. Download it from GitHub (RocketRobz/NTR_Forwarder, about 2 MB) and put it there?"), sizeof(v->question));
+        } else {
+            snprintf(v->question, sizeof(v->question), _("A game started from the HOME Menu needs nds-bootstrap, and %s is missing on the SD card (or not whole). Download nds-bootstrap's forwarder pack from GitHub (RocketRobz/NTR_Forwarder, about 2 MB), which has it?"), missing + 5);
+        }
+
+        storescript_run_now(nf_pack_script, v->question, v, nf_pack_done);
         return;
     }
 

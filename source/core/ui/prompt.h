@@ -13,7 +13,7 @@ typedef struct ui_view_s ui_view;
 #define PROMPT_NO 1
 
 // The prompt on top, for the web page to show and answer (webserver.c): what the console asks and the buttons it offers.
-#define PROMPT_WEB_OPTIONS_MAX 5
+#define PROMPT_WEB_OPTIONS_MAX 6   // Install from URL: its five ways and Cancel.
 
 typedef struct {
     u32 id;                                         // Changes with every prompt.

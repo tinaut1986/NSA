@@ -43,6 +43,7 @@ typedef struct {
     u32 ok;
     u32 failed;
     char error[160];
+    char note[160];      // Done, with something to say: what could not be installed went to /nsa/received/.
 } dlq_item;
 
 static dlq_item* dlq_items[DLQUEUE_MAX];
@@ -62,8 +63,10 @@ static bool dlq_asking;
 static bool dlq_unseen;            // It finished with failures nobody has looked at.
 static u32 dlq_session_ok;         // Since the queue last went idle.
 static u32 dlq_session_failed;
+static u32 dlq_session_saved;      // Done items that only saved what they could not install.
 static u64 dlq_finished_until;
 static u32 dlq_finished_ok;
+static u32 dlq_finished_saved;
 
 static ui_view* dlq_view;          // The queue screen, while open.
 
@@ -266,6 +269,11 @@ static void dlq_done(void* data, u32 ok, u32 failed, bool paused, bool cancelled
             dlq_session_failed++;
         } else {
             item->state = DLQ_DONE;
+            // With no failure, the run's text is a note (installurl.c: not installable, saved in /nsa/received/).
+            if(!item->isScript && error != NULL && error[0] != '\0') {
+                string_copy(item->note, error, sizeof(item->note));
+                dlq_session_saved++;
+            }
             dlq_release(item);
             dlq_session_ok++;
         }
@@ -285,6 +293,7 @@ static void dlq_start(dlq_item* item) {
     if(item->failed == 0) {
         item->error[0] = '\0';   // A failure before a pause keeps its reason.
     }
+    item->note[0] = '\0';
     dlq_running = item;
     if(item->isScript) {
         // It may end at once (and dlq_done clears dlq_run).
@@ -396,11 +405,13 @@ void dlqueue_tick() {
             dlq_unseen = true;
         } else {
             dlq_finished_ok = dlq_session_ok;
+            dlq_finished_saved = dlq_session_saved;
             dlq_finished_until = osGetTime() + DLQUEUE_FINISHED_MS;
         }
 
         dlq_session_ok = 0;
         dlq_session_failed = 0;
+        dlq_session_saved = 0;
         dlq_changed();
     }
 }
@@ -457,6 +468,14 @@ bool dlqueue_notice(char* out, size_t size, float* progress) {
 
     if(dlq_finished_until > osGetTime()) {
         snprintf(out, size, dlq_finished_ok == 1 ? _("Download queue finished: 1 done") : _("Download queue finished: %lu done"), dlq_finished_ok);
+        if(dlq_finished_saved > 0) {
+            // A second line: on the first it would not fit.
+            size_t used = strlen(out);
+            snprintf(out + used, size - used, "\n");
+            used = strlen(out);
+            snprintf(out + used, size - used, dlq_finished_saved == 1 ? _("1 not installable, saved in /nsa/received/")
+                                                                     : _("%lu not installable, saved in /nsa/received/"), dlq_finished_saved);
+        }
         *progress = -1;
         return true;
     }
@@ -632,6 +651,8 @@ static void dlq_draw_top(ui_view* view, void* data, float x1, float y1, float x2
         screen_fill_round_rect(x, y, width * (progress > 1 ? 1 : progress), 6, 3, t->accent);
     } else if(item->state == DLQ_FAILED && item->error[0] != '\0') {
         screen_draw_text_wrap(item->error, x, y, WIDGET_SMALL_SCALE, t->palette->danger, x + width);
+    } else if(item->state == DLQ_DONE && item->note[0] != '\0') {
+        screen_draw_text_wrap(item->note, x, y, WIDGET_SMALL_SCALE, t->palette->warning, x + width);
     }
 }
 
@@ -917,9 +938,9 @@ static json_t* dlq_json() {
             dlq_progress(&done, &total, file, sizeof(file));
         }
 
-        json_array_append_new(items, json_pack("{s:I,s:s,s:s,s:I,s:I,s:s,s:s,s:b}", "id", (json_int_t) item->id, "name", item->name,
+        json_array_append_new(items, json_pack("{s:I,s:s,s:s,s:I,s:I,s:s,s:s,s:s,s:b}", "id", (json_int_t) item->id, "name", item->name,
                                                "state", dlq_state_id(item->state), "done", (json_int_t) done, "total", (json_int_t) total,
-                                               "file", file, "error", item->error, "script", item->isScript));
+                                               "file", file, "error", item->error, "note", item->note, "script", item->isScript));
     }
 
     return json_pack("{s:b,s:b,s:b,s:o}", "paused", dlq_paused, "pauseAfter", dlq_pause_after, "forTransfer", dlq_for_transfer, "items", items);

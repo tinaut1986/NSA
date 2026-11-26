@@ -1480,13 +1480,13 @@ function queueSheet(){
   const icons = {queued:'clock', running:'download', paused:'player-pause', done:'check', failed:'alert-triangle'};
   const pctOf = it => it.total ? Math.floor(it.done*100/it.total) : 0;
   const subOf = it => it.state==='running' ? [it.file, it.total ? fmtSize(it.done)+' / '+fmtSize(it.total)+' · '+pctOf(it)+' %' : ''].filter(Boolean).join(' · ')
-    : it.state==='failed' ? it.error : T['q_s_'+it.state]+(it.script ? ' · '+T.q_script : '');
+    : it.state==='failed' ? it.error : it.state==='done' && it.note ? T.q_s_done+' · '+it.note : T['q_s_'+it.state]+(it.script ? ' · '+T.q_script : '');
   const call = (path, params) => run(async () => { q = await api('POST', path, params); draw(); });
   const btn = (icon, text, fn) => h('button', {class:'btn', onclick:fn}, ic(icon, 16), text);
   function draw(){
     if(!q) return;
     // The buttons are made again only when something they depend on changed: one made again under the pointer loses its click.
-    const sig = JSON.stringify([q.paused, q.pauseAfter, q.forTransfer, q.items.map(i => [i.id, i.state, i.error, i.script])]);
+    const sig = JSON.stringify([q.paused, q.pauseAfter, q.forTransfer, q.items.map(i => [i.id, i.state, i.error, i.note, i.script])]);
     if(sig === shown){
       for(const it of q.items){
         const row = body.querySelector('[data-q="'+it.id+'"]');

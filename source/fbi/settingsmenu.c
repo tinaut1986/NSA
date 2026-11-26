@@ -36,6 +36,7 @@ typedef enum {
     OPTION_WEB_PIN,
     OPTION_WEB_FIXED_PIN,   // Only with a fixed PIN: opens the keypad.
     OPTION_LINKS,           // Links sent from web pages (linkserver.h).
+    OPTION_SERVERS_AWAKE,   // No sleep mode while the FTP or web server is on (core/awake.h).
     OPTION_CHANNEL,
     OPTION_AUTO_UPDATE,
     OPTION_CHECK_UPDATES,
@@ -114,7 +115,7 @@ typedef struct {
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
             ICON_PALETTE, ICON_PENCIL, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
-            ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_WORLD, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
+            ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_WORLD, ICON_MOON, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
     };
 
     return icons[option];
@@ -137,6 +138,7 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_WEB_PIN: return _("Web PIN");
         case OPTION_WEB_FIXED_PIN: return _("Fixed PIN");
         case OPTION_LINKS: return _("Links from web pages");
+        case OPTION_SERVERS_AWAKE: return _("Servers with the lid closed");
         case OPTION_CHECK_UPDATES: return _("Check for updates");
         case OPTION_CHANGELOG: return _("Changelog");
         case OPTION_GUIDE: return _("Guide");
@@ -168,6 +170,7 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_WEB_PIN: return settings->webPinMode == WEB_PIN_FIXED ? _("Fixed") : settings->webPinMode == WEB_PIN_NONE ? _("None") : _("Random");
         case OPTION_WEB_FIXED_PIN: return settings->webPin;
         case OPTION_LINKS: return linkserver_running() ? _("On") : linkserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
+        case OPTION_SERVERS_AWAKE: return settingsmenu_on_off(settings->serversAwake);
         default: return NULL;
     }
 }
@@ -280,6 +283,9 @@ static void settingsmenu_change(settings_option option, int direction) {
                 linkserver_start_when_online();
                 settings->linkServer = true;
             }
+            break;
+        case OPTION_SERVERS_AWAKE:
+            settings->serversAwake = !settings->serversAwake;
             break;
         case OPTION_CHECK_UPDATES:
             if(direction == 0) {
@@ -566,6 +572,9 @@ static const char* settingsmenu_help(settings_option option) {
                                                           : _("Random: a new PIN each time the server starts. When a browser asks for it, the console shows it on the bottom screen.");
         case OPTION_WEB_FIXED_PIN: return _("Type the PIN on the keypad, or press the turning arrows there for a random one. Pages already open have to type it again.");
         case OPTION_LINKS: return _("A store's \"Send to 3DS\" button (as for 3dsDL) or a phone on your Wi-Fi can send links to this console at http://3ds.local/. The console asks before it downloads anything.");
+        case OPTION_SERVERS_AWAKE:
+            return settings->serversAwake ? _("On: while the FTP or web server is on, the console does not go to sleep. Closing the lid turns the screens off and the servers go on working. The battery runs down as if the console were open.")
+                                          : _("Off: closing the lid puts the console to sleep, and the FTP and web servers stop until it is opened again. Off by default.");
         case OPTION_CHECK_UPDATES: return _("Look for a newer release in your channel now.");
         case OPTION_CHANGELOG: return _("Every release up to yours, betas and stables, newest first.");
         case OPTION_GUIDE: return _("How NSA works, in short chapters. When an update adds something, NSA offers only the new chapters.");
@@ -655,6 +664,8 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
         snprintf(line, sizeof(line), "%s", settings->music == BGMUSIC_OFF ? _("The background music is off.")
                                            : settings->ftpPausesMusic && ftpserver_holding_music() ? _("Now: paused for an FTP transfer")
                                                                                                    : _("Now: playing"));
+    } else if(option == OPTION_SERVERS_AWAKE) {
+        snprintf(line, sizeof(line), "%s", awake_held() ? _("Now: the console stays awake") : _("Now: the console can sleep"));
     } else if(option == OPTION_NIGHT) {
         snprintf(line, sizeof(line), "%s %s", _("Now:"), t->night ? _("night") : _("day"));
     } else if(option == OPTION_GUIDE) {
@@ -781,7 +792,7 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
         // Where a guided tour finds it (coach.h).
         static const char* const anchors[OPTION_COUNT] = {
                 "settings.theme", "settings.theme_edit", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
-                "settings.ftp", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.links", "settings.channel", "settings.auto_update",
+                "settings.ftp", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.links", "settings.servers_awake", "settings.channel", "settings.auto_update",
                 "settings.check_updates", "settings.changelog", "settings.guide"
         };
         coach_anchor(anchors[i], rowX, y, rowW, settingsmenu_row_height(i), i == menu->selected);

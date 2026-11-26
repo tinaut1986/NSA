@@ -677,7 +677,7 @@ static void motion_log_stop(motion_data* d) {
     bool ok = fflush(d->log) == 0;
     ok = fclose(d->log) == 0 && ok;
     d->log = NULL;
-    aptSetSleepAllowed(true);
+    awake_hold(AWAKE_MOTION, false);
 
     if(ok) {
         string_copy(d->lastSaved, d->logPath, sizeof(d->lastSaved));
@@ -709,7 +709,7 @@ static void motion_log_start(motion_data* d) {
     d->logStart = osGetTime();
     d->logRows = 0;
     // Sleep mode would stop the readings with the lid closed.
-    aptSetSleepAllowed(false);
+    awake_hold(AWAKE_MOTION, true);
 }
 
 static void motion_log_row(motion_data* d) {
@@ -726,7 +726,7 @@ static void motion_log_row(motion_data* d) {
         fclose(d->log);
         d->log = NULL;
         d->logFailed = true;
-        aptSetSleepAllowed(true);
+        awake_hold(AWAKE_MOTION, false);
         return;
     }
 

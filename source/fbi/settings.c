@@ -313,6 +313,7 @@ void settings_load() {
     }
 
     settings.ftpMusicAsked = json_is_true(json_object_get(json, "ftp_music_asked"));
+    settings.serversAwake = json_is_true(json_object_get(json, "servers_awake"));
 
     // The themes on the SD card first: the one saved may be one of them ("sd:...").
     theme_load_custom();
@@ -490,7 +491,7 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
@@ -500,6 +501,7 @@ Result settings_save() {
                              "web_pin", settings.webPin,
                              "ftp_pauses_music", settings.ftpPausesMusic,
                              "ftp_music_asked", settings.ftpMusicAsked,
+                             "servers_awake", settings.serversAwake,
                              "theme", theme_get(settings.theme)->id,
                              "accent", theme_accent_get(settings.accent)->id,
                              "night_mode", night_ids[settings.night < 3 ? settings.night : 0],

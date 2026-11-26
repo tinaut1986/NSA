@@ -163,6 +163,17 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Setting the clock no longer looks like a time change to games (2026-11-26, `fix/ntp-rtc`; issue #59). The
+  console shows RTC + the user time offset (cfg 0x30001, in ns; 0x30002 is another copy, read through the system
+  service: cfg:u gives 0). NSA set the time with PTMSYSM_SetUserTime (+ PTMSETS_SetSystemTime), as System Settings and
+  Rosalina's NTP do, which changes the offset: games with time events (Animal Crossing, Team Kirby Clash) take that as
+  the clock moved by hand. Now `datetime_set_clock` (NTP now, NTP at start, the time typed by hand) moves the RTC to
+  the time minus the offset, at the start of a second, then sets the user time to match (the console reads the RTC
+  again only when it starts: an RTC alone left the shown time as it was, 90 s watched), so PTM works the offset out to
+  the same value. Rosalina's "Nullify user time offset" sets the offset to 0 and moves the RTC (it asks to restart).
+  New 3DS XL (Claude, DEBUG SITE CLOCK / CLOCKADD / NTP): the clock put 300 s wrong and set back from the Internet,
+  shown at once, with 0x30001 (-3613022000000) and 0x30002 (-3614022000000) the same before and after. Not tried: a
+  game with time events (Animal Crossing), after a restart, an Old 3DS / 2DS.
 - [ ] Your own songs as background music (2026-11-26, `feat/custom-music`; issue #63, asked on Reddit and GBAtemp).
   MP3, WAV, FLAC and Ogg files in `sdmc:/nsa/music/` show up in Settings -> Background music after the made styles:
   "My songs" (all of them, one after another in a random order, never the same twice in a row) and then each one by

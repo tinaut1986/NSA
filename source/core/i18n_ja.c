@@ -1113,6 +1113,7 @@ const i18n_entry i18n_ja[] = {
         {"Download queue", "ダウンロードキュー"},
         {"Download queue finished: %lu done", "ダウンロードキュー完了：%lu件"},
         {"My songs", "自分の曲"},
+        {"Or your own songs: put MP3, WAV, FLAC or Ogg files in /nsa/music/ on the SD card and they show up here, after the music the console makes. My songs plays them all in a random order; one picked by its name plays over and over.", "自分の曲も使えます：MP3、WAV、FLAC、Ogg のファイルをSDカードの /nsa/music/ に入れると、本体が作る音楽のあとにここに表示されます。「自分の曲」はすべてをランダムな順番で再生し、名前で選んだ曲は繰り返し再生されます。"},
         {"All my songs", "自分の曲すべて"},
         {"All my songs: the files in /nsa/music/ (MP3, WAV, FLAC or Ogg), one after another in a random order.", "自分の曲すべて：/nsa/music/ のファイル（MP3、WAV、FLAC、Ogg）をランダムな順番で次々に再生します。"},
         {"One of your songs, from /nsa/music/, over and over.", "/nsa/music/ の曲のひとつを繰り返し再生します。"},

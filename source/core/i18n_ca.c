@@ -1108,6 +1108,7 @@ const i18n_entry i18n_ca[] = {
         {"Download queue", "Cua de baixades"},
         {"Download queue finished: %lu done", "Cua de baixades acabada: %lu fetes"},
         {"My songs", "Les meves cançons"},
+        {"Or your own songs: put MP3, WAV, FLAC or Ogg files in /nsa/music/ on the SD card and they show up here, after the music the console makes. My songs plays them all in a random order; one picked by its name plays over and over.", "O les teves pròpies cançons: posa fitxers MP3, WAV, FLAC o Ogg a /nsa/music/ de la targeta SD i apareixen aquí, després de la música que crea la consola. Les meves cançons les reprodueix totes en ordre aleatori; una triada pel seu nom sona una vegada i una altra."},
         {"All my songs", "Totes les meves cançons"},
         {"All my songs: the files in /nsa/music/ (MP3, WAV, FLAC or Ogg), one after another in a random order.", "Totes les meves cançons: els fitxers de /nsa/music/ (MP3, WAV, FLAC o Ogg), una darrere l'altra en ordre aleatori."},
         {"One of your songs, from /nsa/music/, over and over.", "Una de les teves cançons, de /nsa/music/, una vegada i una altra."},

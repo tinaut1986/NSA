@@ -1100,6 +1100,7 @@ const i18n_entry i18n_zh[] = {
         {"Download queue", "下载队列"},
         {"Download queue finished: %lu done", "下载队列已完成：%lu 个"},
         {"My songs", "我的歌曲"},
+        {"Or your own songs: put MP3, WAV, FLAC or Ogg files in /nsa/music/ on the SD card and they show up here, after the music the console makes. My songs plays them all in a random order; one picked by its name plays over and over.", "也可以用你自己的歌曲：把 MP3、WAV、FLAC 或 Ogg 文件放进SD卡的 /nsa/music/，它们会显示在这里，排在主机生成的音乐之后。“我的歌曲”按随机顺序播放全部歌曲；按名称选择的一首会循环播放。"},
         {"All my songs", "我的全部歌曲"},
         {"All my songs: the files in /nsa/music/ (MP3, WAV, FLAC or Ogg), one after another in a random order.", "我的全部歌曲：/nsa/music/ 中的文件（MP3、WAV、FLAC 或 Ogg），按随机顺序依次播放。"},
         {"One of your songs, from /nsa/music/, over and over.", "/nsa/music/ 中的一首歌，循环播放。"},

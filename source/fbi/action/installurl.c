@@ -1048,6 +1048,13 @@ static void action_install_url_extract_all(char* archives, char* cias, bool dele
 
 static char action_install_url_error_text[160];
 
+// While a queue run's queueDone runs: how many of its files were saved instead of installed (its note says so).
+static u32 action_install_url_saved_instead_count;
+
+u32 action_install_url_queued_saved_instead() {
+    return action_install_url_saved_instead_count;
+}
+
 // The one download that runs, or waits paused, behind the screens (NULL: none).
 static install_url_data* installurl_bg = NULL;
 
@@ -1342,7 +1349,9 @@ static void action_install_url_finish(ui_view* view, install_url_data* installDa
         action_install_url_free_data(installData);
 
         if(queueDone != NULL) {
+            action_install_url_saved_instead_count = queueError[0] != '\0' && failed == 0 && !queuePaused && !queueCancelled ? savedInstead : 0;
             queueDone(queueItem, queuePaused ? queueProcessed : installed + saved, failed, queuePaused, queueCancelled, queueError);
+            action_install_url_saved_instead_count = 0;
         }
 
         if(archives != NULL) {

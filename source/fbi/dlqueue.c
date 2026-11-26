@@ -272,7 +272,8 @@ static void dlq_done(void* data, u32 ok, u32 failed, bool paused, bool cancelled
             // With no failure, the run's text is a note (installurl.c: not installable, saved in /nsa/received/).
             if(!item->isScript && error != NULL && error[0] != '\0') {
                 string_copy(item->note, error, sizeof(item->note));
-                dlq_session_saved++;
+                u32 files = action_install_url_queued_saved_instead();
+                dlq_session_saved += files > 0 ? files : 1;
             }
             dlq_release(item);
             dlq_session_ok++;

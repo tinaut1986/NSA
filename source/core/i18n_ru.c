@@ -1108,6 +1108,8 @@ const i18n_entry i18n_ru[] = {
         {"Waits its turn in the download queue and installs in the background, one after the other, while you do something else. The queue pauses, reorders and cancels downloads.", "Ждёт своей очереди и устанавливается в фоне, одна загрузка за другой, пока вы заняты другим. Очередь можно ставить на паузу, переупорядочивать и отменять."},
         {"Download queue", "Очередь загрузок"},
         {"Download queue finished: %lu done", "Очередь загрузок завершена: готово %lu"},
+        {"Deleting what was downloaded from the SD card. Don't turn the console off until it ends.", "Удаление загруженного с SD-карты. Не выключайте консоль, пока это не закончится."},
+        {"Don't turn the console off until it ends.", "Не выключайте консоль, пока это не закончится."},
         {"Installed: %lu", "Установлено: %lu"},
         {"Not installable, saved in %s: %lu", "Не устанавливаются, сохранены в %s: %lu"},
         {"It cannot be installed (it is not a CIA or a 3DSX), so it was saved in %s", "Это нельзя установить (не CIA и не 3DSX), поэтому файл сохранён в %s"},

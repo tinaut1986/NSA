@@ -1112,6 +1112,8 @@ const i18n_entry i18n_de[] = {
         {"Waits its turn in the download queue and installs in the background, one after the other, while you do something else. The queue pauses, reorders and cancels downloads.", "Wartet in der Download-Warteschlange und installiert im Hintergrund, einer nach dem anderen, während du etwas anderes machst. Die Warteschlange pausiert, sortiert und bricht Downloads ab."},
         {"Download queue", "Download-Warteschlange"},
         {"Download queue finished: %lu done", "Download-Warteschlange fertig: %lu erledigt"},
+        {"Deleting what was downloaded from the SD card. Don't turn the console off until it ends.", "Das Heruntergeladene wird von der SD-Karte gelöscht. Schalte die Konsole nicht aus, bis es fertig ist."},
+        {"Don't turn the console off until it ends.", "Schalte die Konsole nicht aus, bis es fertig ist."},
         {"Installed: %lu", "Installiert: %lu"},
         {"Not installable, saved in %s: %lu", "Nicht installierbar, gespeichert in %s: %lu"},
         {"It cannot be installed (it is not a CIA or a 3DSX), so it was saved in %s", "Kann nicht installiert werden (keine CIA und keine 3DSX), daher wurde es in %s gespeichert"},

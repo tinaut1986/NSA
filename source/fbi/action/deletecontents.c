@@ -116,6 +116,9 @@ static void action_delete_update(ui_view* view, void* data, float* progress, cha
     }
 
     data_op_progress_items(&deleteData->deleteInfo, progress, text);
+    // A big file takes the SD card seconds to delete, with no progress to show: the console must stay on meanwhile.
+    size_t used = strlen(text);
+    snprintf(text + used, PROGRESS_TEXT_MAX - used, "\n%s", _("Don't turn the console off until it ends."));
 }
 
 static void action_delete_onresponse(ui_view* view, void* data, u32 response) {

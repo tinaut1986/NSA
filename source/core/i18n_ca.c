@@ -1107,6 +1107,8 @@ const i18n_entry i18n_ca[] = {
         {"Waits its turn in the download queue and installs in the background, one after the other, while you do something else. The queue pauses, reorders and cancels downloads.", "Espera el seu torn a la cua de baixades i s'instal·la en segon pla, una darrere l'altra, mentre fas una altra cosa. La cua pausa, reordena i cancel·la baixades."},
         {"Download queue", "Cua de baixades"},
         {"Download queue finished: %lu done", "Cua de baixades acabada: %lu fetes"},
+        {"Deleting what was downloaded from the SD card. Don't turn the console off until it ends.", "S'està esborrant de la targeta SD el que s'ha baixat. No apaguis la consola fins que acabi."},
+        {"Don't turn the console off until it ends.", "No apaguis la consola fins que acabi."},
         {"Installed: %lu", "Instal·lats: %lu"},
         {"Not installable, saved in %s: %lu", "No instal·lables, desats a %s: %lu"},
         {"It cannot be installed (it is not a CIA or a 3DSX), so it was saved in %s", "No es pot instal·lar (no és un CIA ni un 3DSX), així que s'ha desat a %s"},

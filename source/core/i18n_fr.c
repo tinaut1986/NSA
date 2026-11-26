@@ -1107,6 +1107,8 @@ const i18n_entry i18n_fr[] = {
         {"Waits its turn in the download queue and installs in the background, one after the other, while you do something else. The queue pauses, reorders and cancels downloads.", "Attend son tour dans la file de téléchargements et s'installe en arrière-plan, l'un après l'autre, pendant que vous faites autre chose. La file met en pause, réordonne et annule les téléchargements."},
         {"Download queue", "File de téléchargements"},
         {"Download queue finished: %lu done", "File de téléchargements terminée : %lu faits"},
+        {"Deleting what was downloaded from the SD card. Don't turn the console off until it ends.", "Suppression de ce qui a été téléchargé sur la carte SD. N'éteins pas la console avant la fin."},
+        {"Don't turn the console off until it ends.", "N'éteins pas la console avant la fin."},
         {"Installed: %lu", "Installés : %lu"},
         {"Not installable, saved in %s: %lu", "Non installables, enregistrés dans %s : %lu"},
         {"It cannot be installed (it is not a CIA or a 3DSX), so it was saved in %s", "Impossible à installer (ce n'est ni un CIA ni un 3DSX) : il a été enregistré dans %s"},

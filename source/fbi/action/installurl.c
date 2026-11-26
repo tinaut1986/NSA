@@ -81,6 +81,11 @@ typedef struct {
     // "Install" (or the queue) got something that is not installed (not a CIA, ticket, 3DSX or, in a remote install,
     // an archive): it went to INSTALL_URL_SAVE_DIR instead, and the end says so.
     bool savedInstead[INSTALL_URLS_MAX];
+    // What came is being deleted (a cancel, a failure: a file made whole-sized at the start, or a CIA's contents), which
+    // takes seconds for a big one: the screen says so, and not to turn the console off meanwhile.
+    volatile bool deleting;
+    bool deletePaused;   // Cancelled while paused: its .part goes on a thread of its own, the screen saying so meanwhile.
+    bool deleteStarted;
 
     data_op_data installInfo;
 } install_url_data;
@@ -609,6 +614,19 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
     return res;
 }
 
+// Says (or stops saying) on the screen that what came is being deleted: from the download's thread, the screen draws on.
+static void action_install_url_deleting(install_url_data* installData, bool deleting) {
+    installData->deleting = deleting;
+    ui_wake();
+}
+
+// A paused download's .part, deleted when it is cancelled (on its own thread).
+static void action_install_url_delete_paused(void* arg) {
+    install_url_data* installData = (install_url_data*) arg;
+    action_install_url_forget_part(installData->currPath, false);
+    action_install_url_deleting(installData, false);
+}
+
 static Result action_install_url_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
     install_url_data* installData = (install_url_data*) data;
 
@@ -656,17 +674,23 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
         if(installData->saveOnly && whole > 0 && installData->installInfo.currTotal > whole) {
             action_install_url_keep_part(installData->currPath, installData->urls[index], installData->installInfo.currTotal, whole);
         } else {
+            action_install_url_deleting(installData, true);
             action_install_url_forget_part(installData->currPath, false);
+            action_install_url_deleting(installData, false);
         }
     } else {
         if(installData->contentType == CONTENT_CIA) {
+            // AM deletes what it had written of the title.
+            action_install_url_deleting(installData, true);
             res = AM_CancelCIAInstall(handle);
+            action_install_url_deleting(installData, false);
             action_install_cia_ended(installData->currTitleId, false);
         } else if(installData->contentType == CONTENT_TICKET) {
             res = AMNET_InstallTicketAbort(handle);
         } else if(installData->contentType == CONTENT_3DSX_SMDH || installData->contentType == CONTENT_SAVED) {
             res = FSFILE_Close(handle);
 
+            action_install_url_deleting(installData, true);
             FS_Archive sdmcArchive = 0;
             if(R_SUCCEEDED(FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
                 FS_Path* path = fs_make_path_utf8(installData->currPath);
@@ -678,6 +702,7 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
 
                 FSUSER_CloseArchive(sdmcArchive);
             }
+            action_install_url_deleting(installData, false);
         }
     }
 
@@ -1170,6 +1195,26 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
     bool canPause = queued || (installData->saveOnly && !installData->exactPaths);
     u32 down = hidKeysDown();
 
+    // Cancelled while paused: its .part goes on a thread, so the screen keeps saying it until it is gone.
+    if(installData->deletePaused) {
+        view->info = "";   // Nothing to press while it deletes.
+        if(!installData->deleteStarted) {
+            installData->deleteStarted = true;
+            if(threadCreate(action_install_url_delete_paused, installData, 0x4000, 0x18, 1, true) == NULL) {
+                action_install_url_delete_paused(installData);
+            }
+        }
+
+        if(installData->deleting) {
+            return;
+        }
+
+        installData->deletePaused = false;
+        installData->installInfo.result = R_APP_CANCELLED;
+        action_install_url_finish(view, installData, true);
+        return;
+    }
+
     if(installData->paused) {
         view->info = _(" resume    cancel    background");
         if(down & KEY_A) {
@@ -1180,7 +1225,9 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
             installData->paused = false;
             installurl_bg = NULL;
             if(installData->pausedAt < installData->installInfo.total && installData->currPath[0] != '\0') {
-                action_install_url_forget_part(installData->currPath, false);
+                installData->deletePaused = true;
+                action_install_url_deleting(installData, true);
+                return;
             }
 
             installData->installInfo.result = R_APP_CANCELLED;
@@ -1436,6 +1483,18 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
 
     float x = x1 + 8;
     float w = x2 - x1 - 16;
+
+    // Deleting what came (a cancel, a failure): a big file takes the SD card seconds, and the console must stay on.
+    if(installData->deleting) {
+        float cardH = 58;
+        float cardY = y2 - 8 - cardH;
+        widget_card(x, cardY, w, cardH);
+        screen_draw_icon(ICON_ALERT_TRIANGLE, x + 8, cardY + 8, 16, t->palette->warning);
+        screen_draw_text_wrap(_("Deleting what was downloaded from the SD card. Don't turn the console off until it ends."), x + 30, cardY + 8,
+                              WIDGET_TEXT_SCALE, t->palette->text, x + w - 8);
+        y2 = cardY - 4;
+    }
+
     u32 fits = (u32) ((y2 - y1 - 8) / (INSTALL_ROW_HEIGHT + INSTALL_ROW_GAP));
     if(fits == 0) {
         return;
@@ -1449,14 +1508,19 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
 
     for(u32 i = first; i < info->total && i < first + fits; i++) {
         float y = y1 + 8 + (i - first) * (INSTALL_ROW_HEIGHT + INSTALL_ROW_GAP);
-        bool current = i == info->processed && !info->finished;
+        bool deleting = installData->deleting && i == (installData->deletePaused ? installData->pausedAt : info->processed);
+        bool current = i == info->processed && !info->finished && !deleting;
         bool paused = installData->paused && i == installData->pausedAt;
         screen_frame_round_rect(x, y, w, INSTALL_ROW_HEIGHT, t->def->radiusSmall, t->def->border, current ? t->accent : t->palette->border, t->palette->surface);
 
         u32 icon = ICON_CLOCK;
         u32 iconColor = t->palette->textMuted;
         char status[32];
-        if(current) {
+        if(deleting) {
+            icon = ICON_TRASH;
+            iconColor = t->palette->warning;
+            string_copy(status, _("Deleting"), sizeof(status));
+        } else if(current) {
             icon = ICON_DOWNLOAD;
             iconColor = t->accent;
             u32 hundredths = info->currTotal != 0 ? (u32) ((u64) info->currProcessed * 10000 / info->currTotal) : 0;

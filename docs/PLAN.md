@@ -172,8 +172,11 @@ What `release` holds, in the order it was built:
   again only when it starts: an RTC alone left the shown time as it was, 90 s watched), so PTM works the offset out to
   the same value. Rosalina's "Nullify user time offset" sets the offset to 0 and moves the RTC (it asks to restart).
   New 3DS XL (Claude, DEBUG SITE CLOCK / CLOCKADD / NTP): the clock put 300 s wrong and set back from the Internet,
-  shown at once, with 0x30001 (-3613022000000) and 0x30002 (-3614022000000) the same before and after. Not tried: a
-  game with time events (Animal Crossing), after a restart, an Old 3DS / 2DS.
+  shown at once, with 0x30001 (-3613022000000) and 0x30002 (-3614022000000) the same before and after. Three restarts
+  by the owner (2026-11-27): the shown time right after each (RTC + offset), 0x30001 never moved. 0x30002 is rewritten
+  by the system itself some seconds after a start (with NSA's sync at start off it went -7213 -> -7214 s; after RTC
+  moves it jumped once by an hour): it says nothing about NSA, which no longer writes it (PTMSETS_SetSystemTime, the
+  old way, did). Not tried: a game with time events (Animal Crossing), an Old 3DS / 2DS.
 - [ ] Your own songs as background music (2026-11-26, `feat/custom-music`; issue #63, asked on Reddit and GBAtemp).
   MP3, WAV, FLAC and Ogg files in `sdmc:/nsa/music/` show up in Settings -> Background music after the made styles:
   "My songs" (all of them, one after another in a random order, never the same twice in a row) and then each one by

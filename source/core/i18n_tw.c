@@ -1742,7 +1742,7 @@ const i18n_entry i18n_tw[] = {
         {"This game's icon and title are damaged.", "這個遊戲的圖示和標題已損壞。"},
         {"This is not a DS game, or the file is damaged.", "這不是 DS 遊戲，或檔案已損壞。"},
         {"A .nds (a DS game) can go in the HOME Menu too: an icon that starts it with nds-bootstrap. The .nds stays on the SD card, and NSA downloads nds-bootstrap's forwarder pack when it is missing.", ".nds（DS 遊戲）也能放到 HOME 選單：圖示會用 nds-bootstrap 啟動它。.nds 留在 SD 卡上，缺少 nds-bootstrap 的 forwarder pack 時 NSA 會下載。"},
-        {"Homebrew needs it to play sound. On: Nintendo's, whole; OpenDSP: the open source one. A or a tap: dump it or put OpenDSP.", "自製軟體播放聲音需要它。開：任天堂的，完整；OpenDSP：開源的那個。A 或輕觸：擷取或放入 OpenDSP。"},
+        {"Homebrew needs it to play sound. On: Nintendo's; OpenDSP: the open source one. A: dump it or put OpenDSP.", "自製軟體播放聲音需要它。開：任天堂的；OpenDSP：開源的那個。A：擷取或放入 OpenDSP。"},
         {"Luma3DS's game patching, for LayeredFS mods and IPS patches. A change takes effect when the console restarts.", "Luma3DS 的遊戲修補，用於 LayeredFS 模組和 IPS 修補。變更在主機重新啟動後生效。"},
         {"Damaged", "已損壞"},
         {"Failed to delete /3ds/dspfirm.cdc.", "無法刪除 /3ds/dspfirm.cdc。"},

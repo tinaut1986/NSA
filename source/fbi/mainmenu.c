@@ -74,7 +74,7 @@ static const mainmenu_entry console_settings[] = {
 
 // What Luma3DS's Rosalina menu or GodMode9 were opened for (utilities.c).
 static const mainmenu_entry utilities[] = {
-        {ICON_VOLUME, "DSP firmware", "Homebrew needs it to play sound. On: Nintendo's, whole; OpenDSP: the open source one. A or a tap: dump it or put OpenDSP.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, NULL, 0, false, utilities_dsp_value, utilities_dsp_toggle},
+        {ICON_VOLUME, "DSP firmware", "Homebrew needs it to play sound. On: Nintendo's; OpenDSP: the open source one. A: dump it or put OpenDSP.", NULL, NULL, SYSTEM_MEDIATYPE_SD, SYSTEM_MEDIATYPE_CTR_NAND, NULL, NULL, 0, false, utilities_dsp_value, utilities_dsp_toggle},
         {ICON_PUZZLE, "Game patching", "Luma3DS's game patching, for LayeredFS mods and IPS patches. A change takes effect when the console restarts.", NULL, NULL, SYSTEM_MEDIATYPE_SD, -1, NULL, NULL, 0, false, utilities_luma_value, utilities_luma_toggle},
         {ICON_DATABASE, "What takes the room", "Which folders and files take the most room on the SD card, biggest first, each with its share.", "Biggest first", foldersize_open_sd, SYSTEM_MEDIATYPE_SD, -1},
         {ICON_DEVICE_GAMEPAD_2, "Button remapping", "Change what the buttons do in every game, or in one, with Rehid (a HID module Luma3DS loads). NSA installs it and edits its remappings.", "Rehid, in every game", rehidview_open, SYSTEM_MEDIATYPE_SD, -1},
@@ -915,11 +915,23 @@ static void mainmenu_draw_entry(const mainmenu_entry* entry, float x1, float y1,
     float cardX = x1 + 12;
     float cardY = y1 + 14;
     float cardW = x2 - x1 - 24;
-    float cardH = 96;
-    widget_card(cardX, cardY, cardW, cardH);
-
     float tile = 64;
     float tileX = cardX + 16;
+    float textX = tileX + tile + 14;
+    float wrap = cardX + cardW - 14;
+
+    // As tall as its text needs (a long description in some languages takes four lines), at least as tall as the tile
+    // wants; a group keeps a row for its badges under the text.
+    float textH = 0;
+    screen_get_string_size_wrap(NULL, &textH, _(entry->description), WIDGET_TEXT_SCALE, WIDGET_TEXT_SCALE, wrap - textX);
+    float badgesH = entry->children != NULL ? widget_text_height(WIDGET_SMALL_SCALE) + 10 : 0;
+    float cardH = 14 + widget_text_height(WIDGET_TITLE_SCALE) + 4 + textH + badgesH + 12;
+    if(cardH < 96) {
+        cardH = 96;
+    }
+
+    widget_card(cardX, cardY, cardW, cardH);
+
     float tileY = cardY + (cardH - tile) / 2;
     float cardDepth = screen_get_depth();
     screen_set_depth(cardDepth + 1);
@@ -928,8 +940,6 @@ static void mainmenu_draw_entry(const mainmenu_entry* entry, float x1, float y1,
     screen_draw_icon(entry->icon, tileX + 14, tileY + 14, 36, entry->warn ? t->palette->danger : t->accent);
     screen_set_depth(cardDepth);
 
-    float textX = tileX + tile + 14;
-    float wrap = cardX + cardW - 14;
     screen_draw_text(_(entry->name), textX, cardY + 14, WIDGET_TITLE_SCALE, t->palette->text);
     screen_draw_text_wrap(_(entry->description), textX, cardY + 14 + widget_text_height(WIDGET_TITLE_SCALE) + 4, WIDGET_TEXT_SCALE, t->palette->textMuted, wrap);
 

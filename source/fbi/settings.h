@@ -127,6 +127,8 @@ typedef struct {
     // Background music: a bgmusic_style and a volume in percent.
     u32 music;
     u32 musicVolume;
+    // With BGMUSIC_SONGS: the file of /nsa/music/ to play, or "" for all of them, shuffled.
+    char musicSong[128];
     // The console's brightness range (brightness.h) last chosen, kept for when "Custom" is picked again: the
     // console's own table says whether it is in use.
     bool brightnessCustom;   // "Custom" was picked (the range may still equal the console's own).

@@ -8,6 +8,7 @@
 
 #include "ui.h"
 #include "../error.h"
+#include "../backdrop.h"
 #include "../screen.h"
 #include "../sound.h"
 #include "../led.h"
@@ -263,6 +264,7 @@ static void ui_draw_top_eye(ui_view* ui, gfx3dSide_t side, float shift) {
     screen_select_eye(GFX_TOP, side, shift);
     coach_screen_begin(GFX_TOP, side == GFX_LEFT);
     widget_background(TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT);
+    backdrop_draw(TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT);
     coach_anchor("top", 0, WIDGET_TOP_BAR_HEIGHT, TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT - WIDGET_TOP_BAR_HEIGHT, false);
 
     screen_set_base_alpha(ui_fade_alpha);
@@ -289,6 +291,7 @@ static void ui_draw_top(ui_view* ui) {
         gfxSet3D(stereo);
     }
 
+    backdrop_update();
     ui_draw_top_eye(ui, GFX_LEFT, stereo ? slider * UI_STEREO_SHIFT : 0);
     if(stereo) {
         ui_draw_top_eye(ui, GFX_RIGHT, -slider * UI_STEREO_SHIFT);
@@ -550,6 +553,21 @@ static void ui_draw_bottom(ui_view* ui) {
 // that, a few times a second, enough for progress and clocks.
 #define UI_ACTIVE_TIME 1500
 #define UI_IDLE_FRAME 100
+// With only an animated background moving: about 30 frames a second on a New 3DS, which its slow particles need (core 0
+// 42% -> 26% against every frame, New 3DS XL at the main menu; 4% without it), and 20 on an Old 3DS, about 3 times slower.
+#define UI_BACKDROP_FRAME_NEW 32
+#define UI_BACKDROP_FRAME_OLD 48
+
+static u64 ui_backdrop_frame() {
+    static u64 frame = 0;
+    if(frame == 0) {
+        bool isNew = false;
+        APT_CheckNew3DS(&isNew);
+        frame = isNew ? UI_BACKDROP_FRAME_NEW : UI_BACKDROP_FRAME_OLD;
+    }
+
+    return frame;
+}
 
 static u64 ui_last_active = 0;
 static u64 ui_last_draw = 0;
@@ -572,7 +590,9 @@ static bool ui_should_draw(ui_view* ui) {
         ui_last_slider = slider;
     }
 
-    if(now - ui_last_active < UI_ACTIVE_TIME || now - ui_last_draw >= UI_IDLE_FRAME) {
+    // An animated background moves on its own: drawn often enough for it then.
+    if(now - ui_last_active < UI_ACTIVE_TIME || now - ui_last_draw >= UI_IDLE_FRAME
+       || (backdrop_active() && now - ui_last_draw >= ui_backdrop_frame())) {
         ui_last_draw = now;
         return true;
     }

@@ -163,6 +163,16 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Animated background (2026-11-27, `feat/animated-backdrop`; issue #60, asked on Reddit). Settings -> Animated
+  background (`backdrop`, after Night mode): Off (the default), Bubbles, Snow, Starry sky, Fireflies, drawn by NSA
+  (`core/backdrop.c`, written from scratch: ftpd's bubbles are GPLv3) behind the top screen in the theme's accent
+  colour, each particle at a depth of its own from -1 to -6 (behind the screen: with the 3D slider up they float behind
+  it; flat without it), the far ones smaller, slower and fainter. It stands still while a transfer has the turn. While
+  it moves the UI draws about 30 frames a second on a New 3DS and 20 on an Old 3DS (UI_BACKDROP_FRAME_*) instead of
+  only when something changes: core 0 at the main menu, New 3DS XL, 4% off, 42% every frame, 26% at 30. The guide's
+  "Look and sound" has a step for it (0.18). New 3DS XL (Claude): the four variants in night and day colours, moving.
+  Not tried: an Old 3DS / 2DS (its CPU at 20 frames a second, next to the music and downloads), the 3D depth seen on
+  the console (only one eye can be captured), the Pixel and HOME themes, the pause during a transfer.
 - [ ] Setting the clock no longer looks like a time change to games (2026-11-26, `fix/ntp-rtc`; issue #59). The
   console shows RTC + the user time offset (cfg 0x30001, in ns; 0x30002 is another copy, read through the system
   service: cfg:u gives 0). NSA set the time with PTMSYSM_SetUserTime (+ PTMSETS_SetSystemTime), as System Settings and

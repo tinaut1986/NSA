@@ -13,6 +13,7 @@
 #include "../core/qrencode.h"
 #include "section.h"
 #include "settings.h"
+#include "../core/backdrop.h"
 #include "../core/bgmusic.h"
 #include "update.h"
 #include "pinpad.h"
@@ -27,6 +28,7 @@ typedef enum {
     OPTION_THEME_EDIT,     // The theme editor (themeedit.c).
     OPTION_ACCENT,
     OPTION_NIGHT,
+    OPTION_BACKDROP,        // The top screen's animated background (core/backdrop.h).
     OPTION_LANGUAGE,
     OPTION_SOUNDS,
     OPTION_MUSIC,
@@ -194,7 +196,7 @@ typedef struct {
 
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
-            ICON_PALETTE, ICON_PENCIL, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
+            ICON_PALETTE, ICON_PENCIL, ICON_COLOR_SWATCH, ICON_MOON, ICON_STAR, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
             ICON_SERVER, ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_WORLD, ICON_MOON, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
     };
 
@@ -207,6 +209,7 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_THEME_EDIT: return _("Edit the theme");
         case OPTION_ACCENT: return _("Accent colour");
         case OPTION_NIGHT: return _("Night mode");
+        case OPTION_BACKDROP: return _("Animated background");
         case OPTION_LANGUAGE: return _("Language");
         case OPTION_SOUNDS: return _("Sounds");
         case OPTION_MUSIC: return _("Background music");
@@ -240,6 +243,9 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_ACCENT: return _(theme_accent_get(settings->accent)->name);
         case OPTION_NIGHT:
             return settings->night == THEME_NIGHT_ON ? _("On") : settings->night == THEME_NIGHT_AUTO ? _("Automatic") : _("Off");
+        case OPTION_BACKDROP:
+            return settings->backdrop == BACKDROP_BUBBLES ? _("Bubbles") : settings->backdrop == BACKDROP_SNOW ? _("Snow")
+                   : settings->backdrop == BACKDROP_STARS ? _("Starry sky") : settings->backdrop == BACKDROP_FIREFLIES ? _("Fireflies") : _("Off");
         case OPTION_LANGUAGE: return i18n_language_name(settings->language);
         case OPTION_SOUNDS: return settings->sounds == SOUNDS_ALL ? _("All") : settings->sounds == SOUNDS_ALERTS ? _("Alerts") : _("Off");
         case OPTION_MUSIC: {
@@ -330,6 +336,10 @@ static void settingsmenu_change(settings_option option, int direction) {
             break;
         case OPTION_NIGHT:
             settings->night = (theme_night_mode) settingsmenu_step(settings->night, 3, step);
+            break;
+        case OPTION_BACKDROP:
+            settings->backdrop = settingsmenu_step(settings->backdrop, BACKDROP_COUNT, step);
+            backdrop_set((backdrop_style) settings->backdrop);
             break;
         case OPTION_LANGUAGE:
             // Too many to step through: a list.
@@ -670,6 +680,9 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_THEME_EDIT: return _("Change the theme in use value by value, its colours with a finger, and see it at once. A built-in theme is saved as a new one of your own.");
         case OPTION_ACCENT: return _("The colour of buttons, selections and bars.");
         case OPTION_NIGHT: return _("Dark colours. Automatic: from 20:00 to 8:00.");
+        case OPTION_BACKDROP:
+            return settings->backdrop == BACKDROP_OFF ? _("Off: the top screen's plain background. An animation keeps the screen drawing all the time, which uses a little more battery.")
+                                                       : _("Moves behind the top screen in the accent colour, at different depths: with the 3D slider up it floats behind the screen. It stops while a transfer runs.");
         case OPTION_LANGUAGE: return _("Pick NSA's language from a list. System: the console's language when NSA has it, else English.");
         case OPTION_SOUNDS:
             return settings->sounds == SOUNDS_ALL ? _("All: a tick for buttons and touches, and a tune when something ends or fails.")
@@ -950,7 +963,7 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
 
         // Where a guided tour finds it (coach.h).
         static const char* const anchors[OPTION_COUNT] = {
-                "settings.theme", "settings.theme_edit", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
+                "settings.theme", "settings.theme_edit", "settings.accent", "settings.night", "settings.backdrop", "settings.language", "settings.sounds", "settings.music",
                 "settings.ftp", "settings.ftp_port", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.links", "settings.servers_awake", "settings.channel", "settings.auto_update",
                 "settings.check_updates", "settings.changelog", "settings.guide"
         };

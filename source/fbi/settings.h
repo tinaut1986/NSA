@@ -127,6 +127,8 @@ typedef struct {
     // Background music: a bgmusic_style and a volume in percent.
     u32 music;
     u32 musicVolume;
+    // The top screen's animated background: a backdrop_style (core/backdrop.h), off by default.
+    u32 backdrop;
     // With BGMUSIC_SONGS: the file of /nsa/music/ to play, or "" for all of them, shuffled.
     char musicSong[128];
     // The console's brightness range (brightness.h) last chosen, kept for when "Custom" is picked again: the

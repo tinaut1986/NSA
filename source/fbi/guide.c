@@ -172,6 +172,7 @@ static const coach_step look_steps[] = {
         INFO_SINCE(GUIDE_VERSION(0, 13), "settings.theme", "HOME turns its icon grids sideways, in pages: a tap on a dot, or a finger along the bar under them, goes to one. Your own themes have a chapter of their own."),
         INFO("settings.accent", "The colour of buttons and selections."),
         INFO("settings.night", "Dark colours, by hand or from 20:00 to 8:00."),
+        INFO_SINCE(GUIDE_VERSION(0, 18), "settings.backdrop", "Animated background: bubbles, snow, stars or fireflies behind the top screen, in the accent colour. With the 3D slider up they float behind the screen."),
         INFO("settings.language", "NSA speaks 11 languages. System follows the console's own."),
         REACH("settings.music", "Go down to Background music."),
         INFO("settings.music", "Music the console makes itself, with its own volume. The sounds above have theirs."),

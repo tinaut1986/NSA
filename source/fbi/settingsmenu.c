@@ -49,6 +49,7 @@ typedef enum {
 #define ROW_PITCH (WIDGET_ROW_HEIGHT + WIDGET_ROW_GAP)
 #define PAD 8
 #define VOLUME_STEP 5
+#define HEADER_HEIGHT 18   // A group's name above its first row: smaller than a row, never selected.
 
 // Sounds and Music carry a volume slider under their selector, in the same box.
 static u32* settingsmenu_slider_value(settings_option option) {
@@ -79,16 +80,41 @@ static u32 settingsmenu_next_visible(u32 from, int direction) {
     return i;
 }
 
-// Where a row starts, from the top of the list.
+// The name of the group that starts at this row, or NULL: the rows go in groups of related options.
+static const char* settingsmenu_group(u32 index) {
+    switch(index) {
+        case OPTION_THEME: return _("Appearance");
+        case OPTION_SOUNDS: return _("Sound");
+        case OPTION_FTP: return _("Servers");
+        case OPTION_CHANNEL: return _("Updates");
+        case OPTION_GUIDE: return _("Help");
+        default: return NULL;
+    }
+}
+
+// Where a row starts, from the top of the list (below its group's name, if it is the group's first row).
 static float settingsmenu_row_top(u32 index) {
     float top = 0;
     for(u32 i = 0; i < index; i++) {
+        if(settingsmenu_group(i) != NULL) {
+            top += HEADER_HEIGHT;
+        }
+
         if(settingsmenu_visible(i)) {
             top += settingsmenu_row_height(i) + WIDGET_ROW_GAP;
         }
     }
 
+    if(index < OPTION_COUNT && settingsmenu_group(index) != NULL) {
+        top += HEADER_HEIGHT;
+    }
+
     return top;
+}
+
+// Where a row's block starts: its group's name above it, when it has one, is shown with it.
+static float settingsmenu_block_top(u32 index) {
+    return settingsmenu_row_top(index) - (settingsmenu_group(index) != NULL ? HEADER_HEIGHT : 0);
 }
 
 // The volume applies as it moves; saving waits for the finger to lift.
@@ -350,8 +376,8 @@ static void settingsmenu_clamp_scroll(settingsmenu_data* menu, float viewHeight)
 static void settingsmenu_reveal(settingsmenu_data* menu, float viewHeight) {
     float top = settingsmenu_row_top(menu->selected);
     float height = settingsmenu_row_height(menu->selected);
-    if(top < menu->scroll) {
-        menu->scroll = top;
+    if(settingsmenu_block_top(menu->selected) < menu->scroll) {
+        menu->scroll = settingsmenu_block_top(menu->selected);
     } else if(top + height > menu->scroll + viewHeight) {
         menu->scroll = top + height - viewHeight;
     }
@@ -435,7 +461,7 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
             menu->selected = settingsmenu_next_visible(menu->selected, -1);
         }
 
-        menu->scroll = settingsmenu_row_top(menu->selected);
+        menu->scroll = settingsmenu_block_top(menu->selected);
         settingsmenu_clamp_scroll(menu, viewHeight);
     } else if(settingsmenu_slider_value((settings_option) menu->selected) != NULL && (settingsmenu_repeat(menu, KEY_X) || settingsmenu_repeat(menu, KEY_Y))) {
         u32* volume = settingsmenu_slider_value((settings_option) menu->selected);
@@ -808,8 +834,14 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
     screen_set_clip(x1, y1 + PAD / 2, x2 - x1, y2 - y1 - PAD);
     for(u32 i = 0; i < OPTION_COUNT; i++) {
         float y = y1 + PAD + settingsmenu_row_top(i) - menu->scroll;
-        if(y + settingsmenu_row_height(i) < y1 || y > y2) {
+        const char* group = settingsmenu_group(i);
+        if(y + settingsmenu_row_height(i) < y1 || y - (group != NULL ? HEADER_HEIGHT : 0) > y2) {
             continue;
+        }
+
+        if(group != NULL) {
+            float textH = widget_text_height(WIDGET_SMALL_SCALE);
+            screen_draw_text(group, rowX + 6, y - HEADER_HEIGHT + (HEADER_HEIGHT - textH) / 2 - 1, WIDGET_SMALL_SCALE, theme()->palette->textMuted);
         }
 
         if(!settingsmenu_visible(i)) {

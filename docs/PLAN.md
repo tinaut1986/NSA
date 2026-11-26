@@ -163,6 +163,11 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Settings in groups (2026-11-26, `feat/settings-headers`): 20 rows had grown hard to scan, so the list has a small
+  muted name above each group's first row (18 px, never selected): Appearance (theme to language), Sound, Servers (FTP to
+  servers with the lid closed), Updates, Help. The D-Pad, L/R pages and a row brought into view take its group's name
+  with it; the guide's anchors are the rows, unchanged. A submenu only if Servers keeps growing. New 3DS XL (Claude,
+  Cards, day): the top, Servers and the end (ZR) look right. Not tried: Pixel, HOME, night mode, touch scrolling, L/R.
 - [ ] FTP port (2026-11-26, `feat/ftp-port`; issue #57). Settings -> "FTP port" (`ftp_port`, below FTP server): 5021 (the
   default), 5000 (ftpd's: a client's saved connection works as it is) or 21. A running server moves at once (clients on
   the old port are dropped); the passive ports stay 5022-5085 whatever the port. On 5000, "Receive from a computer" (FBI's

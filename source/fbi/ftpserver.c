@@ -19,6 +19,7 @@
 #include "rehid.h"
 #include "relaunch.h"
 #include "remotehelp.h"
+#include "datetime.h"
 #include "homeicon.h"
 #include "selftest.h"
 #include "settings.h"
@@ -1531,6 +1532,78 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
 
         fclose(f);
         ftp_reply(s, "%s", out);
+        return;
+    }
+
+    // The clocks (issue #59): "SITE CLOCK" says the user time (what the console shows), the RTC's and the user time
+    // offset of cfg blocks 0x30001 and 0x30002, in ms since 2000 (the RTC and the user time) and ms (the offsets).
+    if(NSA_DEBUG && strcmp(sub, "CLOCK") == 0) {
+        s64 rtc = 0;
+        Result rtcRes = R_APP_INVALID_ARGUMENT;
+        if(R_SUCCEEDED(ptmSysmInit())) {
+            rtcRes = PTMSYSM_GetRtcTime(&rtc);
+            ptmSysmExit();
+        }
+
+        // Through cfg:u (Blk2) and through the system service NSA also has (Blk8): they may differ.
+        s64 offset1 = 0;
+        s64 offset2 = 0;
+        s64 system1 = 0;
+        s64 system2 = 0;
+        Result cfgRes = CFGU_GetConfigInfoBlk2(8, 0x30001, &offset1);
+        CFGU_GetConfigInfoBlk2(8, 0x30002, &offset2);
+        Result sysRes = CFG_GetConfigInfoBlk8(8, 0x30001, &system1);
+        CFG_GetConfigInfoBlk8(8, 0x30002, &system2);
+        // osGetTime: ms since 1900; the year 2000 is 3155673600 s later.
+        s64 user = (s64) osGetTime() - 3155673600000LL;
+        char reply[384];
+        snprintf(reply, sizeof(reply), "200 user=%lld rtc=%lld (%08lX) user-rtc=%lld u30001=%lld u30002=%lld (%08lX) s30001=%lld s30002=%lld (%08lX) time=%lld",
+                 (long long) user, (long long) rtc, (u32) rtcRes, (long long) (user - rtc), (long long) offset1, (long long) offset2,
+                 (u32) cfgRes, (long long) system1, (long long) system2, (u32) sysRes, (long long) time(NULL));
+        ftp_reply(s, reply);
+        return;
+    }
+
+    // Moves the clock the way NSA sets it (issue #59, to put it wrong on purpose): "SITE CLOCKADD <seconds>".
+    if(NSA_DEBUG && strcmp(sub, "CLOCKADD") == 0) {
+        Result res = datetime_debug_shift(path != NULL ? strtoll(path, NULL, 10) : 0);
+        char reply[64];
+        snprintf(reply, sizeof(reply), "200 Moved (%08lX).", (u32) res);
+        ftp_reply(s, reply);
+        return;
+    }
+
+    // Sets the clock from the Internet now, as Date and time does (issue #59): "SITE NTP".
+    if(NSA_DEBUG && strcmp(sub, "NTP") == 0) {
+        const char* problem = NULL;
+        s64 changed = 0;
+        char reply[160];
+        if(datetime_sync_now(&problem, &changed)) {
+            snprintf(reply, sizeof(reply), "200 Synced: the clock moved %lld s.", (long long) changed);
+        } else {
+            snprintf(reply, sizeof(reply), "550 %s", problem != NULL ? problem : "Failed.");
+        }
+
+        ftp_reply(s, reply);
+        return;
+    }
+
+    // Moves the RTC by some seconds (issue #59, to put the clock wrong on purpose): "SITE RTCADD <seconds>".
+    if(NSA_DEBUG && strcmp(sub, "RTCADD") == 0) {
+        s64 seconds = path != NULL ? strtoll(path, NULL, 10) : 0;
+        s64 rtc = 0;
+        Result res = ptmSysmInit();
+        if(R_SUCCEEDED(res)) {
+            if(R_SUCCEEDED(res = PTMSYSM_GetRtcTime(&rtc))) {
+                res = PTMSYSM_SetRtcTime(rtc + seconds * 1000);
+            }
+
+            ptmSysmExit();
+        }
+
+        char reply[96];
+        snprintf(reply, sizeof(reply), "200 rtc %lld -> %lld (%08lX)", (long long) rtc, (long long) (rtc + seconds * 1000), (u32) res);
+        ftp_reply(s, reply);
         return;
     }
 

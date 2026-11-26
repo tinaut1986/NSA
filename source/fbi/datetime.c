@@ -264,10 +264,35 @@ static bool datetime_summer(const datetime_zone* zone, s64 utc) {
 
 #define DATETIME_UNIX_2000 946684800LL
 
+// The console shows the RTC plus the user time offset (cfg block 0x30001, in nanoseconds). Setting the time the way
+// System Settings does (PTMSYSM_SetUserTime) changes that offset, and games with time events (Animal Crossing, Team
+// Kirby Clash) read a changed offset as the clock moved by hand, and reset their events (issue #59). So NSA moves the
+// RTC instead and leaves the offset as it is: the console shows the right time and the offset says nothing happened.
+// Only when the offset cannot be read does it fall back to the user time.
 static Result datetime_set_clock(s64 msLocal) {
     s64 msY2k = msLocal - DATETIME_UNIX_2000 * 1000;
     Result res = ptmSysmInit();
     if(R_FAILED(res)) {
+        return res;
+    }
+
+    s64 offsetNs = 0;
+    if(R_SUCCEEDED(CFGU_GetConfigInfoBlk2(sizeof(offsetNs), 0x30001, &offsetNs))) {
+        // The RTC counts whole seconds: set it as one starts, as Rosalina does, so no fraction is lost.
+        s64 msRtc = msY2k - offsetNs / 1000000;
+        s64 wait = ((1000 - msRtc % 1000) % 1000 + 1000) % 1000;
+        if(wait > 0) {
+            svcSleepThread(wait * 1000000LL);
+        }
+
+        res = PTMSYSM_SetRtcTime(msRtc + wait);
+        // The console reads the RTC again only when it starts: the user time is set to match, which leaves the
+        // offset (user time - RTC) as it was.
+        if(R_SUCCEEDED(res)) {
+            res = PTMSYSM_SetUserTime(msY2k + wait);
+        }
+
+        ptmSysmExit();
         return res;
     }
 
@@ -336,6 +361,12 @@ static bool datetime_ntp(s64* msUtc, const char** problem) {
 
 static time_t datetime_last_sync = 0;   // The console's time (after setting it) of the last setting from the Internet.
 static s64 datetime_last_change = 0; // What it moved the clock, in seconds.
+
+Result datetime_debug_shift(s64 seconds) {
+    // osGetTime: ms since 1900, local; 1970 is 2208988800 s later.
+    s64 msLocal = (s64) osGetTime() - 2208988800000LL + seconds * 1000;
+    return datetime_set_clock(msLocal);
+}
 
 bool datetime_sync_now(const char** problem, s64* changedBy) {
     u32 wifi = 0;

@@ -163,6 +163,18 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Install from URL by type (2026-11-26, `fix/url-choices-by-type`). The question comes before any byte, so its choices
+  go by each URL's name (an option shows only if it suits every URL): .cia/.tik all; .3dsx/.smdh Install, Save, queue;
+  .zip/.7z all in a remote install, else Save and queue; any other extension (.mp3, .bin...) Save and queue; no extension,
+  a page (.php, .aspx...) or a version number ("v1.2") all, since it could be anything. Safety net: "Install" or the
+  queue getting something that is not a CIA, ticket, 3DSX or (remote install) archive saves it in /nsa/received/ instead
+  of failing at the end (it used to download it whole for nothing) and says so: "Saved, not installed" at the end, the
+  queue item's note (`note` in /api/queue, shown on the web page) and a second line on the queue's finished toast. A
+  failed or cancelled "Install" leaves no .part (only "Save" resumes). The web page's questions now carry up to 6 options
+  (`PROMPT_WEB_OPTIONS_MAX`), so the URL question's Cancel reaches the page. New 3DS XL (Claude): .mp3 -> Save/queue;
+  .3dsx -> Install/Save/queue; .cia + .mp3 -> Save/queue; .cia and download.php -> all; a no-extension file chosen
+  Install -> saved and the notice; a .bin in the queue -> saved, note, two-line toast; web Cancel. Not tried: a real
+  CIA or 3DSX still installs (that path is unchanged), several URLs with some saved instead, the other languages' lengths.
 - [ ] Settings in groups (2026-11-26, `feat/settings-headers`): 20 rows had grown hard to scan, so the list has a small
   muted name above each group's first row (18 px, never selected): Appearance (theme to language), Sound, Servers (FTP to
   servers with the lid closed), Updates, Help. The D-Pad, L/R pages and a row brought into view take its group's name

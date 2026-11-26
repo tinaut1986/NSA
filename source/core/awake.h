@@ -5,7 +5,8 @@
 // again only when none is left (libctru then sleeps at once if the lid is already closed).
 //
 // While sleep is held off the lid no longer puts the console to sleep: awake_update turns the screens' backlight off
-// while it is closed, as ftpd does, and on again when it opens or the hold goes.
+// while it is closed, as ftpd does, and on again when it opens or the hold goes. AWAKE_SERVERS also locks ndm (the
+// network daemon) in infrastructure mode, or the lid would still take the Wi-Fi: release it before the local wireless.
 typedef enum {
     AWAKE_DATA_OP,   // An install, a copy, a delete... (task/dataop.c).
     AWAKE_DUMP,      // Dump NAND.

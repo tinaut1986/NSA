@@ -6,6 +6,35 @@ static LightLock awake_lock = 1;   // What LightLock_Init sets: ready before any
 static u32 awake_holds = 0;       // One bit per awake_reason.
 static bool awake_dark = false;   // NSA turned the backlight off for a closed lid.
 static u64 awake_checked = 0;
+static bool awake_ndm = false;    // ndm:u locked in infrastructure mode for the servers.
+
+// Without sleep the lid still takes the Wi-Fi: ndm, the system's network daemon, drops it when the lid closes. ftpd
+// keeps it by entering ndm's exclusive infrastructure state and locking it; the same while the servers hold.
+static void awake_network(bool keep) {
+    if(keep && !awake_ndm) {
+        if(R_FAILED(ndmuInit())) {
+            return;
+        }
+
+        if(R_FAILED(NDMU_EnterExclusiveState(NDM_EXCLUSIVE_STATE_INFRASTRUCTURE))) {
+            ndmuExit();
+            return;
+        }
+
+        if(R_FAILED(NDMU_LockState())) {
+            NDMU_LeaveExclusiveState();
+            ndmuExit();
+            return;
+        }
+
+        awake_ndm = true;
+    } else if(!keep && awake_ndm) {
+        NDMU_UnlockState();
+        NDMU_LeaveExclusiveState();
+        ndmuExit();
+        awake_ndm = false;
+    }
+}
 
 void awake_hold(awake_reason reason, bool hold) {
     if(reason >= AWAKE_COUNT) {
@@ -19,6 +48,10 @@ void awake_hold(awake_reason reason, bool hold) {
         awake_holds |= 1u << reason;
     } else {
         awake_holds &= ~(1u << reason);
+    }
+
+    if(reason == AWAKE_SERVERS) {
+        awake_network(hold);
     }
 
     if(before == 0 && awake_holds != 0) {

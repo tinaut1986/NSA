@@ -389,8 +389,8 @@ int main(int argc, const char* argv[]) {
         dlqueue_tick();
         bgmusic_hold(settings_get()->ftpPausesMusic && ftpserver_holding_music());
         // Settings -> "Servers with the lid closed": no sleep mode while a server is on (or waits for the Wi-Fi).
-        awake_hold(AWAKE_SERVERS, settings_get()->serversAwake && (ftpserver_running() || ftpserver_waiting()
-                                                                    || webserver_running() || webserver_waiting()));
+        awake_hold(AWAKE_SERVERS, settings_get()->serversAwake && !udslink_active()
+                                  && (ftpserver_running() || ftpserver_waiting() || webserver_running() || webserver_waiting()));
         awake_update();
 
         // A new NSA is in place (updater or SITE INSTALL): exit so libctru relaunches it.

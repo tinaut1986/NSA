@@ -163,6 +163,15 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] "Don't turn the console off" while deleting (2026-11-26, `fix/delete-warning`). Deleting a big file takes the SD
+  card seconds (2 GB: 2-5 s on the New 3DS XL's card, measured), with nothing on screen before. A URL download that
+  deletes what came (a cancel or a failure of "Install", the Store's scripts, a CIA's contents through AM, a paused
+  "Save" cancelled with X) shows "Deleting" on its row and a card under the rows ("Deleting what was downloaded from the
+  SD card. Don't turn the console off until it ends."); the paused one deletes on a thread now, so the screen keeps
+  drawing (it froze for seconds). Files -> Delete adds the same line under its count. New 3DS XL (Claude): a 2 GB paused
+  "Save" cancelled -> row and card seen while it deleted, gone after; Files -> Delete of a 2 GB .part -> the line seen;
+  "Install" of a non-installable 2 GB file cancelled -> deleted in ~6 s, "Operation cancelled" (the web page cannot
+  show the screen during a transfer, so that card was not seen). Not tried: a big CIA cancelled (AM's own delete).
 - [ ] Install from URL by type (2026-11-26, `fix/url-choices-by-type`). The question comes before any byte, so its choices
   go by each URL's name (an option shows only if it suits every URL): .cia/.tik all; .3dsx/.smdh Install, Save, queue;
   .zip/.7z all in a remote install, else Save and queue; any other extension (.mp3, .bin...) Save and queue; no extension,

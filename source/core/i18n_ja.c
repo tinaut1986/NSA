@@ -1112,6 +1112,8 @@ const i18n_entry i18n_ja[] = {
         {"Waits its turn in the download queue and installs in the background, one after the other, while you do something else. The queue pauses, reorders and cancels downloads.", "ダウンロードキューで順番を待ち、他のことをしている間にバックグラウンドで1つずつインストールします。キューでは一時停止、並べ替え、キャンセルができます。"},
         {"Download queue", "ダウンロードキュー"},
         {"Download queue finished: %lu done", "ダウンロードキュー完了：%lu件"},
+        {"Deleting what was downloaded from the SD card. Don't turn the console off until it ends.", "ダウンロードしたデータをSDカードから削除しています。終わるまで本体の電源を切らないでください。"},
+        {"Don't turn the console off until it ends.", "終わるまで本体の電源を切らないでください。"},
         {"Installed: %lu", "インストール：%lu"},
         {"Not installable, saved in %s: %lu", "インストールできないため %s に保存：%lu"},
         {"It cannot be installed (it is not a CIA or a 3DSX), so it was saved in %s", "インストールできません（CIA でも 3DSX でもありません）。%s に保存しました"},

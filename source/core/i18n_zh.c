@@ -1099,6 +1099,8 @@ const i18n_entry i18n_zh[] = {
         {"Waits its turn in the download queue and installs in the background, one after the other, while you do something else. The queue pauses, reorders and cancels downloads.", "在下载队列中排队，在后台逐个安装，你可以同时做别的事。队列可以暂停、调整顺序和取消下载。"},
         {"Download queue", "下载队列"},
         {"Download queue finished: %lu done", "下载队列已完成：%lu 个"},
+        {"Deleting what was downloaded from the SD card. Don't turn the console off until it ends.", "正在从SD卡删除已下载的内容。完成前请勿关闭主机。"},
+        {"Don't turn the console off until it ends.", "完成前请勿关闭主机。"},
         {"Installed: %lu", "已安装：%lu"},
         {"Not installable, saved in %s: %lu", "无法安装，已保存到 %s：%lu"},
         {"It cannot be installed (it is not a CIA or a 3DSX), so it was saved in %s", "无法安装（不是 CIA 或 3DSX），已保存到 %s"},

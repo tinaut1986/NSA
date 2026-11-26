@@ -21,6 +21,7 @@
 #include "remotehelp.h"
 #include "homeicon.h"
 #include "selftest.h"
+#include "settings.h"
 #include "../core/core.h"
 #include "../core/minire.h"
 #include "../core/speedlog.h"
@@ -54,7 +55,7 @@ static u32 ftp_send_chunk = FTP_SEND_CHUNK;
 #define FTP_IDLE_MS (10 * 60 * 1000)
 // A session that has waited this long for a command may be sent away when a new client finds every place taken.
 #define FTP_EVICT_MIN_IDLE_MS 3000
-#define FTP_PASV_FIRST (FTP_SERVER_PORT + 1)
+#define FTP_PASV_FIRST 5022   // Whatever the control port: none of the choices falls in 5022-5085.
 #define FTP_PASV_COUNT 64
 
 #define NSA_TITLE_ID (0x0004000000000000ULL | ((u64) APP_UNIQUE_ID << 8))
@@ -82,6 +83,7 @@ static volatile u64 ftp_data_ended = 0;   // When the last one closed,
 static volatile bool ftp_data_long = false;   // and whether it lasted a second or more.
 static u32 ftp_ip = 0;
 static char ftp_status[48] = "Off";
+static u16 ftp_port = FTP_SERVER_PORT;   // The port bound by the last start.
 static unsigned ftp_next_pasv = 0;
 
 // The sessions' list, the data counters and the PASV ports; installs (SITE INSTALL, the web page) one at a time; the
@@ -2232,10 +2234,11 @@ bool ftpserver_start() {
 
     struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(FTP_SERVER_PORT);
+    ftp_port = ftpserver_port_valid(settings_get()->ftpPort) ? (u16) settings_get()->ftpPort : FTP_SERVER_PORT;
+    addr.sin_port = htons(ftp_port);
     addr.sin_addr.s_addr = INADDR_ANY;
     if(ftp_listen < 0 || bind(ftp_listen, (struct sockaddr*) &addr, sizeof(addr)) != 0 || listen(ftp_listen, FTP_MAX_SESSIONS + 1) != 0) {
-        snprintf(ftp_status, sizeof(ftp_status), _("Port %d busy"), FTP_SERVER_PORT);
+        snprintf(ftp_status, sizeof(ftp_status), _("Port %d busy"), ftp_port);
         ftp_close_socket(&ftp_listen);
         return false;
     }
@@ -2326,6 +2329,30 @@ bool ftpserver_running() {
     return ftp_run;
 }
 
+u16 ftpserver_port_choice(u32 index) {
+    static const u16 ports[FTP_PORT_CHOICES] = {FTP_SERVER_PORT, 5000, 21};
+    return ports[index < FTP_PORT_CHOICES ? index : 0];
+}
+
+bool ftpserver_port_valid(u32 port) {
+    for(u32 i = 0; i < FTP_PORT_CHOICES; i++) {
+        if(port == ftpserver_port_choice(i)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+u16 ftpserver_port() {
+    if(ftp_run) {
+        return ftp_port;
+    }
+
+    u32 port = settings_get()->ftpPort;
+    return ftpserver_port_valid(port) ? (u16) port : FTP_SERVER_PORT;
+}
+
 void ftpserver_pause() {
     // A start still waiting for the Wi-Fi counts as running: otherwise the
     // resume after this pause would find nothing to bring back.
@@ -2400,7 +2427,7 @@ void ftpserver_address(char* out, size_t size) {
     }
 
     struct in_addr addr = {.s_addr = ftp_ip};
-    snprintf(out, size, "%s:%d", inet_ntoa(addr), FTP_SERVER_PORT);
+    snprintf(out, size, "%s:%d", inet_ntoa(addr), ftp_port);
 }
 
 bool ftpserver_transferring() {
@@ -2423,7 +2450,7 @@ void ftpserver_corner(char* out, size_t size) {
     }
 
     struct in_addr addr = {.s_addr = ftp_ip};
-    snprintf(out, size, "FTP %s:%d", inet_ntoa(addr), FTP_SERVER_PORT);
+    snprintf(out, size, "FTP %s:%d", inet_ntoa(addr), ftp_port);
 }
 
 bool ftpserver_notice(char* out, size_t size, float* progress) {

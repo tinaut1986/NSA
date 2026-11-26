@@ -112,6 +112,8 @@ typedef struct {
     // While the FTP or web server is on, the console does not go to sleep: closing the lid only turns the screens off,
     // and the servers go on answering (as ftpd does). Off by default: a closed console then uses the battery.
     bool serversAwake;
+    // The FTP server's port: 5021 (the default), 5000 (ftpd's) or 21 (ftpserver_port_choice).
+    u32 ftpPort;
 
     // Appearance: indices into theme.h's tables and i18n.h's languages.
     u32 theme;

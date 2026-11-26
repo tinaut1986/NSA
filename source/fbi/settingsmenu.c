@@ -31,6 +31,7 @@ typedef enum {
     OPTION_SOUNDS,
     OPTION_MUSIC,
     OPTION_FTP,
+    OPTION_FTP_PORT,        // 5021, 5000 or 21 (ftpserver_port_choice).
     OPTION_FTP_MUSIC,
     OPTION_WEB,
     OPTION_WEB_PIN,
@@ -115,7 +116,7 @@ typedef struct {
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
             ICON_PALETTE, ICON_PENCIL, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
-            ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_WORLD, ICON_MOON, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
+            ICON_SERVER, ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_WORLD, ICON_MOON, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
     };
 
     return icons[option];
@@ -133,6 +134,7 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_CHANNEL: return _("Update channel");
         case OPTION_AUTO_UPDATE: return _("Check at start");
         case OPTION_FTP: return _("FTP server");
+        case OPTION_FTP_PORT: return _("FTP port");
         case OPTION_FTP_MUSIC: return _("Pause music for FTP");
         case OPTION_WEB: return _("Web server");
         case OPTION_WEB_PIN: return _("Web PIN");
@@ -165,6 +167,11 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_CHANNEL: return settings->channel == UPDATE_CHANNEL_BETA ? _("Beta") : _("Stable");
         case OPTION_AUTO_UPDATE: return settingsmenu_on_off(settings->autoUpdate);
         case OPTION_FTP: return ftpserver_running() ? _("On") : ftpserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
+        case OPTION_FTP_PORT: {
+            static char port[8];
+            snprintf(port, sizeof(port), "%u", ftpserver_port_valid(settings->ftpPort) ? (unsigned) settings->ftpPort : FTP_SERVER_PORT);
+            return port;
+        }
         case OPTION_FTP_MUSIC: return settingsmenu_on_off(settings->ftpPausesMusic);
         case OPTION_WEB: return webserver_running() ? _("On") : webserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
         case OPTION_WEB_PIN: return settings->webPinMode == WEB_PIN_FIXED ? _("Fixed") : settings->webPinMode == WEB_PIN_NONE ? _("None") : _("Random");
@@ -248,6 +255,21 @@ static void settingsmenu_change(settings_option option, int direction) {
                 settings->ftpServer = true;
             }
             break;
+        case OPTION_FTP_PORT: {
+            u32 index = 0;
+            while(index < FTP_PORT_CHOICES && ftpserver_port_choice(index) != settings->ftpPort) {
+                index++;
+            }
+
+            settings->ftpPort = ftpserver_port_choice(settingsmenu_step(index < FTP_PORT_CHOICES ? index : 0, FTP_PORT_CHOICES, step));
+            // A running server moves to the new port now (clients connected on the old one are dropped).
+            if(ftpserver_running() || ftpserver_waiting()) {
+                ftpserver_stop();
+                ftpserver_start_when_online();
+            }
+
+            break;
+        }
         case OPTION_FTP_MUSIC:
             settings->ftpPausesMusic = !settings->ftpPausesMusic;
             break;
@@ -565,6 +587,10 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_FTP_MUSIC:
             return settings->ftpPausesMusic ? _("On: the music stops while a file goes through the FTP server and comes back after. Transfers go a little faster: 2-3% on an Old 3DS, 3-6% on a New 3DS.")
                                             : _("Off: the music goes on during FTP transfers, which go a little slower (2-3% on an Old 3DS, 3-6% on a New 3DS). Off by default.");
+        case OPTION_FTP_PORT:
+            return settings->ftpPort == 5000 ? _("5000: the port ftpd uses, so a client's saved connection works as it is. \"Receive from a computer\" needs it too: the FTP server pauses while that screen is open.")
+                   : settings->ftpPort == 21 ? _("21: FTP's own port, the one a client tries when none is given.")
+                                             : _("5021: NSA's own port, free of \"Receive from a computer\" (5000). The default.");
         case OPTION_WEB: return _("A page to manage the console from a computer's browser: files, installing CIAs. It asks for the PIN shown here. Plain HTTP, only on your Wi-Fi.");
         case OPTION_WEB_PIN:
             return settings->webPinMode == WEB_PIN_FIXED ? _("Fixed: the PIN stays the same between launches. Change it in the row below.")
@@ -643,6 +669,10 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
 
     char line[128];
     if(option == OPTION_FTP) {
+        char address[64];
+        ftpserver_address(address, sizeof(address));
+        snprintf(line, sizeof(line), "FTP: %s", address);
+    } else if(option == OPTION_FTP_PORT) {
         char address[64];
         ftpserver_address(address, sizeof(address));
         snprintf(line, sizeof(line), "FTP: %s", address);
@@ -792,7 +822,7 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
         // Where a guided tour finds it (coach.h).
         static const char* const anchors[OPTION_COUNT] = {
                 "settings.theme", "settings.theme_edit", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
-                "settings.ftp", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.links", "settings.servers_awake", "settings.channel", "settings.auto_update",
+                "settings.ftp", "settings.ftp_port", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.links", "settings.servers_awake", "settings.channel", "settings.auto_update",
                 "settings.check_updates", "settings.changelog", "settings.guide"
         };
         coach_anchor(anchors[i], rowX, y, rowW, settingsmenu_row_height(i), i == menu->selected);

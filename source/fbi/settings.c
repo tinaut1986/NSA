@@ -9,6 +9,7 @@
 #include "../core/bgmusic.h"
 #include "datetime.h"
 #include "brightness.h"
+#include "ftpserver.h"
 
 #define SETTINGS_PATH "sdmc:" APP_DATA_DIR "settings.json"
 
@@ -17,6 +18,7 @@ static settings_data settings = {
         .autoUpdate = true,
         .webServer = false,
         .linkServer = true,
+        .ftpPort = 5021,
         .ftpServer = true,   // Serving files is on by default; driving the console needs sdmc:/nsa/remote.flag.
         .theme = 0,
         .accent = 0,
@@ -315,6 +317,11 @@ void settings_load() {
     settings.ftpMusicAsked = json_is_true(json_object_get(json, "ftp_music_asked"));
     settings.serversAwake = json_is_true(json_object_get(json, "servers_awake"));
 
+    json_t* ftpPort = json_object_get(json, "ftp_port");
+    if(json_is_integer(ftpPort) && ftpserver_port_valid((u32) json_integer_value(ftpPort))) {
+        settings.ftpPort = (u32) json_integer_value(ftpPort);
+    }
+
     // The themes on the SD card first: the one saved may be one of them ("sd:...").
     theme_load_custom();
     json_t* theme = json_object_get(json, "theme");
@@ -491,7 +498,7 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:b,s:i,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
@@ -502,6 +509,7 @@ Result settings_save() {
                              "ftp_pauses_music", settings.ftpPausesMusic,
                              "ftp_music_asked", settings.ftpMusicAsked,
                              "servers_awake", settings.serversAwake,
+                             "ftp_port", (int) settings.ftpPort,
                              "theme", theme_get(settings.theme)->id,
                              "accent", theme_accent_get(settings.accent)->id,
                              "night_mode", night_ids[settings.night < 3 ? settings.night : 0],

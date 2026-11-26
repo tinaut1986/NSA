@@ -109,6 +109,9 @@ typedef struct {
     bool ftpPausesMusic;
     // An Old 3DS that had ftpPausesMusic on (its old default) was asked once whether to let the music play.
     bool ftpMusicAsked;
+    // While the FTP or web server is on, the console does not go to sleep: closing the lid only turns the screens off,
+    // and the servers go on answering (as ftpd does). Off by default: a closed console then uses the battery.
+    bool serversAwake;
 
     // Appearance: indices into theme.h's tables and i18n.h's languages.
     u32 theme;

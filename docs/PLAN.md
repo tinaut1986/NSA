@@ -163,6 +163,14 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Servers with the lid closed (2026-11-26, `fix/servers-awake`; issue #58). Settings -> "Servers with the lid closed"
+  (`servers_awake`, off by default): while the FTP or web server is on (or waits for the Wi-Fi), NSA holds sleep mode off,
+  as ftpd does, so closing the lid leaves the Wi-Fi and both servers working; NSA turns the backlight off while the lid is
+  closed (`PTMU_GetShellState` four times a second) and on when it opens, before HOME or sleep, and at the exit. Turning
+  the option or the last server off lets the console sleep again (libctru sleeps at once if the lid is closed). Sleep holds
+  are now one bitmask (`core/awake.c`): a data operation, Dump NAND and the motion recording no longer turn sleep back on
+  under each other or under the servers. Not tried: all of it (lid closed with a transfer from a PC, the screens off and
+  on, the option off, HOME while the lid is closed, the 2DS's sleep switch).
 - [ ] DS forwarder: nds-bootstrap checked first (2026-11-26, `fix/nds-bootstrap-check`; issue #56). Before making the icon,
   NSA checks every file of nds-bootstrap's forwarder pack the icon needs: `_nds/ntr-forwarder/sdcard.nds` (what the icon
   starts), `_nds/nds-bootstrap-release.nds` (games) and `_nds/nds-bootstrap-hb-release.nds` (homebrew), each at least
@@ -2091,6 +2099,9 @@ current, this list is the summary. What only the owner can test (local wireless)
   On sleep/suspend the FTP and web servers are paused; on wake/restore `acExit(); acInit()` runs and they resume. DEBUG
   builds write `sdmc:/nsa/sleep-log.txt` (hooks, Wi-Fi status, heartbeat, exit steps). If it ever fails again, SOC is the next
   suspect (reinit it on wake).
+  With Settings -> "Servers with the lid closed" on (issue #58) a running server holds sleep mode off instead
+  (`core/awake.h`, `AWAKE_SERVERS`): no sleep, so no pause; only the backlight goes off with the lid. Off by default for
+  the battery. Every `aptSetSleepAllowed` goes through `awake_hold` (one switch, several users).
 - Own app (`0xFB1A0`), own data folder (`sdmc:/nsa/`, import from `/fbi/` offered
   once), own versions from `v0.1.0`. Upstream is noted as "based on FBI 2.6.1".
 - Updates: Stable/Beta channels from GitHub releases; the changelog joins every

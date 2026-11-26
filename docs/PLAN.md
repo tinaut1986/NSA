@@ -173,8 +173,11 @@ What `release` holds, in the order it was built:
   failed or cancelled "Install" leaves no .part (only "Save" resumes). The web page's questions now carry up to 6 options
   (`PROMPT_WEB_OPTIONS_MAX`), so the URL question's Cancel reaches the page. New 3DS XL (Claude): .mp3 -> Save/queue;
   .3dsx -> Install/Save/queue; .cia + .mp3 -> Save/queue; .cia and download.php -> all; a no-extension file chosen
-  Install -> saved and the notice; a .bin in the queue -> saved, note, two-line toast; web Cancel. Not tried: a real
-  CIA or 3DSX still installs (that path is unchanged), several URLs with some saved instead, the other languages' lengths.
+  Install -> saved and the notice; a .bin in the queue -> saved, note, two-line toast; web Cancel. Later the same day
+  (Claude, a dummy CIA 0xFB1AE and .3dsx built from ciatemplate, deleted afterwards): a real CIA and a real .3dsx still
+  install from a URL; CIA + .3dsx + a non-installable file with Install -> "Installed: 2 / Not installable, saved in
+  /nsa/received/: 1"; the same three in the queue -> note and toast; German, Russian and Japanese dialog, note and toast
+  fit. The toast counted queue items, not files (one item of two files said 1): it counts files now.
 - [ ] Settings in groups (2026-11-26, `feat/settings-headers`): 20 rows had grown hard to scan, so the list has a small
   muted name above each group's first row (18 px, never selected): Appearance (theme to language), Sound, Servers (FTP to
   servers with the lid closed), Updates, Help. The D-Pad, L/R pages and a row brought into view take its group's name

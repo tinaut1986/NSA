@@ -21,7 +21,10 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
 
 - Install CIAs and tickets from the SD card, from a computer on your network, over the Internet
   with a URL or a QR code. Title seeds are imported on the way.
-- **Remote install** keeps a history of what you installed, to install it again.
+- **Remote install** keeps a history of what you installed, to install it again. Its tiles, the History bar and the FTP and
+  Web buttons can be moved or hidden (SELECT, or hold one).
+- A **download queue** that keeps going in the background, one download after another: pause, resume or reorder it
+  from the main menu or the web page.
 - **Links from web pages**: a store's "Send to 3DS" button (like Brewology's, made for 3dsDL) or a phone on your Wi-Fi
   can send links to `http://3ds.local/` (also `nsa.local`, or the console's address), the same way 3dsDL's Receive takes
   them (`/send?links=...`). The console asks before it downloads anything. On by default (Settings).
@@ -29,10 +32,15 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
   connections at once) or with no router at all. The other console picks what to do: install now,
   or save it in a folder (a save sent this way is imported or kept with the other exports). A cut transfer goes on where it stopped. Every send and receive is logged
   in `sdmc:/nsa/transfer-log.txt`.
+- **Send several titles at once**: mark them in Titles and press START; the other console takes them all with one answer.
 - **Export an installed title as a CIA** (installing it again needs Luma3DS).
+- **A `.3dsx` in the HOME Menu** as a real title (not a forwarder), with its icon and a banner made from it or from a
+  picture of yours, and **a DS game (`.nds`) in the HOME Menu**: an icon that starts it with nds-bootstrap. NSA checks
+  that nds-bootstrap and its forwarder are on the SD card first, and downloads them when they are missing.
 
 <p align="center">
-  <img src="docs/images/remote-install.png" width="360" alt="Remote install">
+  <img src="docs/images/remote-install.png" width="360" alt="Remote install, with the History bar on top">
+  <img src="docs/images/remote-install-edit.png" width="360" alt="Remote install's layout being edited: a tile hidden">
   <img src="docs/images/receive-3ds.png" width="360" alt="Receiving from another 3DS">
 </p>
 
@@ -46,6 +54,8 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
   mods for 3DS games (into `/luma/titles/`), games for other consoles, RetroArch cores... NSA follows each file's steps
   as Universal-Updater does, asking before it deletes a folder. Universal-DB is made by
   [Universal-Team](https://universal-team.net/): thank you.
+- **Remove what the Store installed**: NSA notes every file an app's steps write, so it can take exactly those away
+  again (texture packs, mods, plugins...). Apps that write to `boot.firm`, `/luma` or `/gm9` show a red warning first.
 
 <p align="center">
   <img src="docs/images/store-actions.png" width="360" alt="An app of the Store and its actions">
@@ -71,6 +81,8 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
   a backup can be restored, sent to another 3DS or deleted.
 - **Tickets**, **Ext Save Data** and **Pending titles** (interrupted installs and downloads) on the
   same pattern: pictures, filters, search, and actions in a sheet, with what deletes in red.
+- **The game card** in the console shows up in Titles, and its save can be backed up.
+- The console's own software is marked in red, and deleting it asks twice.
 - Export, import and erase the save data of DS cartridges.
 - **Web page** (off until you turn it on in Settings): manage the console from your computer's browser (the SD card, titles with icons, saves,
   installing from files or URLs, saves and their backups to download, restore or delete, and the console's screens live with its buttons), in the console's own theme, protected by a PIN shown on the console. Plain HTTP, for your own network only.
@@ -89,6 +101,14 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
   editor** with its own keyboard, and an **audio player** (MP3, WAV, FLAC, Ogg Vorbis) that plays the
   folder in order. Pictures and `.3dsx` programs show a preview in the list.
 - Run a `.3dsx` from the list (needs Luma3DS).
+- **Select several** files or folders to copy, move, install or delete at once; extract `.zip` and `.7z` on the console.
+- **Calculate size** in a folder's actions counts everything in it and shows **what takes the room**: its contents
+  biggest first, each with its share, and its folders to go into. Folders counted show their size in the list.
+
+<p align="center">
+  <img src="docs/images/what-takes-the-room.png" width="360" alt="What takes the room: a folder's contents, biggest first">
+  <img src="docs/images/folder-sizes.png" width="360" alt="Folders with their size in the list">
+</p>
 
 <p align="center">
   <img src="docs/images/files.png" width="360" alt="Browsing the SD card">
@@ -98,6 +118,22 @@ channel. Some tools need Luma3DS, as FBI's did (listed below).
   <img src="docs/images/text-viewer.png" width="360" alt="The text viewer">
   <img src="docs/images/text-editor.png" width="360" alt="Editing with NSA's own keyboard">
   <img src="docs/images/audio-player.png" width="360" alt="The audio player">
+</p>
+
+### Utilities
+
+What Luma3DS's Rosalina menu or GodMode9 were opened for, in one list:
+
+- **DSP firmware** (`/3ds/dspfirm.cdc`, the sound of homebrew): dump the console's, or put
+  [OpenDSP](https://github.com/Cellenseres/OpenDSP), an open source one, from GitHub or from the copy NSA carries.
+- **Game patching**: Luma3DS's option, on or off.
+- **What takes the room** on the whole SD card.
+- **Button remapping** with [Rehid](https://github.com/hax0kartik/rehid): other buttons in every game, or in one
+  (turbo, buttons that touch the screen, the Circle Pad as D-Pad...). NSA installs Rehid from its GitHub release.
+- **Restart** and **Power off**.
+
+<p align="center">
+  <img src="docs/images/utilities.png" width="360" alt="Utilities">
 </p>
 
 ### Advanced (only with NSA installed as a CIA, or run as a 3DSX under Luma3DS)
@@ -113,15 +149,17 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
 
 ### Look and feel
 
-- **Your own main menu**: three big tiles and a row of icons. Hold an entry, or press SELECT, to
-  reorder them by dragging, or hide the ones you do not use.
+- **Your own main menu**: a grid six cells across, each entry big or small, wherever you want it. Hold an entry, or
+  press SELECT, to drag it anywhere (the others make room), make it big or small (R, or the button on its corner) or
+  hide it.
 - **A guide** that shows how NSA works in short tours on the real screens: a bubble points at each
   button and you do each step yourself. After an update it offers only what is new; Settings →
   Guide plays any chapter again.
 - **NSA's own keyboard** for searches, names, URLs and the text editor.
 - **Three themes**: *Cards*, *Pixel* (a pixel font, square corners and bars in blocks) and *HOME*
   (big icon tiles and dialogs as a sheet from the bottom), in day and night colours with eight
-  accent colours and a yellow one. Settings → Theme.
+  accent colours and a yellow one. Settings → Theme. **Your own themes**, colour by colour, on the console or on the
+  web page (kept in `/nsa/themes/`).
 - English, Spanish, Catalan, French, German, Italian, Portuguese, Russian, Japanese and Chinese, simplified and traditional (a list in Settings), stereoscopic 3D on the top screen, touch and button controls everywhere
   (pressed look, long press for an item's actions, flick scrolling, draggable scrollbars), and optional
   interface sounds, each with its own volume slider (sounds and music).
@@ -129,10 +167,13 @@ SD card. These are drawn in a soft red because a wrong change can stop the conso
   variation, or a bossa with marimba. The last song of each style is kept and plays at once next time
   while a new one is made, and they crossfade.
 - A banner and a short jingle of its own in the HOME menu.
-- A **System** page with the console's model, versions, network, battery and storage.
+- A **System** page with the console's model, versions, network, battery and storage; **Console settings** (Wi-Fi
+  connections saved, edited or set up from a QR code, Date and time from the Internet, custom screen brightness) and
+  **Hardware tests** (buttons, touch screen, sticks, sliders and motion sensors).
+- **Changelog** in your language (Settings), and NSA's own boot logo when it starts from the HOME menu.
 
 <p align="center">
-  <img src="docs/images/menu-edit.png" width="360" alt="Editing the main menu">
+  <img src="docs/images/menu-edit.png" width="360" alt="Editing the main menu: a big entry with its size button, one hidden">
   <img src="docs/images/guide-tour.png" width="360" alt="A tour of the guide on the main menu">
   <img src="docs/images/guide.png" width="360" alt="The guide's chapters">
   <img src="docs/images/theme-pixel.png" width="360" alt="The Pixel theme">
@@ -189,3 +230,9 @@ version comes from the git tags (`tools/version.sh`).
   [quirc](https://github.com/dlbeer/quirc).
 - Open source DSP firmware: [OpenDSP](https://github.com/Cellenseres/OpenDSP) by Cellenseres (BSD 2-Clause, the
   licence in `romfs/opendsp/LICENSE.txt`). NSA carries a copy of its `opendsp.cdc` for consoles without internet.
+- Button remapping: [Rehid](https://github.com/hax0kartik/rehid) by hax0kartik, downloaded from its GitHub release (not
+  carried by NSA).
+- DS games in the HOME Menu: [nds-bootstrap](https://github.com/DS-Homebrew/nds-bootstrap) and its
+  [forwarder pack](https://github.com/RocketRobz/NTR_Forwarder) by the DS-Homebrew team and RocketRobz, and Olmectron's
+  forwarder template, all downloaded when needed.
+- `.7z` archives: 7-Zip's LZMA SDK by Igor Pavlov (public domain).

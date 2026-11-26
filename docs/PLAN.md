@@ -176,6 +176,8 @@ What `release` holds, in the order it was built:
   choice and back to Off. Not tried: listening to it (only the status was read), the pause while the audio player
   plays, the FTP hold, the web page's controls (only its script checked), an Old 3DS (CPU of an MP3 at 44.1 kHz), a
   long real song. Known: a song cannot be deleted while it plays (the stream holds it open): change the music first.
+  The owner tried three test songs (MP3, Ogg, FLAC) on the New 3DS XL, no problem reported. The guide's "Look and sound" chapter has
+  a new step for it (GUIDE_VERSION(0, 18)): offered on its own after the update, seen on the New 3DS XL.
 - [ ] "Don't turn the console off" while deleting (2026-11-26, `fix/delete-warning`). Deleting a big file takes the SD
   card seconds (2 GB: 2-5 s on the New 3DS XL's card, measured), with nothing on screen before. A URL download that
   deletes what came (a cancel or a failure of "Install", the Store's scripts, a CIA's contents through AM, a paused

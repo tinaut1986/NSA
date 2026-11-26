@@ -1109,6 +1109,7 @@ const i18n_entry i18n_ru[] = {
         {"Download queue", "Очередь загрузок"},
         {"Download queue finished: %lu done", "Очередь загрузок завершена: готово %lu"},
         {"My songs", "Мои песни"},
+        {"Or your own songs: put MP3, WAV, FLAC or Ogg files in /nsa/music/ on the SD card and they show up here, after the music the console makes. My songs plays them all in a random order; one picked by its name plays over and over.", "Или ваши собственные песни: положите файлы MP3, WAV, FLAC или Ogg в /nsa/music/ на SD-карте, и они появятся здесь, после музыки, которую создаёт консоль. «Мои песни» играет их все в случайном порядке; выбранная по имени играет по кругу."},
         {"All my songs", "Все мои песни"},
         {"All my songs: the files in /nsa/music/ (MP3, WAV, FLAC or Ogg), one after another in a random order.", "Все мои песни: файлы из /nsa/music/ (MP3, WAV, FLAC или Ogg), одна за другой в случайном порядке."},
         {"One of your songs, from /nsa/music/, over and over.", "Одна из ваших песен из /nsa/music/, по кругу."},

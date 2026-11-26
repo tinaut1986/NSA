@@ -175,6 +175,7 @@ static const coach_step look_steps[] = {
         INFO("settings.language", "NSA speaks 11 languages. System follows the console's own."),
         REACH("settings.music", "Go down to Background music."),
         INFO("settings.music", "Music the console makes itself, with its own volume. The sounds above have theirs."),
+        INFO_SINCE(GUIDE_VERSION(0, 18), "settings.music", "Or your own songs: put MP3, WAV, FLAC or Ogg files in /nsa/music/ on the SD card and they show up here, after the music the console makes. My songs plays them all in a random order; one picked by its name plays over and over."),
         BACK_TO_MENU("\uE001 goes back to the menu."),
 };
 

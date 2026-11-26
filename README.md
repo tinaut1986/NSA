@@ -3,7 +3,8 @@
 NSA is an open source title manager for the Nintendo 3DS: install and manage titles, browse and
 view files, send games to another 3DS, and look after the console's own data. It is a fork of
 [FBI](https://github.com/Steveice10/FBI) 2.6.1 by Steveice10 with a new interface, new tools and
-its own updater. It installs as its own app, **next to FBI** (it does not replace it), and keeps its
+its own updater. It does everything FBI does, so it can take its place. It installs as its own app, so
+an FBI you already have stays as it is (you can keep both, but you do not need FBI), and it keeps its
 data in `sdmc:/nsa/`.
 
 **Download:** https://github.com/tinaut1986/NSA/releases (install the `.cia`, or run the `.3dsx`

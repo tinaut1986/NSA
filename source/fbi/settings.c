@@ -338,6 +338,10 @@ void settings_load() {
     settings.soundVolume = settings_get_uint(json, "sound_volume", settings.soundVolume, 100);
     settings.music = settings_get_uint(json, "music", settings.music, BGMUSIC_COUNT - 1);
     settings.musicVolume = settings_get_uint(json, "music_volume", settings.musicVolume, 100);
+    json_t* musicSong = json_object_get(json, "music_song");
+    if(json_is_string(musicSong)) {
+        string_copy(settings.musicSong, json_string_value(musicSong), sizeof(settings.musicSong));
+    }
     settings.playerRepeat = settings_get_uint(json, "player_repeat", settings.playerRepeat, 2);
     json_t* brightnessCustom = json_object_get(json, "brightness_custom");
     if(json_is_boolean(brightnessCustom)) {
@@ -481,6 +485,7 @@ void settings_apply() {
     theme_select(settings.theme, settings.accent, settings.night);
     i18n_set_language(settings.language);
     sound_set((sound_mode) settings.sounds, settings.soundVolume);
+    bgmusic_set_song(settings.musicSong);
     bgmusic_set((bgmusic_style) settings.music, settings.musicVolume);
     datetime_apply();
 }
@@ -498,7 +503,7 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:b,s:i,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:b,s:i,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:s,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
@@ -518,6 +523,7 @@ Result settings_save() {
                              "sound_volume", (int) settings.soundVolume,
                              "music", (int) settings.music,
                              "music_volume", (int) settings.musicVolume,
+                             "music_song", settings.musicSong,
                              "titles",
                              "media", (int) settings.titles.media,
                              "kinds", (int) settings.titles.kinds,

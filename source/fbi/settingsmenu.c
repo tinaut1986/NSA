@@ -117,6 +117,59 @@ static float settingsmenu_block_top(u32 index) {
     return settingsmenu_row_top(index) - (settingsmenu_group(index) != NULL ? HEADER_HEIGHT : 0);
 }
 
+// How wide a song's name may be in the Background music row.
+#define SETTINGSMENU_SONG_WIDTH 90
+
+// Background music's choices: Off and the made styles, then (with songs in /nsa/music/) all of them and each one.
+static u32 settingsmenu_music_choices() {
+    u32 songs = bgmusic_song_count();
+    return BGMUSIC_SONGS + (songs > 0 ? 1 + songs : 0);
+}
+
+// The choice the settings say, among those. A song that is not in the folder any more counts as all of them.
+static u32 settingsmenu_music_choice(settings_data* settings) {
+    if(settings->music != BGMUSIC_SONGS) {
+        return settings->music < BGMUSIC_SONGS ? settings->music : BGMUSIC_OFF;
+    }
+
+    if(settings->musicSong[0] != '\0') {
+        char name[BGMUSIC_SONG_NAME_MAX];
+        for(u32 i = 0; i < bgmusic_song_count(); i++) {
+            bgmusic_song_name(i, name, sizeof(name));
+            if(strcmp(name, settings->musicSong) == 0) {
+                return BGMUSIC_SONGS + 1 + i;
+            }
+        }
+    }
+
+    return BGMUSIC_SONGS;
+}
+
+static void settingsmenu_music_pick(settings_data* settings, u32 choice) {
+    if(choice < BGMUSIC_SONGS) {
+        settings->music = choice;
+        settings->musicSong[0] = '\0';
+    } else {
+        settings->music = BGMUSIC_SONGS;
+        settings->musicSong[0] = '\0';
+        if(choice > BGMUSIC_SONGS) {
+            bgmusic_song_name(choice - BGMUSIC_SONGS - 1, settings->musicSong, sizeof(settings->musicSong));
+        }
+    }
+
+    bgmusic_set_song(settings->musicSong);
+    bgmusic_set((bgmusic_style) settings->music, settings->musicVolume);
+}
+
+// A song's name as the row shows it: the file name without its extension.
+static void settingsmenu_song_title(const char* file, char* out, size_t size) {
+    snprintf(out, size, "%s", file);
+    char* dot = strrchr(out, '.');
+    if(dot != NULL && dot != out) {
+        *dot = '\0';
+    }
+}
+
 // The volume applies as it moves; saving waits for the finger to lift.
 static void settingsmenu_apply_volumes() {
     settings_data* settings = settings_get();
@@ -189,7 +242,33 @@ static const char* settingsmenu_value(settings_option option) {
             return settings->night == THEME_NIGHT_ON ? _("On") : settings->night == THEME_NIGHT_AUTO ? _("Automatic") : _("Off");
         case OPTION_LANGUAGE: return i18n_language_name(settings->language);
         case OPTION_SOUNDS: return settings->sounds == SOUNDS_ALL ? _("All") : settings->sounds == SOUNDS_ALERTS ? _("Alerts") : _("Off");
-        case OPTION_MUSIC: return settings->music == BGMUSIC_LIFT ? _("Lift") : settings->music == BGMUSIC_CALM ? _("Calm") : settings->music == BGMUSIC_SHOP ? _("Shop") : _("Off");
+        case OPTION_MUSIC: {
+            if(settings->music == BGMUSIC_SONGS) {
+                // A song by its name (by content: never cached by address), or all of them.
+                static char title[BGMUSIC_SONG_NAME_MAX + 4];
+                if(settings->musicSong[0] == '\0') {
+                    return _("My songs");
+                }
+
+                // Short enough for the row (the top screen says it whole).
+                settingsmenu_song_title(settings->musicSong, title, sizeof(title));
+                if(widget_text_width(title, WIDGET_SMALL_SCALE) > SETTINGSMENU_SONG_WIDTH) {
+                    size_t len = strlen(title);
+                    do {
+                        // One character less (back to the start of a UTF-8 sequence), and "..." after it.
+                        do {
+                            len--;
+                        } while(len > 0 && ((u8) title[len] & 0xC0) == 0x80);
+
+                        snprintf(title + len, sizeof(title) - len, "...");
+                    } while(len > 1 && widget_text_width(title, WIDGET_SMALL_SCALE) > SETTINGSMENU_SONG_WIDTH);
+                }
+
+                return title;
+            }
+
+            return settings->music == BGMUSIC_LIFT ? _("Lift") : settings->music == BGMUSIC_CALM ? _("Calm") : settings->music == BGMUSIC_SHOP ? _("Shop") : _("Off");
+        }
         case OPTION_CHANNEL: return settings->channel == UPDATE_CHANNEL_BETA ? _("Beta") : _("Stable");
         case OPTION_AUTO_UPDATE: return settingsmenu_on_off(settings->autoUpdate);
         case OPTION_FTP: return ftpserver_running() ? _("On") : ftpserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
@@ -262,8 +341,7 @@ static void settingsmenu_change(settings_option option, int direction) {
             settings->sounds = settingsmenu_step(settings->sounds, 3, step);
             break;
         case OPTION_MUSIC:
-            settings->music = settingsmenu_step(settings->music, BGMUSIC_COUNT, step);
-            bgmusic_set((bgmusic_style) settings->music, settings->musicVolume);
+            settingsmenu_music_pick(settings, settingsmenu_step(settingsmenu_music_choice(settings), settingsmenu_music_choices(), step));
             break;
         case OPTION_CHANNEL:
             settings->channel = settings->channel == UPDATE_CHANNEL_BETA ? UPDATE_CHANNEL_STABLE : UPDATE_CHANNEL_BETA;
@@ -598,10 +676,16 @@ static const char* settingsmenu_help(settings_option option) {
                    : settings->sounds == SOUNDS_ALERTS ? _("Alerts: only when something ends well or fails (a transfer, an install).")
                                                        : _("Off: no sounds. They need the DSP firmware (dspfirm.cdc).");
         case OPTION_MUSIC:
+            if(settings->music == BGMUSIC_SONGS) {
+                return settings->musicSong[0] == '\0' ? _("All my songs: the files in /nsa/music/ (MP3, WAV, FLAC or Ogg), one after another in a random order.")
+                                                      : _("One of your songs, from /nsa/music/, over and over.");
+            }
+
             return settings->music == BGMUSIC_LIFT ? _("Lift: soft lift music, made by the console as it plays, in a loop of half a minute.")
                    : settings->music == BGMUSIC_CALM ? _("Calm: slower and sparser, in a loop of about forty seconds.")
                    : settings->music == BGMUSIC_SHOP ? _("Shop: a soft bossa with marimba, electric piano and bass, in a loop of about forty seconds.")
-                                                     : _("Off: no music. It needs the DSP firmware (dspfirm.cdc) and takes a moment to start.");
+                   : bgmusic_song_count() == 0 ? _("Off: no music. It needs the DSP firmware (dspfirm.cdc). Your own songs: put MP3, WAV, FLAC or Ogg files in /nsa/music/ and they show up here.")
+                                               : _("Off: no music. It needs the DSP firmware (dspfirm.cdc). Your songs in /nsa/music/ come after the made ones.");
         case OPTION_CHANNEL:
             return settings->channel == UPDATE_CHANNEL_BETA
                    ? _("Beta: the newest release, beta or stable. The changelog lists every release since yours.")
@@ -673,9 +757,22 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
     if(option == OPTION_MUSIC) {
         bgmusic_status music;
         bgmusic_get_status(&music);
-        char status[96] = "";
+        char status[96 + BGMUSIC_SONG_NAME_MAX] = "";
         if(settings->music == BGMUSIC_OFF) {
             return;
+        } else if(settings->music == BGMUSIC_SONGS) {
+            if(music.noSongs) {
+                snprintf(status, sizeof(status), "%s", settings->musicSong[0] != '\0' ? _("That song is not in /nsa/music/ any more, or it cannot be played.")
+                                                                                     : _("No songs it can play in /nsa/music/."));
+                screen_draw_text_wrap(status, x, y - 2, WIDGET_SMALL_SCALE, t->palette->warning, x + width);
+                return;
+            }
+
+            if(music.song[0] != '\0') {
+                char title[BGMUSIC_SONG_NAME_MAX];
+                settingsmenu_song_title(music.song, title, sizeof(title));
+                snprintf(status, sizeof(status), _("Playing: %s"), title);
+            }
         } else if(music.generating && music.playing) {
             snprintf(status, sizeof(status), _("Playing the last song; a new one is being made: %lu%%"), music.progress);
         } else if(music.generating) {
@@ -684,7 +781,7 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
             snprintf(status, sizeof(status), "%s", _("Playing"));
         }
 
-        screen_draw_text(status, x, y - 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
+        widget_text_fit(status, x, y - 2, WIDGET_SMALL_SCALE, t->palette->textMuted, width);
         if(music.generating) {
             widget_progress(x, y + 14, width, 4, (float) music.progress / 100.0f);
         }
@@ -865,9 +962,10 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
             if(option == OPTION_MUSIC && settings_get()->music != BGMUSIC_OFF) {
                 bgmusic_status music;
                 bgmusic_get_status(&music);
-                if(music.generating || music.playing) {
-                    // Left of the selector's value: its arrows and text take about this much.
-                    float valueBlock = widget_text_width(settingsmenu_value(option), WIDGET_SMALL_SCALE) + 2 * 12 + 4 * 2 + 8;
+                // Left of the selector's value: its arrows and text take about this much. A long value (a song's
+                // name) leaves no room beside the label: the top screen has the big one.
+                float valueBlock = widget_text_width(settingsmenu_value(option), WIDGET_SMALL_SCALE) + 2 * 12 + 4 * 2 + 8;
+                if((music.generating || music.playing) && valueBlock <= 100) {
                     settingsmenu_draw_equalizer(rowX + rowW - valueBlock - 28, y + 7, 20, 12, 5, music.generating, i == menu->selected ? theme()->onAccent : theme()->accent);
                 }
             }
@@ -903,8 +1001,9 @@ void settingsmenu_open() {
 
     data->press.index = -1;
     data->sliding = -1;
-    // Themes copied to the SD card since NSA started show up.
+    // Themes copied to the SD card since NSA started show up, and songs put in /nsa/music/.
     settings_get()->theme = theme_reload_custom(settings_get()->theme);
+    bgmusic_scan_songs();
 
     ui_view* view = ui_create();
     view->name = _("Settings");

@@ -163,6 +163,19 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Your own songs as background music (2026-11-26, `feat/custom-music`; issue #63, asked on Reddit and GBAtemp).
+  MP3, WAV, FLAC and Ogg files in `sdmc:/nsa/music/` show up in Settings -> Background music after the made styles:
+  "My songs" (all of them, one after another in a random order, never the same twice in a row) and then each one by
+  name (it repeats). Streamed from the SD card on channel 13 (8 buffers of 4096 frames, a thread at the audio
+  player's priority, the third core on a New 3DS), with the same volume, fades, FTP hold and pause while the audio
+  player plays. The decoders moved from `audioview.c` to `core/audiodec.c` (shared). The choice is saved as `music` 4
+  and `music_song` (a file name, "" for all); the web page's Settings has "My songs" and a list, and
+  `/api/settings` gives `songs` and takes `musicSong`. A song that is gone or cannot be played says so on the top
+  screen. New 3DS XL (Claude, ffmpeg test tones): all of them in turn (44.1 kHz stereo MP3, 22 kHz mono Ogg, 48 kHz
+  FLAC: the format changes between songs), each one alone, an unplayable .mp3 (the warning), stepping through every
+  choice and back to Off. Not tried: listening to it (only the status was read), the pause while the audio player
+  plays, the FTP hold, the web page's controls (only its script checked), an Old 3DS (CPU of an MP3 at 44.1 kHz), a
+  long real song. Known: a song cannot be deleted while it plays (the stream holds it open): change the music first.
 - [ ] "Don't turn the console off" while deleting (2026-11-26, `fix/delete-warning`). Deleting a big file takes the SD
   card seconds (2 GB: 2-5 s on the New 3DS XL's card, measured), with nothing on screen before. A URL download that
   deletes what came (a cancel or a failure of "Install", the Store's scripts, a CIA's contents through AM, a paused

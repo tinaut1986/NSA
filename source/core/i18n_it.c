@@ -1754,7 +1754,7 @@ const i18n_entry i18n_it[] = {
         {"This game's icon and title are damaged.", "L'icona e il titolo di questo gioco sono danneggiati."},
         {"This is not a DS game, or the file is damaged.", "Non è un gioco DS, oppure il file è danneggiato."},
         {"A .nds (a DS game) can go in the HOME Menu too: an icon that starts it with nds-bootstrap. The .nds stays on the SD card, and NSA downloads nds-bootstrap's forwarder pack when it is missing.", "Anche un .nds (un gioco DS) può andare nel menu HOME: un'icona che lo avvia con nds-bootstrap. Il .nds resta sulla scheda SD, e NSA scarica il forwarder pack di nds-bootstrap se manca."},
-        {"Homebrew needs it to play sound. On: Nintendo's, whole; OpenDSP: the open source one. A or a tap: dump it or put OpenDSP.", "Gli homebrew ne hanno bisogno per l'audio. Sì: quello di Nintendo, integro; OpenDSP: quello open source. A o un tocco: estrarlo o mettere OpenDSP."},
+        {"Homebrew needs it to play sound. On: Nintendo's; OpenDSP: the open source one. A: dump it or put OpenDSP.", "Gli homebrew ne hanno bisogno per l'audio. Sì: quello di Nintendo; OpenDSP: quello open source. A: estrarlo o mettere OpenDSP."},
         {"Luma3DS's game patching, for LayeredFS mods and IPS patches. A change takes effect when the console restarts.", "La patch dei giochi di Luma3DS, per le mod LayeredFS e le patch IPS. Una modifica vale dal riavvio della console."},
         {"Damaged", "Danneggiato"},
         {"Failed to delete /3ds/dspfirm.cdc.", "Impossibile eliminare /3ds/dspfirm.cdc."},

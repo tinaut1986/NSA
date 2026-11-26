@@ -86,7 +86,7 @@ const i18n_entry i18n_es[] = {
         {"Yellow", "Amarillo"},
         {"Night mode", "Modo noche"},
         // Utilities (utilities.c)
-        {"Homebrew needs it to play sound. On: Nintendo's, whole; OpenDSP: the open source one. A or a tap: dump it or put OpenDSP.", "El homebrew lo necesita para tener sonido. Sí: el de Nintendo, completo; OpenDSP: el de código abierto. A o un toque: extraerlo o poner OpenDSP."},
+        {"Homebrew needs it to play sound. On: Nintendo's; OpenDSP: the open source one. A: dump it or put OpenDSP.", "El homebrew lo necesita para tener sonido. Sí: el de Nintendo; OpenDSP: el de código abierto. A: extraerlo o poner OpenDSP."},
         {"Luma3DS's game patching, for LayeredFS mods and IPS patches. A change takes effect when the console restarts.", "El parcheo de juegos de Luma3DS, para los mods LayeredFS y los parches IPS. Un cambio se aplica al reiniciar la consola."},
         {"Damaged", "Dañado"},
         {"Failed to delete /3ds/dspfirm.cdc.", "No se pudo borrar /3ds/dspfirm.cdc."},

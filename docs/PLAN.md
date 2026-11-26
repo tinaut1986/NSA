@@ -163,7 +163,7 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
-- [ ] Servers with the lid closed (2026-11-26, `fix/servers-awake`; issue #58). Settings -> "Servers with the lid closed"
+- [x] Servers with the lid closed (2026-11-26, `fix/servers-awake`; issue #58). Settings -> "Servers with the lid closed"
   (`servers_awake`, off by default): while the FTP or web server is on (or waits for the Wi-Fi), NSA holds sleep mode off,
   as ftpd does, and locks ndm in infrastructure mode (`NDMU_EnterExclusiveState` + `NDMU_LockState`, as ftpd; without it
   the lid still took the Wi-Fi with no sleep at all; released before the local wireless), so closing the lid leaves the
@@ -172,7 +172,7 @@ What `release` holds, in the order it was built:
   the option or the last server off lets the console sleep again (libctru sleeps at once if the lid is closed). Sleep holds
   are now one bitmask (`core/awake.c`): a data operation, Dump NAND and the motion recording no longer turn sleep back on
   under each other or under the servers. New 3DS XL (2026-11-26, Claude): with the lid closed FTP answered every second
-  for 90 s and the Wi-Fi stayed up. Not tried: the screens off and on, the option off, HOME while the lid is closed, the
+  for 90 s and the Wi-Fi stayed up; the owner tried it there too: it works. Not tried: the screens off and on, the option off, HOME while the lid is closed, the
   local wireless with the option on, the 2DS's sleep switch.
 - [ ] DS forwarder: nds-bootstrap checked first (2026-11-26, `fix/nds-bootstrap-check`; issue #56). Before making the icon,
   NSA checks every file of nds-bootstrap's forwarder pack the icon needs: `_nds/ntr-forwarder/sdcard.nds` (what the icon

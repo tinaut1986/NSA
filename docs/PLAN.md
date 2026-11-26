@@ -163,6 +163,14 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] FTP port (2026-11-26, `feat/ftp-port`; issue #57). Settings -> "FTP port" (`ftp_port`, below FTP server): 5021 (the
+  default), 5000 (ftpd's: a client's saved connection works as it is) or 21. A running server moves at once (clients on
+  the old port are dropped); the passive ports stay 5022-5085 whatever the port. On 5000, "Receive from a computer" (FBI's
+  tools send only to 5000) pauses the FTP server while its screen is open, says so, and brings it back when it closes
+  (`ftpserver_resume_later`). The address in Settings, the top bar, System info and Receive's line follow the port; SITE
+  HELP says it. New 3DS XL (2026-11-26, Claude): Settings moved it 5021 -> 5000 -> 21 -> 5021, each time only the new
+  port answered (curl); on 5000 Receive showed the pause line and the FTP server came back on 5000 when it closed. Not
+  tried: a real FTP client on 5000 or 21 (FileZilla, Dolphin, the owner's saved ftpd connection), servefiles.py with 5000.
 - [x] Servers with the lid closed (2026-11-26, `fix/servers-awake`; issue #58). Settings -> "Servers with the lid closed"
   (`servers_awake`, off by default): while the FTP or web server is on (or waits for the Wi-Fi), NSA holds sleep mode off,
   as ftpd does, and locks ndm in infrastructure mode (`NDMU_EnterExclusiveState` + `NDMU_LockState`, as ftpd; without it

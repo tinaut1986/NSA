@@ -84,6 +84,9 @@ typedef struct {
     // What came is being deleted (a cancel, a failure: a file made whole-sized at the start, or a CIA's contents), which
     // takes seconds for a big one: the screen says so, and not to turn the console off meanwhile.
     volatile bool deleting;
+    // A file being made its whole size at the start (FSFILE_SetSize): 2 GB took ~9.5 s on a New 3DS XL, and it changes
+    // the card's FAT as deleting does (issue #62): the same notice.
+    volatile bool reserving;
     bool deletePaused;   // Cancelled while paused: its .part goes on a thread of its own, the screen saying so meanwhile.
     bool deleteStarted;
 
@@ -405,6 +408,25 @@ static Result action_install_url_resume_from(void* data, u32 index, u64* from, u
     return 0;
 }
 
+
+// Makes the file its whole size at once (the pieces are written where they go). A big one takes the SD card seconds and
+// changes its FAT: the screen says not to turn the console off meanwhile (only from 64 MB: a small one would flash it).
+static Result action_install_url_reserve(install_url_data* installData, Handle handle, u64 size) {
+    bool big = size >= 64ULL * 1024 * 1024;
+    if(big) {
+        installData->reserving = true;
+        ui_wake();
+    }
+
+    Result res = FSFILE_SetSize(handle, size);
+    if(big) {
+        installData->reserving = false;
+        ui_wake();
+    }
+
+    return res;
+}
+
 static Result action_install_url_open_save(install_url_data* installData, u32 index, void* initialReadBlock, u64 size, u32* handle) {
     installData->contentType = CONTENT_SAVED;
     installData->currIsCia = initialReadBlock != NULL && *(u16*) initialReadBlock == 0x2020;
@@ -469,7 +491,7 @@ static Result action_install_url_open_save(install_url_data* installData, u32 in
         if(path != NULL) {
             FSUSER_DeleteFile(sdmcArchive, *path);
             res = FSUSER_OpenFile(handle, sdmcArchive, *path, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);
-            if(R_SUCCEEDED(res) && size > 0 && R_FAILED(res = FSFILE_SetSize(*handle, size))) {
+            if(R_SUCCEEDED(res) && size > 0 && R_FAILED(res = action_install_url_reserve(installData, *handle, size))) {
                 FSFILE_Close(*handle);
                 *handle = 0;
                 FSUSER_DeleteFile(sdmcArchive, *path);
@@ -500,7 +522,7 @@ static Result action_install_url_open_save(install_url_data* installData, u32 in
 
             // Its whole size at once: the pieces are written where they go, and a write far past the end would
             // first fill the gap. A card without room for it gets no file.
-            if(R_SUCCEEDED(res) && size > 0 && R_FAILED(res = FSFILE_SetSize(*handle, size))) {
+            if(R_SUCCEEDED(res) && size > 0 && R_FAILED(res = action_install_url_reserve(installData, *handle, size))) {
                 FSFILE_Close(*handle);
                 *handle = 0;
                 FSUSER_DeleteFile(sdmcArchive, *path);
@@ -1484,14 +1506,16 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
     float x = x1 + 8;
     float w = x2 - x1 - 16;
 
-    // Deleting what came (a cancel, a failure): a big file takes the SD card seconds, and the console must stay on.
-    if(installData->deleting) {
+    // Deleting what came (a cancel, a failure) or making a big file its whole size at the start: either takes the SD
+    // card seconds and changes its FAT, and the console must stay on.
+    if(installData->deleting || installData->reserving) {
         float cardH = 58;
         float cardY = y2 - 8 - cardH;
         widget_card(x, cardY, w, cardH);
         screen_draw_icon(ICON_ALERT_TRIANGLE, x + 8, cardY + 8, 16, t->palette->warning);
-        screen_draw_text_wrap(_("Deleting what was downloaded from the SD card. Don't turn the console off until it ends."), x + 30, cardY + 8,
-                              WIDGET_TEXT_SCALE, t->palette->text, x + w - 8);
+        const char* text = installData->deleting ? _("Deleting what was downloaded from the SD card. Don't turn the console off until it ends.")
+                                                 : _("Making room for the file on the SD card. Don't turn the console off until it ends.");
+        screen_draw_text_wrap(text, x + 30, cardY + 8, WIDGET_TEXT_SCALE, t->palette->text, x + w - 8);
         y2 = cardY - 4;
     }
 
@@ -1509,7 +1533,8 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
     for(u32 i = first; i < info->total && i < first + fits; i++) {
         float y = y1 + 8 + (i - first) * (INSTALL_ROW_HEIGHT + INSTALL_ROW_GAP);
         bool deleting = installData->deleting && i == (installData->deletePaused ? installData->pausedAt : info->processed);
-        bool current = i == info->processed && !info->finished && !deleting;
+        bool reserving = installData->reserving && i == info->processed && !deleting;
+        bool current = i == info->processed && !info->finished && !deleting && !reserving;
         bool paused = installData->paused && i == installData->pausedAt;
         screen_frame_round_rect(x, y, w, INSTALL_ROW_HEIGHT, t->def->radiusSmall, t->def->border, current ? t->accent : t->palette->border, t->palette->surface);
 
@@ -1520,6 +1545,10 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
             icon = ICON_TRASH;
             iconColor = t->palette->warning;
             string_copy(status, _("Deleting"), sizeof(status));
+        } else if(reserving) {
+            icon = ICON_ALERT_TRIANGLE;
+            iconColor = t->palette->warning;
+            string_copy(status, _("Making room"), sizeof(status));
         } else if(current) {
             icon = ICON_DOWNLOAD;
             iconColor = t->accent;

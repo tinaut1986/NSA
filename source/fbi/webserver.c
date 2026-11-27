@@ -2345,13 +2345,23 @@ static json_t* web_settings_json() {
         json_array_append_new(accents, json_pack("{s:s,s:s,s:s,s:s}", "id", a->id, "name", a->name, "day", day, "night", night));
     }
 
-    return json_pack("{s:b,s:s,s:o,s:s,s:o,s:s,s:s,s:i,s:i,s:i,s:i,s:b,s:b}", "ok", 1,
+    // The user's songs in /nsa/music/ (read again: they may have just been copied there).
+    json_t* songs = json_array();
+    bgmusic_scan_songs();
+    for(u32 i = 0; i < bgmusic_song_count(); i++) {
+        char name[BGMUSIC_SONG_NAME_MAX];
+        bgmusic_song_name(i, name, sizeof(name));
+        json_array_append_new(songs, json_string(name));
+    }
+
+    return json_pack("{s:b,s:s,s:o,s:s,s:o,s:s,s:s,s:i,s:i,s:i,s:i,s:s,s:o,s:b,s:b}", "ok", 1,
                      "theme", theme_get(s->theme)->id, "themes", themes,
                      "accent", theme_accent_get(s->accent)->id, "accents", accents,
                      "night", web_night_ids[s->night < 3 ? s->night : 0],
                      "language", i18n_language_code(s->language),
                      "sounds", (int) s->sounds, "soundVolume", (int) s->soundVolume,
                      "music", (int) s->music, "musicVolume", (int) s->musicVolume,
+                     "musicSong", s->musicSong, "songs", songs,
                      "clock24", datefmt_clock24(), "monthFirst", datefmt_month_first());
 }
 
@@ -2425,8 +2435,19 @@ static void web_api_settings_set(web_request* r) {
     values.soundVolume = web_number(r, "soundVolume", values.soundVolume);
     values.music = web_number(r, "music", values.music);
     values.musicVolume = web_number(r, "musicVolume", values.musicVolume);
+    // One of the files of /nsa/music/ by its name, or "" for all of them (music 4).
+    char song[BGMUSIC_SONG_NAME_MAX];
+    if(web_query_get(r->query, "musicSong", song, sizeof(song))) {
+        if(strchr(song, '/') != NULL || strchr(song, '\\') != NULL) {
+            web_send_error(r, 400, "musicSong is a file name in /nsa/music/");
+            return;
+        }
+
+        string_copy(values.musicSong, song, sizeof(values.musicSong));
+    }
+
     if(values.sounds > SOUNDS_ALL || values.music >= BGMUSIC_COUNT || values.soundVolume > 100 || values.musicVolume > 100) {
-        web_send_error(r, 400, "sounds 0-2, music 0-3, volumes 0-100");
+        web_send_error(r, 400, "sounds 0-2, music 0-4, volumes 0-100");
         return;
     }
 
@@ -2454,6 +2475,7 @@ static void web_settings_apply() {
     s->soundVolume = web_settings.values.soundVolume;
     s->music = web_settings.values.music;
     s->musicVolume = web_settings.values.musicVolume;
+    string_copy(s->musicSong, web_settings.values.musicSong, sizeof(s->musicSong));
     settings_apply();
     settings_save();
     web_settings.state = 2;

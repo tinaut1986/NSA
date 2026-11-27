@@ -156,12 +156,12 @@ turn it off; DEBUG builds ignore it):
 from y1 to y2, to scroll), `SITE SWIPE <x1> <y> <x2> [frames]` (sideways: a grid's pages). For example:
 `curl -Q "SITE PRESS DOWN" ftp://IP:5021/`.
 
-To look at the real console, wait a few seconds after `SITE SCREENSHOT` (it answers
-"not taken in time" but the files appear) and measure on that image: Azahar's font and
-data differ (see `docs/PLAN.md`, Known issues).
+To look at the real console, use `SITE SCREENSHOT` (it answers once both files are written: under a second; until
+2026-11-27 it took 10-40 s and answered "not taken in time", the BMPs going to the SD card 1 KB at a time) or the web
+page's `GET /api/screens`, and measure on that image: Azahar's font and data differ (see `docs/PLAN.md`, Known issues).
 
 A handy driver (not in the repo): for each `SITE PRESS`/`TAP` wait about a second, finish with
-`SITE SCREENSHOT`, wait 2 s (Azahar) or 6 s (console), fetch `/nsa/screenshots/top.bmp` and
+`SITE SCREENSHOT` (it answers when done), fetch `/nsa/screenshots/top.bmp` and
 `bottom.bmp`, paste them into one 400x480 image (bottom at x=40, y=240) and scale x2 to read it. A
 long press is `SITE PRESS A 60`. The list's first row is index 0; check the screen before
 assuming where the selection is. To find a console: scan port 5021 on the subnet.
@@ -188,7 +188,7 @@ Ask before installing while the owner is using the console.
 - A helper loop used in sessions: upload with `ALLO` and `SITE INSTALL` in one curl
   call, then `DELE` the uploaded file:
   `curl -Q "+ALLO $(stat -c %s output/3ds-arm/NSA.cia)" -Q "-SITE INSTALL /nsa/update.cia" -Q "-DELE /nsa/update.cia" -T output/3ds-arm/NSA.cia ftp://IP:5021/nsa/update.cia`
-- Screenshots: `curl -Q "SITE SCREENSHOT" ftp://IP:5021/` (allow 20 s), then fetch
+- Screenshots: `curl -Q "SITE SCREENSHOT" ftp://IP:5021/` (under a second), then fetch
   `/nsa/screenshots/top.bmp` and `bottom.bmp`.
 
 Delete test files from the console's SD afterwards; the SD root is the owner's (Luma, boot9strap,

@@ -18,5 +18,7 @@ void datetime_start();
 const datetime_zone* datetime_zone_current();
 // Sets the console's clock from the Internet: false and a reason (English, for _()) when it could not.
 bool datetime_sync_now(const char** problem, s64* changedBy);
+// DEBUG (SITE CLOCKADD): moves the clock by some seconds the way NSA sets it.
+Result datetime_debug_shift(s64 seconds);
 
 void datetime_open();

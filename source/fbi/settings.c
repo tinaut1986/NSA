@@ -6,9 +6,11 @@
 
 #include "settings.h"
 #include "../core/core.h"
+#include "../core/backdrop.h"
 #include "../core/bgmusic.h"
 #include "datetime.h"
 #include "brightness.h"
+#include "ftpserver.h"
 
 #define SETTINGS_PATH "sdmc:" APP_DATA_DIR "settings.json"
 
@@ -17,6 +19,7 @@ static settings_data settings = {
         .autoUpdate = true,
         .webServer = false,
         .linkServer = true,
+        .ftpPort = 5021,
         .ftpServer = true,   // Serving files is on by default; driving the console needs sdmc:/nsa/remote.flag.
         .theme = 0,
         .accent = 0,
@@ -313,6 +316,12 @@ void settings_load() {
     }
 
     settings.ftpMusicAsked = json_is_true(json_object_get(json, "ftp_music_asked"));
+    settings.serversAwake = json_is_true(json_object_get(json, "servers_awake"));
+
+    json_t* ftpPort = json_object_get(json, "ftp_port");
+    if(json_is_integer(ftpPort) && ftpserver_port_valid((u32) json_integer_value(ftpPort))) {
+        settings.ftpPort = (u32) json_integer_value(ftpPort);
+    }
 
     // The themes on the SD card first: the one saved may be one of them ("sd:...").
     theme_load_custom();
@@ -330,6 +339,11 @@ void settings_load() {
     settings.soundVolume = settings_get_uint(json, "sound_volume", settings.soundVolume, 100);
     settings.music = settings_get_uint(json, "music", settings.music, BGMUSIC_COUNT - 1);
     settings.musicVolume = settings_get_uint(json, "music_volume", settings.musicVolume, 100);
+    settings.backdrop = settings_get_uint(json, "backdrop", settings.backdrop, BACKDROP_COUNT - 1);
+    json_t* musicSong = json_object_get(json, "music_song");
+    if(json_is_string(musicSong)) {
+        string_copy(settings.musicSong, json_string_value(musicSong), sizeof(settings.musicSong));
+    }
     settings.playerRepeat = settings_get_uint(json, "player_repeat", settings.playerRepeat, 2);
     json_t* brightnessCustom = json_object_get(json, "brightness_custom");
     if(json_is_boolean(brightnessCustom)) {
@@ -473,6 +487,8 @@ void settings_apply() {
     theme_select(settings.theme, settings.accent, settings.night);
     i18n_set_language(settings.language);
     sound_set((sound_mode) settings.sounds, settings.soundVolume);
+    bgmusic_set_song(settings.musicSong);
+    backdrop_set((backdrop_style) settings.backdrop);
     bgmusic_set((bgmusic_style) settings.music, settings.musicVolume);
     datetime_apply();
 }
@@ -490,7 +506,7 @@ Result settings_save() {
         return res;
     }
 
-    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
+    json_t* json = json_pack("{s:s,s:b,s:b,s:b,s:b,s:s,s:s,s:b,s:b,s:b,s:i,s:s,s:s,s:s,s:s,s:i,s:i,s:i,s:i,s:s,s:i,s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:i,s:i,s:i,s:b,s:i,s:b},s:{s:b,s:b,s:b,s:b,s:b,s:i},s:{s:b,s:b,s:b,s:b},s:{s:b,s:b}}",
                              "channel", settings.channel == UPDATE_CHANNEL_BETA ? "beta" : "stable",
                              "auto_update", settings.autoUpdate,
                              "ftp_server", settings.ftpServer,
@@ -500,6 +516,8 @@ Result settings_save() {
                              "web_pin", settings.webPin,
                              "ftp_pauses_music", settings.ftpPausesMusic,
                              "ftp_music_asked", settings.ftpMusicAsked,
+                             "servers_awake", settings.serversAwake,
+                             "ftp_port", (int) settings.ftpPort,
                              "theme", theme_get(settings.theme)->id,
                              "accent", theme_accent_get(settings.accent)->id,
                              "night_mode", night_ids[settings.night < 3 ? settings.night : 0],
@@ -508,6 +526,8 @@ Result settings_save() {
                              "sound_volume", (int) settings.soundVolume,
                              "music", (int) settings.music,
                              "music_volume", (int) settings.musicVolume,
+                             "music_song", settings.musicSong,
+                             "backdrop", (int) settings.backdrop,
                              "titles",
                              "media", (int) settings.titles.media,
                              "kinds", (int) settings.titles.kinds,

@@ -274,7 +274,7 @@ static void dumpnand_free_resources(dumpnand_data* dump) {
         dump->op.cancelEvent = 0;
     }
 
-    aptSetSleepAllowed(true);
+    awake_hold(AWAKE_DUMP, false);
 }
 
 static void dumpnand_reader(void* arg) {
@@ -430,7 +430,7 @@ static void dumpnand_start(dumpnand_data* dump) {
     LightSemaphore_Init(&dump->toWrite, 0, DUMP_SLOTS);
     LightSemaphore_Init(&dump->toHash, 0, DUMP_SLOTS);
 
-    aptSetSleepAllowed(false);
+    awake_hold(AWAKE_DUMP, true);
 
     Result res = 0;
     for(u32 i = 0; i < DUMP_SLOTS; i++) {

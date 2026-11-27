@@ -6,6 +6,7 @@
 
 #include <3ds.h>
 
+#include "../core/awake.h"
 #include "ftpserver.h"
 #include "webserver.h"
 #include "linkserver.h"
@@ -148,10 +149,12 @@ bool udslink_enter() {
         return true;
     }
 
-    // The Wi-Fi goes away with UDS: the FTP server with it.
+    // The Wi-Fi goes away with UDS: the FTP server with it, and then ndm's lock for the servers (UDS needs ndm's other
+    // state; with the servers paused the main loop does not take it again).
     ftpserver_pause();
     webserver_pause();
     linkserver_pause();
+    awake_hold(AWAKE_SERVERS, false);
 
     if(R_FAILED(udsInit(UDS_SHARED_SIZE, NULL))) {
         ftpserver_resume_later();

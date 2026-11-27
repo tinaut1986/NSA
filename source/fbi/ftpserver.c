@@ -19,8 +19,11 @@
 #include "rehid.h"
 #include "relaunch.h"
 #include "remotehelp.h"
+#include "datetime.h"
 #include "homeicon.h"
 #include "selftest.h"
+#include "settings.h"
+#include "../core/backdrop.h"
 #include "../core/core.h"
 #include "../core/minire.h"
 #include "../core/speedlog.h"
@@ -54,7 +57,7 @@ static u32 ftp_send_chunk = FTP_SEND_CHUNK;
 #define FTP_IDLE_MS (10 * 60 * 1000)
 // A session that has waited this long for a command may be sent away when a new client finds every place taken.
 #define FTP_EVICT_MIN_IDLE_MS 3000
-#define FTP_PASV_FIRST (FTP_SERVER_PORT + 1)
+#define FTP_PASV_FIRST 5022   // Whatever the control port: none of the choices falls in 5022-5085.
 #define FTP_PASV_COUNT 64
 
 #define NSA_TITLE_ID (0x0004000000000000ULL | ((u64) APP_UNIQUE_ID << 8))
@@ -82,6 +85,7 @@ static volatile u64 ftp_data_ended = 0;   // When the last one closed,
 static volatile bool ftp_data_long = false;   // and whether it lasted a second or more.
 static u32 ftp_ip = 0;
 static char ftp_status[48] = "Off";
+static u16 ftp_port = FTP_SERVER_PORT;   // The port bound by the last start.
 static unsigned ftp_next_pasv = 0;
 
 // The sessions' list, the data counters and the PASV ports; installs (SITE INSTALL, the web page) one at a time; the
@@ -1532,6 +1536,87 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
         return;
     }
 
+    // The clocks (issue #59): "SITE CLOCK" says the user time (what the console shows), the RTC's and the user time
+    // offset of cfg blocks 0x30001 and 0x30002, in ms since 2000 (the RTC and the user time) and ms (the offsets).
+    if(NSA_DEBUG && strcmp(sub, "CLOCK") == 0) {
+        s64 rtc = 0;
+        Result rtcRes = R_APP_INVALID_ARGUMENT;
+        if(R_SUCCEEDED(ptmSysmInit())) {
+            rtcRes = PTMSYSM_GetRtcTime(&rtc);
+            ptmSysmExit();
+        }
+
+        // Through cfg:u (Blk2) and through the system service NSA also has (Blk8): they may differ.
+        s64 offset1 = 0;
+        s64 offset2 = 0;
+        s64 system1 = 0;
+        s64 system2 = 0;
+        Result cfgRes = CFGU_GetConfigInfoBlk2(8, 0x30001, &offset1);
+        CFGU_GetConfigInfoBlk2(8, 0x30002, &offset2);
+        Result sysRes = CFG_GetConfigInfoBlk8(8, 0x30001, &system1);
+        CFG_GetConfigInfoBlk8(8, 0x30002, &system2);
+        // osGetTime: ms since 1900; the year 2000 is 3155673600 s later.
+        s64 user = (s64) osGetTime() - 3155673600000LL;
+        char reply[384];
+        snprintf(reply, sizeof(reply), "200 user=%lld rtc=%lld (%08lX) user-rtc=%lld u30001=%lld u30002=%lld (%08lX) s30001=%lld s30002=%lld (%08lX) time=%lld",
+                 (long long) user, (long long) rtc, (u32) rtcRes, (long long) (user - rtc), (long long) offset1, (long long) offset2,
+                 (u32) cfgRes, (long long) system1, (long long) system2, (u32) sysRes, (long long) time(NULL));
+        ftp_reply(s, reply);
+        return;
+    }
+
+    // Picks the animated background (issue #60) without the menus, not saved: "SITE BACKDROP <number>" (0 off).
+    if(NSA_DEBUG && strcmp(sub, "BACKDROP") == 0) {
+        u32 style = path != NULL ? (u32) strtoul(path, NULL, 10) : 0;
+        backdrop_set((backdrop_style) style);
+        ui_wake();
+        ftp_reply(s, "200 Backdrop %lu.", style);
+        return;
+    }
+
+    // Moves the clock the way NSA sets it (issue #59, to put it wrong on purpose): "SITE CLOCKADD <seconds>".
+    if(NSA_DEBUG && strcmp(sub, "CLOCKADD") == 0) {
+        Result res = datetime_debug_shift(path != NULL ? strtoll(path, NULL, 10) : 0);
+        char reply[64];
+        snprintf(reply, sizeof(reply), "200 Moved (%08lX).", (u32) res);
+        ftp_reply(s, reply);
+        return;
+    }
+
+    // Sets the clock from the Internet now, as Date and time does (issue #59): "SITE NTP".
+    if(NSA_DEBUG && strcmp(sub, "NTP") == 0) {
+        const char* problem = NULL;
+        s64 changed = 0;
+        char reply[160];
+        if(datetime_sync_now(&problem, &changed)) {
+            snprintf(reply, sizeof(reply), "200 Synced: the clock moved %lld s.", (long long) changed);
+        } else {
+            snprintf(reply, sizeof(reply), "550 %s", problem != NULL ? problem : "Failed.");
+        }
+
+        ftp_reply(s, reply);
+        return;
+    }
+
+    // Moves the RTC by some seconds (issue #59, to put the clock wrong on purpose): "SITE RTCADD <seconds>".
+    if(NSA_DEBUG && strcmp(sub, "RTCADD") == 0) {
+        s64 seconds = path != NULL ? strtoll(path, NULL, 10) : 0;
+        s64 rtc = 0;
+        Result res = ptmSysmInit();
+        if(R_SUCCEEDED(res)) {
+            if(R_SUCCEEDED(res = PTMSYSM_GetRtcTime(&rtc))) {
+                res = PTMSYSM_SetRtcTime(rtc + seconds * 1000);
+            }
+
+            ptmSysmExit();
+        }
+
+        char reply[96];
+        snprintf(reply, sizeof(reply), "200 rtc %lld -> %lld (%08lX)", (long long) rtc, (long long) (rtc + seconds * 1000), (u32) res);
+        ftp_reply(s, reply);
+        return;
+    }
+
     // The brightness the screens have now, as GSP reports it (issue #42): "SITE LCD".
     if(NSA_DEBUG && strcmp(sub, "LCD") == 0) {
         u32 top = 0;
@@ -2232,10 +2317,11 @@ bool ftpserver_start() {
 
     struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(FTP_SERVER_PORT);
+    ftp_port = ftpserver_port_valid(settings_get()->ftpPort) ? (u16) settings_get()->ftpPort : FTP_SERVER_PORT;
+    addr.sin_port = htons(ftp_port);
     addr.sin_addr.s_addr = INADDR_ANY;
     if(ftp_listen < 0 || bind(ftp_listen, (struct sockaddr*) &addr, sizeof(addr)) != 0 || listen(ftp_listen, FTP_MAX_SESSIONS + 1) != 0) {
-        snprintf(ftp_status, sizeof(ftp_status), _("Port %d busy"), FTP_SERVER_PORT);
+        snprintf(ftp_status, sizeof(ftp_status), _("Port %d busy"), ftp_port);
         ftp_close_socket(&ftp_listen);
         return false;
     }
@@ -2326,6 +2412,30 @@ bool ftpserver_running() {
     return ftp_run;
 }
 
+u16 ftpserver_port_choice(u32 index) {
+    static const u16 ports[FTP_PORT_CHOICES] = {FTP_SERVER_PORT, 5000, 21};
+    return ports[index < FTP_PORT_CHOICES ? index : 0];
+}
+
+bool ftpserver_port_valid(u32 port) {
+    for(u32 i = 0; i < FTP_PORT_CHOICES; i++) {
+        if(port == ftpserver_port_choice(i)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+u16 ftpserver_port() {
+    if(ftp_run) {
+        return ftp_port;
+    }
+
+    u32 port = settings_get()->ftpPort;
+    return ftpserver_port_valid(port) ? (u16) port : FTP_SERVER_PORT;
+}
+
 void ftpserver_pause() {
     // A start still waiting for the Wi-Fi counts as running: otherwise the
     // resume after this pause would find nothing to bring back.
@@ -2385,10 +2495,16 @@ void ftpserver_poll_main() {
     }
 
     u64 start = osGetTime();
+    // Both screens to memory first, then to the SD card: while the card is busy (a big file being made or deleted)
+    // its first file call waits for it, and a picture taken after that would show the moment it ended.
+    u32 topSize = 0;
+    u32 bottomSize = 0;
+    u8* top = screen_capture_bmp(GFX_TOP, &topSize);
+    u8* bottom = screen_capture_bmp(GFX_BOTTOM, &bottomSize);
     mkdir("sdmc:" APP_DATA_DIR, 0777);
     mkdir("sdmc:" APP_DATA_DIR "screenshots", 0777);
-    shot_ok = screen_capture(GFX_TOP, "sdmc:" APP_DATA_DIR "screenshots/top.bmp")
-              && screen_capture(GFX_BOTTOM, "sdmc:" APP_DATA_DIR "screenshots/bottom.bmp");
+    shot_ok = screen_write_bmp("sdmc:" APP_DATA_DIR "screenshots/top.bmp", top, topSize);
+    shot_ok = screen_write_bmp("sdmc:" APP_DATA_DIR "screenshots/bottom.bmp", bottom, bottomSize) && shot_ok;
     shot_ms = (u32) (osGetTime() - start);
     shot_done = true;
 }
@@ -2400,7 +2516,7 @@ void ftpserver_address(char* out, size_t size) {
     }
 
     struct in_addr addr = {.s_addr = ftp_ip};
-    snprintf(out, size, "%s:%d", inet_ntoa(addr), FTP_SERVER_PORT);
+    snprintf(out, size, "%s:%d", inet_ntoa(addr), ftp_port);
 }
 
 bool ftpserver_transferring() {
@@ -2423,7 +2539,7 @@ void ftpserver_corner(char* out, size_t size) {
     }
 
     struct in_addr addr = {.s_addr = ftp_ip};
-    snprintf(out, size, "FTP %s:%d", inet_ntoa(addr), FTP_SERVER_PORT);
+    snprintf(out, size, "FTP %s:%d", inet_ntoa(addr), ftp_port);
 }
 
 bool ftpserver_notice(char* out, size_t size, float* progress) {

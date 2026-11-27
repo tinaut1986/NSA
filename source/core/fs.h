@@ -11,6 +11,12 @@ typedef struct fs_filter_data_s {
 bool fs_is_dir(FS_Archive archive, const char* path);
 Result fs_ensure_dir(FS_Archive archive, const char* path);
 
+// A long SD card operation (a big file made its whole size or deleted) on another thread: the card answers nothing
+// else until it ends, so the main thread should not ask it anything that can wait (widget_storage keeps its last
+// numbers), or the screen stands still. begin/end pair up; any number may overlap.
+void fs_long_op(bool begin);
+bool fs_long_op_running();
+
 FS_Path fs_make_path_binary(const void* data, u32 size);
 FS_Path* fs_make_path_utf8(const char* path);
 void fs_free_path_utf8(FS_Path* path);

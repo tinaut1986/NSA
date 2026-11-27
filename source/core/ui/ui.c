@@ -605,7 +605,8 @@ static u64 ui_backdrop_frame() {
 }
 
 static u64 ui_last_active = 0;
-static u64 ui_last_draw = 0;
+static u64 ui_last_draw = 0;   // Any frame.
+static u64 ui_last_full = 0;   // A frame that drew everything: the idle ones count from it, not from the background's.
 static ui_view* ui_last_view = NULL;
 static u32 ui_last_depth = 0;
 static float ui_last_slider = 0;
@@ -626,8 +627,9 @@ static int ui_should_draw(ui_view* ui) {
         ui_last_slider = slider;
     }
 
-    if(now - ui_last_active < UI_ACTIVE_TIME || now - ui_last_draw >= UI_IDLE_FRAME) {
+    if(now - ui_last_active < UI_ACTIVE_TIME || now - ui_last_full >= UI_IDLE_FRAME) {
         ui_last_draw = now;
+        ui_last_full = now;
         return 2;
     }
 

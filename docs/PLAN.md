@@ -174,15 +174,18 @@ What `release` holds, in the order it was built:
   Then (`feat/backdrop-cache`): the screens' contents are drawn into textures (`screen_cache_*`: each eye of the top
   screen and the bottom, 512x256 RGBA8 in VRAM, premultiplied alpha; their scissor counts rows from the bottom) only
   when something changes (ui_should_draw 2), and the frames where only the background moves (1) draw the background,
-  the particles and those textures: core 0 26% -> 4% with Starry sky. Three more styles in colours of their own (light
-  at night, deeper by day): Enchanted forest (golden and green lights with a long tail, 40 points, that rise, loop and
-  fade), Threads of light (threads that grow from the ground up, swaying, fainter as they rise) and Energy (the whole
-  bottom glows in a surface that swells and sinks, several waves added up, and balls of energy rise where it is highest;
-  columns of 5 px, three quads each: 17%, 30% with 3 px and four), 12% the other two, with the cache. The owner asked
-  for the longer tails and the surface instead of three round vents. DEBUG `SITE BACKDROP <n>` picks one (not
-  saved). Seen at night only (screenshots) on the New 3DS XL. Not tried: an Old 3DS / 2DS (its CPU at 20 frames a
-  second, next to the music and downloads), the 3D depth seen on the console (only one eye can be captured), day colours
-  of the last three, the Pixel and HOME themes, the pause during a transfer, the guide's bubbles over a cached frame.
+  the particles and those textures. The idle full frames (UI_IDLE_FRAME) count from the last full one (ui_last_full),
+  not from the background's: else the clock, progress bars and a theme changed from the web page stood still. Three more
+  styles in colours of their own (light at night, deeper by day): Enchanted forest (golden and green lights with a long
+  tail that rise, loop and fade), Threads of light (threads that grow from the ground up, swaying, fainter as they rise)
+  and Energy (a low mist along the bottom, puffs of steam that rise from where it leaks most, spread, drift with a slow
+  wind and come apart, and bright balls rising through them). Trails: 20 points (threads 16) every 0.12 s, with a dot
+  between two only where a gap would show. Core 0 at the main menu, New 3DS XL, idle: off 6%, Starry sky 11%, Bubbles
+  13%, Energy 14%, Threads 18%, Forest 19% (35% with 40 points and a dot between each two). The owner asked for the
+  longer tails and steam instead of round vents and of a waving surface. DEBUG `SITE BACKDROP <n>` picks one (not
+  saved). Seen in day and night colours (screenshots) on the New 3DS XL. Not tried: an Old 3DS / 2DS (its CPU at 20
+  frames a second, next to the music and downloads), the 3D depth seen on the console (only one eye can be captured),
+  the Pixel and HOME themes, the pause during a transfer, the guide's bubbles over a cached frame.
 - [ ] Setting the clock no longer looks like a time change to games (2026-11-26, `fix/ntp-rtc`; issue #59). The
   console shows RTC + the user time offset (cfg 0x30001, in ns; 0x30002 is another copy, read through the system
   service: cfg:u gives 0). NSA set the time with PTMSYSM_SetUserTime (+ PTMSETS_SetSystemTime), as System Settings and

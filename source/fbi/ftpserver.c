@@ -2495,10 +2495,16 @@ void ftpserver_poll_main() {
     }
 
     u64 start = osGetTime();
+    // Both screens to memory first, then to the SD card: while the card is busy (a big file being made or deleted)
+    // its first file call waits for it, and a picture taken after that would show the moment it ended.
+    u32 topSize = 0;
+    u32 bottomSize = 0;
+    u8* top = screen_capture_bmp(GFX_TOP, &topSize);
+    u8* bottom = screen_capture_bmp(GFX_BOTTOM, &bottomSize);
     mkdir("sdmc:" APP_DATA_DIR, 0777);
     mkdir("sdmc:" APP_DATA_DIR "screenshots", 0777);
-    shot_ok = screen_capture(GFX_TOP, "sdmc:" APP_DATA_DIR "screenshots/top.bmp")
-              && screen_capture(GFX_BOTTOM, "sdmc:" APP_DATA_DIR "screenshots/bottom.bmp");
+    shot_ok = screen_write_bmp("sdmc:" APP_DATA_DIR "screenshots/top.bmp", top, topSize);
+    shot_ok = screen_write_bmp("sdmc:" APP_DATA_DIR "screenshots/bottom.bmp", bottom, bottomSize) && shot_ok;
     shot_ms = (u32) (osGetTime() - start);
     shot_done = true;
 }

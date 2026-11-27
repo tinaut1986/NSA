@@ -10,6 +10,7 @@
 #include "../qrencode.h"
 #include "../icons.h"
 #include "../screen.h"
+#include "../fs.h"
 #include "../stringutil.h"
 #include "../theme.h"
 
@@ -940,8 +941,10 @@ void widget_storage(FS_SystemMediaType media, float x, float y, float width) {
         return;
     }
 
-    // Installs and deletes change it: look again every couple of seconds.
-    if(!storage_cache[media].known || osGetTime() >= storage_cache[media].time + 2000) {
+    // Installs and deletes change it: look again every couple of seconds, but not while the SD card is busy with a long
+    // operation (fs_long_op): the question would wait for it to end and the screen would stand still meanwhile.
+    bool busy = media == SYSTEM_MEDIATYPE_SD && fs_long_op_running();
+    if(!busy && (!storage_cache[media].known || osGetTime() >= storage_cache[media].time + 2000)) {
         FS_ArchiveResource resource = {0};
         if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, media))) {
             storage_cache[media].free = (u64) resource.freeClusters * resource.clusterSize;

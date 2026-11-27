@@ -232,6 +232,11 @@ What `release` holds, in the order it was built:
   (FSFILE_SetSize of a "Save" .part or a .3dsx written in place, from 64 MB; 2 GB ~9.5 s on the New 3DS XL, and it
   changes the FAT too): "Making room for the file on the SD card. Don't turn the console off until it ends.", the row
   saying "Making room". New 3DS XL (Claude): a 2 GB "Save" -> row and card seen while reserving, gone once it downloads.
+  On the 2DS the screen stood still instead: the SD card answers nothing else until the reservation ends, and the top
+  screen's free space card (widget_storage) asks it every 2 s from the main thread. Now a long operation (reserving or
+  deleting in Install from URL) is marked with `fs_long_op` and widget_storage keeps its last numbers meanwhile.
+  `SITE SCREENSHOT` takes both screens to memory before touching the card (it showed the moment the card was free
+  again). 2DS (Claude): row and card seen during a 2 GB reservation (~10 s there), the screen drawing meanwhile.
 - [ ] Install from URL by type (2026-11-26, `fix/url-choices-by-type`). The question comes before any byte, so its choices
   go by each URL's name (an option shows only if it suits every URL): .cia/.tik all; .3dsx/.smdh Install, Save, queue;
   .zip/.7z all in a remote install, else Save and queue; any other extension (.mp3, .bin...) Save and queue; no extension,

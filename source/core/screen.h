@@ -77,6 +77,9 @@ void screen_draw_string_wrap(const char* text, float x, float y, float scaleX, f
 // themed widgets. All honour screen_set_base_alpha.
 // Writes what the screen shows to a 24-bit BMP. Main thread, between frames.
 bool screen_capture(gfxScreen_t screen, const char* path);
+// The same in two steps: the screen as a BMP in memory (malloc'd, NULL on failure), then that to a file (freed).
+u8* screen_capture_bmp(gfxScreen_t screen, u32* size);
+bool screen_write_bmp(const char* path, u8* bmp, u32 size);
 // The screen as RGB565, row by row from the top: `out` holds at least 400 * 240 values. False when there is no frame.
 bool screen_capture_rgb565(gfxScreen_t screen, u16* out, u32* width, u32* height);
 

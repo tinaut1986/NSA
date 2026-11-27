@@ -1,0 +1,39 @@
+; The animated background's particles (core/backdrop.c), drawn many at once (screen_batch_*): like default.v.pica, with
+; a colour of its own for each vertex, so a whole frame of them needs one draw call instead of one per shape.
+
+; Uniforms
+.fvec projection[4]
+
+; Constants
+.constf myconst(0.0, 1.0, 0.00392156862, 0.0)
+.alias  ones    myconst.yyyy ; Vector full of ones
+.alias  byte    myconst.zzzz ; 1 / 255: the colour comes as bytes
+
+; Outputs
+.out outpos position
+.out outtc0 texcoord0
+.out outclr color
+
+; Inputs
+.alias inpos v0
+.alias intex v1
+.alias inclr v2
+
+.proc main
+	; Force the w component of inpos to be 1.0
+	mov r0.xyz, inpos
+	mov r0.w,   ones
+
+	; outpos = projectionMatrix * inpos
+	dp4 outpos.x, projection[0], r0
+	dp4 outpos.y, projection[1], r0
+	dp4 outpos.z, projection[2], r0
+	dp4 outpos.w, projection[3], r0
+
+	mov outtc0, intex
+
+	; The colour's bytes (0-255) to 0-1
+	mul outclr, byte, inclr
+
+	end
+.end

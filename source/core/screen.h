@@ -94,6 +94,12 @@ void screen_frame_round_rect(float x, float y, float width, float height, float 
 // Covers the four corners of a picture with `color` (what is behind it), rounded as a round rect of `radius` is.
 void screen_round_corners(float x, float y, float width, float height, float radius, u32 color);
 void screen_fill_circle(float cx, float cy, float radius, u32 color);
+// Many circles and rectangles in one draw call (the animated background's particles): between begin and end they are
+// gathered (with the current offset and 3D depth), and end draws them. Without the particles' shader, one by one.
+void screen_batch_begin();
+void screen_batch_circle(float cx, float cy, float radius, u32 color);
+void screen_batch_rect(float x, float y, float width, float height, u32 color);
+void screen_batch_end();
 // An icon from romfs:/icons.png (icons.h), drawn in `size` px and tinted.
 void screen_draw_icon(u32 icon, float x, float y, float size, u32 color);
 void screen_draw_text(const char* text, float x, float y, float scale, u32 color);

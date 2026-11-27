@@ -446,17 +446,17 @@ static void backdrop_draw_forest(backdrop_particle* p, bool night) {
         float radius = p->size * (0.3f + 0.6f * along);
         u32 c = backdrop_color(glow, fade * 0.5f * along * sqrtf(along));
         if(k > 0 && backdrop_trail_gap(x, y, prevX, prevY, radius)) {
-            screen_fill_circle((x + prevX) / 2, (y + prevY) / 2, radius, c);
+            screen_batch_circle((x + prevX) / 2, (y + prevY) / 2, radius, c);
         }
 
-        screen_fill_circle(x, y, radius, c);
+        screen_batch_circle(x, y, radius, c);
         prevX = x;
         prevY = y;
     }
 
-    screen_fill_circle(p->x, p->y, p->size * 4.0f, backdrop_color(glow, fade * 0.12f * flicker));
-    screen_fill_circle(p->x, p->y, p->size * 2.0f, backdrop_color(glow, fade * 0.30f * flicker));
-    screen_fill_circle(p->x, p->y, p->size, backdrop_color(core, fade * 0.95f));
+    screen_batch_circle(p->x, p->y, p->size * 4.0f, backdrop_color(glow, fade * 0.12f * flicker));
+    screen_batch_circle(p->x, p->y, p->size * 2.0f, backdrop_color(glow, fade * 0.30f * flicker));
+    screen_batch_circle(p->x, p->y, p->size, backdrop_color(core, fade * 0.95f));
 }
 
 static void backdrop_draw_thread(backdrop_particle* p, bool night) {
@@ -484,16 +484,16 @@ static void backdrop_draw_thread(backdrop_particle* p, bool night) {
         float width = p->size * (0.5f + 0.5f * along) * (1.0f - 0.5f * risen);
         u32 c = backdrop_color(color, fade * (0.25f + 0.7f * along));
         if(k > 0 && backdrop_trail_gap(x, y, prevX, prevY, width)) {
-            screen_fill_circle((x + prevX) / 2, (y + prevY) / 2, width, c);
+            screen_batch_circle((x + prevX) / 2, (y + prevY) / 2, width, c);
         }
 
-        screen_fill_circle(x, y, width, c);
+        screen_batch_circle(x, y, width, c);
         prevX = x;
         prevY = y;
     }
 
-    screen_fill_circle(p->x, p->y, p->size * 2.6f, backdrop_color(color, fade * 0.25f));
-    screen_fill_circle(p->x, p->y, p->size * 1.2f, backdrop_color(color, fade * 0.9f));
+    screen_batch_circle(p->x, p->y, p->size * 2.6f, backdrop_color(color, fade * 0.25f));
+    screen_batch_circle(p->x, p->y, p->size * 1.2f, backdrop_color(color, fade * 0.9f));
 }
 
 static void backdrop_draw_energy_ground(bool night) {
@@ -501,9 +501,9 @@ static void backdrop_draw_energy_ground(bool night) {
     u32 glow = night ? BACKDROP_RGB(60, 220, 120) : BACKDROP_RGB(30, 150, 80);
     float breath = 0.8f + 0.2f * sinf(backdrop_time * 0.6f);
     screen_set_depth(-2.0f);
-    screen_fill_rect(0, backdrop_height - 34, backdrop_width, 34, backdrop_color(glow, 0.05f * breath));
-    screen_fill_rect(0, backdrop_height - 20, backdrop_width, 20, backdrop_color(glow, 0.06f * breath));
-    screen_fill_rect(0, backdrop_height - 9, backdrop_width, 9, backdrop_color(glow, 0.08f * breath));
+    screen_batch_rect(0, backdrop_height - 34, backdrop_width, 34, backdrop_color(glow, 0.05f * breath));
+    screen_batch_rect(0, backdrop_height - 20, backdrop_width, 20, backdrop_color(glow, 0.06f * breath));
+    screen_batch_rect(0, backdrop_height - 9, backdrop_width, 9, backdrop_color(glow, 0.08f * breath));
 }
 
 static void backdrop_draw_energy(backdrop_particle* p, bool night) {
@@ -520,9 +520,9 @@ static void backdrop_draw_energy(backdrop_particle* p, bool night) {
         // A ball with a glow: bright as it leaves the ground, greener and smaller as it fades.
         float fade = backdrop_fade(p->age, p->life, 0.3f, p->life * 0.6f) * (0.6f + 0.4f * near);
         float size = p->size * (1.0f - 0.35f * t);
-        screen_fill_circle(p->x, p->y, size * 3.0f, backdrop_color(green, fade * 0.14f));
-        screen_fill_circle(p->x, p->y, size * 1.5f, backdrop_color(green, fade * 0.22f));
-        screen_fill_circle(p->x, p->y, size, backdrop_color(t < 0.4f ? bright : green, fade * 0.85f));
+        screen_batch_circle(p->x, p->y, size * 3.0f, backdrop_color(green, fade * 0.14f));
+        screen_batch_circle(p->x, p->y, size * 1.5f, backdrop_color(green, fade * 0.22f));
+        screen_batch_circle(p->x, p->y, size, backdrop_color(t < 0.4f ? bright : green, fade * 0.85f));
         return;
     }
 
@@ -530,9 +530,9 @@ static void backdrop_draw_energy(backdrop_particle* p, bool night) {
     // By day the pale background needs a denser mist to show.
     float fade = backdrop_fade(p->age, p->life, 0.9f, p->life * 0.55f) * (0.65f + 0.35f * near) * (night ? 1.0f : 1.6f);
     float size = p->size * (1.0f + 3.2f * t);
-    screen_fill_circle(p->x, p->y, size, backdrop_color(mist, fade * 0.05f));
-    screen_fill_circle(p->x + size * 0.12f, p->y + size * 0.08f, size * 0.7f, backdrop_color(mist, fade * 0.06f));
-    screen_fill_circle(p->x - size * 0.1f, p->y + size * 0.15f, size * 0.42f, backdrop_color(mist, fade * 0.08f));
+    screen_batch_circle(p->x, p->y, size, backdrop_color(mist, fade * 0.05f));
+    screen_batch_circle(p->x + size * 0.12f, p->y + size * 0.08f, size * 0.7f, backdrop_color(mist, fade * 0.06f));
+    screen_batch_circle(p->x - size * 0.1f, p->y + size * 0.15f, size * 0.42f, backdrop_color(mist, fade * 0.08f));
 }
 
 void backdrop_draw(float width, float height) {
@@ -546,6 +546,7 @@ void backdrop_draw(float width, float height) {
     u32 accent = theme_now->accent;
     bool night = theme_now->night;
     float before = screen_get_depth();
+    screen_batch_begin();   // All of them in one draw call (screen_batch_*).
     if(backdrop_style_now == BACKDROP_ENERGY) {
         backdrop_draw_energy_ground(night);
     }
@@ -558,24 +559,24 @@ void backdrop_draw(float width, float height) {
             case BACKDROP_BUBBLES: {
                 // A see-through ball with a glint, swaying as it rises.
                 float x = p->x + 5.0f * (0.4f + 0.6f * near) * sinf(p->phase + p->y / 38.0f);
-                screen_fill_circle(x, p->y, p->size, backdrop_color(accent, 0.16f + 0.16f * near));
-                screen_fill_circle(x, p->y, p->size * 0.72f, backdrop_color(accent, 0.08f + 0.08f * near));
-                screen_fill_circle(x - p->size * 0.35f, p->y - p->size * 0.35f, p->size * 0.26f, backdrop_color(0xFFFFFF, 0.35f + 0.25f * near));
+                screen_batch_circle(x, p->y, p->size, backdrop_color(accent, 0.16f + 0.16f * near));
+                screen_batch_circle(x, p->y, p->size * 0.72f, backdrop_color(accent, 0.08f + 0.08f * near));
+                screen_batch_circle(x - p->size * 0.35f, p->y - p->size * 0.35f, p->size * 0.26f, backdrop_color(0xFFFFFF, 0.35f + 0.25f * near));
                 break;
             }
             case BACKDROP_SNOW:
-                screen_fill_circle(p->x, p->y, p->size, backdrop_color(accent, 0.45f + 0.45f * near));
+                screen_batch_circle(p->x, p->y, p->size, backdrop_color(accent, 0.45f + 0.45f * near));
                 break;
             case BACKDROP_STARS: {
                 float twinkle = 0.5f + 0.5f * sinf(backdrop_time * (1.2f + 2.0f * p->speed / 3.0f) + p->phase);
                 float alpha = (0.45f + 0.50f * near) * (0.45f + 0.55f * twinkle);
-                screen_fill_circle(p->x, p->y, p->size, backdrop_color(accent, alpha));
+                screen_batch_circle(p->x, p->y, p->size, backdrop_color(accent, alpha));
                 // The bigger ones flash a little cross at their brightest.
                 if(p->size > 1.4f && twinkle > 0.75f) {
                     float arm = p->size * 2.4f;
                     u32 color = backdrop_color(accent, alpha * 0.6f);
-                    screen_fill_rect(p->x - arm, p->y - 0.5f, arm * 2, 1, color);
-                    screen_fill_rect(p->x - 0.5f, p->y - arm, 1, arm * 2, color);
+                    screen_batch_rect(p->x - arm, p->y - 0.5f, arm * 2, 1, color);
+                    screen_batch_rect(p->x - 0.5f, p->y - arm, 1, arm * 2, color);
                 }
 
                 break;
@@ -583,9 +584,9 @@ void backdrop_draw(float width, float height) {
             case BACKDROP_FIREFLIES: {
                 // A glow that swells and fades, with a bright core.
                 float glow = 0.5f + 0.5f * sinf(backdrop_time * (0.9f + 0.05f * p->speed) + p->phase);
-                screen_fill_circle(p->x, p->y, p->size * 3.2f, backdrop_color(accent, (0.08f + 0.08f * near) * glow));
-                screen_fill_circle(p->x, p->y, p->size * 1.8f, backdrop_color(accent, (0.15f + 0.15f * near) * glow));
-                screen_fill_circle(p->x, p->y, p->size, backdrop_color(accent, (0.55f + 0.40f * near) * (0.35f + 0.65f * glow)));
+                screen_batch_circle(p->x, p->y, p->size * 3.2f, backdrop_color(accent, (0.08f + 0.08f * near) * glow));
+                screen_batch_circle(p->x, p->y, p->size * 1.8f, backdrop_color(accent, (0.15f + 0.15f * near) * glow));
+                screen_batch_circle(p->x, p->y, p->size, backdrop_color(accent, (0.55f + 0.40f * near) * (0.35f + 0.65f * glow)));
                 break;
             }
             case BACKDROP_FOREST:
@@ -602,5 +603,6 @@ void backdrop_draw(float width, float height) {
         }
     }
 
+    screen_batch_end();
     screen_set_depth(before);
 }

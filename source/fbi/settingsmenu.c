@@ -245,7 +245,9 @@ static const char* settingsmenu_value(settings_option option) {
             return settings->night == THEME_NIGHT_ON ? _("On") : settings->night == THEME_NIGHT_AUTO ? _("Automatic") : _("Off");
         case OPTION_BACKDROP:
             return settings->backdrop == BACKDROP_BUBBLES ? _("Bubbles") : settings->backdrop == BACKDROP_SNOW ? _("Snow")
-                   : settings->backdrop == BACKDROP_STARS ? _("Starry sky") : settings->backdrop == BACKDROP_FIREFLIES ? _("Fireflies") : _("Off");
+                   : settings->backdrop == BACKDROP_STARS ? _("Starry sky") : settings->backdrop == BACKDROP_FIREFLIES ? _("Fireflies")
+                   : settings->backdrop == BACKDROP_FOREST ? _("Enchanted forest") : settings->backdrop == BACKDROP_THREADS ? _("Threads of light")
+                   : settings->backdrop == BACKDROP_ENERGY ? _("Energy") : _("Off");
         case OPTION_LANGUAGE: return i18n_language_name(settings->language);
         case OPTION_SOUNDS: return settings->sounds == SOUNDS_ALL ? _("All") : settings->sounds == SOUNDS_ALERTS ? _("Alerts") : _("Off");
         case OPTION_MUSIC: {
@@ -682,7 +684,8 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_NIGHT: return _("Dark colours. Automatic: from 20:00 to 8:00.");
         case OPTION_BACKDROP:
             return settings->backdrop == BACKDROP_OFF ? _("Off: the top screen's plain background. An animation keeps the screen drawing all the time, which uses a little more battery.")
-                                                       : _("Moves behind the top screen in the accent colour, at different depths: with the 3D slider up it floats behind the screen. It stops while a transfer runs.");
+                   : settings->backdrop <= BACKDROP_FIREFLIES ? _("Moves behind the top screen in the accent colour, at different depths: with the 3D slider up it floats behind the screen. It stops while a transfer runs.")
+                                                               : _("Moves behind the top screen in colours of its own, at different depths: with the 3D slider up it floats behind the screen. It stops while a transfer runs.");
         case OPTION_LANGUAGE: return _("Pick NSA's language from a list. System: the console's language when NSA has it, else English.");
         case OPTION_SOUNDS:
             return settings->sounds == SOUNDS_ALL ? _("All: a tick for buttons and touches, and a tune when something ends or fails.")

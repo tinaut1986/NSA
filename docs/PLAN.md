@@ -171,8 +171,16 @@ What `release` holds, in the order it was built:
   it moves the UI draws about 30 frames a second on a New 3DS and 20 on an Old 3DS (UI_BACKDROP_FRAME_*) instead of
   only when something changes: core 0 at the main menu, New 3DS XL, 4% off, 42% every frame, 26% at 30. The guide's
   "Look and sound" has a step for it (0.18). New 3DS XL (Claude): the four variants in night and day colours, moving.
-  Not tried: an Old 3DS / 2DS (its CPU at 20 frames a second, next to the music and downloads), the 3D depth seen on
-  the console (only one eye can be captured), the Pixel and HOME themes, the pause during a transfer.
+  Then (`feat/backdrop-cache`): the screens' contents are drawn into textures (`screen_cache_*`: each eye of the top
+  screen and the bottom, 512x256 RGBA8 in VRAM, premultiplied alpha; their scissor counts rows from the bottom) only
+  when something changes (ui_should_draw 2), and the frames where only the background moves (1) draw the background,
+  the particles and those textures: core 0 26% -> 4% with Starry sky. Three more styles in colours of their own (light
+  at night, deeper by day): Enchanted forest (golden and green lights with a tail that rise, loop and fade), Threads of
+  light (threads that grow from the ground up, swaying, fainter as they rise) and Energy (a green glow from vents at the
+  bottom and turbulent columns of short streaks), 12% each with the cache. DEBUG `SITE BACKDROP <n>` picks one (not
+  saved). Seen at night only (screenshots) on the New 3DS XL. Not tried: an Old 3DS / 2DS (its CPU at 20 frames a
+  second, next to the music and downloads), the 3D depth seen on the console (only one eye can be captured), day colours
+  of the last three, the Pixel and HOME themes, the pause during a transfer, the guide's bubbles over a cached frame.
 - [ ] Setting the clock no longer looks like a time change to games (2026-11-26, `fix/ntp-rtc`; issue #59). The
   console shows RTC + the user time offset (cfg 0x30001, in ns; 0x30002 is another copy, read through the system
   service: cfg:u gives 0). NSA set the time with PTMSYSM_SetUserTime (+ PTMSETS_SetSystemTime), as System Settings and

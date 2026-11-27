@@ -1593,9 +1593,15 @@ bool screen_capture(gfxScreen_t screen, const char* path) {
         return false;
     }
 
-    // One write for the whole image: row by row is slow on a real SD card.
-    u8* image = (u8*) malloc(imageSize);
-    bool ok = image != NULL && fwrite(header, 1, sizeof(header), f) == sizeof(header);
+    // The header and the image in one buffer and one write, with no stdio buffer in between: through its small
+    // default buffer the SD card took the file 1 KB at a time, ~30 KB/s (a 2DS: 9 s for the top screen's 288 KB).
+    setvbuf(f, NULL, _IONBF, 0);
+    u8* file = (u8*) malloc(sizeof(header) + imageSize);
+    bool ok = file != NULL;
+    u8* image = file != NULL ? file + sizeof(header) : NULL;
+    if(ok) {
+        memcpy(file, header, sizeof(header));
+    }
 
     // BMP rows go bottom-up; each framebuffer column is one screen column, from the bottom.
     for(u32 r = 0; ok && r < height; r++) {
@@ -1608,8 +1614,8 @@ bool screen_capture(gfxScreen_t screen, const char* path) {
         }
     }
 
-    ok = ok && fwrite(image, 1, imageSize, f) == imageSize;
-    free(image);
+    ok = ok && fwrite(file, 1, sizeof(header) + imageSize, f) == sizeof(header) + imageSize;
+    free(file);
     ok = fclose(f) == 0 && ok;
     return ok;
 }

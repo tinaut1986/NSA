@@ -85,5 +85,5 @@ const char remote_help_text[] =
         "SITE REHID [ON|OFF]   Rehid's state (button remapping), or turns it on or off from the next start.\n"
         "DEBUG builds also answer: TEST (UI describes the screen; TITLES, EXPORT, SEND...), MEM, CPU, CPULIMIT, SHA256, FAULT,\n"
         "  UNARCHIVE, MINIRE, EXEFS, HOMEICON, LED, NETDUMP, CFG, CFGSET, LCD, LCDSET, LCDCMD, EXTIDS, TESTSAVE, POLL, SAVEORDER, FTPPRIO, SENDCHUNK, PASVBUF, CONNS,\n"
-        "  WIFIREAD, WIFIKEYCHECK, WIFIROUNDTRIP, CLOCK, CLOCKADD, RTCADD, NTP (test helpers; see source/fbi/ftpserver.c).\n"
+        "  WIFIREAD, WIFIKEYCHECK, WIFIROUNDTRIP, CLOCK, CLOCKADD, RTCADD, NTP, BACKDROP (test helpers; see source/fbi/ftpserver.c).\n"
         "Example, install a CIA: curl -T app.cia ftp://IP:5021/nsa/app.cia -Q \"+ALLO <size>\" -Q \"-SITE INSTALL /nsa/app.cia\"\n";

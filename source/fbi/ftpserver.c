@@ -23,6 +23,7 @@
 #include "homeicon.h"
 #include "selftest.h"
 #include "settings.h"
+#include "../core/backdrop.h"
 #include "../core/core.h"
 #include "../core/minire.h"
 #include "../core/speedlog.h"
@@ -1561,6 +1562,15 @@ static void ftp_cmd_site(ftp_session* s, char* arg) {
                  (long long) user, (long long) rtc, (u32) rtcRes, (long long) (user - rtc), (long long) offset1, (long long) offset2,
                  (u32) cfgRes, (long long) system1, (long long) system2, (u32) sysRes, (long long) time(NULL));
         ftp_reply(s, reply);
+        return;
+    }
+
+    // Picks the animated background (issue #60) without the menus, not saved: "SITE BACKDROP <number>" (0 off).
+    if(NSA_DEBUG && strcmp(sub, "BACKDROP") == 0) {
+        u32 style = path != NULL ? (u32) strtoul(path, NULL, 10) : 0;
+        backdrop_set((backdrop_style) style);
+        ui_wake();
+        ftp_reply(s, "200 Backdrop %lu.", style);
         return;
     }
 

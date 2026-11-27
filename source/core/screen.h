@@ -35,6 +35,12 @@ void screen_select_eye(gfxScreen_t screen, gfx3dSide_t side, float shift);
 // of a screen and writes it to `rgba` (R G B A bytes, top row first). Between frames only (a view's update); `width`
 // and `height` powers of two from 8 to 1024.
 bool screen_render_offscreen(u32 width, u32 height, void (*draw)(void* data), void* data, u8* rgba);
+// What a screen shows drawn into a picture of its own (core/ui/ui.c, with an animated background): begin, draw as on
+// the screen (transparent where nothing is drawn), end; then each frame screen_cache_draw puts it on the screen.
+bool screen_cache_begin(gfxScreen_t screen, gfx3dSide_t side, float shift);
+void screen_cache_end();
+bool screen_cache_ready(gfxScreen_t screen, gfx3dSide_t side);
+void screen_cache_draw(gfxScreen_t screen, gfx3dSide_t side);
 // The eye the top screen is being drawn for (GFX_LEFT too in 2D and on the bottom screen).
 gfx3dSide_t screen_get_eye();
 void screen_set_depth(float value);
@@ -71,6 +77,9 @@ void screen_draw_string_wrap(const char* text, float x, float y, float scaleX, f
 // themed widgets. All honour screen_set_base_alpha.
 // Writes what the screen shows to a 24-bit BMP. Main thread, between frames.
 bool screen_capture(gfxScreen_t screen, const char* path);
+// The same in two steps: the screen as a BMP in memory (malloc'd, NULL on failure), then that to a file (freed).
+u8* screen_capture_bmp(gfxScreen_t screen, u32* size);
+bool screen_write_bmp(const char* path, u8* bmp, u32 size);
 // The screen as RGB565, row by row from the top: `out` holds at least 400 * 240 values. False when there is no frame.
 bool screen_capture_rgb565(gfxScreen_t screen, u16* out, u32* width, u32* height);
 
@@ -88,6 +97,12 @@ void screen_frame_round_rect(float x, float y, float width, float height, float 
 // Covers the four corners of a picture with `color` (what is behind it), rounded as a round rect of `radius` is.
 void screen_round_corners(float x, float y, float width, float height, float radius, u32 color);
 void screen_fill_circle(float cx, float cy, float radius, u32 color);
+// Many circles and rectangles in one draw call (the animated background's particles): between begin and end they are
+// gathered (with the current offset and 3D depth), and end draws them. Without the particles' shader, one by one.
+void screen_batch_begin();
+void screen_batch_circle(float cx, float cy, float radius, u32 color);
+void screen_batch_rect(float x, float y, float width, float height, u32 color);
+void screen_batch_end();
 // An icon from romfs:/icons.png (icons.h), drawn in `size` px and tinted.
 void screen_draw_icon(u32 icon, float x, float y, float size, u32 color);
 void screen_draw_text(const char* text, float x, float y, float scale, u32 color);

@@ -9,6 +9,7 @@
 #include "icons.h"
 #include "theme.h"
 
+#include "awake.h"
 #include "clipboard.h"
 #include "datefmt.h"
 #include "error.h"

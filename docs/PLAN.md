@@ -163,6 +163,133 @@ What `release` holds, in the order it was built:
 
 ## Pending tests on the console (2026-10-31)
 
+- [ ] Animated background (2026-11-27, `feat/animated-backdrop`; issue #60, asked on Reddit). Settings -> Animated
+  background (`backdrop`, after Night mode): Off (the default), Bubbles, Snow, Starry sky, Fireflies, drawn by NSA
+  (`core/backdrop.c`, written from scratch: ftpd's bubbles are GPLv3) behind the top screen in the theme's accent
+  colour, each particle at a depth of its own from -1 to -6 (behind the screen: with the 3D slider up they float behind
+  it; flat without it), the far ones smaller, slower and fainter. It stands still while a transfer has the turn. While
+  it moves the UI draws about 30 frames a second on a New 3DS and 20 on an Old 3DS (UI_BACKDROP_FRAME_*) instead of
+  only when something changes: core 0 at the main menu, New 3DS XL, 4% off, 42% every frame, 26% at 30. The guide's
+  "Look and sound" has a step for it (0.18). New 3DS XL (Claude): the four variants in night and day colours, moving.
+  Then (`feat/backdrop-cache`): the screens' contents are drawn into textures (`screen_cache_*`: each eye of the top
+  screen and the bottom, 512x256 RGBA8 in VRAM, premultiplied alpha; their scissor counts rows from the bottom) only
+  when something changes (ui_should_draw 2), and the frames where only the background moves (1) draw the background,
+  the particles and those textures. The idle full frames (UI_IDLE_FRAME) count from the last full one (ui_last_full),
+  not from the background's: else the clock, progress bars and a theme changed from the web page stood still. Three more
+  styles in colours of their own (light at night, deeper by day): Enchanted forest (golden and green lights with a long
+  tail that rise, loop and fade), Threads of light (threads that grow from the ground up, swaying, fainter as they rise)
+  and Energy (a low mist along the bottom, puffs of steam that rise from where it leaks most, spread, drift with a slow
+  wind and come apart, and bright balls rising through them). Trails: 20 points (threads 16) every 0.12 s, with a dot
+  between two only where a gap would show. Core 0 at the main menu, New 3DS XL, idle: off 6%, Starry sky 11%, Bubbles
+  13%, Energy 14%, Threads 18%, Forest 19% (35% with 40 points and a dot between each two). The owner asked for the
+  longer tails and steam instead of round vents and of a waving surface. DEBUG `SITE BACKDROP <n>` picks one (not
+  saved). Seen in day and night colours (screenshots) on the New 3DS XL. Old 2DS (music on, 20 frames a second): off
+  19%, the styles 22-38% (Forest the most). Then (`feat/backdrop-batch`): the particles go into one vertex buffer
+  with a colour per vertex (`particles.v.pica`, `screen_batch_*`) and one draw call per eye instead of a quad, a
+  colour and a texture per circle, which is what cost the CPU (the GPU was idle). Core 0 at the main menu: Old 2DS
+  off 19%, every style 20-21% (Forest 33-35% before); New 3DS XL off 6%, every style 7-9%. All seven seen on the 2DS
+  (screenshots), the same as before. Not tried: the 3D depth seen on the console (only one eye can be captured), the
+  Pixel and HOME themes, the pause during a transfer, the guide's bubbles over a cached frame.
+- [ ] Setting the clock no longer looks like a time change to games (2026-11-26, `fix/ntp-rtc`; issue #59). The
+  console shows RTC + the user time offset (cfg 0x30001, in ns; 0x30002 is another copy, read through the system
+  service: cfg:u gives 0). NSA set the time with PTMSYSM_SetUserTime (+ PTMSETS_SetSystemTime), as System Settings and
+  Rosalina's NTP do, which changes the offset: games with time events (Animal Crossing, Team Kirby Clash) take that as
+  the clock moved by hand. Now `datetime_set_clock` (NTP now, NTP at start, the time typed by hand) moves the RTC to
+  the time minus the offset, at the start of a second, then sets the user time to match (the console reads the RTC
+  again only when it starts: an RTC alone left the shown time as it was, 90 s watched), so PTM works the offset out to
+  the same value. Rosalina's "Nullify user time offset" sets the offset to 0 and moves the RTC (it asks to restart).
+  New 3DS XL (Claude, DEBUG SITE CLOCK / CLOCKADD / NTP): the clock put 300 s wrong and set back from the Internet,
+  shown at once, with 0x30001 (-3613022000000) and 0x30002 (-3614022000000) the same before and after. Three restarts
+  by the owner (2026-11-27): the shown time right after each (RTC + offset), 0x30001 never moved. 0x30002 is rewritten
+  by the system itself some seconds after a start (with NSA's sync at start off it went -7213 -> -7214 s; after RTC
+  moves it jumped once by an hour): it says nothing about NSA, which no longer writes it (PTMSETS_SetSystemTime, the
+  old way, did). Not tried: a game with time events (Animal Crossing), an Old 3DS / 2DS.
+- [ ] Your own songs as background music (2026-11-26, `feat/custom-music`; issue #63, asked on Reddit and GBAtemp).
+  MP3, WAV, FLAC and Ogg files in `sdmc:/nsa/music/` show up in Settings -> Background music after the made styles:
+  "My songs" (all of them, one after another in a random order, never the same twice in a row) and then each one by
+  name (it repeats). Streamed from the SD card on channel 13 (8 buffers of 4096 frames, a thread at the audio
+  player's priority, the third core on a New 3DS), with the same volume, fades, FTP hold and pause while the audio
+  player plays. The decoders moved from `audioview.c` to `core/audiodec.c` (shared). The choice is saved as `music` 4
+  and `music_song` (a file name, "" for all); the web page's Settings has "My songs" and a list, and
+  `/api/settings` gives `songs` and takes `musicSong`. A song that is gone or cannot be played says so on the top
+  screen. New 3DS XL (Claude, ffmpeg test tones): all of them in turn (44.1 kHz stereo MP3, 22 kHz mono Ogg, 48 kHz
+  FLAC: the format changes between songs), each one alone, an unplayable .mp3 (the warning), stepping through every
+  choice and back to Off. Not tried: listening to it (only the status was read), the pause while the audio player
+  plays, the FTP hold, the web page's controls (only its script checked), an Old 3DS (CPU of an MP3 at 44.1 kHz), a
+  long real song. Known: a song cannot be deleted while it plays (the stream holds it open): change the music first.
+  The owner tried three test songs (MP3, Ogg, FLAC) on the New 3DS XL, no problem reported. The guide's "Look and sound" chapter has
+  a new step for it (GUIDE_VERSION(0, 18)): offered on its own after the update, seen on the New 3DS XL.
+- [ ] "Don't turn the console off" while deleting (2026-11-26, `fix/delete-warning`). Deleting a big file takes the SD
+  card seconds (2 GB: 2-5 s on the New 3DS XL's card, measured), with nothing on screen before. A URL download that
+  deletes what came (a cancel or a failure of "Install", the Store's scripts, a CIA's contents through AM, a paused
+  "Save" cancelled with X) shows "Deleting" on its row and a card under the rows ("Deleting what was downloaded from the
+  SD card. Don't turn the console off until it ends."); the paused one deletes on a thread now, so the screen keeps
+  drawing (it froze for seconds). Files -> Delete adds the same line under its count. New 3DS XL (Claude): a 2 GB paused
+  "Save" cancelled -> row and card seen while it deleted, gone after; Files -> Delete of a 2 GB .part -> the line seen;
+  "Install" of a non-installable 2 GB file cancelled -> deleted in ~6 s, "Operation cancelled" (the web page cannot
+  show the screen during a transfer, so that card was not seen). Not tried: a big CIA cancelled (AM's own delete).
+  Then (`fix/prealloc-warning`, issue #62): the same card while a download's file is made its whole size at the start
+  (FSFILE_SetSize of a "Save" .part or a .3dsx written in place, from 64 MB; 2 GB ~9.5 s on the New 3DS XL, and it
+  changes the FAT too): "Making room for the file on the SD card. Don't turn the console off until it ends.", the row
+  saying "Making room". New 3DS XL (Claude): a 2 GB "Save" -> row and card seen while reserving, gone once it downloads.
+  On the 2DS the screen stood still instead: the SD card answers nothing else until the reservation ends, and the top
+  screen's free space card (widget_storage) asks it every 2 s from the main thread. Now a long operation (reserving or
+  deleting in Install from URL) is marked with `fs_long_op` and widget_storage keeps its last numbers meanwhile.
+  `SITE SCREENSHOT` takes both screens to memory before touching the card (it showed the moment the card was free
+  again). 2DS (Claude): row and card seen during a 2 GB reservation (~10 s there), the screen drawing meanwhile.
+- [ ] Install from URL by type (2026-11-26, `fix/url-choices-by-type`). The question comes before any byte, so its choices
+  go by each URL's name (an option shows only if it suits every URL): .cia/.tik all; .3dsx/.smdh Install, Save, queue;
+  .zip/.7z all in a remote install, else Save and queue; any other extension (.mp3, .bin...) Save and queue; no extension,
+  a page (.php, .aspx...) or a version number ("v1.2") all, since it could be anything. Safety net: "Install" or the
+  queue getting something that is not a CIA, ticket, 3DSX or (remote install) archive saves it in /nsa/received/ instead
+  of failing at the end (it used to download it whole for nothing) and says so: "Saved, not installed" at the end, the
+  queue item's note (`note` in /api/queue, shown on the web page) and a second line on the queue's finished toast. A
+  failed or cancelled "Install" leaves no .part (only "Save" resumes). The web page's questions now carry up to 6 options
+  (`PROMPT_WEB_OPTIONS_MAX`), so the URL question's Cancel reaches the page. New 3DS XL (Claude): .mp3 -> Save/queue;
+  .3dsx -> Install/Save/queue; .cia + .mp3 -> Save/queue; .cia and download.php -> all; a no-extension file chosen
+  Install -> saved and the notice; a .bin in the queue -> saved, note, two-line toast; web Cancel. Later the same day
+  (Claude, a dummy CIA 0xFB1AE and .3dsx built from ciatemplate, deleted afterwards): a real CIA and a real .3dsx still
+  install from a URL; CIA + .3dsx + a non-installable file with Install -> "Installed: 2 / Not installable, saved in
+  /nsa/received/: 1"; the same three in the queue -> note and toast; German, Russian and Japanese dialog, note and toast
+  fit. The toast counted queue items, not files (one item of two files said 1): it counts files now.
+- [ ] Settings in groups (2026-11-26, `feat/settings-headers`): 20 rows had grown hard to scan, so the list has a small
+  muted name above each group's first row (18 px, never selected): Appearance (theme to language), Sound, Servers (FTP to
+  servers with the lid closed), Updates, Help. The D-Pad, L/R pages and a row brought into view take its group's name
+  with it; the guide's anchors are the rows, unchanged. A submenu only if Servers keeps growing. New 3DS XL (Claude,
+  Cards, day): the top, Servers and the end (ZR) look right. Not tried: Pixel, HOME, night mode, touch scrolling, L/R.
+- [ ] FTP port (2026-11-26, `feat/ftp-port`; issue #57). Settings -> "FTP port" (`ftp_port`, below FTP server): 5021 (the
+  default), 5000 (ftpd's: a client's saved connection works as it is) or 21. A running server moves at once (clients on
+  the old port are dropped); the passive ports stay 5022-5085 whatever the port. On 5000, "Receive from a computer" (FBI's
+  tools send only to 5000) pauses the FTP server while its screen is open, says so, and brings it back when it closes
+  (`ftpserver_resume_later`). The address in Settings, the top bar, System info and Receive's line follow the port; SITE
+  HELP says it. New 3DS XL (2026-11-26, Claude): Settings moved it 5021 -> 5000 -> 21 -> 5021, each time only the new
+  port answered (curl); on 5000 Receive showed the pause line and the FTP server came back on 5000 when it closed. Not
+  tried: a real FTP client on 5000 or 21 (FileZilla, Dolphin, the owner's saved ftpd connection), servefiles.py with 5000.
+- [x] Servers with the lid closed (2026-11-26, `fix/servers-awake`; issue #58). Settings -> "Servers with the lid closed"
+  (`servers_awake`, off by default): while the FTP or web server is on (or waits for the Wi-Fi), NSA holds sleep mode off,
+  as ftpd does, and locks ndm in infrastructure mode (`NDMU_EnterExclusiveState` + `NDMU_LockState`, as ftpd; without it
+  the lid still took the Wi-Fi with no sleep at all; released before the local wireless), so closing the lid leaves the
+  Wi-Fi and both servers working; NSA turns the backlight off while the lid is
+  closed (`PTMU_GetShellState` four times a second) and on when it opens, before HOME or sleep, and at the exit. Turning
+  the option or the last server off lets the console sleep again (libctru sleeps at once if the lid is closed). Sleep holds
+  are now one bitmask (`core/awake.c`): a data operation, Dump NAND and the motion recording no longer turn sleep back on
+  under each other or under the servers. New 3DS XL (2026-11-26, Claude): with the lid closed FTP answered every second
+  for 90 s and the Wi-Fi stayed up; the owner tried it there too: it works. Not tried: the screens off and on, the option off, HOME while the lid is closed, the
+  local wireless with the option on, the 2DS's sleep switch.
+- [ ] DS forwarder: nds-bootstrap checked first (2026-11-26, `fix/nds-bootstrap-check`; issue #56). Before making the icon,
+  NSA checks every file of nds-bootstrap's forwarder pack the icon needs: `_nds/ntr-forwarder/sdcard.nds` (what the icon
+  starts), `_nds/nds-bootstrap-release.nds` (games) and `_nds/nds-bootstrap-hb-release.nds` (homebrew), each at least
+  16 KiB (an empty or cut copy is not whole). Before, only the first: with nds-bootstrap deleted the icon was made and
+  did not start. A missing pack asks as before; a missing nds-bootstrap names the file and offers the same pack (it
+  brings nds-bootstrap too); after the download, a file still missing is named. The owner's New 3DS XL has all three
+  (TWiLight Menu++ keeps the same files), so nothing changes there. Not tried: a missing file (needs one of them moved).
+- [x] DS forwarder that replaces another (2026-11-26, `fix/nds-forwarder-replace`; issue #56: two .nds, one icon). The
+  forwarder's title ID comes from the game code, so two files with the same code (a copy, a patched game, a romhack) share
+  it and the second replaced the first, while the question only said "This game already has an icon". Now, when a title
+  with that ID is installed, NSA reads which file it starts (its SRL in TWL NAND, /title/00048004/<low>/content/*.app, at
+  the template's gamepath_location): the same file keeps that question; another one says which and that its icon goes;
+  unknown (no template yet, a forwarder made by another tool) says one with the game's code exists, maybe for another
+  file. The owner tried it on the New 3DS XL (2026-11-26): it works.
 - [ ] A folder's size and what takes the room (2026-11-25, `feat/folder-size`, cut from `feat/menu-grid`; issue #55,
   "Calculate folder size" and 3dsDirStat). "Calculate size" in a folder's actions (an item of the list, or the folder
   shown, with X) counts everything in it on a thread (`foldersize.c`, below the UI's priority, 32 levels at most): the
@@ -2077,6 +2204,9 @@ current, this list is the summary. What only the owner can test (local wireless)
   On sleep/suspend the FTP and web servers are paused; on wake/restore `acExit(); acInit()` runs and they resume. DEBUG
   builds write `sdmc:/nsa/sleep-log.txt` (hooks, Wi-Fi status, heartbeat, exit steps). If it ever fails again, SOC is the next
   suspect (reinit it on wake).
+  With Settings -> "Servers with the lid closed" on (issue #58) a running server holds sleep mode off instead
+  (`core/awake.h`, `AWAKE_SERVERS`): no sleep, so no pause; only the backlight goes off with the lid. Off by default for
+  the battery. Every `aptSetSleepAllowed` goes through `awake_hold` (one switch, several users).
 - Own app (`0xFB1A0`), own data folder (`sdmc:/nsa/`, import from `/fbi/` offered
   once), own versions from `v0.1.0`. Upstream is noted as "based on FBI 2.6.1".
 - Updates: Stable/Beta channels from GitHub releases; the changelog joins every

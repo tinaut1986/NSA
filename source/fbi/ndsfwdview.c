@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 
 #include <3ds.h>
@@ -29,6 +30,11 @@
 #define NF_FWD_MAX 4096
 #define NF_PACK_FILE "sdmc:/_nds/ntr-forwarder/sdcard.nds"
 
+// What the icon needs on the SD card, all of it in nds-bootstrap's forwarder pack: the forwarder the icon starts, and
+// nds-bootstrap, which starts the game (its -hb- build starts homebrew). TWiLight Menu++ keeps the same two.
+static const char* const nf_needed[] = {NF_PACK_FILE, "sdmc:/_nds/nds-bootstrap-release.nds", "sdmc:/_nds/nds-bootstrap-hb-release.nds"};
+#define NF_NEEDED_MIN 16384   // A file smaller than this is not a whole nds-bootstrap or forwarder (an empty one, a cut copy).
+
 // nds-bootstrap's forwarder pack, as Universal-DB's script for ndsForwarder installs it.
 static const char* nf_pack_script =
         "[{\"type\":\"downloadFile\",\"file\":\"https://github.com/RocketRobz/NTR_Forwarder/releases/latest/download/DS.Game.Forwarder.pack.nds-bootstrap.7z\","
@@ -46,6 +52,7 @@ typedef struct {
     char path[FILE_PATH_MAX];   // On the SD card: "/roms/nds/game.nds".
     ndsfwd_game game;
     char name[128];
+    char question[512];         // The confirmation, when it is built at run time.
     u64 titleId;
     u32 iconTexture;
 
@@ -80,9 +87,16 @@ static void nf_put64(u8* p, u64 v) {
     nf_put32(p + 4, (u32) v);
 }
 
-static bool nf_exists(const char* path) {
-    struct stat st;
-    return stat(path, &st) == 0;
+// The first needed file that is missing, or too small to be whole; NULL when they are all there.
+static const char* nf_missing() {
+    for(u32 i = 0; i < sizeof(nf_needed) / sizeof(*nf_needed); i++) {
+        struct stat st;
+        if(stat(nf_needed[i], &st) != 0 || st.st_size < NF_NEEDED_MIN) {
+            return nf_needed[i];
+        }
+    }
+
+    return NULL;
 }
 
 // ---- the template ----
@@ -312,6 +326,71 @@ static Result nf_install(ndsfwd_view* v) {
     return res;
 }
 
+// The file an installed forwarder starts ("/roms/nds/game.nds"): its SRL read from the console's DSiWare storage, at
+// the place the template keeps the path. False when that cannot be told (no template yet, a forwarder made otherwise).
+static bool nf_installed_path(u64 titleId, char* out, size_t size) {
+    char fwd[NF_FWD_MAX + 1];
+    u32 fwdSize = 0;
+    ndsfwd_template t;
+    if(R_FAILED(nf_read_file(NF_TEMPLATE_FWD, (u8*) fwd, NF_FWD_MAX, &fwdSize))) {
+        return false;
+    }
+
+    fwd[fwdSize] = '\0';
+    if(!ndsfwd_parse_template(fwd, &t) || t.pathLength + 1 > size || t.pathLength > 1024) {
+        return false;
+    }
+
+    FS_Archive archive = 0;
+    if(R_FAILED(fs_open_archive(&archive, ARCHIVE_NAND_TWL_FS, fsMakePath(PATH_EMPTY, "")))) {
+        return false;
+    }
+
+    // Its one content, /title/<high>/<low>/content/<id>.app.
+    char dirPath[64];
+    snprintf(dirPath, sizeof(dirPath), "/title/%08lx/%08lx/content/", (u32) (titleId >> 32), (u32) titleId);
+    char appPath[96] = {'\0'};
+    Handle dir = 0;
+    if(R_SUCCEEDED(FSUSER_OpenDirectory(&dir, archive, fsMakePath(PATH_ASCII, dirPath)))) {
+        FS_DirectoryEntry entry;
+        u32 read = 0;
+        while(appPath[0] == '\0' && R_SUCCEEDED(FSDIR_Read(dir, &read, 1, &entry)) && read == 1) {
+            char name[FILE_NAME_MAX] = {'\0'};
+            utf16_to_utf8((uint8_t*) name, entry.name, FILE_NAME_MAX - 1);
+            size_t len = strlen(name);
+            if(!(entry.attributes & FS_ATTRIBUTE_DIRECTORY) && len > 4 && strcasecmp(name + len - 4, ".app") == 0) {
+                snprintf(appPath, sizeof(appPath), "%s%s", dirPath, name);
+            }
+        }
+
+        FSDIR_Close(dir);
+    }
+
+    bool found = false;
+    Handle file = 0;
+    if(appPath[0] != '\0' && R_SUCCEEDED(FSUSER_OpenFile(&file, archive, fsMakePath(PATH_ASCII, appPath), FS_OPEN_READ, 0))) {
+        u32 read = 0;
+        char path[1025] = {'\0'};
+        if(R_SUCCEEDED(FSFILE_Read(file, &read, t.pathOffset, path, t.pathLength)) && read == t.pathLength) {
+            path[t.pathLength] = '\0';
+            // A path of printable text, or this is not a forwarder NSA can read.
+            found = path[0] != '\0';
+            for(const char* c = path; *c != '\0' && found; c++) {
+                found = (u8) *c >= 0x20;
+            }
+
+            if(found) {
+                snprintf(out, size, "/%s", path);
+            }
+        }
+
+        FSFILE_Close(file);
+    }
+
+    fs_close_archive(archive);
+    return found;
+}
+
 // ---- screens ----
 
 static void nf_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -378,13 +457,15 @@ static void nf_start(ndsfwd_view* v) {
 
 static void nf_pack_done(void* data, bool ok) {
     ndsfwd_view* v = (ndsfwd_view*) data;
-    if(nf_exists(NF_PACK_FILE)) {
+    const char* missing = nf_missing();
+    if(missing == NULL) {
         nf_start(v);
         return;
     }
 
     if(ok) {
-        prompt_display_notify("Failure", "The forwarder pack did not leave sd:/_nds/ntr-forwarder/sdcard.nds on the SD card.", COLOR_TEXT, NULL, NULL, NULL);
+        snprintf(v->question, sizeof(v->question), _("The forwarder pack did not leave %s on the SD card."), missing + 5);
+        prompt_display_notify("Failure", v->question, COLOR_TEXT, NULL, NULL, NULL);
     }
 
     nf_free(v);
@@ -397,10 +478,17 @@ static void nf_confirmed(ui_view* view, void* data, u32 response) {
         return;
     }
 
-    if(!nf_exists(NF_PACK_FILE)) {
-        storescript_run_now(nf_pack_script,
-                            _("A game started from the HOME Menu needs nds-bootstrap's forwarder pack (sd:/_nds/ntr-forwarder), which is not on the SD card. Download it from GitHub (RocketRobz/NTR_Forwarder, about 2 MB) and put it there?"),
-                            v, nf_pack_done);
+    // The forwarder pack: missing whole, or a part of it (nds-bootstrap deleted, a cut copy). Downloading it puts every
+    // part back (nds-bootstrap too, which TWiLight Menu++ shares).
+    const char* missing = nf_missing();
+    if(missing != NULL) {
+        if(strcmp(missing, NF_PACK_FILE) == 0) {
+            string_copy(v->question, _("A game started from the HOME Menu needs nds-bootstrap's forwarder pack (sd:/_nds/ntr-forwarder), which is not on the SD card. Download it from GitHub (RocketRobz/NTR_Forwarder, about 2 MB) and put it there?"), sizeof(v->question));
+        } else {
+            snprintf(v->question, sizeof(v->question), _("A game started from the HOME Menu needs nds-bootstrap, and %s is missing on the SD card (or not whole). Download nds-bootstrap's forwarder pack from GitHub (RocketRobz/NTR_Forwarder, about 2 MB), which has it?"), missing + 5);
+        }
+
+        storescript_run_now(nf_pack_script, v->question, v, nf_pack_done);
         return;
     }
 
@@ -487,8 +575,28 @@ void ndsfwd_open(const char* path) {
         screen_load_texture_untiled(v->iconTexture, rgba, sizeof(rgba), 32, 32, GPU_RGBA8, false);
     }
 
-    const char* question = nf_installed(v->titleId)
-                                   ? "This game already has an icon in the HOME Menu. Make it again from this file?"
-                                   : "Put this game in the HOME Menu? The .nds stays where it is: the icon starts it from there with nds-bootstrap.";
+    // An icon with this title ID already in the HOME Menu is replaced: say so, and which file it starts when that is
+    // another one (two files with the same game code: a copy, a patched game, a romhack).
+    const char* question = "Put this game in the HOME Menu? The .nds stays where it is: the icon starts it from there with nds-bootstrap.";
+    if(nf_installed(v->titleId)) {
+        char other[FILE_PATH_MAX];
+        if(!nf_installed_path(v->titleId, other, sizeof(other))) {
+            char code[5];
+            for(int i = 0; i < 4; i++) {
+                char c = (char) ((v->titleId >> (24 - 8 * i)) & 0xFF);
+                code[i] = c >= 0x20 && c < 0x7F ? c : '?';
+            }
+
+            code[4] = '\0';
+            snprintf(v->question, sizeof(v->question), _("The HOME Menu already has an icon with this game's code (%s), maybe for another file. Installing this one replaces it. Go on?"), code);
+            question = v->question;
+        } else if(strcasecmp(other, v->path) == 0) {
+            question = "This game already has an icon in the HOME Menu. Make it again from this file?";
+        } else {
+            snprintf(v->question, sizeof(v->question), _("The HOME Menu already has an icon with this game's code, for another file: %s. Installing this one replaces it, and that icon goes. Go on?"), other);
+            question = v->question;
+        }
+    }
+
     prompt_display_yes_no("Confirmation", question, COLOR_TEXT, v, nf_draw_top, nf_confirmed);
 }

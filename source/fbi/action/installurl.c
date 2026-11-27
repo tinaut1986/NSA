@@ -78,6 +78,17 @@ typedef struct {
     char currPath[FILE_PATH_MAX];
     bool currIsPart;                  // Saving to /nsa/received/: currPath + ".part" is written, renamed once whole.
     char resumePath[FILE_PATH_MAX];   // An earlier try of this URL left resumePath + ".part" (issue #28), or empty.
+    // "Install" (or the queue) got something that is not installed (not a CIA, ticket, 3DSX or, in a remote install,
+    // an archive): it went to INSTALL_URL_SAVE_DIR instead, and the end says so.
+    bool savedInstead[INSTALL_URLS_MAX];
+    // What came is being deleted (a cancel, a failure: a file made whole-sized at the start, or a CIA's contents), which
+    // takes seconds for a big one: the screen says so, and not to turn the console off meanwhile.
+    volatile bool deleting;
+    // A file being made its whole size at the start (FSFILE_SetSize): 2 GB took ~9.5 s on a New 3DS XL, and it changes
+    // the card's FAT as deleting does (issue #62): the same notice.
+    volatile bool reserving;
+    bool deletePaused;   // Cancelled while paused: its .part goes on a thread of its own, the screen saying so meanwhile.
+    bool deleteStarted;
 
     data_op_data installInfo;
 } install_url_data;
@@ -136,6 +147,83 @@ static bool action_install_url_is_archive(const void* block) {
 }
 
 static void action_install_url_install_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2);
+static void action_install_url_file_name(const char* url, char* out, size_t size);
+
+// What a URL's name says it is. The question comes before any byte does, so the choices go by it; a name that says
+// nothing (Google Drive's "uc?id=", a "download.php") could be anything, and keeps them all.
+typedef enum {
+    URL_KIND_UNKNOWN,
+    URL_KIND_CIA,       // .cia, .tik
+    URL_KIND_3DSX,      // .3dsx, .smdh: installed in /3ds/<name>/
+    URL_KIND_ARCHIVE,   // .zip, .7z
+    URL_KIND_OTHER      // anything else with a name: only saved
+} url_kind;
+
+static url_kind action_install_url_kind(const char* url) {
+    char name[FILE_NAME_MAX];
+    action_install_url_file_name(url, name, sizeof(name));
+    const char* dot = strrchr(name, '.');
+    if(dot == NULL || dot == name || dot[1] == '\0' || strlen(dot + 1) > 5) {
+        return URL_KIND_UNKNOWN;
+    }
+
+    const char* ext = dot + 1;
+    if(strcasecmp(ext, "cia") == 0 || strcasecmp(ext, "tik") == 0) {
+        return URL_KIND_CIA;
+    }
+
+    if(strcasecmp(ext, "3dsx") == 0 || strcasecmp(ext, "smdh") == 0) {
+        return URL_KIND_3DSX;
+    }
+
+    if(strcasecmp(ext, "zip") == 0 || strcasecmp(ext, "7z") == 0) {
+        return URL_KIND_ARCHIVE;
+    }
+
+    // A page that makes the file, or a version ("v1.2") rather than a type.
+    static const char* const pages[] = {"php", "asp", "aspx", "jsp", "cgi", "pl", "py", "htm", "html", "shtml", "do", "action"};
+    for(u32 i = 0; i < sizeof(pages) / sizeof(pages[0]); i++) {
+        if(strcasecmp(ext, pages[i]) == 0) {
+            return URL_KIND_UNKNOWN;
+        }
+    }
+
+    bool digits = true;
+    for(const char* c = ext; *c != '\0'; c++) {
+        digits = digits && isdigit((unsigned char) *c);
+    }
+
+    return digits ? URL_KIND_UNKNOWN : URL_KIND_OTHER;
+}
+
+#define INSTALL_URL_CHOICE_BIT(c) (1u << (c))
+
+// The choices that make sense for every URL of the request (Save and the queue always do: the queue keeps what it
+// cannot install in /nsa/received/).
+static u32 action_install_url_allowed(install_url_data* data) {
+    const u32 all = INSTALL_URL_CHOICE_BIT(INSTALL_URL_CHOICES) - 1;
+    const u32 saveOnly = INSTALL_URL_CHOICE_BIT(INSTALL_URL_CHOICE_SAVE) | INSTALL_URL_CHOICE_BIT(INSTALL_URL_CHOICE_QUEUE);
+    u32 allowed = all;
+    for(u32 i = 0; i < data->installInfo.total; i++) {
+        switch(action_install_url_kind(data->urls[i])) {
+            case URL_KIND_3DSX:
+                // Installing a .3dsx is putting it in /3ds/; saving it first would only leave it in /nsa/received/.
+                allowed &= saveOnly | INSTALL_URL_CHOICE_BIT(INSTALL_URL_CHOICE_INSTALL);
+                break;
+            case URL_KIND_ARCHIVE:
+                // Extracted when it comes from a remote install; anywhere else it is only a file.
+                allowed &= data->archives ? all : saveOnly;
+                break;
+            case URL_KIND_OTHER:
+                allowed &= saveOnly;
+                break;
+            default:
+                break;
+        }
+    }
+
+    return allowed;
+}
 
 static void action_install_url_n3ds_onresponse(ui_view* view, void* data, u32 response) {
     ((install_url_data*) data)->n3dsContinue = response == PROMPT_YES;
@@ -320,6 +408,28 @@ static Result action_install_url_resume_from(void* data, u32 index, u64* from, u
     return 0;
 }
 
+
+// Makes the file its whole size at once (the pieces are written where they go). A big one takes the SD card seconds and
+// changes its FAT: the screen says not to turn the console off meanwhile (only from 64 MB: a small one would flash it).
+static Result action_install_url_reserve(install_url_data* installData, Handle handle, u64 size) {
+    bool big = size >= 64ULL * 1024 * 1024;
+    if(big) {
+        fs_long_op(true);
+        installData->reserving = true;
+        ui_wake();
+        svcSleepThread(100 * 1000000LL);   // A frame or two to show it before the card stops answering.
+    }
+
+    Result res = FSFILE_SetSize(handle, size);
+    if(big) {
+        installData->reserving = false;
+        fs_long_op(false);
+        ui_wake();
+    }
+
+    return res;
+}
+
 static Result action_install_url_open_save(install_url_data* installData, u32 index, void* initialReadBlock, u64 size, u32* handle) {
     installData->contentType = CONTENT_SAVED;
     installData->currIsCia = initialReadBlock != NULL && *(u16*) initialReadBlock == 0x2020;
@@ -384,7 +494,7 @@ static Result action_install_url_open_save(install_url_data* installData, u32 in
         if(path != NULL) {
             FSUSER_DeleteFile(sdmcArchive, *path);
             res = FSUSER_OpenFile(handle, sdmcArchive, *path, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);
-            if(R_SUCCEEDED(res) && size > 0 && R_FAILED(res = FSFILE_SetSize(*handle, size))) {
+            if(R_SUCCEEDED(res) && size > 0 && R_FAILED(res = action_install_url_reserve(installData, *handle, size))) {
                 FSFILE_Close(*handle);
                 *handle = 0;
                 FSUSER_DeleteFile(sdmcArchive, *path);
@@ -415,7 +525,7 @@ static Result action_install_url_open_save(install_url_data* installData, u32 in
 
             // Its whole size at once: the pieces are written where they go, and a write far past the end would
             // first fill the gap. A card without room for it gets no file.
-            if(R_SUCCEEDED(res) && size > 0 && R_FAILED(res = FSFILE_SetSize(*handle, size))) {
+            if(R_SUCCEEDED(res) && size > 0 && R_FAILED(res = action_install_url_reserve(installData, *handle, size))) {
                 FSFILE_Close(*handle);
                 *handle = 0;
                 FSUSER_DeleteFile(sdmcArchive, *path);
@@ -518,11 +628,32 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
 
             FSUSER_CloseArchive(sdmcArchive);
         }
+    } else if(!installData->exactPaths) {
+        // Nothing to install: it is kept in /nsa/received/ instead of failing once it has all come.
+        res = action_install_url_open_save(installData, index, initialReadBlock, size, handle);
+        installData->savedInstead[index] = R_SUCCEEDED(res);
     } else {
         res = R_APP_BAD_DATA;
     }
 
     return res;
+}
+
+// Says (or stops saying) on the screen that what came is being deleted: from the download's thread, the screen draws on.
+static void action_install_url_deleting(install_url_data* installData, bool deleting) {
+    if(installData->deleting != deleting) {
+        fs_long_op(deleting);
+    }
+
+    installData->deleting = deleting;
+    ui_wake();
+}
+
+// A paused download's .part, deleted when it is cancelled (on its own thread).
+static void action_install_url_delete_paused(void* arg) {
+    install_url_data* installData = (install_url_data*) arg;
+    action_install_url_forget_part(installData->currPath, false);
+    action_install_url_deleting(installData, false);
 }
 
 static Result action_install_url_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
@@ -567,21 +698,28 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
     } else if(installData->contentType == CONTENT_SAVED && installData->currIsPart) {
         // Failed or cancelled: what came stays, to resume.
         res = FSFILE_Close(handle);
+        // Only a "Save" resumes it: what "Install" kept instead (savedInstead) would stay there for nothing.
         u64 whole = installData->installInfo.currWritten;
-        if(whole > 0 && installData->installInfo.currTotal > whole) {
+        if(installData->saveOnly && whole > 0 && installData->installInfo.currTotal > whole) {
             action_install_url_keep_part(installData->currPath, installData->urls[index], installData->installInfo.currTotal, whole);
         } else {
+            action_install_url_deleting(installData, true);
             action_install_url_forget_part(installData->currPath, false);
+            action_install_url_deleting(installData, false);
         }
     } else {
         if(installData->contentType == CONTENT_CIA) {
+            // AM deletes what it had written of the title.
+            action_install_url_deleting(installData, true);
             res = AM_CancelCIAInstall(handle);
+            action_install_url_deleting(installData, false);
             action_install_cia_ended(installData->currTitleId, false);
         } else if(installData->contentType == CONTENT_TICKET) {
             res = AMNET_InstallTicketAbort(handle);
         } else if(installData->contentType == CONTENT_3DSX_SMDH || installData->contentType == CONTENT_SAVED) {
             res = FSFILE_Close(handle);
 
+            action_install_url_deleting(installData, true);
             FS_Archive sdmcArchive = 0;
             if(R_SUCCEEDED(FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
                 FS_Path* path = fs_make_path_utf8(installData->currPath);
@@ -593,6 +731,7 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
 
                 FSUSER_CloseArchive(sdmcArchive);
             }
+            action_install_url_deleting(installData, false);
         }
     }
 
@@ -963,6 +1102,13 @@ static void action_install_url_extract_all(char* archives, char* cias, bool dele
 
 static char action_install_url_error_text[160];
 
+// While a queue run's queueDone runs: how many of its files were saved instead of installed (its note says so).
+static u32 action_install_url_saved_instead_count;
+
+u32 action_install_url_queued_saved_instead() {
+    return action_install_url_saved_instead_count;
+}
+
 // The one download that runs, or waits paused, behind the screens (NULL: none).
 static install_url_data* installurl_bg = NULL;
 
@@ -1078,6 +1224,26 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
     bool canPause = queued || (installData->saveOnly && !installData->exactPaths);
     u32 down = hidKeysDown();
 
+    // Cancelled while paused: its .part goes on a thread, so the screen keeps saying it until it is gone.
+    if(installData->deletePaused) {
+        view->info = "";   // Nothing to press while it deletes.
+        if(!installData->deleteStarted) {
+            installData->deleteStarted = true;
+            if(threadCreate(action_install_url_delete_paused, installData, 0x4000, 0x18, 1, true) == NULL) {
+                action_install_url_delete_paused(installData);
+            }
+        }
+
+        if(installData->deleting) {
+            return;
+        }
+
+        installData->deletePaused = false;
+        installData->installInfo.result = R_APP_CANCELLED;
+        action_install_url_finish(view, installData, true);
+        return;
+    }
+
     if(installData->paused) {
         view->info = _(" resume    cancel    background");
         if(down & KEY_A) {
@@ -1088,7 +1254,9 @@ static void action_install_url_install_update(ui_view* view, void* data, float b
             installData->paused = false;
             installurl_bg = NULL;
             if(installData->pausedAt < installData->installInfo.total && installData->currPath[0] != '\0') {
-                action_install_url_forget_part(installData->currPath, false);
+                installData->deletePaused = true;
+                action_install_url_deleting(installData, true);
+                return;
             }
 
             installData->installInfo.result = R_APP_CANCELLED;
@@ -1147,6 +1315,17 @@ static void action_install_url_finish(ui_view* view, install_url_data* installDa
         u32 saved = action_install_url_count(installData, URL_SAVED);
         u32 failed = action_install_url_count(installData, URL_FAILED);
         u32 skipped = action_install_url_count(installData, URL_SKIPPED);
+        // Saved in /nsa/received/ because they were not to be installed (among `saved`).
+        u32 savedInstead = 0;
+        for(u32 i = 0; i < installData->installInfo.total; i++) {
+            savedInstead += installData->states[i] == URL_SAVED && installData->savedInstead[i];
+        }
+
+        char savedInsteadLine[FILE_PATH_MAX + 96] = "";
+        if(savedInstead > 0) {
+            snprintf(savedInsteadLine, sizeof(savedInsteadLine), _("Not installable, saved in %s: %lu"), INSTALL_URL_SAVE_DIR, savedInstead);
+        }
+
         bool installAfter = installData->toInstall != NULL && installData->installInfo.result != R_APP_CANCELLED;
         bool extractAfter = installData->toExtract != NULL && installData->installInfo.result != R_APP_CANCELLED;
         // A failure lit it as its error showed; the summary of several URLs lights it again. Saved to install
@@ -1160,7 +1339,23 @@ static void action_install_url_finish(ui_view* view, install_url_data* installDa
         }
         if(installData->installInfo.result != R_APP_CANCELLED && !installData->quiet) {
             if(failed == 0 && skipped == 0) {
-                if(saved > 0 && (installAfter || extractAfter)) {
+                if(savedInstead > 0) {
+                    // Asked to install, and something was only saved: said even when an install or an extraction
+                    // comes next (it shows over them, and is read first).
+                    char text[FILE_PATH_MAX + 256];
+                    if(installed > 0 || saved > savedInstead) {
+                        snprintf(text, sizeof(text), _("Installed: %lu"), installed);
+                        size_t used = strlen(text);
+                        snprintf(text + used, sizeof(text) - used, "\n%s", savedInsteadLine);
+                    } else if(savedInstead == 1) {
+                        snprintf(text, sizeof(text), _("It cannot be installed (it is not a CIA or a 3DSX), so it was saved in %s"), installData->currPath);
+                    } else {
+                        snprintf(text, sizeof(text), _("%lu files cannot be installed (they are not CIAs or 3DSX), so they were saved in %s"),
+                                 savedInstead, INSTALL_URL_SAVE_DIR);
+                    }
+
+                    prompt_display_notify("Saved, not installed", text, COLOR_TEXT, NULL, NULL, NULL);
+                } else if(saved > 0 && (installAfter || extractAfter)) {
                     // The install, or the extraction, says when it is done.
                 } else if(saved > 0) {
                     char text[FILE_PATH_MAX + 64];
@@ -1175,11 +1370,16 @@ static void action_install_url_finish(ui_view* view, install_url_data* installDa
                     prompt_display_notify("Success", "Install finished.", COLOR_TEXT, NULL, NULL, NULL);
                 }
             } else if(installData->installInfo.total > 1) {
-                char text[128];
+                char text[FILE_PATH_MAX + 256];
                 if(installData->saveOnly) {
                     snprintf(text, sizeof(text), _("Saved: %lu\nFailed: %lu\nSkipped: %lu"), saved, failed, skipped);
                 } else {
                     snprintf(text, sizeof(text), _("Installed: %lu\nFailed: %lu\nSkipped: %lu"), installed, failed, skipped);
+                }
+
+                if(savedInstead > 0) {
+                    size_t used = strlen(text);
+                    snprintf(text + used, sizeof(text) - used, "\n%s", savedInsteadLine);
                 }
                 prompt_display_notify(failed > 0 ? "Failure" : "Success", text, COLOR_TEXT, NULL, NULL, NULL);
             }
@@ -1205,6 +1405,14 @@ static void action_install_url_finish(ui_view* view, install_url_data* installDa
         // Paused, the queue hears how many URLs were done (the one cut short is fetched again on resume).
         u32 queueProcessed = installData->installInfo.processed;
         bool queueCancelled = !queuePaused && installData->installInfo.result == R_APP_CANCELLED;
+        // A queue run says nothing itself: its item keeps it as a note (the queue counts it for its toast).
+        if(queueDone != NULL && savedInstead > 0 && failed == 0 && !queuePaused && !queueCancelled) {
+            if(savedInstead == 1 && installData->installInfo.total == 1) {
+                snprintf(installData->queueError, sizeof(installData->queueError), _("Not installable: saved in %s"), installData->currPath);
+            } else {
+                string_copy(installData->queueError, savedInsteadLine, sizeof(installData->queueError));
+            }
+        }
         char queueError[160];
         string_copy(queueError, installData->queueError, sizeof(queueError));
         if(queueItem != NULL && queueDone == NULL) {
@@ -1217,7 +1425,9 @@ static void action_install_url_finish(ui_view* view, install_url_data* installDa
         action_install_url_free_data(installData);
 
         if(queueDone != NULL) {
+            action_install_url_saved_instead_count = queueError[0] != '\0' && failed == 0 && !queuePaused && !queueCancelled ? savedInstead : 0;
             queueDone(queueItem, queuePaused ? queueProcessed : installed + saved, failed, queuePaused, queueCancelled, queueError);
+            action_install_url_saved_instead_count = 0;
         }
 
         if(archives != NULL) {
@@ -1302,6 +1512,20 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
 
     float x = x1 + 8;
     float w = x2 - x1 - 16;
+
+    // Deleting what came (a cancel, a failure) or making a big file its whole size at the start: either takes the SD
+    // card seconds and changes its FAT, and the console must stay on.
+    if(installData->deleting || installData->reserving) {
+        float cardH = 58;
+        float cardY = y2 - 8 - cardH;
+        widget_card(x, cardY, w, cardH);
+        screen_draw_icon(ICON_ALERT_TRIANGLE, x + 8, cardY + 8, 16, t->palette->warning);
+        const char* text = installData->deleting ? _("Deleting what was downloaded from the SD card. Don't turn the console off until it ends.")
+                                                 : _("Making room for the file on the SD card. Don't turn the console off until it ends.");
+        screen_draw_text_wrap(text, x + 30, cardY + 8, WIDGET_TEXT_SCALE, t->palette->text, x + w - 8);
+        y2 = cardY - 4;
+    }
+
     u32 fits = (u32) ((y2 - y1 - 8) / (INSTALL_ROW_HEIGHT + INSTALL_ROW_GAP));
     if(fits == 0) {
         return;
@@ -1315,14 +1539,24 @@ static void action_install_url_install_draw_bottom(ui_view* view, void* data, fl
 
     for(u32 i = first; i < info->total && i < first + fits; i++) {
         float y = y1 + 8 + (i - first) * (INSTALL_ROW_HEIGHT + INSTALL_ROW_GAP);
-        bool current = i == info->processed && !info->finished;
+        bool deleting = installData->deleting && i == (installData->deletePaused ? installData->pausedAt : info->processed);
+        bool reserving = installData->reserving && i == info->processed && !deleting;
+        bool current = i == info->processed && !info->finished && !deleting && !reserving;
         bool paused = installData->paused && i == installData->pausedAt;
         screen_frame_round_rect(x, y, w, INSTALL_ROW_HEIGHT, t->def->radiusSmall, t->def->border, current ? t->accent : t->palette->border, t->palette->surface);
 
         u32 icon = ICON_CLOCK;
         u32 iconColor = t->palette->textMuted;
         char status[32];
-        if(current) {
+        if(deleting) {
+            icon = ICON_TRASH;
+            iconColor = t->palette->warning;
+            string_copy(status, _("Deleting"), sizeof(status));
+        } else if(reserving) {
+            icon = ICON_ALERT_TRIANGLE;
+            iconColor = t->palette->warning;
+            string_copy(status, _("Making room"), sizeof(status));
+        } else if(current) {
             icon = ICON_DOWNLOAD;
             iconColor = t->accent;
             u32 hundredths = info->currTotal != 0 ? (u32) ((u64) info->currProcessed * 10000 / info->currTotal) : 0;
@@ -1465,8 +1699,13 @@ static void action_install_url_choose_clear(linked_list* items) {
 static void action_install_url_choose_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     install_url_data* installData = (install_url_data*) data;
 
+    u32 allowed = action_install_url_allowed(installData);
     if(linked_list_size(items) == 0) {
         for(u32 i = 0; i < INSTALL_URL_CHOICES; i++) {
+            if((allowed & INSTALL_URL_CHOICE_BIT(i)) == 0) {
+                continue;
+            }
+
             list_item* item = (list_item*) calloc(1, sizeof(list_item));
             if(item != NULL) {
                 string_copy(item->name, _(action_install_url_choice_names[i]), sizeof(item->name));
@@ -1495,22 +1734,29 @@ static void action_install_url_choose_update(ui_view* view, void* data, linked_l
         snprintf(webText + webLen, sizeof(webText) - webLen, _("and %lu more"), installData->installInfo.total - shown);
     }
 
+    // The same choices as on the console, and Cancel last.
     char webNames[INSTALL_URL_CHOICES + 1][PROMPT_OPTION_TEXT_MAX];
     const char* webOptions[INSTALL_URL_CHOICES + 1];
+    u32 webChoices[INSTALL_URL_CHOICES + 1];
+    u32 webCount = 0;
     for(u32 i = 0; i < INSTALL_URL_CHOICES; i++) {
-        string_copy(webNames[i], _(action_install_url_choice_names[i]), sizeof(webNames[i]));
-        webOptions[i] = webNames[i];
+        if((allowed & INSTALL_URL_CHOICE_BIT(i)) != 0) {
+            string_copy(webNames[webCount], _(action_install_url_choice_names[i]), sizeof(webNames[webCount]));
+            webOptions[webCount] = webNames[webCount];
+            webChoices[webCount++] = i;
+        }
     }
 
-    string_copy(webNames[INSTALL_URL_CHOICES], _("Cancel"), sizeof(webNames[INSTALL_URL_CHOICES]));
-    webOptions[INSTALL_URL_CHOICES] = webNames[INSTALL_URL_CHOICES];
-    int webChoice = prompt_web_offer(installData, _("Install from URL"), webText, webOptions, INSTALL_URL_CHOICES + 1, false);
+    string_copy(webNames[webCount], _("Cancel"), sizeof(webNames[webCount]));
+    webOptions[webCount] = webNames[webCount];
+    webChoices[webCount++] = INSTALL_URL_CHOICE_CANCEL;
+    int webChoice = prompt_web_offer(installData, _("Install from URL"), webText, webOptions, webCount, false);
 
     // X saves at once, as the confirmation did (and the tests press).
     u32 choice = UINT32_MAX;
     u32 down = hidKeysDown();
-    if(webChoice >= 0 && webChoice <= INSTALL_URL_CHOICE_CANCEL) {
-        choice = (u32) webChoice;
+    if(webChoice >= 0 && (u32) webChoice < webCount) {
+        choice = webChoices[webChoice];
     } else if(down & KEY_B) {
         choice = INSTALL_URL_CHOICE_CANCEL;
     } else if(down & KEY_X) {

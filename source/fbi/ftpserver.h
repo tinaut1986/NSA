@@ -21,11 +21,19 @@
 //                               ZR, START, SELECT, UP, DOWN, LEFT, RIGHT; "A+R")
 //   SITE TAP <x> <y> [n]     -> touches the bottom screen
 //
-// Port 5021, passive data ports 5022-5085: clear of Remote Install's "Receive
-// URLs" (5000, where FBI's PC tools send) and of the console to console ports
-// (5001 discovery, 5002 transfers).
+// Port 5021 by default, passive data ports 5022-5085 whatever the port: clear of Remote Install's "Receive
+// URLs" (5000, where FBI's PC tools send) and of the console to console ports (5001 discovery, 5002 transfers).
+// Settings -> FTP port also offers 5000 (ftpd's, issue #57: a client's saved connection works as it is) and 21 (FTP's
+// own). On 5000 the server pauses while "Receive from a computer" is open and comes back when it closes.
 
 #define FTP_SERVER_PORT 5021
+#define FTP_PORT_CHOICES 3
+
+// The ports Settings offers, in order (FTP_SERVER_PORT first), and whether one of them is given.
+u16 ftpserver_port_choice(u32 index);
+bool ftpserver_port_valid(u32 port);
+// The port it listens on, or the one it will use (the setting) while it does not.
+u16 ftpserver_port();
 
 // False with a reason in ftpserver_address() (no Wi-Fi, port busy...).
 bool ftpserver_start();

@@ -109,6 +109,11 @@ typedef struct {
     bool ftpPausesMusic;
     // An Old 3DS that had ftpPausesMusic on (its old default) was asked once whether to let the music play.
     bool ftpMusicAsked;
+    // While the FTP or web server is on, the console does not go to sleep: closing the lid only turns the screens off,
+    // and the servers go on answering (as ftpd does). Off by default: a closed console then uses the battery.
+    bool serversAwake;
+    // The FTP server's port: 5021 (the default), 5000 (ftpd's) or 21 (ftpserver_port_choice).
+    u32 ftpPort;
 
     // Appearance: indices into theme.h's tables and i18n.h's languages.
     u32 theme;
@@ -122,6 +127,10 @@ typedef struct {
     // Background music: a bgmusic_style and a volume in percent.
     u32 music;
     u32 musicVolume;
+    // The top screen's animated background: a backdrop_style (core/backdrop.h), off by default.
+    u32 backdrop;
+    // With BGMUSIC_SONGS: the file of /nsa/music/ to play, or "" for all of them, shuffled.
+    char musicSong[128];
     // The console's brightness range (brightness.h) last chosen, kept for when "Custom" is picked again: the
     // console's own table says whether it is in use.
     bool brightnessCustom;   // "Custom" was picked (the range may still equal the console's own).

@@ -8,6 +8,7 @@
 
 #include "ui.h"
 #include "../error.h"
+#include "../backdrop.h"
 #include "../screen.h"
 #include "../sound.h"
 #include "../led.h"
@@ -259,10 +260,9 @@ static void ui_draw_top_bar() {
 #define UI_DEPTH_BAR 0.0f
 #define UI_DEPTH_CONTENT 1.0f
 
-static void ui_draw_top_eye(ui_view* ui, gfx3dSide_t side, float shift) {
-    screen_select_eye(GFX_TOP, side, shift);
+// What the top screen shows over its background (and the animated background).
+static void ui_draw_top_content(ui_view* ui, gfx3dSide_t side) {
     coach_screen_begin(GFX_TOP, side == GFX_LEFT);
-    widget_background(TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT);
     coach_anchor("top", 0, WIDGET_TOP_BAR_HEIGHT, TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT - WIDGET_TOP_BAR_HEIGHT, false);
 
     screen_set_base_alpha(ui_fade_alpha);
@@ -281,7 +281,28 @@ static void ui_draw_top_eye(ui_view* ui, gfx3dSide_t side, float shift) {
     coach_draw(GFX_TOP);
 }
 
-static void ui_draw_top(ui_view* ui) {
+// `cached`: with an animated background, the content comes from its picture (screen_cache_*), drawn again into it only
+// when `refresh` (something changed) or when there is none yet.
+static void ui_draw_top_eye(ui_view* ui, gfx3dSide_t side, float shift, bool cached, bool refresh) {
+    if(cached && (refresh || !screen_cache_ready(GFX_TOP, side))) {
+        cached = screen_cache_begin(GFX_TOP, side, shift);
+        if(cached) {
+            ui_draw_top_content(ui, side);
+            screen_cache_end();
+        }
+    }
+
+    screen_select_eye(GFX_TOP, side, shift);
+    widget_background(TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT);
+    backdrop_draw(TOP_SCREEN_WIDTH, TOP_SCREEN_HEIGHT);
+    if(cached) {
+        screen_cache_draw(GFX_TOP, side);
+    } else {
+        ui_draw_top_content(ui, side);
+    }
+}
+
+static void ui_draw_top(ui_view* ui, bool cached, bool refresh) {
     // In front of the screen: the left eye sees things moved right.
     float slider = osGet3DSliderState();
     bool stereo = slider > 0.01f;
@@ -289,9 +310,10 @@ static void ui_draw_top(ui_view* ui) {
         gfxSet3D(stereo);
     }
 
-    ui_draw_top_eye(ui, GFX_LEFT, stereo ? slider * UI_STEREO_SHIFT : 0);
+    backdrop_update();
+    ui_draw_top_eye(ui, GFX_LEFT, stereo ? slider * UI_STEREO_SHIFT : 0, cached, refresh);
     if(stereo) {
-        ui_draw_top_eye(ui, GFX_RIGHT, -slider * UI_STEREO_SHIFT);
+        ui_draw_top_eye(ui, GFX_RIGHT, -slider * UI_STEREO_SHIFT, cached, refresh);
     }
 }
 
@@ -493,10 +515,9 @@ static void ui_update_back_arrow(ui_view* ui) {
     }
 }
 
-static void ui_draw_bottom(ui_view* ui) {
+static void ui_draw_bottom_content(ui_view* ui) {
     const theme_current* t = theme();
 
-    screen_select(GFX_BOTTOM);
     coach_screen_begin(GFX_BOTTOM, true);
     widget_background(BOTTOM_SCREEN_WIDTH, BOTTOM_SCREEN_HEIGHT);
 
@@ -543,6 +564,23 @@ static void ui_draw_bottom(ui_view* ui) {
     coach_draw(GFX_BOTTOM);
 }
 
+static void ui_draw_bottom(ui_view* ui, bool cached, bool refresh) {
+    if(cached && (refresh || !screen_cache_ready(GFX_BOTTOM, GFX_LEFT))) {
+        cached = screen_cache_begin(GFX_BOTTOM, GFX_LEFT, 0);
+        if(cached) {
+            ui_draw_bottom_content(ui);
+            screen_cache_end();
+        }
+    }
+
+    screen_select(GFX_BOTTOM);
+    if(cached) {
+        screen_cache_draw(GFX_BOTTOM, GFX_LEFT);
+    } else {
+        ui_draw_bottom_content(ui);
+    }
+}
+
 // Drawing every frame costs the app core much of its time (on an Old 3DS over
 // half, with nothing moving), time a download or an install could use. So a
 // frame is drawn while something happens (input, a view opening or closing,
@@ -550,9 +588,25 @@ static void ui_draw_bottom(ui_view* ui) {
 // that, a few times a second, enough for progress and clocks.
 #define UI_ACTIVE_TIME 1500
 #define UI_IDLE_FRAME 100
+// With only an animated background moving: about 30 frames a second on a New 3DS, which its slow particles need (core 0
+// 42% -> 26% against every frame, New 3DS XL at the main menu; 4% without it), and 20 on an Old 3DS, about 3 times slower.
+#define UI_BACKDROP_FRAME_NEW 32
+#define UI_BACKDROP_FRAME_OLD 48
+
+static u64 ui_backdrop_frame() {
+    static u64 frame = 0;
+    if(frame == 0) {
+        bool isNew = false;
+        APT_CheckNew3DS(&isNew);
+        frame = isNew ? UI_BACKDROP_FRAME_NEW : UI_BACKDROP_FRAME_OLD;
+    }
+
+    return frame;
+}
 
 static u64 ui_last_active = 0;
-static u64 ui_last_draw = 0;
+static u64 ui_last_draw = 0;   // Any frame.
+static u64 ui_last_full = 0;   // A frame that drew everything: the idle ones count from it, not from the background's.
 static ui_view* ui_last_view = NULL;
 static u32 ui_last_depth = 0;
 static float ui_last_slider = 0;
@@ -561,7 +615,8 @@ void ui_wake() {
     ui_last_active = osGetTime();
 }
 
-static bool ui_should_draw(ui_view* ui) {
+// 0: nothing to draw; 1: only the animated background moved (the rest comes from its pictures); 2: everything.
+static int ui_should_draw(ui_view* ui) {
     u64 now = osGetTime();
     float slider = osGet3DSliderState();
     if((hidKeysHeld() | hidKeysDown() | hidKeysUp()) != 0 || ui != ui_last_view || ui_depth() != ui_last_depth
@@ -572,12 +627,19 @@ static bool ui_should_draw(ui_view* ui) {
         ui_last_slider = slider;
     }
 
-    if(now - ui_last_active < UI_ACTIVE_TIME || now - ui_last_draw >= UI_IDLE_FRAME) {
+    if(now - ui_last_active < UI_ACTIVE_TIME || now - ui_last_full >= UI_IDLE_FRAME) {
         ui_last_draw = now;
-        return true;
+        ui_last_full = now;
+        return 2;
     }
 
-    return false;
+    // An animated background moves on its own: drawn often enough for it then.
+    if(backdrop_active() && now - ui_last_draw >= ui_backdrop_frame()) {
+        ui_last_draw = now;
+        return 1;
+    }
+
+    return 0;
 }
 
 static u32 ui_frames = 0;
@@ -626,12 +688,20 @@ bool ui_update() {
 
     ui = ui_top();
     if(ui != NULL) {
-        if(ui_should_draw(ui)) {
+        int draw = ui_should_draw(ui);
+        if(draw != 0) {
+            // With an animated background the screens' contents go through their pictures: drawn again only when
+            // something changed (2), else only the background moves (1) and the guide keeps the last frame's anchors.
+            bool cached = backdrop_enabled();
+            bool refresh = draw == 2;
             speedlog_frame();
             screen_begin_frame();
-            coach_frame_begin();
-            ui_draw_top(ui);
-            ui_draw_bottom(ui);
+            if(refresh) {
+                coach_frame_begin();
+            }
+
+            ui_draw_top(ui, cached, refresh);
+            ui_draw_bottom(ui, cached, refresh);
             screen_end_frame();
         } else {
             // The screens keep the last frame; wait for the next one as drawing would.

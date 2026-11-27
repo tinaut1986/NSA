@@ -13,6 +13,7 @@
 #include "../core/qrencode.h"
 #include "section.h"
 #include "settings.h"
+#include "../core/backdrop.h"
 #include "../core/bgmusic.h"
 #include "update.h"
 #include "pinpad.h"
@@ -27,15 +28,18 @@ typedef enum {
     OPTION_THEME_EDIT,     // The theme editor (themeedit.c).
     OPTION_ACCENT,
     OPTION_NIGHT,
+    OPTION_BACKDROP,        // The top screen's animated background (core/backdrop.h).
     OPTION_LANGUAGE,
     OPTION_SOUNDS,
     OPTION_MUSIC,
     OPTION_FTP,
+    OPTION_FTP_PORT,        // 5021, 5000 or 21 (ftpserver_port_choice).
     OPTION_FTP_MUSIC,
     OPTION_WEB,
     OPTION_WEB_PIN,
     OPTION_WEB_FIXED_PIN,   // Only with a fixed PIN: opens the keypad.
     OPTION_LINKS,           // Links sent from web pages (linkserver.h).
+    OPTION_SERVERS_AWAKE,   // No sleep mode while the FTP or web server is on (core/awake.h).
     OPTION_CHANNEL,
     OPTION_AUTO_UPDATE,
     OPTION_CHECK_UPDATES,
@@ -47,6 +51,7 @@ typedef enum {
 #define ROW_PITCH (WIDGET_ROW_HEIGHT + WIDGET_ROW_GAP)
 #define PAD 8
 #define VOLUME_STEP 5
+#define HEADER_HEIGHT 18   // A group's name above its first row: smaller than a row, never selected.
 
 // Sounds and Music carry a volume slider under their selector, in the same box.
 static u32* settingsmenu_slider_value(settings_option option) {
@@ -77,16 +82,94 @@ static u32 settingsmenu_next_visible(u32 from, int direction) {
     return i;
 }
 
-// Where a row starts, from the top of the list.
+// The name of the group that starts at this row, or NULL: the rows go in groups of related options.
+static const char* settingsmenu_group(u32 index) {
+    switch(index) {
+        case OPTION_THEME: return _("Appearance");
+        case OPTION_SOUNDS: return _("Sound");
+        case OPTION_FTP: return _("Servers");
+        case OPTION_CHANNEL: return _("Updates");
+        case OPTION_GUIDE: return _("Help");
+        default: return NULL;
+    }
+}
+
+// Where a row starts, from the top of the list (below its group's name, if it is the group's first row).
 static float settingsmenu_row_top(u32 index) {
     float top = 0;
     for(u32 i = 0; i < index; i++) {
+        if(settingsmenu_group(i) != NULL) {
+            top += HEADER_HEIGHT;
+        }
+
         if(settingsmenu_visible(i)) {
             top += settingsmenu_row_height(i) + WIDGET_ROW_GAP;
         }
     }
 
+    if(index < OPTION_COUNT && settingsmenu_group(index) != NULL) {
+        top += HEADER_HEIGHT;
+    }
+
     return top;
+}
+
+// Where a row's block starts: its group's name above it, when it has one, is shown with it.
+static float settingsmenu_block_top(u32 index) {
+    return settingsmenu_row_top(index) - (settingsmenu_group(index) != NULL ? HEADER_HEIGHT : 0);
+}
+
+// How wide a song's name may be in the Background music row.
+#define SETTINGSMENU_SONG_WIDTH 90
+
+// Background music's choices: Off and the made styles, then (with songs in /nsa/music/) all of them and each one.
+static u32 settingsmenu_music_choices() {
+    u32 songs = bgmusic_song_count();
+    return BGMUSIC_SONGS + (songs > 0 ? 1 + songs : 0);
+}
+
+// The choice the settings say, among those. A song that is not in the folder any more counts as all of them.
+static u32 settingsmenu_music_choice(settings_data* settings) {
+    if(settings->music != BGMUSIC_SONGS) {
+        return settings->music < BGMUSIC_SONGS ? settings->music : BGMUSIC_OFF;
+    }
+
+    if(settings->musicSong[0] != '\0') {
+        char name[BGMUSIC_SONG_NAME_MAX];
+        for(u32 i = 0; i < bgmusic_song_count(); i++) {
+            bgmusic_song_name(i, name, sizeof(name));
+            if(strcmp(name, settings->musicSong) == 0) {
+                return BGMUSIC_SONGS + 1 + i;
+            }
+        }
+    }
+
+    return BGMUSIC_SONGS;
+}
+
+static void settingsmenu_music_pick(settings_data* settings, u32 choice) {
+    if(choice < BGMUSIC_SONGS) {
+        settings->music = choice;
+        settings->musicSong[0] = '\0';
+    } else {
+        settings->music = BGMUSIC_SONGS;
+        settings->musicSong[0] = '\0';
+        if(choice > BGMUSIC_SONGS) {
+            bgmusic_song_name(choice - BGMUSIC_SONGS - 1, settings->musicSong, sizeof(settings->musicSong));
+        }
+    }
+
+    bgmusic_set_song(settings->musicSong);
+    bgmusic_set((bgmusic_style) settings->music, settings->musicVolume);
+}
+
+// A song's name as the row shows it: the file name without its extension.
+static void settingsmenu_song_title(const char* file, char* out, size_t size) {
+    snprintf(out, size, "%s", file);
+    char* dot = strrchr(out, '.');
+    if(dot != NULL && dot != out) {
+        *dot = '\0';
+    }
 }
 
 // The volume applies as it moves; saving waits for the finger to lift.
@@ -113,8 +196,8 @@ typedef struct {
 
 static icon_id settingsmenu_icon(settings_option option) {
     static const icon_id icons[OPTION_COUNT] = {
-            ICON_PALETTE, ICON_PENCIL, ICON_COLOR_SWATCH, ICON_MOON, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
-            ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_WORLD, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
+            ICON_PALETTE, ICON_PENCIL, ICON_COLOR_SWATCH, ICON_MOON, ICON_STAR, ICON_LANGUAGE, ICON_VOLUME, ICON_MUSIC, ICON_SERVER,
+            ICON_SERVER, ICON_PLAYER_PAUSE, ICON_DEVICE_DESKTOP, ICON_SHIELD_LOCK, ICON_KEY, ICON_WORLD, ICON_MOON, ICON_GIT_BRANCH, ICON_REFRESH, ICON_WORLD_DOWNLOAD, ICON_LIST_DETAILS, ICON_INFO_CIRCLE
     };
 
     return icons[option];
@@ -126,17 +209,20 @@ static const char* settingsmenu_label(settings_option option) {
         case OPTION_THEME_EDIT: return _("Edit the theme");
         case OPTION_ACCENT: return _("Accent colour");
         case OPTION_NIGHT: return _("Night mode");
+        case OPTION_BACKDROP: return _("Animated background");
         case OPTION_LANGUAGE: return _("Language");
         case OPTION_SOUNDS: return _("Sounds");
         case OPTION_MUSIC: return _("Background music");
         case OPTION_CHANNEL: return _("Update channel");
         case OPTION_AUTO_UPDATE: return _("Check at start");
         case OPTION_FTP: return _("FTP server");
+        case OPTION_FTP_PORT: return _("FTP port");
         case OPTION_FTP_MUSIC: return _("Pause music for FTP");
         case OPTION_WEB: return _("Web server");
         case OPTION_WEB_PIN: return _("Web PIN");
         case OPTION_WEB_FIXED_PIN: return _("Fixed PIN");
         case OPTION_LINKS: return _("Links from web pages");
+        case OPTION_SERVERS_AWAKE: return _("Servers with the lid closed");
         case OPTION_CHECK_UPDATES: return _("Check for updates");
         case OPTION_CHANGELOG: return _("Changelog");
         case OPTION_GUIDE: return _("Guide");
@@ -157,17 +243,54 @@ static const char* settingsmenu_value(settings_option option) {
         case OPTION_ACCENT: return _(theme_accent_get(settings->accent)->name);
         case OPTION_NIGHT:
             return settings->night == THEME_NIGHT_ON ? _("On") : settings->night == THEME_NIGHT_AUTO ? _("Automatic") : _("Off");
+        case OPTION_BACKDROP:
+            return settings->backdrop == BACKDROP_BUBBLES ? _("Bubbles") : settings->backdrop == BACKDROP_SNOW ? _("Snow")
+                   : settings->backdrop == BACKDROP_STARS ? _("Starry sky") : settings->backdrop == BACKDROP_FIREFLIES ? _("Fireflies")
+                   : settings->backdrop == BACKDROP_FOREST ? _("Enchanted forest") : settings->backdrop == BACKDROP_THREADS ? _("Threads of light")
+                   : settings->backdrop == BACKDROP_ENERGY ? _("Energy") : _("Off");
         case OPTION_LANGUAGE: return i18n_language_name(settings->language);
         case OPTION_SOUNDS: return settings->sounds == SOUNDS_ALL ? _("All") : settings->sounds == SOUNDS_ALERTS ? _("Alerts") : _("Off");
-        case OPTION_MUSIC: return settings->music == BGMUSIC_LIFT ? _("Lift") : settings->music == BGMUSIC_CALM ? _("Calm") : settings->music == BGMUSIC_SHOP ? _("Shop") : _("Off");
+        case OPTION_MUSIC: {
+            if(settings->music == BGMUSIC_SONGS) {
+                // A song by its name (by content: never cached by address), or all of them.
+                static char title[BGMUSIC_SONG_NAME_MAX + 4];
+                if(settings->musicSong[0] == '\0') {
+                    return _("My songs");
+                }
+
+                // Short enough for the row (the top screen says it whole).
+                settingsmenu_song_title(settings->musicSong, title, sizeof(title));
+                if(widget_text_width(title, WIDGET_SMALL_SCALE) > SETTINGSMENU_SONG_WIDTH) {
+                    size_t len = strlen(title);
+                    do {
+                        // One character less (back to the start of a UTF-8 sequence), and "..." after it.
+                        do {
+                            len--;
+                        } while(len > 0 && ((u8) title[len] & 0xC0) == 0x80);
+
+                        snprintf(title + len, sizeof(title) - len, "...");
+                    } while(len > 1 && widget_text_width(title, WIDGET_SMALL_SCALE) > SETTINGSMENU_SONG_WIDTH);
+                }
+
+                return title;
+            }
+
+            return settings->music == BGMUSIC_LIFT ? _("Lift") : settings->music == BGMUSIC_CALM ? _("Calm") : settings->music == BGMUSIC_SHOP ? _("Shop") : _("Off");
+        }
         case OPTION_CHANNEL: return settings->channel == UPDATE_CHANNEL_BETA ? _("Beta") : _("Stable");
         case OPTION_AUTO_UPDATE: return settingsmenu_on_off(settings->autoUpdate);
         case OPTION_FTP: return ftpserver_running() ? _("On") : ftpserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
+        case OPTION_FTP_PORT: {
+            static char port[8];
+            snprintf(port, sizeof(port), "%u", ftpserver_port_valid(settings->ftpPort) ? (unsigned) settings->ftpPort : FTP_SERVER_PORT);
+            return port;
+        }
         case OPTION_FTP_MUSIC: return settingsmenu_on_off(settings->ftpPausesMusic);
         case OPTION_WEB: return webserver_running() ? _("On") : webserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
         case OPTION_WEB_PIN: return settings->webPinMode == WEB_PIN_FIXED ? _("Fixed") : settings->webPinMode == WEB_PIN_NONE ? _("None") : _("Random");
         case OPTION_WEB_FIXED_PIN: return settings->webPin;
         case OPTION_LINKS: return linkserver_running() ? _("On") : linkserver_waiting() ? _("Waiting for Wi-Fi") : settingsmenu_on_off(false);
+        case OPTION_SERVERS_AWAKE: return settingsmenu_on_off(settings->serversAwake);
         default: return NULL;
     }
 }
@@ -216,6 +339,10 @@ static void settingsmenu_change(settings_option option, int direction) {
         case OPTION_NIGHT:
             settings->night = (theme_night_mode) settingsmenu_step(settings->night, 3, step);
             break;
+        case OPTION_BACKDROP:
+            settings->backdrop = settingsmenu_step(settings->backdrop, BACKDROP_COUNT, step);
+            backdrop_set((backdrop_style) settings->backdrop);
+            break;
         case OPTION_LANGUAGE:
             // Too many to step through: a list.
             if(direction == 0) {
@@ -226,8 +353,7 @@ static void settingsmenu_change(settings_option option, int direction) {
             settings->sounds = settingsmenu_step(settings->sounds, 3, step);
             break;
         case OPTION_MUSIC:
-            settings->music = settingsmenu_step(settings->music, BGMUSIC_COUNT, step);
-            bgmusic_set((bgmusic_style) settings->music, settings->musicVolume);
+            settingsmenu_music_pick(settings, settingsmenu_step(settingsmenu_music_choice(settings), settingsmenu_music_choices(), step));
             break;
         case OPTION_CHANNEL:
             settings->channel = settings->channel == UPDATE_CHANNEL_BETA ? UPDATE_CHANNEL_STABLE : UPDATE_CHANNEL_BETA;
@@ -245,6 +371,21 @@ static void settingsmenu_change(settings_option option, int direction) {
                 settings->ftpServer = true;
             }
             break;
+        case OPTION_FTP_PORT: {
+            u32 index = 0;
+            while(index < FTP_PORT_CHOICES && ftpserver_port_choice(index) != settings->ftpPort) {
+                index++;
+            }
+
+            settings->ftpPort = ftpserver_port_choice(settingsmenu_step(index < FTP_PORT_CHOICES ? index : 0, FTP_PORT_CHOICES, step));
+            // A running server moves to the new port now (clients connected on the old one are dropped).
+            if(ftpserver_running() || ftpserver_waiting()) {
+                ftpserver_stop();
+                ftpserver_start_when_online();
+            }
+
+            break;
+        }
         case OPTION_FTP_MUSIC:
             settings->ftpPausesMusic = !settings->ftpPausesMusic;
             break;
@@ -280,6 +421,9 @@ static void settingsmenu_change(settings_option option, int direction) {
                 linkserver_start_when_online();
                 settings->linkServer = true;
             }
+            break;
+        case OPTION_SERVERS_AWAKE:
+            settings->serversAwake = !settings->serversAwake;
             break;
         case OPTION_CHECK_UPDATES:
             if(direction == 0) {
@@ -322,8 +466,8 @@ static void settingsmenu_clamp_scroll(settingsmenu_data* menu, float viewHeight)
 static void settingsmenu_reveal(settingsmenu_data* menu, float viewHeight) {
     float top = settingsmenu_row_top(menu->selected);
     float height = settingsmenu_row_height(menu->selected);
-    if(top < menu->scroll) {
-        menu->scroll = top;
+    if(settingsmenu_block_top(menu->selected) < menu->scroll) {
+        menu->scroll = settingsmenu_block_top(menu->selected);
     } else if(top + height > menu->scroll + viewHeight) {
         menu->scroll = top + height - viewHeight;
     }
@@ -407,7 +551,7 @@ static void settingsmenu_update(ui_view* view, void* data, float bx1, float by1,
             menu->selected = settingsmenu_next_visible(menu->selected, -1);
         }
 
-        menu->scroll = settingsmenu_row_top(menu->selected);
+        menu->scroll = settingsmenu_block_top(menu->selected);
         settingsmenu_clamp_scroll(menu, viewHeight);
     } else if(settingsmenu_slider_value((settings_option) menu->selected) != NULL && (settingsmenu_repeat(menu, KEY_X) || settingsmenu_repeat(menu, KEY_Y))) {
         u32* volume = settingsmenu_slider_value((settings_option) menu->selected);
@@ -538,16 +682,26 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_THEME_EDIT: return _("Change the theme in use value by value, its colours with a finger, and see it at once. A built-in theme is saved as a new one of your own.");
         case OPTION_ACCENT: return _("The colour of buttons, selections and bars.");
         case OPTION_NIGHT: return _("Dark colours. Automatic: from 20:00 to 8:00.");
+        case OPTION_BACKDROP:
+            return settings->backdrop == BACKDROP_OFF ? _("Off: the top screen's plain background. An animation keeps the screen drawing all the time, which uses a little more battery.")
+                   : settings->backdrop <= BACKDROP_FIREFLIES ? _("Moves behind the top screen in the accent colour, at different depths: with the 3D slider up it floats behind the screen. It stops while a transfer runs.")
+                                                               : _("Moves behind the top screen in colours of its own, at different depths: with the 3D slider up it floats behind the screen. It stops while a transfer runs.");
         case OPTION_LANGUAGE: return _("Pick NSA's language from a list. System: the console's language when NSA has it, else English.");
         case OPTION_SOUNDS:
             return settings->sounds == SOUNDS_ALL ? _("All: a tick for buttons and touches, and a tune when something ends or fails.")
                    : settings->sounds == SOUNDS_ALERTS ? _("Alerts: only when something ends well or fails (a transfer, an install).")
                                                        : _("Off: no sounds. They need the DSP firmware (dspfirm.cdc).");
         case OPTION_MUSIC:
+            if(settings->music == BGMUSIC_SONGS) {
+                return settings->musicSong[0] == '\0' ? _("All my songs: the files in /nsa/music/ (MP3, WAV, FLAC or Ogg), one after another in a random order.")
+                                                      : _("One of your songs, from /nsa/music/, over and over.");
+            }
+
             return settings->music == BGMUSIC_LIFT ? _("Lift: soft lift music, made by the console as it plays, in a loop of half a minute.")
                    : settings->music == BGMUSIC_CALM ? _("Calm: slower and sparser, in a loop of about forty seconds.")
                    : settings->music == BGMUSIC_SHOP ? _("Shop: a soft bossa with marimba, electric piano and bass, in a loop of about forty seconds.")
-                                                     : _("Off: no music. It needs the DSP firmware (dspfirm.cdc) and takes a moment to start.");
+                   : bgmusic_song_count() == 0 ? _("Off: no music. It needs the DSP firmware (dspfirm.cdc). Your own songs: put MP3, WAV, FLAC or Ogg files in /nsa/music/ and they show up here.")
+                                               : _("Off: no music. It needs the DSP firmware (dspfirm.cdc). Your songs in /nsa/music/ come after the made ones.");
         case OPTION_CHANNEL:
             return settings->channel == UPDATE_CHANNEL_BETA
                    ? _("Beta: the newest release, beta or stable. The changelog lists every release since yours.")
@@ -559,6 +713,10 @@ static const char* settingsmenu_help(settings_option option) {
         case OPTION_FTP_MUSIC:
             return settings->ftpPausesMusic ? _("On: the music stops while a file goes through the FTP server and comes back after. Transfers go a little faster: 2-3% on an Old 3DS, 3-6% on a New 3DS.")
                                             : _("Off: the music goes on during FTP transfers, which go a little slower (2-3% on an Old 3DS, 3-6% on a New 3DS). Off by default.");
+        case OPTION_FTP_PORT:
+            return settings->ftpPort == 5000 ? _("5000: the port ftpd uses, so a client's saved connection works as it is. \"Receive from a computer\" needs it too: the FTP server pauses while that screen is open.")
+                   : settings->ftpPort == 21 ? _("21: FTP's own port, the one a client tries when none is given.")
+                                             : _("5021: NSA's own port, free of \"Receive from a computer\" (5000). The default.");
         case OPTION_WEB: return _("A page to manage the console from a computer's browser: files, installing CIAs. It asks for the PIN shown here. Plain HTTP, only on your Wi-Fi.");
         case OPTION_WEB_PIN:
             return settings->webPinMode == WEB_PIN_FIXED ? _("Fixed: the PIN stays the same between launches. Change it in the row below.")
@@ -566,6 +724,9 @@ static const char* settingsmenu_help(settings_option option) {
                                                           : _("Random: a new PIN each time the server starts. When a browser asks for it, the console shows it on the bottom screen.");
         case OPTION_WEB_FIXED_PIN: return _("Type the PIN on the keypad, or press the turning arrows there for a random one. Pages already open have to type it again.");
         case OPTION_LINKS: return _("A store's \"Send to 3DS\" button (as for 3dsDL) or a phone on your Wi-Fi can send links to this console at http://3ds.local/. The console asks before it downloads anything.");
+        case OPTION_SERVERS_AWAKE:
+            return settings->serversAwake ? _("On: while the FTP or web server is on, the console does not go to sleep. Closing the lid turns the screens off and the servers go on working. The battery runs down as if the console were open.")
+                                          : _("Off: closing the lid puts the console to sleep, and the FTP and web servers stop until it is opened again. Off by default.");
         case OPTION_CHECK_UPDATES: return _("Look for a newer release in your channel now.");
         case OPTION_CHANGELOG: return _("Every release up to yours, betas and stables, newest first.");
         case OPTION_GUIDE: return _("How NSA works, in short chapters. When an update adds something, NSA offers only the new chapters.");
@@ -612,9 +773,22 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
     if(option == OPTION_MUSIC) {
         bgmusic_status music;
         bgmusic_get_status(&music);
-        char status[96] = "";
+        char status[96 + BGMUSIC_SONG_NAME_MAX] = "";
         if(settings->music == BGMUSIC_OFF) {
             return;
+        } else if(settings->music == BGMUSIC_SONGS) {
+            if(music.noSongs) {
+                snprintf(status, sizeof(status), "%s", settings->musicSong[0] != '\0' ? _("That song is not in /nsa/music/ any more, or it cannot be played.")
+                                                                                     : _("No songs it can play in /nsa/music/."));
+                screen_draw_text_wrap(status, x, y - 2, WIDGET_SMALL_SCALE, t->palette->warning, x + width);
+                return;
+            }
+
+            if(music.song[0] != '\0') {
+                char title[BGMUSIC_SONG_NAME_MAX];
+                settingsmenu_song_title(music.song, title, sizeof(title));
+                snprintf(status, sizeof(status), _("Playing: %s"), title);
+            }
         } else if(music.generating && music.playing) {
             snprintf(status, sizeof(status), _("Playing the last song; a new one is being made: %lu%%"), music.progress);
         } else if(music.generating) {
@@ -623,7 +797,7 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
             snprintf(status, sizeof(status), "%s", _("Playing"));
         }
 
-        screen_draw_text(status, x, y - 2, WIDGET_SMALL_SCALE, t->palette->textMuted);
+        widget_text_fit(status, x, y - 2, WIDGET_SMALL_SCALE, t->palette->textMuted, width);
         if(music.generating) {
             widget_progress(x, y + 14, width, 4, (float) music.progress / 100.0f);
         }
@@ -634,6 +808,10 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
 
     char line[128];
     if(option == OPTION_FTP) {
+        char address[64];
+        ftpserver_address(address, sizeof(address));
+        snprintf(line, sizeof(line), "FTP: %s", address);
+    } else if(option == OPTION_FTP_PORT) {
         char address[64];
         ftpserver_address(address, sizeof(address));
         snprintf(line, sizeof(line), "FTP: %s", address);
@@ -655,6 +833,8 @@ static void settingsmenu_draw_preview(settings_option option, float x, float y, 
         snprintf(line, sizeof(line), "%s", settings->music == BGMUSIC_OFF ? _("The background music is off.")
                                            : settings->ftpPausesMusic && ftpserver_holding_music() ? _("Now: paused for an FTP transfer")
                                                                                                    : _("Now: playing"));
+    } else if(option == OPTION_SERVERS_AWAKE) {
+        snprintf(line, sizeof(line), "%s", awake_held() ? _("Now: the console stays awake") : _("Now: the console can sleep"));
     } else if(option == OPTION_NIGHT) {
         snprintf(line, sizeof(line), "%s %s", _("Now:"), t->night ? _("night") : _("day"));
     } else if(option == OPTION_GUIDE) {
@@ -767,8 +947,14 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
     screen_set_clip(x1, y1 + PAD / 2, x2 - x1, y2 - y1 - PAD);
     for(u32 i = 0; i < OPTION_COUNT; i++) {
         float y = y1 + PAD + settingsmenu_row_top(i) - menu->scroll;
-        if(y + settingsmenu_row_height(i) < y1 || y > y2) {
+        const char* group = settingsmenu_group(i);
+        if(y + settingsmenu_row_height(i) < y1 || y - (group != NULL ? HEADER_HEIGHT : 0) > y2) {
             continue;
+        }
+
+        if(group != NULL) {
+            float textH = widget_text_height(WIDGET_SMALL_SCALE);
+            screen_draw_text(group, rowX + 6, y - HEADER_HEIGHT + (HEADER_HEIGHT - textH) / 2 - 1, WIDGET_SMALL_SCALE, theme()->palette->textMuted);
         }
 
         if(!settingsmenu_visible(i)) {
@@ -780,8 +966,8 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
 
         // Where a guided tour finds it (coach.h).
         static const char* const anchors[OPTION_COUNT] = {
-                "settings.theme", "settings.theme_edit", "settings.accent", "settings.night", "settings.language", "settings.sounds", "settings.music",
-                "settings.ftp", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.links", "settings.channel", "settings.auto_update",
+                "settings.theme", "settings.theme_edit", "settings.accent", "settings.night", "settings.backdrop", "settings.language", "settings.sounds", "settings.music",
+                "settings.ftp", "settings.ftp_port", "settings.ftp_music", "settings.web", "settings.web_pin", "settings.web_fixed_pin", "settings.links", "settings.servers_awake", "settings.channel", "settings.auto_update",
                 "settings.check_updates", "settings.changelog", "settings.guide"
         };
         coach_anchor(anchors[i], rowX, y, rowW, settingsmenu_row_height(i), i == menu->selected);
@@ -792,9 +978,10 @@ static void settingsmenu_draw_bottom(ui_view* view, void* data, float x1, float 
             if(option == OPTION_MUSIC && settings_get()->music != BGMUSIC_OFF) {
                 bgmusic_status music;
                 bgmusic_get_status(&music);
-                if(music.generating || music.playing) {
-                    // Left of the selector's value: its arrows and text take about this much.
-                    float valueBlock = widget_text_width(settingsmenu_value(option), WIDGET_SMALL_SCALE) + 2 * 12 + 4 * 2 + 8;
+                // Left of the selector's value: its arrows and text take about this much. A long value (a song's
+                // name) leaves no room beside the label: the top screen has the big one.
+                float valueBlock = widget_text_width(settingsmenu_value(option), WIDGET_SMALL_SCALE) + 2 * 12 + 4 * 2 + 8;
+                if((music.generating || music.playing) && valueBlock <= 100) {
                     settingsmenu_draw_equalizer(rowX + rowW - valueBlock - 28, y + 7, 20, 12, 5, music.generating, i == menu->selected ? theme()->onAccent : theme()->accent);
                 }
             }
@@ -830,8 +1017,9 @@ void settingsmenu_open() {
 
     data->press.index = -1;
     data->sliding = -1;
-    // Themes copied to the SD card since NSA started show up.
+    // Themes copied to the SD card since NSA started show up, and songs put in /nsa/music/.
     settings_get()->theme = theme_reload_custom(settings_get()->theme);
+    bgmusic_scan_songs();
 
     ui_view* view = ui_create();
     view->name = _("Settings");

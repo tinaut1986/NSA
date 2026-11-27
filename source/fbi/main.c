@@ -5,6 +5,7 @@
 
 #include <3ds.h>
 
+#include "../core/awake.h"
 #include "../core/clipboard.h"
 #include "../core/error.h"
 #include "../core/fs.h"
@@ -215,6 +216,8 @@ static void net_sleep_hook(APT_HookType hook, void* param) {
     switch(hook) {
         case APTHOOK_ONSLEEP:
         case APTHOOK_ONSUSPEND:
+            // Screens dark for a closed lid (core/awake.h): lit again, or HOME shows a black screen.
+            awake_backlight_restore();
             if(!net_sleep_paused && !udslink_active()) {
                 sleeplog("pausing servers");
                 ftpserver_pause();
@@ -385,6 +388,10 @@ int main(int argc, const char* argv[]) {
         action_install_url_tick();
         dlqueue_tick();
         bgmusic_hold(settings_get()->ftpPausesMusic && ftpserver_holding_music());
+        // Settings -> "Servers with the lid closed": no sleep mode while a server is on (or waits for the Wi-Fi).
+        awake_hold(AWAKE_SERVERS, settings_get()->serversAwake && !udslink_active()
+                                  && (ftpserver_running() || ftpserver_waiting() || webserver_running() || webserver_waiting()));
+        awake_update();
 
         // A new NSA is in place (updater or SITE INSTALL): exit so libctru relaunches it.
         if(relaunch_poll()) {
@@ -398,6 +405,8 @@ int main(int argc, const char* argv[]) {
     }
 
     sleeplog("main loop left: aptMainLoop=%d ui_update=%d", aptAlive ? 1 : 0, uiAlive ? 1 : 0);
+    awake_hold(AWAKE_SERVERS, false);
+    awake_backlight_restore();
 
     // The Store's threads read its data in a loop: stopped before anything they use goes away.
     store_exit();

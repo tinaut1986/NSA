@@ -525,7 +525,7 @@ static void systeminfo_load_network() {
 
     // The address is the IP above: only the port.
     if(ftpserver_running()) {
-        snprintf(info_network.ftp, sizeof(info_network.ftp), _("Port %d"), FTP_SERVER_PORT);
+        snprintf(info_network.ftp, sizeof(info_network.ftp), _("Port %d"), ftpserver_port());
     } else {
         snprintf(info_network.ftp, sizeof(info_network.ftp), "%s", _("Off"));
     }
@@ -924,7 +924,7 @@ json_t* systeminfo_json() {
     json_object_set_new(root, "network", json_pack("{s:b,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:s,s:i,s:i}", "connected", info_network.connected, "ssid", info_network.ssid,
                                                     "signal", info_network.signal, "mac", info_network.mac, "ip", info_network.ip,
                                                     "netmask", info_network.netmask, "gateway", info_network.gateway, "dns", info_network.dns,
-                                                    "lease", info_network.lease, "ftp", ftpserver_running() ? FTP_SERVER_PORT : 0,
+                                                    "lease", info_network.lease, "ftp", ftpserver_running() ? ftpserver_port() : 0,
                                                     "web", webserver_running() ? WEB_SERVER_PORT : 0));
 
     json_t* media = json_array();

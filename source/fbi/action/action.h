@@ -210,6 +210,8 @@ void action_install_url_queued_stop(void* run, bool pause);
 void action_install_url_queued_open(void* run);
 bool action_install_url_queued_on_screen(void* run);
 void action_install_url_queued_progress(void* run, u64* done, u64* total, char* name, size_t size);
+// Inside a queue run's done callback: how many of its files went to /nsa/received/ because they could not be installed.
+u32 action_install_url_queued_saved_instead();
 // A Store script's download in the download queue: saved to `paths` in the background, quiet; finishedAll runs at the end
 // (the queue polls it with action_install_url_queued_poll). NULL when it could not start.
 void* action_download_urls_to_queued(const char* urls, const char* paths, void* userData, void (*finishedURL)(void* data, u32 index),

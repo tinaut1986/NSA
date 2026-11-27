@@ -421,7 +421,7 @@ static void task_data_op_thread(void* arg) {
 
     data->finished = true;
 
-    aptSetSleepAllowed(true);
+    awake_hold(AWAKE_DATA_OP, false);
 }
 
 Result task_data_op(data_op_data* data) {
@@ -454,7 +454,7 @@ Result task_data_op(data_op_data* data) {
         }
     }
 
-    aptSetSleepAllowed(false);
+    awake_hold(AWAKE_DATA_OP, true);
 
     return res;
 }

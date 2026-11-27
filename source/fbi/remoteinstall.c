@@ -214,6 +214,7 @@ static void history_date(const history_entry* entry, char* out, size_t size) {
 typedef struct {
     int serverSocket;
     int clientSocket;
+    bool ftpPaused;   // The FTP server was on port 5000 (Settings -> FTP port): it comes back when this screen closes.
 } remoteinstall_network_data;
 
 // These run on the UI thread, where the keys are not read again: a client that connects and sends nothing (FileZilla
@@ -284,6 +285,10 @@ static void remoteinstall_network_free_data(remoteinstall_network_data* data) {
     if(data->serverSocket != 0) {
         close(data->serverSocket);
         data->serverSocket = 0;
+    }
+
+    if(data->ftpPaused) {
+        ftpserver_resume_later();
     }
 
     free(data);
@@ -387,7 +392,11 @@ static void remoteinstall_network_draw_top(ui_view* view, void* data, float x1, 
     screen_draw_text(port, textX + ipW, textY, scale, t->accent);
 
     if(ftpserver_running()) {
-        widget_text_centered(_("The FTP server keeps running on port 5021."), cardX, cardX + cardW, cardY + cardH - 12 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, t->palette->textMuted);
+        char ftpLine[96];
+        snprintf(ftpLine, sizeof(ftpLine), _("The FTP server keeps running on port %u."), (unsigned) ftpserver_port());
+        widget_text_centered(ftpLine, cardX, cardX + cardW, cardY + cardH - 12 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, t->palette->textMuted);
+    } else if(data != NULL && ((remoteinstall_network_data*) data)->ftpPaused) {
+        widget_text_centered(_("The FTP server (port 5000) is paused until you leave."), cardX, cardX + cardW, cardY + cardH - 12 - widget_text_height(WIDGET_SMALL_SCALE), WIDGET_SMALL_SCALE, t->palette->textMuted);
     }
 
     float howY = cardY + cardH + 10;
@@ -416,6 +425,15 @@ static void remoteinstall_receive_urls_network() {
     }
 
     data->serverSocket = sock;
+
+    // FBI's tools send only to 5000: an FTP server there (Settings -> FTP port) makes way while this screen is open.
+    if(ftpserver_port() == 5000 && (ftpserver_running() || ftpserver_waiting())) {
+        ftpserver_pause();
+        data->ftpPaused = true;
+    }
+
+    int yes = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
     struct sockaddr_in server;
     server.sin_family = AF_INET;

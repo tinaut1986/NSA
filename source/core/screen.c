@@ -15,12 +15,19 @@
 #include "hanfont.h"
 
 #include "default_shbin.h"
+#include "particles_shbin.h"
 
 static bool c3d_initialized;
 
 static bool shader_initialized;
 static DVLB_s* dvlb;
 static shaderProgram_s program;
+// The particles' program (particles.v.pica, screen_batch_*); without it they are drawn one by one.
+static DVLB_s* particles_dvlb;
+static shaderProgram_s particles_program;
+static bool particles_ready = false;
+static C3D_Mtx current_projection;   // The one in use: a batch sets it again for its own program.
+static u32 frame_counter = 0;
 
 static C3D_RenderTarget* target_top;
 static C3D_RenderTarget* target_top_right;
@@ -169,6 +176,14 @@ void screen_init() {
 
     C3D_BindProgram(&program);
 
+    particles_dvlb = DVLB_ParseFile((u32*) particles_shbin, particles_shbin_len);
+    if(particles_dvlb != NULL && R_SUCCEEDED(shaderProgramInit(&particles_program))) {
+        particles_ready = R_SUCCEEDED(shaderProgramSetVsh(&particles_program, &particles_dvlb->DVLE[0]));
+        if(!particles_ready) {
+            shaderProgramFree(&particles_program);
+        }
+    }
+
     C3D_AttrInfo* attrInfo = C3D_GetAttrInfo();
     if(attrInfo == NULL) {
         error_panic("Failed to retrieve attribute info.");
@@ -229,6 +244,16 @@ void screen_exit() {
     if(shader_initialized) {
         shaderProgramFree(&program);
         shader_initialized = false;
+    }
+
+    if(particles_ready) {
+        shaderProgramFree(&particles_program);
+        particles_ready = false;
+    }
+
+    if(particles_dvlb != NULL) {
+        DVLB_Free(particles_dvlb);
+        particles_dvlb = NULL;
     }
 
     if(dvlb != NULL) {
@@ -474,6 +499,7 @@ void screen_get_texture_size(u32* width, u32* height, u32 id) {
 }
 
 void screen_begin_frame() {
+    frame_counter++;
     if(!C3D_FrameBegin(C3D_FRAME_SYNCDRAW)) {
         error_panic("Failed to begin frame.");
         return;
@@ -514,7 +540,8 @@ void screen_select_eye(gfxScreen_t screen, gfx3dSide_t side, float shift) {
         return;
     }
 
-    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), screen == GFX_TOP ? &projection_top : &projection_bottom);
+    current_projection = screen == GFX_TOP ? projection_top : projection_bottom;
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), &current_projection);
 }
 
 static void screen_draw_quad(float x1, float y1, float x2, float y2, float left, float bottom, float right, float top);
@@ -582,9 +609,8 @@ bool screen_cache_begin(gfxScreen_t screen, gfx3dSide_t side, float shift) {
     }
 
     // The picture's top row first, as screen_render_offscreen draws.
-    C3D_Mtx projection;
-    Mtx_Ortho(&projection, 0.0f, (float) CACHE_WIDTH, (float) CACHE_HEIGHT, 0.0f, 1.0f, -1.0f, true);
-    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), &projection);
+    Mtx_Ortho(&current_projection, 0.0f, (float) CACHE_WIDTH, (float) CACHE_HEIGHT, 0.0f, 1.0f, -1.0f, true);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), &current_projection);
 
     // Colours premultiplied by their alpha, and the alpha added up: drawn over the background later, the picture then
     // looks as if it had been drawn straight on it.
@@ -1641,4 +1667,145 @@ bool screen_capture_rgb565(gfxScreen_t screen, u16* out, u32* width, u32* height
     }
 
     return true;
+}
+
+// ---- many circles in one draw call (the animated background's particles) ----
+
+// Each shape drawn the usual way costs the CPU a round of GPU state (its colour, its texture) and an immediate quad: a
+// frame of trails is hundreds of them (the forest on an Old 2DS: ~15 points of core 0). Here they go into one vertex
+// buffer, each vertex with its own colour (particles.v.pica), and one draw call draws them all.
+typedef struct {
+    float x;
+    float y;
+    float z;
+    float u;
+    float v;
+    u32 color;   // 0xAABBGGRR: R, G, B, A in memory, as the shader reads them.
+} batch_vertex;
+
+#define BATCH_QUADS 4096
+static batch_vertex* batch_vertices = NULL;   // Linear memory: the GPU reads it when the frame is drawn.
+static u32 batch_used = 0;                    // Vertices filled in this frame (both eyes).
+static u32 batch_start = 0;                   // The first one of the batch being gathered.
+static u32 batch_frame = 0;
+static bool batch_open = false;
+
+void screen_batch_begin() {
+    if(!particles_ready) {
+        return;
+    }
+
+    if(batch_vertices == NULL) {
+        batch_vertices = (batch_vertex*) linearAlloc(BATCH_QUADS * 6 * sizeof(batch_vertex));
+        if(batch_vertices == NULL) {
+            return;
+        }
+    }
+
+    // A new frame writes from the start again: C3D_FRAME_SYNCDRAW waited for the last one to be drawn.
+    if(batch_frame != frame_counter) {
+        batch_frame = frame_counter;
+        batch_used = 0;
+    }
+
+    batch_start = batch_used;
+    batch_open = true;
+}
+
+static void screen_batch_vertex(batch_vertex* v, float x, float y, float u, float t, u32 color) {
+    v->x = x;
+    v->y = y;
+    v->z = 0.5f;
+    v->u = u;
+    v->v = t;
+    v->color = color;
+}
+
+static void screen_batch_quad(float x1, float y1, float x2, float y2, float u1, float v1, float u2, float v2, u32 color) {
+    if(batch_used + 6 > BATCH_QUADS * 6) {
+        return;
+    }
+
+    // As screen_draw_quad: the offset and, in 3D, this eye's shift for the depth, in whole pixels.
+    float dx = offset_x + roundf(depth * stereo_shift);
+    x1 += dx;
+    x2 += dx;
+    y1 += offset_y;
+    y2 += offset_y;
+
+    batch_vertex* v = &batch_vertices[batch_used];
+    screen_batch_vertex(&v[0], x1, y1, u1, v2, color);
+    screen_batch_vertex(&v[1], x2, y1, u2, v2, color);
+    screen_batch_vertex(&v[2], x1, y2, u1, v1, color);
+    screen_batch_vertex(&v[3], x2, y1, u2, v2, color);
+    screen_batch_vertex(&v[4], x2, y2, u2, v1, color);
+    screen_batch_vertex(&v[5], x1, y2, u1, v1, color);
+    batch_used += 6;
+}
+
+void screen_batch_circle(float cx, float cy, float radius, u32 color) {
+    if(!batch_open) {
+        screen_fill_circle(cx, cy, radius, color);
+        return;
+    }
+
+    screen_batch_quad(cx - radius, cy - radius, cx + radius, cy + radius, 0, 0, 1, 1, color);
+}
+
+void screen_batch_rect(float x, float y, float width, float height, u32 color) {
+    if(!batch_open) {
+        screen_fill_rect(x, y, width, height, color);
+        return;
+    }
+
+    // The circle's centre is solid: the same texture serves a rectangle.
+    screen_batch_quad(x, y, x + width, y + height, 0.5f, 0.5f, 0.5f, 0.5f, color);
+}
+
+void screen_batch_end() {
+    if(!batch_open) {
+        return;
+    }
+
+    batch_open = false;
+    u32 count = batch_used - batch_start;
+    if(count == 0) {
+        return;
+    }
+
+    GSPGPU_FlushDataCache(&batch_vertices[batch_start], count * sizeof(batch_vertex));
+
+    C3D_BindProgram(&particles_program);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(particles_program.vertexShader, "projection"), &current_projection);
+
+    C3D_AttrInfo* attrInfo = C3D_GetAttrInfo();
+    AttrInfo_Init(attrInfo);
+    AttrInfo_AddLoader(attrInfo, 0, GPU_FLOAT, 3);
+    AttrInfo_AddLoader(attrInfo, 1, GPU_FLOAT, 2);
+    AttrInfo_AddLoader(attrInfo, 2, GPU_UNSIGNED_BYTE, 4);
+    C3D_BufInfo* bufInfo = C3D_GetBufInfo();
+    BufInfo_Init(bufInfo);
+    BufInfo_Add(bufInfo, batch_vertices, sizeof(batch_vertex), 3, 0x210);
+
+    // The vertex's colour, and its alpha times the circle's.
+    C3D_TexEnv* env = C3D_GetTexEnv(0);
+    C3D_TexEnvInit(env);
+    C3D_TexEnvSrc(env, C3D_RGB, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+    C3D_TexEnvFunc(env, C3D_RGB, GPU_REPLACE);
+    C3D_TexEnvSrc(env, C3D_Alpha, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+    C3D_TexEnvFunc(env, C3D_Alpha, GPU_MODULATE);
+    C3D_TexBind(0, &textures[shape_circle].tex);
+
+    C3D_CullFace(GPU_CULL_NONE);
+    C3D_DrawArrays(GPU_TRIANGLES, (int) batch_start, (int) count);
+    C3D_CullFace(GPU_CULL_BACK_CCW);
+
+    // Back to the immediate quads' program and inputs.
+    C3D_BindProgram(&program);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), &current_projection);
+    AttrInfo_Init(attrInfo);
+    AttrInfo_AddLoader(attrInfo, 0, GPU_FLOAT, 3);
+    AttrInfo_AddLoader(attrInfo, 1, GPU_FLOAT, 2);
+    BufInfo_Init(bufInfo);
+    screen_set_blend(0, false, false);
 }

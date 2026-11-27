@@ -183,9 +183,13 @@ What `release` holds, in the order it was built:
   between two only where a gap would show. Core 0 at the main menu, New 3DS XL, idle: off 6%, Starry sky 11%, Bubbles
   13%, Energy 14%, Threads 18%, Forest 19% (35% with 40 points and a dot between each two). The owner asked for the
   longer tails and steam instead of round vents and of a waving surface. DEBUG `SITE BACKDROP <n>` picks one (not
-  saved). Seen in day and night colours (screenshots) on the New 3DS XL. Not tried: an Old 3DS / 2DS (its CPU at 20
-  frames a second, next to the music and downloads), the 3D depth seen on the console (only one eye can be captured),
-  the Pixel and HOME themes, the pause during a transfer, the guide's bubbles over a cached frame.
+  saved). Seen in day and night colours (screenshots) on the New 3DS XL. Old 2DS (music on, 20 frames a second): off
+  19%, the styles 22-38% (Forest the most). Then (`feat/backdrop-batch`): the particles go into one vertex buffer
+  with a colour per vertex (`particles.v.pica`, `screen_batch_*`) and one draw call per eye instead of a quad, a
+  colour and a texture per circle, which is what cost the CPU (the GPU was idle). Core 0 at the main menu: Old 2DS
+  off 19%, every style 20-21% (Forest 33-35% before); New 3DS XL off 6%, every style 7-9%. All seven seen on the 2DS
+  (screenshots), the same as before. Not tried: the 3D depth seen on the console (only one eye can be captured), the
+  Pixel and HOME themes, the pause during a transfer, the guide's bubbles over a cached frame.
 - [ ] Setting the clock no longer looks like a time change to games (2026-11-26, `fix/ntp-rtc`; issue #59). The
   console shows RTC + the user time offset (cfg 0x30001, in ns; 0x30002 is another copy, read through the system
   service: cfg:u gives 0). NSA set the time with PTMSYSM_SetUserTime (+ PTMSETS_SetSystemTime), as System Settings and

@@ -35,6 +35,12 @@ void screen_select_eye(gfxScreen_t screen, gfx3dSide_t side, float shift);
 // of a screen and writes it to `rgba` (R G B A bytes, top row first). Between frames only (a view's update); `width`
 // and `height` powers of two from 8 to 1024.
 bool screen_render_offscreen(u32 width, u32 height, void (*draw)(void* data), void* data, u8* rgba);
+// What a screen shows drawn into a picture of its own (core/ui/ui.c, with an animated background): begin, draw as on
+// the screen (transparent where nothing is drawn), end; then each frame screen_cache_draw puts it on the screen.
+bool screen_cache_begin(gfxScreen_t screen, gfx3dSide_t side, float shift);
+void screen_cache_end();
+bool screen_cache_ready(gfxScreen_t screen, gfx3dSide_t side);
+void screen_cache_draw(gfxScreen_t screen, gfx3dSide_t side);
 // The eye the top screen is being drawn for (GFX_LEFT too in 2D and on the bottom screen).
 gfx3dSide_t screen_get_eye();
 void screen_set_depth(float value);

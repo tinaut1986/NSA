@@ -127,6 +127,10 @@ static bool backdrop_paused() {
     return status.busy;
 }
 
+bool backdrop_enabled() {
+    return backdrop_style_now != BACKDROP_OFF;
+}
+
 bool backdrop_active() {
     return backdrop_style_now != BACKDROP_OFF && !backdrop_paused();
 }

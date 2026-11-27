@@ -213,7 +213,10 @@ void screen_init() {
     screen_init_shapes();
 }
 
+static void screen_cache_free();
+
 void screen_exit() {
+    screen_cache_free();
     for(u32 id = 0; id < MAX_TEXTURES; id++) {
         screen_unload_texture(id);
     }
@@ -512,6 +515,114 @@ void screen_select_eye(gfxScreen_t screen, gfx3dSide_t side, float shift) {
     }
 
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), screen == GFX_TOP ? &projection_top : &projection_bottom);
+}
+
+static void screen_draw_quad(float x1, float y1, float x2, float y2, float left, float bottom, float right, float top);
+
+// ---- what a screen shows, kept as a picture (an animated background redraws only itself) ----
+
+// With an animated background the top screen changes every frame, but what is drawn over it (cards, text, the bars)
+// rarely does, and drawing it is what costs: every glyph, icon and corner is a quad the CPU sends. So it is drawn into a
+// texture when it changes (transparent where the background shows), and each frame only the background, the particles
+// and that one texture are drawn. One for each eye of the top screen (each has its own 3D shift) and one for the bottom.
+#define CACHE_WIDTH 512
+#define CACHE_HEIGHT 256
+#define CACHE_SLOTS 3
+
+static C3D_Tex cache_tex[CACHE_SLOTS];
+static C3D_RenderTarget* cache_target[CACHE_SLOTS];
+static bool cache_drawing = false;   // Drawing into a cache: its projection and scissor are not the screens'.
+
+static u32 screen_cache_slot(gfxScreen_t screen, gfx3dSide_t side) {
+    return screen == GFX_BOTTOM ? 2 : side == GFX_RIGHT ? 1 : 0;
+}
+
+static void screen_cache_free() {
+    for(u32 i = 0; i < CACHE_SLOTS; i++) {
+        if(cache_target[i] != NULL) {
+            C3D_RenderTargetDelete(cache_target[i]);
+            cache_target[i] = NULL;
+            C3D_TexDelete(&cache_tex[i]);
+        }
+    }
+}
+
+bool screen_cache_begin(gfxScreen_t screen, gfx3dSide_t side, float shift) {
+    u32 slot = screen_cache_slot(screen, side);
+    if(cache_target[slot] == NULL) {
+        if(!C3D_TexInitVRAM(&cache_tex[slot], CACHE_WIDTH, CACHE_HEIGHT, GPU_RGBA8)) {
+            return false;
+        }
+
+        C3D_TexSetFilter(&cache_tex[slot], GPU_NEAREST, GPU_NEAREST);
+        cache_target[slot] = C3D_RenderTargetCreateFromTex(&cache_tex[slot], GPU_TEXFACE_2D, 0, -1);
+        if(cache_target[slot] == NULL) {
+            C3D_TexDelete(&cache_tex[slot]);
+            return false;
+        }
+    }
+
+    current_eye = screen == GFX_TOP ? side : GFX_LEFT;
+    current_width = screen == GFX_TOP ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
+    stereo_shift = screen == GFX_TOP ? shift : 0;
+    depth = 0;
+    offset_x = 0;
+    offset_y = 0;
+    content_dx = 0;
+    content_dy = 0;
+    content_alpha = 0xFF;
+    shapes_hidden = false;
+    cache_drawing = true;
+    screen_clear_clip();
+
+    C3D_RenderTargetClear(cache_target[slot], C3D_CLEAR_ALL, 0, 0);
+    if(!C3D_FrameDrawOn(cache_target[slot])) {
+        cache_drawing = false;
+        return false;
+    }
+
+    // The picture's top row first, as screen_render_offscreen draws.
+    C3D_Mtx projection;
+    Mtx_Ortho(&projection, 0.0f, (float) CACHE_WIDTH, (float) CACHE_HEIGHT, 0.0f, 1.0f, -1.0f, true);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), &projection);
+
+    // Colours premultiplied by their alpha, and the alpha added up: drawn over the background later, the picture then
+    // looks as if it had been drawn straight on it.
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+    return true;
+}
+
+void screen_cache_end() {
+    cache_drawing = false;
+    screen_clear_clip();
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
+}
+
+bool screen_cache_ready(gfxScreen_t screen, gfx3dSide_t side) {
+    return cache_target[screen_cache_slot(screen, side)] != NULL;
+}
+
+void screen_cache_draw(gfxScreen_t screen, gfx3dSide_t side) {
+    u32 slot = screen_cache_slot(screen, side);
+    if(cache_target[slot] == NULL) {
+        return;
+    }
+
+    float width = screen == GFX_TOP ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
+    float savedDepth = depth;
+    float savedX = offset_x;
+    float savedY = offset_y;
+    depth = 0;
+    offset_x = 0;
+    offset_y = 0;
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+    screen_set_blend(0, false, false);
+    C3D_TexBind(0, &cache_tex[slot]);
+    screen_draw_quad(0, 0, width, 240, 0, 1.0f - 240.0f / CACHE_HEIGHT, width / CACHE_WIDTH, 1.0f);
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
+    depth = savedDepth;
+    offset_x = savedX;
+    offset_y = savedY;
 }
 
 bool screen_render_offscreen(u32 width, u32 height, void (*draw)(void* data), void* data, u8* rgba) {
@@ -1210,6 +1321,12 @@ static void screen_apply_clip(float x, float y, float width, float height) {
     if(right <= left || bottom <= top) {
         right = left + 1;
         bottom = top + 1;
+    }
+
+    // A cache's texture is not rotated, but its scissor counts rows from its bottom.
+    if(cache_drawing) {
+        C3D_SetScissor(GPU_SCISSOR_NORMAL, left, CACHE_HEIGHT - bottom, right, CACHE_HEIGHT - top);
+        return;
     }
 
     C3D_SetScissor(GPU_SCISSOR_NORMAL, 240 - bottom, current_width - right, 240 - top, current_width - left);

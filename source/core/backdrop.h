@@ -15,6 +15,8 @@ typedef enum {
 } backdrop_style;
 
 void backdrop_set(backdrop_style style);
+// A style is chosen (moving or not).
+bool backdrop_enabled();
 // True while it moves: the UI then draws every frame.
 bool backdrop_active();
 // Once a frame, before the top screen is drawn (both eyes see the same frame).

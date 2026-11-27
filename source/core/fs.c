@@ -249,3 +249,17 @@ bool fs_filter_tickets(void* data, const char* name, u32 attributes) {
     size_t len = strlen(name);
     return (len >= 4 && strncasecmp(name + len - 4, ".tik", 4) == 0) || (len >= 5 && strncasecmp(name + len - 5, ".cetk", 5) == 0);
 }
+
+static volatile s32 fs_long_ops = 0;
+
+void fs_long_op(bool begin) {
+    if(begin) {
+        __atomic_add_fetch(&fs_long_ops, 1, __ATOMIC_SEQ_CST);
+    } else if(__atomic_sub_fetch(&fs_long_ops, 1, __ATOMIC_SEQ_CST) < 0) {
+        __atomic_store_n(&fs_long_ops, 0, __ATOMIC_SEQ_CST);
+    }
+}
+
+bool fs_long_op_running() {
+    return __atomic_load_n(&fs_long_ops, __ATOMIC_SEQ_CST) > 0;
+}

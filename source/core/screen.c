@@ -1589,12 +1589,12 @@ void screen_draw_icon(u32 icon, float x, float y, float size, u32 color) {
     screen_draw_mask_any(atlas, x, y, x + size, y + size, fx, fy, fx + cellW, fy + cellH, color);
 }
 
-bool screen_capture(gfxScreen_t screen, const char* path) {
+u8* screen_capture_bmp(gfxScreen_t screen, u32* size) {
     u16 fbWidth = 0;
     u16 fbHeight = 0;
     u8* fb = gfxGetFramebuffer(screen, GFX_LEFT, &fbWidth, &fbHeight);
     if(fb == NULL) {
-        return false;
+        return NULL;
     }
 
     // The framebuffer is portrait: fbWidth (240) is the screen's height.
@@ -1614,23 +1614,16 @@ bool screen_capture(gfxScreen_t screen, const char* path) {
     header[28] = 24;
     memcpy(&header[34], &imageSize, 4);
 
-    FILE* f = fopen(path, "wb");
-    if(f == NULL) {
-        return false;
+    u8* file = (u8*) malloc(sizeof(header) + imageSize);
+    if(file == NULL) {
+        return NULL;
     }
 
-    // The header and the image in one buffer and one write, with no stdio buffer in between: through its small
-    // default buffer the SD card took the file 1 KB at a time, ~30 KB/s (a 2DS: 9 s for the top screen's 288 KB).
-    setvbuf(f, NULL, _IONBF, 0);
-    u8* file = (u8*) malloc(sizeof(header) + imageSize);
-    bool ok = file != NULL;
-    u8* image = file != NULL ? file + sizeof(header) : NULL;
-    if(ok) {
-        memcpy(file, header, sizeof(header));
-    }
+    memcpy(file, header, sizeof(header));
+    u8* image = file + sizeof(header);
 
     // BMP rows go bottom-up; each framebuffer column is one screen column, from the bottom.
-    for(u32 r = 0; ok && r < height; r++) {
+    for(u32 r = 0; r < height; r++) {
         u8* row = &image[r * rowSize];
         for(u32 x = 0; x < width; x++) {
             u8* px = &fb[(x * fbWidth + r) * 3];
@@ -1640,10 +1633,34 @@ bool screen_capture(gfxScreen_t screen, const char* path) {
         }
     }
 
-    ok = ok && fwrite(file, 1, sizeof(header) + imageSize, f) == sizeof(header) + imageSize;
-    free(file);
+    *size = sizeof(header) + imageSize;
+    return file;
+}
+
+bool screen_write_bmp(const char* path, u8* bmp, u32 size) {
+    if(bmp == NULL) {
+        return false;
+    }
+
+    FILE* f = fopen(path, "wb");
+    if(f == NULL) {
+        free(bmp);
+        return false;
+    }
+
+    // One write with no stdio buffer in between: through its small default buffer the SD card took the file 1 KB at a
+    // time, ~30 KB/s (a 2DS: 9 s for the top screen's 288 KB).
+    setvbuf(f, NULL, _IONBF, 0);
+    bool ok = fwrite(bmp, 1, size, f) == size;
+    free(bmp);
     ok = fclose(f) == 0 && ok;
     return ok;
+}
+
+bool screen_capture(gfxScreen_t screen, const char* path) {
+    u32 size = 0;
+    u8* bmp = screen_capture_bmp(screen, &size);
+    return screen_write_bmp(path, bmp, size);
 }
 
 bool screen_capture_rgb565(gfxScreen_t screen, u16* out, u32* width, u32* height) {

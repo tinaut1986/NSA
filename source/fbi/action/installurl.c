@@ -414,13 +414,16 @@ static Result action_install_url_resume_from(void* data, u32 index, u64* from, u
 static Result action_install_url_reserve(install_url_data* installData, Handle handle, u64 size) {
     bool big = size >= 64ULL * 1024 * 1024;
     if(big) {
+        fs_long_op(true);
         installData->reserving = true;
         ui_wake();
+        svcSleepThread(100 * 1000000LL);   // A frame or two to show it before the card stops answering.
     }
 
     Result res = FSFILE_SetSize(handle, size);
     if(big) {
         installData->reserving = false;
+        fs_long_op(false);
         ui_wake();
     }
 
@@ -638,6 +641,10 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
 
 // Says (or stops saying) on the screen that what came is being deleted: from the download's thread, the screen draws on.
 static void action_install_url_deleting(install_url_data* installData, bool deleting) {
+    if(installData->deleting != deleting) {
+        fs_long_op(deleting);
+    }
+
     installData->deleting = deleting;
     ui_wake();
 }

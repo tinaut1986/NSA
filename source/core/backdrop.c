@@ -14,8 +14,9 @@
 #define BACKDROP_NEAR -1.0f
 #define BACKDROP_FAR -6.0f
 #define BACKDROP_PI 3.14159265f
-// Where a moving light has been, for its tail: one point every backdrop_trail_step() seconds (forest, threads).
-#define BACKDROP_TRAIL 24
+// Where a moving light has been, for its tail: one point every backdrop_trail_step() seconds, at most
+// backdrop_trail_max() of them (forest, threads).
+#define BACKDROP_TRAIL 40
 
 typedef struct {
     float x;
@@ -46,9 +47,6 @@ static u64 backdrop_last = 0;
 static float backdrop_width = TOP_SCREEN_WIDTH;
 static float backdrop_height = TOP_SCREEN_HEIGHT;
 
-// Energy: the places on the ground it leaks from.
-#define BACKDROP_VENTS 4
-static float backdrop_vents[BACKDROP_VENTS];
 
 static float backdrop_random() {
     u32 x = backdrop_seed;
@@ -67,20 +65,33 @@ static u32 backdrop_count_of(backdrop_style style) {
         case BACKDROP_FIREFLIES: return 22;
         case BACKDROP_FOREST: return 10;
         case BACKDROP_THREADS: return 11;
-        case BACKDROP_ENERGY: return BACKDROP_MAX;
+        case BACKDROP_ENERGY: return 40;
         default: return 0;
     }
 }
 
 static float backdrop_trail_step() {
-    return backdrop_style_now == BACKDROP_THREADS ? 0.08f : 0.05f;
+    return backdrop_style_now == BACKDROP_THREADS ? 0.08f : 0.06f;
+}
+
+static u8 backdrop_trail_max() {
+    return backdrop_style_now == BACKDROP_THREADS ? 24 : BACKDROP_TRAIL;
+}
+
+// Energy: the glowing surface along the bottom, its height at x in pixels: several waves of their own lengths and speeds
+// added up, so it swells and sinks all along without repeating soon.
+static float backdrop_energy_height(float x) {
+    float t = backdrop_time;
+    float h = 20.0f + 9.0f * sinf(x * 0.021f + t * 0.9f) + 6.0f * sinf(x * 0.047f - t * 1.6f) + 4.0f * sinf(x * 0.093f + t * 2.7f)
+              + 2.0f * sinf(x * 0.19f - t * 3.9f);
+    return h < 3.0f ? 3.0f : h;
 }
 
 static void backdrop_trail_push(backdrop_particle* p) {
     p->trailHead = (u8) ((p->trailHead + 1) % BACKDROP_TRAIL);
     p->trailX[p->trailHead] = p->x;
     p->trailY[p->trailHead] = p->y;
-    if(p->trailCount < BACKDROP_TRAIL) {
+    if(p->trailCount < backdrop_trail_max()) {
         p->trailCount++;
     }
 }
@@ -151,15 +162,23 @@ static void backdrop_spawn(backdrop_particle* p, bool anywhere) {
             p->age = anywhere ? -backdrop_random() * 4.0f : -backdrop_random() * 2.5f;
             break;
         case BACKDROP_ENERGY: {
-            // From one of the vents, in a column that opens and comes apart as it rises.
-            float vent = backdrop_vents[(u32) (backdrop_random() * BACKDROP_VENTS) % BACKDROP_VENTS];
-            p->size = (0.9f + 0.9f * backdrop_random()) * (0.7f + 0.3f * near);
-            p->speed = (24.0f + 24.0f * backdrop_random()) * (0.6f + 0.4f * near);
-            p->base = vent + (backdrop_random() - 0.5f) * 20.0f;
+            // A ball of energy where the surface swells most: the highest of a few places tried.
+            float best = 0;
+            for(u32 k = 0; k < 4; k++) {
+                float x = backdrop_random() * backdrop_width;
+                float h = backdrop_energy_height(x);
+                if(h > best) {
+                    best = h;
+                    p->base = x;
+                }
+            }
+
+            p->size = (1.2f + 1.0f * backdrop_random()) * (0.7f + 0.3f * near);
+            p->speed = (18.0f + 18.0f * backdrop_random()) * (0.6f + 0.4f * near);
             p->x = p->base;
-            p->y = backdrop_height + 2 + backdrop_random() * 6;
-            p->vx = (backdrop_random() - 0.5f) * 8.0f;
-            p->life = 2.5f + 3.0f * backdrop_random();
+            p->y = backdrop_height - best;
+            p->vx = (backdrop_random() - 0.5f) * 6.0f;
+            p->life = 2.0f + 2.0f * backdrop_random();
             p->age = anywhere ? -backdrop_random() * p->life : 0;
             break;
         }
@@ -181,10 +200,6 @@ void backdrop_set(backdrop_style style) {
     backdrop_seed = (u32) osGetTime() ^ 0x9E3779B9u;
     if(backdrop_seed == 0) {
         backdrop_seed = 1;
-    }
-
-    for(u32 i = 0; i < BACKDROP_VENTS; i++) {
-        backdrop_vents[i] = backdrop_width * (0.12f + 0.76f * ((float) i + backdrop_random() * 0.8f) / BACKDROP_VENTS);
     }
 
     backdrop_count = backdrop_count_of(style);
@@ -342,12 +357,12 @@ void backdrop_update() {
                     break;
                 }
 
-                // A turbulent rise: pushed one way and the other by where it is and when, slowing as it spreads.
+                // Up and a little sideways, one way and the other, slowing as it fades.
                 float t = p->age / p->life;
-                p->vx += 22.0f * sinf(p->y / 18.0f + backdrop_time * 2.3f + p->phase) * dt;
+                p->vx += 10.0f * sinf(p->y / 16.0f + backdrop_time * 2.3f + p->phase) * dt;
                 p->vx *= 1.0f - 0.8f * dt;
                 p->x += p->vx * dt;
-                p->y -= p->speed * (1.0f - 0.45f * t) * dt;
+                p->y -= p->speed * (1.0f - 0.5f * t) * dt;
                 break;
             }
             default:
@@ -398,11 +413,23 @@ static void backdrop_draw_forest(backdrop_particle* p, bool night) {
     float fade = backdrop_fade(p->age, p->life, 0.8f, 1.8f) * (0.6f + 0.4f * near);
     float flicker = 0.8f + 0.2f * sinf(backdrop_time * 6.0f + p->phase);
 
-    // The tail: from the oldest point, small and faint, to the head.
+    // The tail: from the oldest point, small and faint, to the head, with a dot between each two so it stays a line.
+    float prevX = 0;
+    float prevY = 0;
     for(u32 k = 0; k < p->trailCount; k++) {
         u32 index = (p->trailHead + BACKDROP_TRAIL - (p->trailCount - 1 - k)) % BACKDROP_TRAIL;
         float along = (float) (k + 1) / (float) p->trailCount;
-        screen_fill_circle(p->trailX[index], p->trailY[index], p->size * (0.35f + 0.55f * along), backdrop_color(glow, fade * 0.45f * along * along));
+        float x = p->trailX[index];
+        float y = p->trailY[index];
+        float radius = p->size * (0.3f + 0.6f * along);
+        u32 c = backdrop_color(glow, fade * 0.5f * along * sqrtf(along));
+        if(k > 0) {
+            screen_fill_circle((x + prevX) / 2, (y + prevY) / 2, radius, c);
+        }
+
+        screen_fill_circle(x, y, radius, c);
+        prevX = x;
+        prevY = y;
     }
 
     screen_fill_circle(p->x, p->y, p->size * 4.0f, backdrop_color(glow, fade * 0.12f * flicker));
@@ -447,14 +474,23 @@ static void backdrop_draw_thread(backdrop_particle* p, bool night) {
     screen_fill_circle(p->x, p->y, p->size * 1.2f, backdrop_color(color, fade * 0.9f));
 }
 
+// Columns of this width, three quads each: 80 across the screen (core 0 ~30% with 3 px and four quads).
+#define BACKDROP_ENERGY_COLUMN 5.0f
+
 static void backdrop_draw_energy_ground(bool night) {
-    // The ground glows where it leaks, breathing.
+    // The whole bottom glows, in a surface that swells and sinks (backdrop_energy_height): brighter where it is higher,
+    // denser towards the ground, with a bright crest.
     u32 glow = night ? BACKDROP_RGB(60, 220, 120) : BACKDROP_RGB(30, 150, 80);
-    for(u32 i = 0; i < BACKDROP_VENTS; i++) {
-        float breath = 0.6f + 0.4f * sinf(backdrop_time * 0.9f + (float) i * 1.7f);
-        screen_set_depth(-2.0f - (float) i * 0.8f);
-        screen_fill_circle(backdrop_vents[i], backdrop_height + 10, 46.0f, backdrop_color(glow, 0.10f * breath));
-        screen_fill_circle(backdrop_vents[i], backdrop_height + 6, 24.0f, backdrop_color(glow, 0.16f * breath));
+    u32 crest = night ? BACKDROP_RGB(190, 255, 215) : BACKDROP_RGB(30, 160, 80);
+    screen_set_depth(-2.0f);
+    for(float x = 0; x < backdrop_width; x += BACKDROP_ENERGY_COLUMN) {
+        float h = backdrop_energy_height(x + BACKDROP_ENERGY_COLUMN / 2);
+        float strength = 0.5f + 0.5f * (h / 41.0f);
+        float top = backdrop_height - h;
+        // The surface and a denser glow towards the ground.
+        screen_fill_rect(x, top, BACKDROP_ENERGY_COLUMN, h, backdrop_color(glow, 0.10f * strength));
+        screen_fill_rect(x, backdrop_height - h * 0.55f, BACKDROP_ENERGY_COLUMN, h * 0.55f, backdrop_color(glow, 0.12f * strength));
+        screen_fill_rect(x, top - 1, BACKDROP_ENERGY_COLUMN, 2, backdrop_color(crest, 0.35f * strength));
     }
 }
 
@@ -465,16 +501,14 @@ static void backdrop_draw_energy(backdrop_particle* p, bool night) {
 
     float near = 1.0f - p->far;
     float t = p->age / p->life;
-    // Bright at the vent, greener and wider as it goes up, gone by the end.
-    u32 bright = night ? BACKDROP_RGB(200, 255, 220) : BACKDROP_RGB(40, 170, 90);
+    // A ball with a glow: bright as it leaves the surface, greener and smaller as it fades.
+    u32 bright = night ? BACKDROP_RGB(210, 255, 225) : BACKDROP_RGB(40, 170, 90);
     u32 green = night ? BACKDROP_RGB(90, 240, 150) : BACKDROP_RGB(30, 140, 70);
-    float fade = backdrop_fade(p->age, p->life, 0.4f, p->life * 0.6f) * (0.55f + 0.45f * near);
-    // A short streak along its way up, so the columns read as flowing; a faint glow around it.
-    float size = p->size * (1.0f + 1.4f * t);
-    u32 c = t < 0.35f ? bright : green;
-    screen_fill_circle(p->x, p->y, size * 1.8f, backdrop_color(green, fade * 0.06f));
-    screen_fill_circle(p->x - p->vx * 0.05f, p->y + size * 1.6f, size * 0.8f, backdrop_color(c, fade * (0.35f - 0.15f * t)));
-    screen_fill_circle(p->x, p->y, size, backdrop_color(c, fade * (0.65f - 0.3f * t)));
+    float fade = backdrop_fade(p->age, p->life, 0.3f, p->life * 0.6f) * (0.6f + 0.4f * near);
+    float size = p->size * (1.0f - 0.35f * t);
+    screen_fill_circle(p->x, p->y, size * 3.0f, backdrop_color(green, fade * 0.14f));
+    screen_fill_circle(p->x, p->y, size * 1.5f, backdrop_color(green, fade * 0.22f));
+    screen_fill_circle(p->x, p->y, size, backdrop_color(t < 0.4f ? bright : green, fade * 0.85f));
 }
 
 void backdrop_draw(float width, float height) {

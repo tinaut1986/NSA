@@ -175,9 +175,11 @@ What `release` holds, in the order it was built:
   screen and the bottom, 512x256 RGBA8 in VRAM, premultiplied alpha; their scissor counts rows from the bottom) only
   when something changes (ui_should_draw 2), and the frames where only the background moves (1) draw the background,
   the particles and those textures: core 0 26% -> 4% with Starry sky. Three more styles in colours of their own (light
-  at night, deeper by day): Enchanted forest (golden and green lights with a tail that rise, loop and fade), Threads of
-  light (threads that grow from the ground up, swaying, fainter as they rise) and Energy (a green glow from vents at the
-  bottom and turbulent columns of short streaks), 12% each with the cache. DEBUG `SITE BACKDROP <n>` picks one (not
+  at night, deeper by day): Enchanted forest (golden and green lights with a long tail, 40 points, that rise, loop and
+  fade), Threads of light (threads that grow from the ground up, swaying, fainter as they rise) and Energy (the whole
+  bottom glows in a surface that swells and sinks, several waves added up, and balls of energy rise where it is highest;
+  columns of 5 px, three quads each: 17%, 30% with 3 px and four), 12% the other two, with the cache. The owner asked
+  for the longer tails and the surface instead of three round vents. DEBUG `SITE BACKDROP <n>` picks one (not
   saved). Seen at night only (screenshots) on the New 3DS XL. Not tried: an Old 3DS / 2DS (its CPU at 20 frames a
   second, next to the music and downloads), the 3D depth seen on the console (only one eye can be captured), day colours
   of the last three, the Pixel and HOME themes, the pause during a transfer, the guide's bubbles over a cached frame.

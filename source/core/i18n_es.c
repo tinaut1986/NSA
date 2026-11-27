@@ -1167,6 +1167,8 @@ const i18n_entry i18n_es[] = {
         {"No songs it can play in /nsa/music/.", "No hay canciones que se puedan reproducir en /nsa/music/."},
         {"Playing: %s", "Sonando: %s"},
         {"Deleting what was downloaded from the SD card. Don't turn the console off until it ends.", "Borrando de la tarjeta SD lo descargado. No apagues la consola hasta que termine."},
+        {"Making room for the file on the SD card. Don't turn the console off until it ends.", "Reservando espacio en la tarjeta SD para el archivo. No apagues la consola hasta que termine."},
+        {"Making room", "Reservando"},
         {"Don't turn the console off until it ends.", "No apagues la consola hasta que termine."},
         {"Installed: %lu", "Instalados: %lu"},
         {"Not installable, saved in %s: %lu", "No instalables, guardados en %s: %lu"},

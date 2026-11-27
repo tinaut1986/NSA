@@ -228,6 +228,10 @@ What `release` holds, in the order it was built:
   "Save" cancelled -> row and card seen while it deleted, gone after; Files -> Delete of a 2 GB .part -> the line seen;
   "Install" of a non-installable 2 GB file cancelled -> deleted in ~6 s, "Operation cancelled" (the web page cannot
   show the screen during a transfer, so that card was not seen). Not tried: a big CIA cancelled (AM's own delete).
+  Then (`fix/prealloc-warning`, issue #62): the same card while a download's file is made its whole size at the start
+  (FSFILE_SetSize of a "Save" .part or a .3dsx written in place, from 64 MB; 2 GB ~9.5 s on the New 3DS XL, and it
+  changes the FAT too): "Making room for the file on the SD card. Don't turn the console off until it ends.", the row
+  saying "Making room". New 3DS XL (Claude): a 2 GB "Save" -> row and card seen while reserving, gone once it downloads.
 - [ ] Install from URL by type (2026-11-26, `fix/url-choices-by-type`). The question comes before any byte, so its choices
   go by each URL's name (an option shows only if it suits every URL): .cia/.tik all; .3dsx/.smdh Install, Save, queue;
   .zip/.7z all in a remote install, else Save and queue; any other extension (.mp3, .bin...) Save and queue; no extension,
